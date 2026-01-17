@@ -162,7 +162,10 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
         return name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
     };
 
-    const vacanciesList = stages.find(s => s.isSystem)?.candidates.filter(c => c.type === 'VACANCY').map(c => ({
+    // Robust way to find the Vacancy Stage (R&S)
+    const vacancyStage = stages.find(s => s.isSystem) || stages.find(s => s.candidates.some(c => c.type === 'VACANCY'));
+
+    const vacanciesList = vacancyStage?.candidates.filter(c => c.type === 'VACANCY').map(c => ({
         id: c.realId || c.id.replace('VAC-', ''),
         title: c.vacancy.title
     })) || [];

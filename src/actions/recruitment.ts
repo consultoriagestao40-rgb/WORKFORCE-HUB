@@ -99,6 +99,14 @@ export async function getRecruitmentBoardData() {
         });
     }
 
+    // Ensure 'Posto' stage exists (migrated logic)
+    const postoStageExists = await prisma.recruitmentStage.findFirst({ where: { name: "Posto" } });
+    if (!postoStageExists) {
+        await prisma.recruitmentStage.create({
+            data: { name: "Posto", order: 6, slaDays: 0 }
+        });
+    }
+
     // 1. Fetch Open Vacancies for the "R&S" column
     const openVacancies = await prisma.vacancy.findMany({
         where: { status: 'OPEN' },

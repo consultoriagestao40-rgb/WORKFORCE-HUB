@@ -120,7 +120,6 @@ export function CandidateModal({ open, onOpenChange, vacancies, preSelectedVacan
                         <Select
                             value={formData.vacancyId}
                             onValueChange={(val) => setFormData({ ...formData, vacancyId: val })}
-                            disabled={!!preSelectedVacancyId}
                         >
                             <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Selecione a vaga..." />
