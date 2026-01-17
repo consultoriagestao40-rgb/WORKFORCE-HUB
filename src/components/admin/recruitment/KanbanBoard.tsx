@@ -4,6 +4,7 @@ import { moveCandidate, updateStageSLA } from "@/actions/recruitment";
 import { addBusinessDays } from "@/lib/business-days";
 import { toast } from "sonner";
 import { Plus, Briefcase, User as UserIcon, Settings, Clock, AlertCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -176,6 +177,40 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
     })) || [];
 
 
+    const router = useRouter();
+
+    const handleWithdrawSuccess = (candidateId: string) => {
+        setStages(prev => {
+            const newStages = [...prev];
+            // 1. Find and remove candidate
+            let movedCandidate: Candidate | undefined;
+
+            for (const stage of newStages) {
+                const idx = stage.candidates.findIndex(c => c.id === candidateId);
+                if (idx !== -1) {
+                    [movedCandidate] = stage.candidates.splice(idx, 1);
+                    break;
+                }
+            }
+
+            if (movedCandidate) {
+                // 2. Find "Seleção" stage (first non-system)
+                // Assuming sorted by order, first non-system is the target
+                const targetStage = newStages.find(s => !s.isSystem); // Usually "Seleção"
+
+                if (targetStage) {
+                    // Update metadata optimistic
+                    movedCandidate.stageDueDate = undefined; // Will be recalc by server, but visually clear it or set generic
+                    targetStage.candidates.unshift(movedCandidate);
+                }
+            }
+            return newStages;
+        });
+
+        // Sync fully with server
+        router.refresh();
+    };
+
     return (
         <div className="h-full overflow-x-auto">
             <DragDropContext onDragEnd={onDragEnd} onDragStart={() => setIsDragging(true)}>
@@ -333,6 +368,7 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                 open={isDetailsOpen}
                 onOpenChange={setIsDetailsOpen}
                 candidate={selectedCandidate}
+                onWithdrawSuccess={handleWithdrawSuccess}
             />
 
             <CandidateModal

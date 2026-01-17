@@ -17,9 +17,10 @@ interface CandidateDetailsModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     candidate: any; // We'll type this better in integration
+    onWithdrawSuccess?: (candidateId: string) => void;
 }
 
-export function CandidateDetailsModal({ open, onOpenChange, candidate }: CandidateDetailsModalProps) {
+export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdrawSuccess }: CandidateDetailsModalProps) {
     if (!candidate) return null;
 
     return (
@@ -133,6 +134,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate }: Candida
                             try {
                                 await withdrawCandidate(candidate.id);
                                 toast.success("Candidato movido para etapa inicial e registrado desistência.");
+                                if (onWithdrawSuccess) onWithdrawSuccess(candidate.id);
                                 onOpenChange(false);
                             } catch (e) {
                                 toast.error("Erro ao registrar desistência");
