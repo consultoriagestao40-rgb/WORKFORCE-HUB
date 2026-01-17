@@ -320,7 +320,7 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                 <div className={`p-3 font-semibold flex justify-between items-center border-b ${isRnsStage ? 'text-indigo-700 border-indigo-200' : 'text-slate-700 border-slate-200'} `}>
                                     <div className="flex items-center gap-2">
                                         <span>{stage.name}</span>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full ${isRnsStage ? 'bg-indigo-200 text-indigo-800' : 'bg-slate-200 text-slate-600'} `}>
+                                        <span className={`text-xs px-2 py-0.5 rounded-full ${isRnsStage ? 'bg-indigo-200 text-indigo-800' : 'bg-slate-200 text-slate-600'}`}>
                                             {stage.candidates.length}
                                         </span>
                                         {stage.approverId && (
@@ -344,7 +344,7 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                         <div
                                             {...provided.droppableProps}
                                             ref={provided.innerRef}
-                                            className={`flex - 1 p - 2 overflow - y - auto space - y - 2 transition - colors ${snapshot.isDraggingOver ? 'bg-slate-200/50' : ''} `}
+                                            className={`flex-1 p-2 overflow-y-auto space-y-2 transition-colors ${snapshot.isDraggingOver ? 'bg-slate-200/50' : ''}`}
                                         >
                                             {stage.candidates.map((candidate, index) => {
                                                 // MOD: Standardize SLA calculation based on CreatedAt (Birth Date) for ALL stages
