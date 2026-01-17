@@ -9,6 +9,9 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Building2, Briefcase, MapPin, Mail, Phone, Calendar, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { withdrawCandidate } from "@/actions/recruitment";
+import { toast } from "sonner";
 
 interface CandidateDetailsModalProps {
     open: boolean;
@@ -122,6 +125,24 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate }: Candida
                     </div>
                 </div>
 
+                <div className="flex justify-end pt-4 border-t mt-4 gap-2">
+                    <Button
+                        variant="destructive"
+                        onClick={async () => {
+                            if (!confirm("Confirmar desistência? O candidato voltará para a etapa inicial.")) return;
+                            try {
+                                await withdrawCandidate(candidate.id);
+                                toast.success("Candidato movido para etapa inicial e registrado desistência.");
+                                onOpenChange(false);
+                            } catch (e) {
+                                toast.error("Erro ao registrar desistência");
+                            }
+                        }}
+                    >
+                        Candidato Desistiu
+                    </Button>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+                </div>
             </DialogContent>
         </Dialog>
     );
