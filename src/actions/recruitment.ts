@@ -137,16 +137,47 @@ export async function getRecruitmentBoardData() {
         if (postoStage) await prisma.recruitmentStage.update({ where: { id: postoStage.id }, data: { order: 5 } });
     }
 
+    // --- MIGRATION: Unify Oferta + Contratado -> Admissão ---
+    // 1. Rename 'Oferta' to 'Admissão'
+    const ofertaStage = await prisma.recruitmentStage.findFirst({ where: { name: "Oferta" } });
+    if (ofertaStage) {
+        await prisma.recruitmentStage.update({
+            where: { id: ofertaStage.id },
+            data: { name: "Admissão", order: 3 }
+        });
+    }
+
+    // 2. Move 'Contratado' candidates to 'Admissão' and delete 'Contratado'
+    const contratadoStage = await prisma.recruitmentStage.findFirst({ where: { name: "Contratado" } });
+    if (contratadoStage) {
+        // Find Admissão (target) - logic handles if it was just renamed from Oferta or already exists
+        const admissaoStage = await prisma.recruitmentStage.findFirst({ where: { name: "Admissão" } });
+        if (admissaoStage) {
+            await prisma.recruitmentCandidate.updateMany({
+                where: { stageId: contratadoStage.id },
+                data: { stageId: admissaoStage.id }
+            });
+            // Delete Contratado Stage
+            await prisma.recruitmentStage.delete({ where: { id: contratadoStage.id } });
+        }
+    }
+
+    // 3. Reorder Posto to follows Admissão
+    // Seleção (1) -> Ent. Técnica (2) -> Admissão (3) -> Posto (4)
+    const postoStageMigrate = await prisma.recruitmentStage.findFirst({ where: { name: "Posto" } });
+    if (postoStageMigrate && postoStageMigrate.order !== 4) {
+        await prisma.recruitmentStage.update({ where: { id: postoStageMigrate.id }, data: { order: 4 } });
+    }
+
     // Ensure Default Stages (Corrected Set) exist if completely empty
     const stagesCount = await prisma.recruitmentStage.count();
     if (stagesCount === 0) {
         await prisma.recruitmentStage.createMany({
             data: [
-                { name: "Seleção", order: 1, slaDays: 3 }, // Unified SLA (2+3 avg?)
+                { name: "Seleção", order: 1, slaDays: 3 },
                 { name: "Entrevista Técnica", order: 2, slaDays: 5 },
-                { name: "Oferta", order: 3, slaDays: 2 },
-                { name: "Contratado", order: 4, slaDays: 0 },
-                { name: "Posto", order: 5, slaDays: 0 },
+                { name: "Admissão", order: 3, slaDays: 2 }, // Unified
+                { name: "Posto", order: 4, slaDays: 0 },
             ]
         });
     }
