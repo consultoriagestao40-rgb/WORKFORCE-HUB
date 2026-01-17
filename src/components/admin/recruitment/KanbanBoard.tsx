@@ -334,13 +334,13 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                                                         {/* Vacancy Opening Date */}
                                                                         <div className="flex items-center gap-1" title="Data de Abertura da Vaga">
                                                                             <Briefcase className="w-3 h-3 text-slate-300" />
-                                                                            <span>Abertura: {candidate.vacancy.createdAt ? new Date(candidate.vacancy.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A'}</span>
+                                                                            <span>Abertura: {candidate.vacancy.createdAt ? new Date(candidate.vacancy.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A'}</span>
                                                                         </div>
                                                                         {/* Candidate Registration Date */}
                                                                         {candidate.type !== 'VACANCY' && (
                                                                             <div className="flex items-center gap-1" title="Data de Inscrição do Candidato">
                                                                                 <UserIcon className="w-3 h-3 text-slate-300" />
-                                                                                <span>Inscrição: {new Date(candidate.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                                                                                <span>Inscrição: {new Date(candidate.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                                                                             </div>
                                                                         )}
                                                                     </div>
