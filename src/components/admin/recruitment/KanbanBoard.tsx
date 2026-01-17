@@ -292,7 +292,14 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                                     <Draggable key={candidate.id} draggableId={candidate.id} index={index}>
                                                         {(provided, snapshot) => (
                                                             <div
-                                                            // ... (lines 288-349 unchanged - keeping content)
+                                                                ref={provided.innerRef}
+                                                                {...provided.draggableProps}
+                                                                {...provided.dragHandleProps}
+                                                                onClick={() => handleCardClick(candidate)}
+                                                                className={`p-3 rounded-xl shadow-sm border hover:shadow-md transition-shadow group cursor-pointer 
+                                                                    ${candidate.type === 'VACANCY' ? 'bg-white border-indigo-100' : 'bg-white border-slate-200'}
+                                                                    ${snapshot.isDragging ? 'rotate-2 shadow-lg ring-2 ring-indigo-500/20' : ''}
+                                                                `}
                                                             >
                                                                 {/* Header: Title and Priority */}
                                                                 <div className="flex justify-between items-start mb-2">
