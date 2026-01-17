@@ -397,6 +397,20 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
 
                                                                 {/* Footer: Client, Due Date, Recruiter */}
                                                                 <div className="flex flex-col gap-2 pt-2 border-t border-slate-50">
+                                                                    {/* Dates Row (Restored) */}
+                                                                    <div className="flex flex-col gap-1 text-[10px] text-slate-400">
+                                                                        <div className="flex items-center gap-1" title="Data de Abertura da Vaga">
+                                                                            <Briefcase className="w-3 h-3 text-slate-300" />
+                                                                            <span>Abertura: {candidate.vacancy.createdAt ? new Date(candidate.vacancy.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A'}</span>
+                                                                        </div>
+                                                                        {candidate.type !== 'VACANCY' && (
+                                                                            <div className="flex items-center gap-1" title="Data de Inscrição do Candidato">
+                                                                                <UserIcon className="w-3 h-3 text-slate-300" />
+                                                                                <span>Inscrição: {new Date(candidate.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+
                                                                     <div className="flex justify-between items-center text-[11px] text-slate-400">
                                                                         <span className="truncate max-w-[120px]" title={candidate.vacancy.posto?.client?.name}>
                                                                             {candidate.vacancy.posto?.client?.name || candidate.vacancy.company?.name || "N/A"}

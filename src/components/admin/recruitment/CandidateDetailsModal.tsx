@@ -290,7 +290,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                         disabled={!nextStage}
                                     >
                                         <CheckCircle2 className="w-4 h-4 mr-2" />
-                                        Aprovar (Ir para {nextStage?.name})
+                                        Aprovar
                                     </Button>
                                 </>
                             )}
