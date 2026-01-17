@@ -19,9 +19,10 @@ interface CandidateModalProps {
     onOpenChange: (open: boolean) => void;
     vacancies: { id: string, title: string }[];
     preSelectedVacancyId?: string;
+    onCreateSuccess?: () => void;
 }
 
-export function CandidateModal({ open, onOpenChange, vacancies, preSelectedVacancyId }: CandidateModalProps) {
+export function CandidateModal({ open, onOpenChange, vacancies, preSelectedVacancyId, onCreateSuccess }: CandidateModalProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [formData, setFormData] = useState({
         name: "",
