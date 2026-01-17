@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { OccurrencesList } from "@/components/admin/OccurrencesList";
 import { getCurrentUserRole } from "@/lib/auth";
 
-export const dynamic = "force-dynamic";
+
 
 export default async function OccurrencesPage() {
     const occurrences = await prisma.occurrence.findMany({

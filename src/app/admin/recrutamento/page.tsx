@@ -3,7 +3,7 @@ import { RecruitmentClientPage } from "@/components/admin/recruitment/Recruitmen
 import { getRecruitmentBoardData, getVacancies, getBacklogItems } from "@/actions/recruitment";
 import { prisma } from "@/lib/db";
 
-export const dynamic = 'force-dynamic';
+
 
 export default async function RecruitmentPage() {
     const [stages, vacancies, roles, postos, companies, backlogs, users] = await Promise.all([

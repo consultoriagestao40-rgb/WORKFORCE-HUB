@@ -8,7 +8,7 @@ import { format } from "date-fns";
 import { Inbox, CheckCircle2, Clock, Trash2, UserCheck, MessageSquare } from "lucide-react";
 import { ResolveRequestDialog } from "@/components/admin/ResolveRequestDialog";
 
-export const dynamic = 'force-dynamic';
+
 
 export default async function AdminRequestsPage() {
     const requests: any = await getAdminRequests();
