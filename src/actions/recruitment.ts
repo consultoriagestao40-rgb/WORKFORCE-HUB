@@ -274,8 +274,9 @@ export async function createCandidate(data: {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
-    // Get first stage (Triagem)
+    // Get first stage (Triagem) - Exclude System stages like R&S (order 0)
     const firstStage = await prisma.recruitmentStage.findFirst({
+        where: { isSystem: false },
         orderBy: { order: 'asc' }
     });
 
