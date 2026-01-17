@@ -20,6 +20,7 @@ interface Candidate {
     email?: string;
     phone?: string;
     createdAt: Date;
+    updatedAt?: Date; // NEW
     stageDueDate?: Date; // NEW
     vacancy: {
         title: string;
@@ -351,10 +352,17 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                                                                 );
                                                                             })()
                                                                         ) : (
-                                                                            dueStatus && (
-                                                                                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 gap-1 ${dueStatus.color} font-medium`}>
-                                                                                    {dueStatus.text}
+                                                                            stage.name === 'Posto' ? (
+                                                                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 gap-1 bg-purple-100 text-purple-700 border-purple-200 font-medium" title="Tempo de Ciclo (Dias desde a criação)">
+                                                                                    <Clock className="w-3 h-3" />
+                                                                                    {Math.max(1, Math.floor((new Date(candidate.updatedAt || new Date()).getTime() - new Date(candidate.createdAt).getTime()) / (1000 * 60 * 60 * 24)))} dias
                                                                                 </Badge>
+                                                                            ) : (
+                                                                                dueStatus && (
+                                                                                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 gap-1 ${dueStatus.color} font-medium`}>
+                                                                                        {dueStatus.text}
+                                                                                    </Badge>
+                                                                                )
                                                                             )
                                                                         )}
                                                                     </div>
