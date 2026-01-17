@@ -1,0 +1,122 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus } from "lucide-react";
+import { createPosto } from "@/app/actions";
+
+interface NewPostoSheetProps {
+    clientId: string;
+    schedules: { id: string; name: string }[];
+}
+
+export function NewPostoSheet({ clientId, schedules }: NewPostoSheetProps) {
+    const [open, setOpen] = useState(false);
+
+    async function handleSubmit(formData: FormData) {
+        await createPosto(formData);
+        setOpen(false);
+    }
+
+    return (
+        <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+                <Button><Plus className="w-4 h-4 mr-2" /> Novo Posto</Button>
+            </SheetTrigger>
+            <SheetContent>
+                <SheetHeader>
+                    <SheetTitle>Novo Posto</SheetTitle>
+                    <SheetDescription>Adicione uma vaga contratada para este site.</SheetDescription>
+                </SheetHeader>
+                <form action={handleSubmit} className="space-y-4 mt-6">
+                    <input type="hidden" name="clientId" value={clientId} />
+
+                    <div className="space-y-2">
+                        <Label htmlFor="role">Cargo / Função</Label>
+                        <Input id="role" name="role" placeholder="Ex: Porteiro Diurno" required />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="schedule">Escala</Label>
+                        <Select name="schedule" required>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Selecione a Escala" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {schedules.map(sch => (
+                                    <SelectItem key={sch.id} value={sch.name}>{sch.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="startTime">Início</Label>
+                            <Input id="startTime" name="startTime" type="time" required />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="endTime">Fim</Label>
+                            <Input id="endTime" name="endTime" type="time" required />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="requiredWorkload">Carga Exigida (h)</Label>
+                            <Input id="requiredWorkload" name="requiredWorkload" type="number" defaultValue="220" required />
+                        </div>
+                        <div className="space-y-2" title="Valor que o cliente paga à empresa por este posto">
+                            <Label htmlFor="billingValue">Faturamento (R$)</Label>
+                            <Input id="billingValue" name="billingValue" type="number" step="0.01" placeholder="0.00" required />
+                        </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-200">
+                        <h3 className="text-sm font-bold text-slate-700 mb-4 uppercase tracking-wider">Quadro do Contrato (Custos Previstos)</h3>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2 col-span-2 text-xs text-slate-500 bg-blue-50 p-2 rounded">
+                                Estes valores compõem o quadro orçado para este posto e servirão de base para o cálculo de rentabilidade.
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="baseSalary">Salário Base (R$)</Label>
+                                <Input id="baseSalary" name="baseSalary" type="number" step="0.01" defaultValue="0" required />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="insalubridade">Insalubridade (R$)</Label>
+                                <Input id="insalubridade" name="insalubridade" type="number" step="0.01" defaultValue="0" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="periculosidade">Periculosidade (R$)</Label>
+                                <Input id="periculosidade" name="periculosidade" type="number" step="0.01" defaultValue="0" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="gratificacao">Gratificação CCT (R$)</Label>
+                                <Input id="gratificacao" name="gratificacao" type="number" step="0.01" defaultValue="0" />
+                            </div>
+                            <div className="space-y-2 col-span-2">
+                                <Label htmlFor="outrosAdicionais">Outros Adicionais (R$)</Label>
+                                <Input id="outrosAdicionais" name="outrosAdicionais" type="number" step="0.01" defaultValue="0" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 pt-2 pb-6">
+                        <input type="checkbox" id="isNightShift" name="isNightShift" value="true" className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" />
+                        <Label htmlFor="isNightShift" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            Posto com Adicional Noturno?
+                        </Label>
+                    </div>
+
+                    <Button type="submit" className="w-full">Salvar Posto</Button>
+                </form>
+            </SheetContent>
+        </Sheet>
+    );
+}

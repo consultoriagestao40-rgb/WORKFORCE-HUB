@@ -1,0 +1,154 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Edit } from "lucide-react";
+import { updatePosto } from "@/app/actions";
+
+interface EditPostoSheetProps {
+    posto: {
+        id: string;
+        roleId: string;
+        schedule: string;
+        startTime: string;
+        endTime: string;
+        billingValue: number;
+        requiredWorkload: number;
+        isNightShift: boolean;
+        baseSalary: number;
+        insalubridade: number;
+        periculosidade: number;
+        gratificacao: number;
+        outrosAdicionais: number;
+    };
+    schedules: { id: string; name: string }[];
+    roles: { id: string; name: string }[];
+}
+
+export function EditPostoSheet({ posto, schedules, roles }: EditPostoSheetProps) {
+    const [open, setOpen] = useState(false);
+
+    async function handleSubmit(formData: FormData) {
+        await updatePosto(formData);
+        setOpen(false);
+    }
+
+    return (
+        <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+                <Button variant="ghost" size="sm">
+                    <Edit className="w-3 h-3 text-slate-400 hover:text-slate-600" />
+                </Button>
+            </SheetTrigger>
+            <SheetContent className="px-8">
+                <SheetHeader>
+                    <SheetTitle>Editar Posto</SheetTitle>
+                    <SheetDescription>Atualize os dados desta vaga.</SheetDescription>
+                </SheetHeader>
+                <form action={handleSubmit} className="space-y-4 mt-6 h-[80vh] overflow-y-auto pr-4">
+                    <input type="hidden" name="id" value={posto.id} />
+
+                    <div className="space-y-2">
+                        <Label htmlFor="roleId">Cargo / Função</Label>
+                        <Select name="roleId" defaultValue={posto.roleId}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Selecione o Cargo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {roles?.map(r => (
+                                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="schedule">Escala</Label>
+                        <Select name="schedule" defaultValue={posto.schedule}>
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {schedules.map(sch => (
+                                    <SelectItem key={sch.id} value={sch.name}>{sch.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="startTime">Início</Label>
+                            <Input id="startTime" name="startTime" type="time" defaultValue={posto.startTime} required />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="endTime">Fim</Label>
+                            <Input id="endTime" name="endTime" type="time" defaultValue={posto.endTime} required />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="requiredWorkload">Carga Exigida (h)</Label>
+                            <Input id="requiredWorkload" name="requiredWorkload" type="number" defaultValue={posto.requiredWorkload} required />
+                        </div>
+                        <div className="space-y-2" title="Valor que o cliente paga à empresa por este posto">
+                            <Label htmlFor="billingValue">Faturamento (R$)</Label>
+                            <Input id="billingValue" name="billingValue" type="number" step="0.01" defaultValue={posto.billingValue} required />
+                        </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-200">
+                        <h3 className="text-sm font-bold text-slate-700 mb-4 uppercase tracking-wider">Quadro do Contrato (Custos Previstos)</h3>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="baseSalary">Salário Base (R$)</Label>
+                                <Input id="baseSalary" name="baseSalary" type="number" step="0.01" defaultValue={posto.baseSalary} required />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="insalubridade">Insalubridade (R$)</Label>
+                                <Input id="insalubridade" name="insalubridade" type="number" step="0.01" defaultValue={posto.insalubridade} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="periculosidade">Periculosidade (R$)</Label>
+                                <Input id="periculosidade" name="periculosidade" type="number" step="0.01" defaultValue={posto.periculosidade} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="gratificacao">Gratificação CCT (R$)</Label>
+                                <Input id="gratificacao" name="gratificacao" type="number" step="0.01" defaultValue={posto.gratificacao} />
+                            </div>
+                            <div className="space-y-2 col-span-2 text-xs text-slate-500 bg-blue-50 p-2 rounded">
+                                Estes valores compõem o quadro orçado para este posto.
+                            </div>
+                            <div className="space-y-2 col-span-2">
+                                <Label htmlFor="outrosAdicionais">Outros Adicionais (R$)</Label>
+                                <Input id="outrosAdicionais" name="outrosAdicionais" type="number" step="0.01" defaultValue={posto.outrosAdicionais} />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 pt-2 pb-6">
+                        <input
+                            type="checkbox"
+                            id={`nightShift-${posto.id}`}
+                            name="isNightShift"
+                            value="true"
+                            defaultChecked={posto.isNightShift}
+                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <Label htmlFor={`nightShift-${posto.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            Posto com Adicional Noturno?
+                        </Label>
+                    </div>
+
+                    <Button type="submit" className="w-full">Salvar Alterações</Button>
+                </form>
+            </SheetContent>
+        </Sheet>
+    );
+}

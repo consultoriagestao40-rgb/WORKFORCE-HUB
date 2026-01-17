@@ -1,0 +1,46 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
+import { Plus } from "lucide-react";
+import { createSituation } from "@/app/actions";
+
+export function NewSituationSheet() {
+    const [open, setOpen] = useState(false);
+
+    async function handleSubmit(formData: FormData) {
+        await createSituation(formData);
+        setOpen(false);
+    }
+
+    return (
+        <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                    <Plus className="w-4 h-4 mr-2" /> Nova Situação
+                </Button>
+            </SheetTrigger>
+            <SheetContent>
+                <SheetHeader>
+                    <SheetTitle>Nova Situação</SheetTitle>
+                    <SheetDescription>Defina um novo status para os colaboradores.</SheetDescription>
+                </SheetHeader>
+                <form action={handleSubmit} className="space-y-4 mt-6">
+                    <div className="space-y-2">
+                        <Label htmlFor="name">Nome da Situação</Label>
+                        <Input id="name" name="name" placeholder="Ex: Licença Maternidade" required />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="color">Cor de Identificação</Label>
+                        <Input id="color" name="color" type="color" defaultValue="#94a3b8" className="h-10 p-1" />
+                        <p className="text-[10px] text-slate-500 italic">Esta cor será usada nos crachás e dashboards.</p>
+                    </div>
+                    <Button type="submit" className="w-full">Cadastrar</Button>
+                </form>
+            </SheetContent>
+        </Sheet>
+    );
+}

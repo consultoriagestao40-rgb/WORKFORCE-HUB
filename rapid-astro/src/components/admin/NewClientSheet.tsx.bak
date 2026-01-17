@@ -1,0 +1,61 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
+import { Plus } from "lucide-react";
+import { createClient } from "@/app/actions";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+interface NewClientSheetProps {
+    companies: { id: string; name: string }[];
+}
+
+export function NewClientSheet({ companies }: NewClientSheetProps) {
+    const [open, setOpen] = useState(false);
+
+    async function handleSubmit(formData: FormData) {
+        await createClient(formData);
+        setOpen(false);
+    }
+
+    return (
+        <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+                <Button><Plus className="w-4 h-4 mr-2" /> Novo Cliente</Button>
+            </SheetTrigger>
+            <SheetContent>
+                <SheetHeader>
+                    <SheetTitle>Novo Cliente</SheetTitle>
+                    <SheetDescription>Cadastre um novo contrato/site.</SheetDescription>
+                </SheetHeader>
+                <form action={handleSubmit} className="space-y-4 mt-6">
+                    <div className="space-y-2">
+                        <Label>Empresa Mantenedora (Contratada)</Label>
+                        <Select name="companyId" required>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Selecione a Empresa..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {companies.map(c => (
+                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="name">Nome do Site/Condomínio (Cliente)</Label>
+                        <Input id="name" name="name" placeholder="Ex: Condomínio Jardins" required />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="address">Endereço</Label>
+                        <Input id="address" name="address" placeholder="Rua..." required />
+                    </div>
+                    <Button type="submit" className="w-full">Salvar</Button>
+                </form>
+            </SheetContent>
+        </Sheet>
+    );
+}

@@ -1,0 +1,455 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SystemRole {
+  ADMIN
+  COORD_RH
+  ASSIST_RH
+  SUPERVISOR
+}
+
+model User {
+  id        String     @id @default(uuid())
+  name      String
+  username  String     @unique
+  email     String?    @unique
+  isActive  Boolean    @default(true)
+  password  String
+  role      SystemRole @default(SUPERVISOR)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  requests  Request[]
+  resolvedRequests Request[] @relation("RequestResolver")
+  logs      Log[]
+  recruitmentTimelineEntries RecruitmentTimeline[]
+  vacancies Vacancy[]
+}
+
+// ... existing models ...
+
+model Log {
+  id        String   @id @default(uuid())
+  action    String
+  details   String
+  timestamp DateTime @default(now())
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id])
+
+  @@index([timestamp])
+  @@index([employeeId])
+  @@index([userId])
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  cnpj      String?  @unique
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  clients   Client[]
+  employees Employee[]
+  vacancies Vacancy[]
+}
+
+model Client {
+  id              String   @id @default(uuid())
+  companyId       String?  // Made optional for migration, should be mandatory in UI
+  company         Company? @relation(fields: [companyId], references: [id])
+  
+  name            String
+  address         String
+  paymentTermDays Int      @default(30)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  postos          Posto[]
+
+  @@index([companyId])
+}
+
+model Schedule {
+  id          String   @id @default(uuid())
+  name        String   @unique // 12x36
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Posto {
+  id           String   @id @default(uuid())
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id])
+  
+  roleId       String   // Cargo
+  role         Role     @relation(fields: [roleId], references: [id])
+  startTime    String   // Horário Início (e.g. "08:00")
+  endTime      String   // Horário Fim (e.g. "18:00")
+  schedule     String   // Escala (5x2, 6x1, 12x36)
+  billingValue Float    // Valor Faturamento
+  
+  // New fields for validation
+  requiredWorkload Int      @default(220) // Carga Horária Exigida (ex: 220, 180)
+  isNightShift     Boolean  @default(false)
+
+  // Budget/Quota fields (Quadro do Contrato)
+  baseSalary           Float   @default(0)
+  insalubridade        Float   @default(0)
+  periculosidade       Float   @default(0)
+  gratificacao         Float   @default(0)
+  outrosAdicionais     Float   @default(0)
+
+  assignments  Assignment[]
+  coverages    Coverage[]
+  occurrences  Occurrence[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  vacancies    Vacancy[]
+  
+
+
+  @@index([clientId])
+}
+
+model Situation {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  color     String   @default("#94a3b8") // Hex color for UI
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employees Employee[]
+}
+
+model Role {
+  id          String      @id @default(uuid())
+  name        String      @unique
+  description String?
+  employees   Employee[]
+  postos      Posto[]
+  vacancies   Vacancy[]
+
+
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Employee {
+  id              String   @id @default(uuid())
+  name            String
+  cpf             String   @unique
+  // Role/Cargo
+  roleId          String
+  role            Role       @relation(fields: [roleId], references: [id])
+
+  // Company Link
+  companyId       String?
+  company         Company?   @relation(fields: [companyId], references: [id])
+  
+  // Dynamic Situation
+  situationId     String?
+  situation       Situation? @relation(fields: [situationId], references: [id])
+  
+  status          String   // Legacy field, will keep for now but migrate to situationId
+  type            String   // CLT, Reserva Técnica
+  
+  // Personal Details
+  birthDate       DateTime?
+  gender          String?   // "Masculino", "Feminino", "Outro"
+  address         String?
+  phone           String?
+  email           String?
+  
+  // Vacation & Admission
+  admissionDate   DateTime @default(now())
+  lastVacationStart DateTime?
+  lastVacationEnd   DateTime?
+  totalVacationDaysTaken Int @default(0)
+  
+  // Enhanced Payroll Fields
+  salary          Float    @default(0) // Now considered Base Salary
+  insalubridade   Float    @default(0)
+  periculosidade  Float    @default(0)
+  gratificacao    Float    @default(0)
+  outrosAdicionais Float   @default(0)
+  workload        Int      @default(220) // Carga Horária (ex: 220, 180, 100)
+  
+  // Benefícios Mensais
+  valeAlimentacao Float    @default(0) // VA mensal
+  valeTransporte  Float    @default(0) // VT mensal
+  
+  assignments Assignment[]
+  coverages   Coverage[] @relation("CoveringEmployee")
+  customAllowances EmployeeAllowance[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Dismissal Info
+  dismissalReason String? // "Baixa Performance", "Corte de Custos", "Outros"
+  dismissalNotes  String?
+  probationStatus String? // "CONFIRMED", "DISMISSED", null (PENDING)
+
+  vacations Vacation[]
+  requests  Request[]
+  occurrences Occurrence[]
+  logs      Log[]
+}
+
+// ... existing models ...
+
+// [ADICIONAR NO MODELO User]
+// vacancies Vacancy[]
+
+// --- Recruitment & Selection Module (SAFE IMPLEMENTATION) ---
+
+model Vacancy {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  status      VacancyStatus @default(OPEN)
+  priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+
+  // Relacionamentos Opcionais
+  postoId     String?
+  posto       Posto?   @relation(fields: [postoId], references: [id])
+  
+  roleId      String?
+  role        Role?    @relation(fields: [roleId], references: [id])
+  
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+
+  // Recruiter Link
+  recruiterId String?
+  recruiter   User?    @relation(fields: [recruiterId], references: [id])
+
+  candidates  RecruitmentCandidate[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model RecruitmentCandidate {
+  id        String   @id @default(uuid())
+  name      String
+  email     String?
+  phone     String?
+  
+  // Link to Vacancy
+  vacancyId String
+  vacancy   Vacancy @relation(fields: [vacancyId], references: [id])
+  
+  // State
+  stageId   String
+  stage     RecruitmentStage @relation(fields: [stageId], references: [id])
+  
+  stageDueDate DateTime? // Calculated based on Stage SLA
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  timeline  RecruitmentTimeline[]
+}
+
+model RecruitmentStage {
+  id          String   @id @default(uuid())
+  name        String
+  order       Int
+  isSystem    Boolean  @default(false)
+  slaDays     Int      @default(3) // Default SLA in days
+  
+  candidates  RecruitmentCandidate[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+
+
+model RecruitmentTimeline {
+  id          String   @id @default(uuid())
+  candidateId String
+  candidate   RecruitmentCandidate @relation(fields: [candidateId], references: [id])
+  
+  action      String   // "MOVED", "COMMENT", "EMAIL"
+  details     String?
+  
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  
+  createdAt   DateTime @default(now())
+}
+
+enum VacancyStatus {
+  OPEN
+  CLOSED
+  HOLD
+}
+
+model Vacation {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  startDate   DateTime
+  endDate     DateTime
+  daysTaken   Int
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([employeeId])
+}
+
+model AllowanceType {
+  id               String              @id @default(uuid())
+  name             String              @unique
+  description      String?
+  isPercentage     Boolean             @default(false) // false = R$, true = %
+  
+  employeeAllowances EmployeeAllowance[]
+  
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+}
+
+model EmployeeAllowance {
+  id               String         @id @default(uuid())
+  employeeId       String
+  allowanceTypeId  String
+  value            Float          @default(0)
+  
+  employee         Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  allowanceType    AllowanceType  @relation(fields: [allowanceTypeId], references: [id])
+  
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  
+  @@unique([employeeId, allowanceTypeId])
+}
+
+model Assignment {
+  id         String    @id @default(uuid())
+  postoId    String
+  posto      Posto     @relation(fields: [postoId], references: [id])
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  
+  startDate  DateTime
+  endDate    DateTime?
+  
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([postoId])
+  @@index([employeeId])
+  @@index([endDate])
+}
+
+model Coverage {
+  id            String   @id @default(uuid())
+  postoId       String
+  posto         Posto    @relation(fields: [postoId], references: [id])
+  
+  type          String   // Diarista, Hora Extra, Reserva Técnica
+  date          DateTime
+  costValue     Float
+  paymentStatus String   // A Vista, Folha
+
+  coveringEmployeeId String?
+  coveringEmployee   Employee? @relation("CoveringEmployee", fields: [coveringEmployeeId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([postoId])
+  @@index([date])
+  @@index([type])
+}
+
+
+
+model Request {
+  id          String        @id @default(uuid())
+  type        RequestType
+  status      RequestStatus @default(PENDENTE)
+  
+  dueDate     DateTime
+  description String
+  
+  requesterId String
+  requester   User          @relation(fields: [requesterId], references: [id])
+  
+  employeeId  String?
+  employee    Employee?     @relation(fields: [employeeId], references: [id])
+
+  resolverId  String?
+  resolver    User?         @relation("RequestResolver", fields: [resolverId], references: [id])
+  resolutionNotes String?
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([requesterId])
+  @@index([status])
+}
+
+enum RequestType {
+  FERIAS
+  MOVIMENTACAO
+  UNIFORME
+  HORARIO
+  OUTROS
+  TERMINO_CONTRATO_EXPERIENCIA
+}
+
+enum RequestStatus {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDO
+  REJEITADO
+  CANCELADO
+}
+
+model Occurrence {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  type        String   // "Disciplinar", "Operacional", "Falha", "Elogio", "Outros"
+  date        DateTime @default(now())
+  
+  postoId     String
+  posto       Posto    @relation(fields: [postoId], references: [id])
+
+  employeeId  String?
+  employee    Employee? @relation(fields: [employeeId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([postoId])
+  @@index([employeeId])
+}
+
+
+
+
