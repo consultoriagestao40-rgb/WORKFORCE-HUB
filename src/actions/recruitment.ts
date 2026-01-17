@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { VacancyStatus } from "@prisma/client";
+import { addBusinessDays } from "@/lib/business-days";
 
 // --- Vacancies ---
 
@@ -215,9 +216,7 @@ export async function moveCandidate(candidateId: string, newStageId: string) {
     // Calculate Due Date based on SLA
     let newDueDate = null;
     if (newStage.slaDays > 0) {
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + newStage.slaDays);
-        newDueDate = dueDate;
+        newDueDate = addBusinessDays(new Date(), newStage.slaDays);
     }
 
     await prisma.$transaction([
@@ -261,9 +260,7 @@ export async function createCandidate(data: {
     // Calculate initial SLA
     let initialDueDate = null;
     if (firstStage.slaDays > 0) {
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + firstStage.slaDays);
-        initialDueDate = dueDate;
+        initialDueDate = addBusinessDays(new Date(), firstStage.slaDays);
     }
 
     await prisma.recruitmentCandidate.create({
@@ -303,10 +300,8 @@ export async function updateStageSLA(stageId: string, slaDays: number) {
             // If slaDays is 0, stored as null
             let newDueDate = null;
             if (slaDays > 0) {
-                const baseDate = candidate.updatedAt; // Assuming updatedAt reflects entry time to stage
-                const dueDate = new Date(baseDate);
-                dueDate.setDate(dueDate.getDate() + slaDays);
-                newDueDate = dueDate;
+                const baseDate = candidate.updatedAt;
+                newDueDate = addBusinessDays(baseDate, slaDays);
             }
 
             await tx.recruitmentCandidate.update({

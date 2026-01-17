@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { moveCandidate, updateStageSLA } from "@/actions/recruitment";
+import { addBusinessDays } from "@/lib/business-days";
 import { toast } from "sonner";
 import { Plus, Briefcase, User as UserIcon, Settings, Clock, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -151,8 +152,7 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
         if (slaDays <= 0) return { color: 'bg-slate-100 text-slate-500 border-slate-200', text: 'Sem prazo', icon: Clock };
 
         const created = new Date(createdAt);
-        const due = new Date(created);
-        due.setDate(due.getDate() + slaDays);
+        const due = addBusinessDays(created, slaDays);
 
         return getDueDateStatus(due);
     };
