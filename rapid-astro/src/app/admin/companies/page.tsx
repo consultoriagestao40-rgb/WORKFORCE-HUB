@@ -7,10 +7,15 @@ import { EditCompanySheet } from "@/components/admin/EditCompanySheet";
 import { Building2, MapPin, NotebookTabs } from "lucide-react";
 
 async function getCompanies() {
-    return await prisma.company.findMany({
-        include: { _count: { select: { clients: true } } },
-        orderBy: { name: 'asc' }
-    });
+    try {
+        return await prisma.company.findMany({
+            include: { _count: { select: { clients: true } } },
+            orderBy: { name: 'asc' }
+        });
+    } catch (e) {
+        console.error("Failed to fetch companies", e);
+        return [];
+    }
 }
 
 export default async function CompaniesPage() {
