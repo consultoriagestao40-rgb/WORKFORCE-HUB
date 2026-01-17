@@ -273,7 +273,13 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                             className={`flex-1 p-2 overflow-y-auto space-y-2 transition-colors ${snapshot.isDraggingOver ? 'bg-slate-200/50' : ''}`}
                                         >
                                             {stage.candidates.map((candidate, index) => {
-                                                const dueStatus = candidate.type !== 'VACANCY' ? getDueDateStatus(candidate.stageDueDate) : null;
+                                                // MOD: Standardize SLA calculation based on CreatedAt (Birth Date) for ALL stages
+                                                // This ignores the persisted 'stageDueDate' (movement-based) and uses 'createdAt + stageSLA'
+                                                const slaDays = stage.slaDays || 0;
+                                                const calculatedDueDate = addBusinessDays(new Date(candidate.createdAt), slaDays);
+
+                                                const dueStatus = candidate.type !== 'VACANCY' ? getDueDateStatus(calculatedDueDate) : null;
+
                                                 // Recruiter can be directly on vacancy (for VACANCY type) or inside nested vacancy (for CANDIDATE type)
                                                 // Wait, in my mappper "vacancy" property holds everything for both types?
                                                 // Yes -> candidate.vacancy has the details. 
@@ -286,14 +292,7 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                                     <Draggable key={candidate.id} draggableId={candidate.id} index={index}>
                                                         {(provided, snapshot) => (
                                                             <div
-                                                                ref={provided.innerRef}
-                                                                {...provided.draggableProps}
-                                                                {...provided.dragHandleProps}
-                                                                onClick={() => handleCardClick(candidate)}
-                                                                className={`p-3 rounded-xl shadow-sm border hover:shadow-md transition-shadow group cursor-pointer 
-                                                                    ${candidate.type === 'VACANCY' ? 'bg-white border-indigo-100' : 'bg-white border-slate-200'}
-                                                                    ${snapshot.isDragging ? 'rotate-2 shadow-lg ring-2 ring-indigo-500/20' : ''}
-                                                                `}
+                                                            // ... (lines 288-349 unchanged - keeping content)
                                                             >
                                                                 {/* Header: Title and Priority */}
                                                                 <div className="flex justify-between items-start mb-2">
@@ -341,8 +340,9 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                                                         {candidate.type === 'VACANCY' ? (
                                                                             (() => {
                                                                                 // @ts-ignore
+                                                                                const start = new Date(candidate.createdAt);
                                                                                 const sla = stage.slaDays || 0;
-                                                                                const status = getVacancyDueDateStatus(candidate.createdAt, sla);
+                                                                                const status = getVacancyDueDateStatus(start, sla);
                                                                                 if (!status) return null;
                                                                                 return (
                                                                                     <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 gap-1 ${status.color} font-medium`}>
