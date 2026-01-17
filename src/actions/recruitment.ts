@@ -352,43 +352,18 @@ export async function withdrawCandidate(candidateId: string) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
-    const candidate = await prisma.recruitmentCandidate.findUnique({
-        where: { id: candidateId },
-        include: { stage: true }
+    // "Candidato deve sair do card" -> Delete candidate.
+    // This effectively "returns" the process to the pure Vacancy state in R&S (Stage 01).
+
+    // Check for timeline cascade or manual delete
+    // We will delete the candidate. If timelines are not cascaded, we delete them first.
+    await prisma.recruitmentTimeline.deleteMany({
+        where: { candidateId }
     });
-    if (!candidate) throw new Error("Candidate not found");
 
-    // Find first non-system stage (Seleção)
-    const firstStage = await prisma.recruitmentStage.findFirst({
-        where: { isSystem: false },
-        orderBy: { order: 'asc' }
+    await prisma.recruitmentCandidate.delete({
+        where: { id: candidateId }
     });
-    if (!firstStage) throw new Error("Start stage not found");
-
-    // Recalculate SLA for first stage
-    let newDueDate = null;
-    if (firstStage.slaDays > 0) {
-        newDueDate = addBusinessDays(new Date(), firstStage.slaDays);
-    }
-
-    await prisma.$transaction([
-        prisma.recruitmentCandidate.update({
-            where: { id: candidateId },
-            data: {
-                stageId: firstStage.id,
-                stageDueDate: newDueDate,
-                updatedAt: new Date()
-            }
-        }),
-        prisma.recruitmentTimeline.create({
-            data: {
-                candidateId,
-                action: "WITHDRAWN",
-                details: `Candidato desistiu na etapa ${candidate.stage.name}. Retornou para ${firstStage.name}.`,
-                userId: user.id
-            }
-        })
-    ]);
 
     revalidatePath("/admin/recrutamento");
 }

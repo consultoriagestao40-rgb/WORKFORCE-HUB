@@ -194,15 +194,8 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
             }
 
             if (movedCandidate) {
-                // 2. Find "Seleção" stage (first non-system)
-                // Assuming sorted by order, first non-system is the target
-                const targetStage = newStages.find(s => !s.isSystem); // Usually "Seleção"
-
-                if (targetStage) {
-                    // Update metadata optimistic
-                    movedCandidate.stageDueDate = undefined; // Will be recalc by server, but visually clear it or set generic
-                    targetStage.candidates.unshift(movedCandidate);
-                }
+                // User requested: "Candidato deve sair do card" -> Remove completely.
+                // Do not re-add to any stage.
             }
             return newStages;
         });
