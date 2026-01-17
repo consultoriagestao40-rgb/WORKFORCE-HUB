@@ -357,9 +357,10 @@ export async function moveCandidate(candidateId: string, newStageId: string, jus
     }
 
     // Justification Check for Rejection (Moving Backwards)
+    // Only enforced if the stage has an Approver configured (Formal Approval Process)
     const isMovingBack = newStage.order < currentStage.order;
-    if (isMovingBack && !justification) {
-        throw new Error("Justificativa é obrigatória para reprovação/retorno de etapa.");
+    if (currentStage.approverId && isMovingBack && !justification) {
+        throw new Error("Justificativa é obrigatória para reprovação/retorno de etapa com aprovação.");
     }
 
     // Calculate Due Date (SLA)

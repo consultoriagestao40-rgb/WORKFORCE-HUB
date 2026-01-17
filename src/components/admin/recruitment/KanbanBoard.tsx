@@ -369,11 +369,12 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                                                 ref={provided.innerRef}
                                                                 {...provided.draggableProps}
                                                                 {...provided.dragHandleProps}
-                                                                onClick={() => handleCardClick(candidate)}
-                                                                className={`p - 3 rounded - xl shadow - sm border hover: shadow - md transition - shadow group cursor - pointer 
+                                                                style={{ ...provided.draggableProps.style }}
+                                                                className={`bg-white p-3 rounded shadow-sm border hover:shadow-md transition-shadow mb-3 group cursor-pointer 
                                                                     ${candidate.type === 'VACANCY' ? 'bg-white border-indigo-100' : 'bg-white border-slate-200'}
                                                                     ${snapshot.isDragging ? 'rotate-2 shadow-lg ring-2 ring-indigo-500/20' : ''}
 `}
+                                                                onClick={() => handleCardClick(candidate)}
                                                             >
                                                                 {/* Header: Title and Priority */}
                                                                 <div className="flex justify-between items-start mb-2">
@@ -402,22 +403,6 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
 
                                                                 {/* Footer: Client, Due Date, Recruiter */}
                                                                 <div className="flex flex-col gap-2 pt-2 border-t border-slate-50">
-                                                                    {/* Dates Row */}
-                                                                    <div className="flex flex-col gap-1 text-[10px] text-slate-400">
-                                                                        {/* Vacancy Opening Date */}
-                                                                        <div className="flex items-center gap-1" title="Data de Abertura da Vaga">
-                                                                            <Briefcase className="w-3 h-3 text-slate-300" />
-                                                                            <span>Abertura: {candidate.vacancy.createdAt ? new Date(candidate.vacancy.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A'}</span>
-                                                                        </div>
-                                                                        {/* Candidate Registration Date */}
-                                                                        {candidate.type !== 'VACANCY' && (
-                                                                            <div className="flex items-center gap-1" title="Data de Inscrição do Candidato">
-                                                                                <UserIcon className="w-3 h-3 text-slate-300" />
-                                                                                <span>Inscrição: {new Date(candidate.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-
                                                                     <div className="flex justify-between items-center text-[11px] text-slate-400">
                                                                         <span className="truncate max-w-[120px]" title={candidate.vacancy.posto?.client?.name}>
                                                                             {candidate.vacancy.posto?.client?.name || candidate.vacancy.company?.name || "N/A"}
@@ -425,42 +410,11 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
 
                                                                         {/* Recruiter Avatar */}
                                                                         {recruiterName && (
-                                                                            <div className="flex items-center gap-1" title={`Recrutador: ${recruiterName} `}>
+                                                                            <div className="flex items-center gap-1" title={`Recrutador: ${recruiterName}`}>
                                                                                 <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[9px] font-bold border border-indigo-200">
                                                                                     {getInitials(recruiterName)}
                                                                                 </div>
                                                                             </div>
-                                                                        )}
-                                                                    </div>
-
-                                                                    <div className="flex justify-between items-center">
-                                                                        {candidate.type === 'VACANCY' ? (
-                                                                            (() => {
-                                                                                // @ts-ignore
-                                                                                const start = new Date(candidate.createdAt);
-                                                                                const sla = stage.slaDays || 0;
-                                                                                const status = getVacancyDueDateStatus(start, sla);
-                                                                                if (!status) return null;
-                                                                                return (
-                                                                                    <Badge variant="outline" className={`text - [10px] px - 1.5 py - 0 h - 5 gap - 1 ${status.color} font - medium`}>
-                                                                                        <status.icon className="w-3 h-3" />
-                                                                                        {status.text}
-                                                                                    </Badge>
-                                                                                );
-                                                                            })()
-                                                                        ) : (
-                                                                            stage.name === 'Posto' ? (
-                                                                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 gap-1 bg-purple-100 text-purple-700 border-purple-200 font-medium" title="Tempo de Ciclo (Dias desde a criação)">
-                                                                                    <Clock className="w-3 h-3" />
-                                                                                    {Math.max(1, Math.floor((new Date(candidate.updatedAt || new Date()).getTime() - new Date(candidate.createdAt).getTime()) / (1000 * 60 * 60 * 24)))} dias
-                                                                                </Badge>
-                                                                            ) : (
-                                                                                dueStatus && (
-                                                                                    <Badge variant="outline" className={`text - [10px] px - 1.5 py - 0 h - 5 gap - 1 ${dueStatus.color} font - medium`}>
-                                                                                        {dueStatus.text}
-                                                                                    </Badge>
-                                                                                )
-                                                                            )
                                                                         )}
                                                                     </div>
                                                                 </div>
