@@ -216,7 +216,8 @@ export async function getRecruitmentBoardData() {
             posto: v.posto,
             company: v.company,
             description: v.description,
-            recruiter: v.recruiter // NEW
+            recruiter: v.recruiter, // NEW
+            createdAt: v.createdAt // NEW
         }
     }));
 
