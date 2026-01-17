@@ -33,6 +33,7 @@ model User {
   logs      Log[]
   recruitmentTimelineEntries RecruitmentTimeline[]
   vacancies Vacancy[]
+  approvedStages RecruitmentStage[]
 }
 
 // ... existing models ...
@@ -277,6 +278,9 @@ model RecruitmentStage {
   order       Int
   isSystem    Boolean  @default(false)
   slaDays     Int      @default(3) // Default SLA in days
+  
+  approverId  String?
+  approver    User?    @relation(fields: [approverId], references: [id])
   
   candidates  RecruitmentCandidate[]
   
