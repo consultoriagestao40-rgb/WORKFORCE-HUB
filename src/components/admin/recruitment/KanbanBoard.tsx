@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { moveCandidate, updateStageSLA } from "@/actions/recruitment";
 import { addBusinessDays } from "@/lib/business-days";
@@ -55,6 +55,11 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
     // New Candidate Modal State
     const [isCandidateModalOpen, setIsCandidateModalOpen] = useState(false);
     const [selectedVacancyForCandidate, setSelectedVacancyForCandidate] = useState<string | null>(null);
+
+    // FIX: Sync local state with server state when revalidatePath occurs
+    useEffect(() => {
+        setStages(initialStages);
+    }, [initialStages]);
 
     const onDragEnd = async (result: DropResult) => {
         setIsDragging(false);
