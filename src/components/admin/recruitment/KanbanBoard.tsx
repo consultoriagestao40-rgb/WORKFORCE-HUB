@@ -179,33 +179,31 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                             {stage.candidates.length}
                                         </span>
                                     </div>
-                                    {!isRnsStage && (
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-slate-700">
-                                                    <Settings className="w-3.5 h-3.5" />
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-48 p-2">
-                                                <div className="space-y-2">
-                                                    <h4 className="font-medium text-xs text-slate-500 uppercase">SLA da Etapa (Dias)</h4>
-                                                    <div className="flex gap-2">
-                                                        <Input
-                                                            type="number"
-                                                            defaultValue={stage.slaDays || 0}
-                                                            className="h-8"
-                                                            onChange={(e) => {
-                                                                if (e.target.value) handleUpdateSLA(stage.id, parseInt(e.target.value));
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <p className="text-[10px] text-slate-400">
-                                                        Define o tempo máximo de permanência nesta etapa.
-                                                    </p>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-slate-700">
+                                                <Settings className="w-3.5 h-3.5" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-48 p-2">
+                                            <div className="space-y-2">
+                                                <h4 className="font-medium text-xs text-slate-500 uppercase">SLA da Etapa (Dias)</h4>
+                                                <div className="flex gap-2">
+                                                    <Input
+                                                        type="number"
+                                                        defaultValue={stage.slaDays || 0}
+                                                        className="h-8"
+                                                        onChange={(e) => {
+                                                            if (e.target.value) handleUpdateSLA(stage.id, parseInt(e.target.value));
+                                                        }}
+                                                    />
                                                 </div>
-                                            </PopoverContent>
-                                        </Popover>
-                                    )}
+                                                <p className="text-[10px] text-slate-400">
+                                                    Define o tempo máximo de permanência nesta etapa.
+                                                </p>
+                                            </div>
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
 
                                 <Droppable droppableId={stage.id} isDropDisabled={isRnsStage}>

@@ -168,13 +168,28 @@ export async function getRecruitmentBoardData() {
         }))
     }));
 
-    // 5. Prepend the "R&S" stage
+    // 5. Get or Create the System "R&S" Stage for SLA persistence
+    let rnsStageDb = await prisma.recruitmentStage.findFirst({
+        where: { name: 'R&S (Vagas)' }
+    });
+
+    if (!rnsStageDb) {
+        rnsStageDb = await prisma.recruitmentStage.create({
+            data: {
+                name: 'R&S (Vagas)',
+                order: 0,
+                isSystem: true,
+                slaDays: 5 // Default
+            }
+        });
+    }
+
     const rnsStage = {
-        id: 'STAGE-RNS', // Special ID
-        name: 'R&S (Vagas)',
-        order: 0,
+        id: rnsStageDb.id, // Real DB ID allows updateStageSLA to work
+        name: rnsStageDb.name,
+        order: rnsStageDb.order,
         isSystem: true,
-        slaDays: 0,
+        slaDays: rnsStageDb.slaDays,
         candidates: vacancyItems
     };
 
