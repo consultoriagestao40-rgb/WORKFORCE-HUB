@@ -445,15 +445,14 @@ export async function createCandidate(data: {
     revalidatePath("/admin/recrutamento");
 }
 
-await prisma.recruitmentCandidate.create({
-    data: {
-        name: data.name,
+data: {
+    name: data.name,
         email: data.email,
-        phone: data.phone,
-        vacancyId: data.vacancyId,
-        stageId: firstStage.id,
-        stageDueDate: initialDueDate
-    }
+            phone: data.phone,
+                vacancyId: data.vacancyId,
+                    stageId: firstStage.id,
+                        stageDueDate: initialDueDate
+}
 });
 
 revalidatePath("/admin/recrutamento");
