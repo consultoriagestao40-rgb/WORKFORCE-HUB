@@ -58,6 +58,7 @@ export function CandidateModal({ open, onOpenChange, vacancies, preSelectedVacan
                 vacancyId: formData.vacancyId
             });
             toast.success("Candidato cadastrado com sucesso!");
+            if (onCreateSuccess) onCreateSuccess(); // Call to purge R&S vacancy locally
             onOpenChange(false);
             setFormData({
                 name: "",

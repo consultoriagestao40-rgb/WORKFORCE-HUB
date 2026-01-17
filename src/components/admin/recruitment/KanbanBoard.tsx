@@ -204,6 +204,23 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
         router.refresh();
     };
 
+    const handleVacancyConverted = (vacancyId: string) => {
+        setStages(prev => {
+            const newStages = [...prev];
+            // Find R&S stage (System)
+            const rnsStage = newStages.find(s => s.isSystem);
+            if (rnsStage) {
+                // Remove the vacancy card
+                rnsStage.candidates = rnsStage.candidates.filter(c =>
+                    c.realId !== vacancyId && c.id !== `VAC-${vacancyId}`
+                );
+            }
+            return newStages;
+        });
+        // Router refresh handled by the create action usually, but we can force if needed.
+        router.refresh();
+    };
+
     return (
         <div className="h-full overflow-x-auto">
             <DragDropContext onDragEnd={onDragEnd} onDragStart={() => setIsDragging(true)}>
@@ -369,6 +386,7 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                 onOpenChange={setIsCandidateModalOpen}
                 vacancies={vacanciesList}
                 preSelectedVacancyId={selectedVacancyForCandidate || undefined}
+                onCreateSuccess={() => handleVacancyConverted(selectedVacancyForCandidate || '')}
             />
         </div>
     );
