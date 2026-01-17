@@ -9,25 +9,58 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus } from "lucide-react";
 import { createEmployee } from "@/app/actions";
 
-interface NewEmployeeSheetProps {
+export interface NewEmployeeSheetProps {
     situations: { id: string, name: string }[];
     roles: { id: string, name: string }[];
     companies?: { id: string, name: string }[];
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+    initialData?: {
+        name?: string;
+        email?: string;
+        cpf?: string;
+        roleId?: string;
+        companyId?: string;
+        phone?: string;
+    };
+    onSuccess?: () => void;
 }
 
-export function NewEmployeeSheet({ situations, roles, companies = [] }: NewEmployeeSheetProps) {
-    const [open, setOpen] = useState(false);
+export function NewEmployeeSheet({
+    situations,
+    roles,
+    companies = [],
+    open: controlledOpen,
+    onOpenChange: setControlledOpen,
+    initialData,
+    onSuccess
+}: NewEmployeeSheetProps) {
+    const [internalOpen, setInternalOpen] = useState(false);
+
+    // Determine if controlled or uncontrolled
+    const isControlled = controlledOpen !== undefined;
+    const open = isControlled ? controlledOpen : internalOpen;
+    const setOpen = (newOpen: boolean) => {
+        if (isControlled && setControlledOpen) {
+            setControlledOpen(newOpen);
+        } else {
+            setInternalOpen(newOpen);
+        }
+    };
 
     async function handleSubmit(formData: FormData) {
         await createEmployee(formData);
         setOpen(false);
+        if (onSuccess) onSuccess();
     }
 
     return (
         <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-                <Button><Plus className="w-4 h-4 mr-2" /> Novo Colaborador</Button>
-            </SheetTrigger>
+            {!isControlled && (
+                <SheetTrigger asChild>
+                    <Button><Plus className="w-4 h-4 mr-2" /> Novo Colaborador</Button>
+                </SheetTrigger>
+            )}
             <SheetContent className="px-8">
                 <SheetHeader>
                     <SheetTitle>Novo Colaborador</SheetTitle>
@@ -36,12 +69,12 @@ export function NewEmployeeSheet({ situations, roles, companies = [] }: NewEmplo
                 <form action={handleSubmit} className="space-y-4 mt-6 h-[80vh] overflow-y-auto pr-4">
                     <div className="space-y-2">
                         <Label htmlFor="name">Nome Completo</Label>
-                        <Input id="name" name="name" required />
+                        <Input id="name" name="name" required defaultValue={initialData?.name || ''} />
                     </div>
 
                     <div className="space-y-2">
                         <Label htmlFor="companyId">Empresa Vinculada</Label>
-                        <Select name="companyId">
+                        <Select name="companyId" defaultValue={initialData?.companyId}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Selecione a empresa" />
                             </SelectTrigger>
@@ -56,7 +89,7 @@ export function NewEmployeeSheet({ situations, roles, companies = [] }: NewEmplo
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="cpf">CPF</Label>
-                            <Input id="cpf" name="cpf" placeholder="000.000.000-00" required />
+                            <Input id="cpf" name="cpf" placeholder="000.000.000-00" required defaultValue={initialData?.cpf || ''} />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="workload">Carga Horária Mensal</Label>
@@ -93,11 +126,11 @@ export function NewEmployeeSheet({ situations, roles, companies = [] }: NewEmplo
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="phone">Telefone / Celular</Label>
-                            <Input id="phone" name="phone" placeholder="(00) 00000-0000" />
+                            <Input id="phone" name="phone" placeholder="(00) 00000-0000" defaultValue={initialData?.phone || ''} />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="email">Email Pessoal</Label>
-                            <Input id="email" name="email" type="email" placeholder="email@exemplo.com" />
+                            <Input id="email" name="email" type="email" placeholder="email@exemplo.com" defaultValue={initialData?.email || ''} />
                         </div>
                     </div>
 
@@ -122,7 +155,7 @@ export function NewEmployeeSheet({ situations, roles, companies = [] }: NewEmplo
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="roleId">Cargo</Label>
-                        <Select name="roleId" required>
+                        <Select name="roleId" required defaultValue={initialData?.roleId}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Selecione o cargo" />
                             </SelectTrigger>

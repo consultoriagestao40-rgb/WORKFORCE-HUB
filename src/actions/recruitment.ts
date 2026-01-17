@@ -613,3 +613,15 @@ export async function getBacklogItems() {
         companyId: p.client.companyId // Assuming client has optional companyId link
     }));
 }
+
+export async function getEmployeeFormData() {
+    const [situations, roles, companies] = await Promise.all([
+        prisma.situation.findMany({ orderBy: { name: 'asc' } }),
+        prisma.role.findMany({ orderBy: { name: 'asc' } }),
+        prisma.company.findMany({
+            select: { id: true, name: true },
+            orderBy: { name: 'asc' }
+        })
+    ]);
+    return { situations, roles, companies };
+}

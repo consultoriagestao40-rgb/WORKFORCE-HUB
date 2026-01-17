@@ -16,6 +16,8 @@ import { Label } from "@/components/ui/label"; // Ensure Label is imported or us
 
 import { CandidateDetailsModal } from "./CandidateDetailsModal";
 import { CandidateModal } from "./CandidateModal";
+import { NewEmployeeSheet } from "../NewEmployeeSheet";
+import { getEmployeeFormData } from "@/actions/recruitment";
 
 interface Candidate {
     id: string;
@@ -67,6 +69,16 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
     const [isCandidateModalOpen, setIsCandidateModalOpen] = useState(false);
     const [selectedVacancyForCandidate, setSelectedVacancyForCandidate] = useState<string | null>(null);
 
+    // Employee Automation State
+    const [isEmployeeSheetOpen, setIsEmployeeSheetOpen] = useState(false);
+    const [pendingMove, setPendingMove] = useState<DropResult | null>(null);
+    const [employeeFormData, setEmployeeFormData] = useState<{
+        situations: { id: string, name: string }[];
+        roles: { id: string, name: string }[];
+        companies: { id: string, name: string }[];
+    }>({ situations: [], roles: [], companies: [] });
+    const [prefilledEmployee, setPrefilledEmployee] = useState<any>(null);
+
     // FIX: Sync local state with server state when revalidatePath occurs
     useEffect(() => {
         setStages(initialStages);
@@ -74,6 +86,7 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
 
     useEffect(() => {
         getRecruiters().then(setRecruiters).catch(console.error);
+        getEmployeeFormData().then(setEmployeeFormData).catch(console.error);
     }, []);
 
     const onDragEnd = async (result: DropResult) => {
@@ -94,6 +107,32 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                 setSelectedVacancyForCandidate(item.realId || item.id.replace('VAC-', ''));
                 setIsCandidateModalOpen(true);
                 return; // Do not move the card visually
+            }
+        }
+
+        const destStageRef = stages.find(s => s.id === destination.droppableId);
+
+        // --- ACTION 03: Intercept Move to "Posto" ---
+        if (destStageRef?.name === 'Posto') {
+            const sourceStageRef = stages.find(s => s.id === source.droppableId);
+            const candidateToMove = sourceStageRef?.candidates[source.index];
+
+            if (candidateToMove) {
+                // Open Employee Sheet
+                setPendingMove(result);
+
+                // Try to pre-fill data
+                setPrefilledEmployee({
+                    name: candidateToMove.name,
+                    email: candidateToMove.email || '',
+                    phone: candidateToMove.phone || '',
+                    // Try to map role if possible, or leave empty
+                    roleId: '', // Ideally we could map if names match, but safely leave for user
+                    companyId: '', // Could map from vacancy.company or vacancy.posto.client...
+                });
+
+                setIsEmployeeSheetOpen(true);
+                return; // Halt visual move until success
             }
         }
 
@@ -488,6 +527,65 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                 vacancies={vacanciesList}
                 preSelectedVacancyId={selectedVacancyForCandidate || undefined}
                 onCreateSuccess={() => handleVacancyConverted(selectedVacancyForCandidate || '')}
+            />
+
+            <NewEmployeeSheet
+                open={isEmployeeSheetOpen}
+                onOpenChange={(open) => {
+                    setIsEmployeeSheetOpen(open);
+                    if (!open) setPendingMove(null); // Cancel move if closed without success
+                }}
+                situations={employeeFormData.situations}
+                roles={employeeFormData.roles}
+                companies={employeeFormData.companies}
+                initialData={prefilledEmployee}
+                onSuccess={() => {
+                    if (pendingMove) {
+                        // Complete the move
+                        const { source, destination, draggableId } = pendingMove;
+                        if (!destination) return; // Should not happen based on logic
+
+                        // Execute the move logic (Copy-paste from onDragEnd essentially, 
+                        // but we need to call the backend function and update state)
+                        // To avoid duplicating complex logic, we can verify if we can just re-call onDragEnd?
+                        // No, because onDragEnd expects a result and has the interceptor.
+                        // We need a bypass or extract the move logic.
+
+                        // Let's implement the move logic directly here for this specific case
+                        // OR modify onDragEnd to accept a "force" flag?
+                        // Cleaner: Extract logic to `executeMove` function.
+
+                        // For now, let's just duplicate the crucial core move logic to be safe and simple
+
+                        const sourceStageIndex = stages.findIndex(s => s.id === source.droppableId);
+                        const destStageIndex = stages.findIndex(s => s.id === destination.droppableId);
+
+                        if (sourceStageIndex === -1 || destStageIndex === -1) return;
+
+                        const newStages = [...stages];
+                        const newSourceStage = { ...newStages[sourceStageIndex] };
+                        const newDestStage = { ...newStages[destStageIndex] };
+
+                        const [movedCandidate] = newSourceStage.candidates.splice(source.index, 1);
+                        newDestStage.candidates.splice(destination.index, 0, movedCandidate);
+
+                        newStages[sourceStageIndex] = newSourceStage;
+                        newStages[destStageIndex] = newDestStage;
+
+                        setStages(newStages);
+
+                        moveCandidate(draggableId, destination.droppableId)
+                            .then(() => toast.success("Colaborador cadastrado e candidato movido para Posto!"))
+                            .catch(err => {
+                                console.error(err);
+                                toast.error("Erro ao mover candidato no banco.");
+                                setStages(stages); // Revert
+                            });
+
+                        setPendingMove(null);
+                        setIsEmployeeSheetOpen(false);
+                    }
+                }}
             />
         </div>
     );
