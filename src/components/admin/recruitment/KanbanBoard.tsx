@@ -162,8 +162,8 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
         return name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
     };
 
-    const vacanciesList = stages.find(s => s.id === 'STAGE-RNS')?.candidates.map(c => ({
-        id: c.realId || '',
+    const vacanciesList = stages.find(s => s.isSystem)?.candidates.filter(c => c.type === 'VACANCY').map(c => ({
+        id: c.realId || c.id.replace('VAC-', ''),
         title: c.vacancy.title
     })) || [];
 
