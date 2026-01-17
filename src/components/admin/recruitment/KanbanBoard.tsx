@@ -348,17 +348,11 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                         >
                                             {stage.candidates.map((candidate, index) => {
                                                 // MOD: Standardize SLA calculation based on CreatedAt (Birth Date) for ALL stages
-                                                // This ignores the persisted 'stageDueDate' (movement-based) and uses 'createdAt + stageSLA'
                                                 const slaDays = stage.slaDays || 0;
                                                 const calculatedDueDate = addBusinessDays(new Date(candidate.createdAt), slaDays);
 
                                                 const dueStatus = candidate.type !== 'VACANCY' ? getDueDateStatus(calculatedDueDate) : null;
 
-                                                // Recruiter can be directly on vacancy (for VACANCY type) or inside nested vacancy (for CANDIDATE type)
-                                                // Wait, in my mappper "vacancy" property holds everything for both types?
-                                                // Yes -> candidate.vacancy has the details. 
-                                                // But let's check the Typescript interface update I need to verify if recruiter is there.
-                                                // It is dynamic, so it's fine in JS/TSX but let's be safe.
                                                 // @ts-ignore
                                                 const recruiterName = candidate.vacancy?.recruiter?.name;
 
@@ -370,7 +364,7 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                                                 {...provided.draggableProps}
                                                                 {...provided.dragHandleProps}
                                                                 style={{ ...provided.draggableProps.style }}
-                                                                className={`bg-white p-3 rounded shadow-sm border hover:shadow-md transition-shadow mb-3 group cursor-pointer 
+                                                                className={`bg-white p-3 rounded shadow-sm border hover:shadow-md transition-shadow mb-3 group cursor-pointer
                                                                     ${candidate.type === 'VACANCY' ? 'bg-white border-indigo-100' : 'bg-white border-slate-200'}
                                                                     ${snapshot.isDragging ? 'rotate-2 shadow-lg ring-2 ring-indigo-500/20' : ''}
 `}
@@ -415,6 +409,39 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                                                                     {getInitials(recruiterName)}
                                                                                 </div>
                                                                             </div>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {/* SLA / Due Date Badge (Restored) */}
+                                                                    <div className="flex justify-between items-center pt-2">
+                                                                        {candidate.type === 'VACANCY' ? (
+                                                                            (() => {
+                                                                                // @ts-ignore
+                                                                                const start = new Date(candidate.createdAt);
+                                                                                const sla = stage.slaDays || 0;
+                                                                                const status = getVacancyDueDateStatus(start, sla);
+                                                                                if (!status) return null;
+                                                                                return (
+                                                                                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 gap-1 ${status.color} font-medium`}>
+                                                                                        <status.icon className="w-3 h-3" />
+                                                                                        {status.text}
+                                                                                    </Badge>
+                                                                                );
+                                                                            })()
+                                                                        ) : (
+                                                                            stage.name === 'Posto' ? (
+                                                                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 gap-1 bg-purple-100 text-purple-700 border-purple-200 font-medium" title="Tempo de Ciclo (Dias desde a criação)">
+                                                                                    <Clock className="w-3 h-3" />
+                                                                                    {Math.max(1, Math.floor((new Date(candidate.updatedAt || new Date()).getTime() - new Date(candidate.createdAt).getTime()) / (1000 * 60 * 60 * 24)))} dias
+                                                                                </Badge>
+                                                                            ) : (
+                                                                                dueStatus && (
+                                                                                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 gap-1 ${dueStatus.color} font-medium`}>
+                                                                                        <dueStatus.icon className="w-3 h-3" />
+                                                                                        {dueStatus.text}
+                                                                                    </Badge>
+                                                                                )
+                                                                            )
                                                                         )}
                                                                     </div>
                                                                 </div>
