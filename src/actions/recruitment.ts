@@ -314,6 +314,20 @@ export async function getRecruitmentBoardData() {
     return [rnsStage, ...candidateStages];
 }
 
+export async function getRecruitmentTimeline(params: { candidateId?: string; vacancyId?: string }) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const { candidateId, vacancyId } = params;
+
+    if (!candidateId && !vacancyId) return [];
+
+    return await prisma.recruitmentTimeline.findMany({
+        where: candidateId ? { candidateId } : { vacancyId },
+        include: { user: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' }
+    });
+}
 export async function moveCandidate(candidateId: string, newStageId: string) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
