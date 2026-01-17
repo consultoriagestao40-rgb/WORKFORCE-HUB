@@ -346,6 +346,8 @@ export async function moveCandidate(candidateId: string, newStageId: string) {
         prisma.recruitmentTimeline.create({
             data: {
                 candidateId,
+                vacancyId: candidate.vacancyId, // Link to Vacancy
+                candidateName: candidate.name,  // Snapshot
                 action: "MOVED",
                 details: `Movido de ${candidate.stage?.name || 'Sem etapa'} para ${newStage.name}`,
                 userId: user.id
@@ -360,15 +362,31 @@ export async function withdrawCandidate(candidateId: string) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
-    // "Candidato deve sair do card" -> Delete candidate.
-    // This effectively "returns" the process to the pure Vacancy state in R&S (Stage 01).
-
-    // Check for timeline cascade or manual delete
-    // We will delete the candidate. If timelines are not cascaded, we delete them first.
-    await prisma.recruitmentTimeline.deleteMany({
-        where: { candidateId }
+    // 1. Get candidate details for audit log before deletion
+    const candidate = await prisma.recruitmentCandidate.findUnique({
+        where: { id: candidateId },
+        select: { name: true, vacancyId: true }
     });
 
+    if (candidate) {
+        // 2. Create Audit Log (Preserved via Vacancy Link)
+        await prisma.recruitmentTimeline.create({
+            data: {
+                vacancyId: candidate.vacancyId,
+                candidateName: candidate.name,
+                // candidateId will be null after delete OR we set it now and let it be set to null by ON DELETE SET NULL
+                // To safely link it before delete, we can set it.
+                // But since we delete immediately, it might be safer to just relying on vacancy links for history of deleted candidates.
+                // Let's link it anyway, so if delete fails, we have it.
+                candidateId: candidateId,
+                action: "WITHDRAWN",
+                details: `Candidato ${candidate.name} desistiu do processo e foi removido.`,
+                userId: user.id
+            }
+        });
+    }
+
+    // 3. Delete Candidate (Timeline candidateId becomes null, but vacancyId and candidateName persist)
     await prisma.recruitmentCandidate.delete({
         where: { id: candidateId }
     });
@@ -399,18 +417,46 @@ export async function createCandidate(data: {
         initialDueDate = addBusinessDays(new Date(), firstStage.slaDays);
     }
 
-    await prisma.recruitmentCandidate.create({
-        data: {
-            name: data.name,
-            email: data.email,
-            phone: data.phone,
-            vacancyId: data.vacancyId,
-            stageId: firstStage.id,
-            stageDueDate: initialDueDate
-        }
+    // Transaction to create candidate and log
+    await prisma.$transaction(async (tx) => {
+        const newCandidate = await tx.recruitmentCandidate.create({
+            data: {
+                name: data.name,
+                email: data.email,
+                phone: data.phone,
+                vacancyId: data.vacancyId,
+                stageId: firstStage.id,
+                stageDueDate: initialDueDate
+            }
+        });
+
+        await tx.recruitmentTimeline.create({
+            data: {
+                candidateId: newCandidate.id,
+                vacancyId: data.vacancyId,
+                candidateName: data.name,
+                action: "CREATED",
+                details: `Candidato cadastrado na etapa ${firstStage.name}`,
+                userId: user.id
+            }
+        });
     });
 
     revalidatePath("/admin/recrutamento");
+}
+
+await prisma.recruitmentCandidate.create({
+    data: {
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        vacancyId: data.vacancyId,
+        stageId: firstStage.id,
+        stageDueDate: initialDueDate
+    }
+});
+
+revalidatePath("/admin/recrutamento");
 }
 
 export async function updateStageSLA(stageId: string, slaDays: number) {

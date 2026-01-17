@@ -243,6 +243,7 @@ model Vacancy {
   recruiter   User?    @relation(fields: [recruiterId], references: [id])
 
   candidates  RecruitmentCandidate[]
+  timelines   RecruitmentTimeline[] // Audit Log for Vacancy
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -287,10 +288,15 @@ model RecruitmentStage {
 
 model RecruitmentTimeline {
   id          String   @id @default(uuid())
-  candidateId String
-  candidate   RecruitmentCandidate @relation(fields: [candidateId], references: [id])
+  candidateId String?
+  candidate   RecruitmentCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  candidateName String? // Snapshot for history preservation
+
+  // Link to Vacancy (Audit Context)
+  vacancyId   String?
+  vacancy     Vacancy? @relation(fields: [vacancyId], references: [id])
   
-  action      String   // "MOVED", "COMMENT", "EMAIL"
+  action      String   // "MOVED", "COMMENT", "EMAIL", "WITHDRAWN", "CREATED"
   details     String?
   
   userId      String?
