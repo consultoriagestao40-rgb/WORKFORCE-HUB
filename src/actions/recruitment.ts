@@ -139,12 +139,14 @@ export async function getRecruitmentBoardData() {
                     vacancy: {
                         include: {
                             role: true,
+                            recruiter: { select: { id: true, name: true } }, // NEW
                             posto: {
                                 include: {
                                     client: true
                                 }
                             },
-                            company: true
+                            company: true,
+                            recruiter: { select: { id: true, name: true } } // NEW
                         }
                     }
                 }

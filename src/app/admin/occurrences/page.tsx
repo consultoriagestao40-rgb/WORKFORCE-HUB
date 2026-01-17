@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/db";
 import { OccurrencesList } from "@/components/admin/OccurrencesList";
 import { getCurrentUserRole } from "@/lib/auth";

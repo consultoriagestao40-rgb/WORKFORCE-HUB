@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/db";
 import { GlobalRoster } from "@/components/admin/GlobalRoster";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";

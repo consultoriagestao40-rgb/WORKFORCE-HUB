@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { getUsers, deleteUser } from "@/app/actions";
 import { UserDialog } from "@/components/admin/UserDialog";
 import { Button } from "@/components/ui/button";

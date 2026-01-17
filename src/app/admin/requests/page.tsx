@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { getAdminRequests, updateRequestStatus, deleteRequest } from "./actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

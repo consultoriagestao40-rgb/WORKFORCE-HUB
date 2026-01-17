@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { RecruitmentClientPage } from "@/components/admin/recruitment/RecruitmentClientPage";
 import { getRecruitmentBoardData, getVacancies, getBacklogItems } from "@/actions/recruitment";
 import { prisma } from "@/lib/db";

@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/db";
 
 import { differenceInYears, differenceInDays, addYears, format, isBefore } from "date-fns";

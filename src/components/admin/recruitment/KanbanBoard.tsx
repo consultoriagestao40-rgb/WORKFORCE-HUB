@@ -139,9 +139,23 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
         const due = new Date(dueDate);
         const diffHours = (due.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-        if (diffHours < 0) return { color: 'bg-red-100 text-red-700 border-red-200', text: 'Atrasado', icon: AlertCircle };
-        if (diffHours < 24) return { color: 'bg-amber-100 text-amber-700 border-amber-200', text: 'Expira hoje', icon: Clock };
-        return { color: 'bg-emerald-100 text-emerald-700 border-emerald-200', text: 'No prazo', icon: Clock };
+        // Format Date: "17/01"
+        const formattedDate = due.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+
+        if (diffHours < 0) return { color: 'bg-red-100 text-red-700 border-red-200', text: `Venceu ${formattedDate}`, icon: AlertCircle };
+        if (diffHours < 24) return { color: 'bg-amber-100 text-amber-700 border-amber-200', text: `Vence Hoje`, icon: Clock };
+        return { color: 'bg-emerald-100 text-emerald-700 border-emerald-200', text: `Vence ${formattedDate}`, icon: Clock };
+    };
+
+    const getVacancyAge = (createdAt: Date) => {
+        const diff = new Date().getTime() - new Date(createdAt).getTime();
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        return days === 0 ? "Hoje" : `${days}d atrás`;
+    };
+
+    const getInitials = (name?: string) => {
+        if (!name) return "?";
+        return name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
     };
 
     const vacanciesList = stages.find(s => s.id === 'STAGE-RNS')?.candidates.map(c => ({
@@ -203,6 +217,13 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                         >
                                             {stage.candidates.map((candidate, index) => {
                                                 const dueStatus = candidate.type !== 'VACANCY' ? getDueDateStatus(candidate.stageDueDate) : null;
+                                                // Recruiter can be directly on vacancy (for VACANCY type) or inside nested vacancy (for CANDIDATE type)
+                                                // Wait, in my mappper "vacancy" property holds everything for both types?
+                                                // Yes -> candidate.vacancy has the details. 
+                                                // But let's check the Typescript interface update I need to verify if recruiter is there.
+                                                // It is dynamic, so it's fine in JS/TSX but let's be safe.
+                                                // @ts-ignore
+                                                const recruiterName = candidate.vacancy?.recruiter?.name;
 
                                                 return (
                                                     <Draggable key={candidate.id} draggableId={candidate.id} index={index}>
@@ -212,37 +233,65 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                                                 {...provided.draggableProps}
                                                                 {...provided.dragHandleProps}
                                                                 onClick={() => handleCardClick(candidate)}
-                                                                className={`p-3 rounded shadow-sm border hover:shadow-md transition-shadow group cursor-pointer 
-                                                                    ${candidate.type === 'VACANCY' ? 'bg-white border-indigo-200' : 'bg-white border-slate-200'}
+                                                                className={`p-3 rounded-xl shadow-sm border hover:shadow-md transition-shadow group cursor-pointer 
+                                                                    ${candidate.type === 'VACANCY' ? 'bg-white border-indigo-100' : 'bg-white border-slate-200'}
                                                                     ${snapshot.isDragging ? 'rotate-2 shadow-lg ring-2 ring-indigo-500/20' : ''}
                                                                 `}
                                                             >
+                                                                {/* Header: Title and Priority */}
                                                                 <div className="flex justify-between items-start mb-2">
-                                                                    <div className="font-medium text-slate-900 line-clamp-1 flex items-center gap-2">
-                                                                        {candidate.type === 'VACANCY' && <Briefcase className="w-4 h-4 text-indigo-500" />}
-                                                                        {candidate.type !== 'VACANCY' && <UserIcon className="w-4 h-4 text-slate-400" />}
-                                                                        {candidate.name}
+                                                                    <div className="font-bold text-slate-800 line-clamp-2 leading-tight flex-1 mr-2 text-sm">
+                                                                        {candidate.type === 'VACANCY' ? candidate.vacancy.title : candidate.name}
                                                                     </div>
-                                                                    <Badge variant={candidate.vacancy.priority === 'URGENT' ? 'destructive' : 'secondary'} className="text-[10px] px-1 py-0 h-5">
+                                                                    <Badge variant={candidate.vacancy.priority === 'URGENT' ? 'destructive' : 'secondary'} className="text-[10px] px-1.5 py-0 h-5 shrink-0">
                                                                         {candidate.vacancy.priority === 'URGENT' ? 'Urg' : candidate.vacancy.priority === 'HIGH' ? 'Alta' : 'Nor'}
                                                                     </Badge>
                                                                 </div>
 
-                                                                <div className="text-xs text-slate-500 space-y-1">
-                                                                    <div className="font-medium text-slate-700 truncate">
-                                                                        {candidate.vacancy.role?.name || candidate.vacancy.title}
-                                                                    </div>
+                                                                {/* Subtitle: Role/Context */}
+                                                                <div className="text-xs text-slate-500 mb-3">
+                                                                    {candidate.type === 'VACANCY' ? (
+                                                                        <div className="flex items-center gap-1">
+                                                                            <Briefcase className="w-3 h-3 text-indigo-400" />
+                                                                            <span>{candidate.vacancy.role?.name || "Sem Cargo"}</span>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="flex items-center gap-1">
+                                                                            <Briefcase className="w-3 h-3 text-slate-400" />
+                                                                            <span>{candidate.vacancy.role?.name || candidate.vacancy.title}</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
 
-                                                                    <div className="flex justify-between items-center pt-1">
-                                                                        <span className="truncate max-w-[120px]">
+                                                                {/* Footer: Client, Due Date, Recruiter */}
+                                                                <div className="flex flex-col gap-2 pt-2 border-t border-slate-50">
+                                                                    <div className="flex justify-between items-center text-[11px] text-slate-400">
+                                                                        <span className="truncate max-w-[120px]" title={candidate.vacancy.posto?.client?.name}>
                                                                             {candidate.vacancy.posto?.client?.name || candidate.vacancy.company?.name || "N/A"}
                                                                         </span>
 
-                                                                        {dueStatus && (
-                                                                            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 gap-1 ${dueStatus.color}`}>
-                                                                                <dueStatus.icon className="w-3 h-3" />
-                                                                                {dueStatus.text}
+                                                                        {/* Recruiter Avatar */}
+                                                                        {recruiterName && (
+                                                                            <div className="flex items-center gap-1" title={`Recrutador: ${recruiterName}`}>
+                                                                                <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[9px] font-bold border border-indigo-200">
+                                                                                    {getInitials(recruiterName)}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+
+                                                                    <div className="flex justify-between items-center">
+                                                                        {candidate.type === 'VACANCY' ? (
+                                                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 gap-1 bg-slate-50 text-slate-500 border-slate-200 font-medium">
+                                                                                <Clock className="w-3 h-3" />
+                                                                                {getVacancyAge(candidate.createdAt)}
                                                                             </Badge>
+                                                                        ) : (
+                                                                            dueStatus && (
+                                                                                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 gap-1 ${dueStatus.color} font-medium`}>
+                                                                                    {dueStatus.text}
+                                                                                </Badge>
+                                                                            )
                                                                         )}
                                                                     </div>
                                                                 </div>
