@@ -85,25 +85,69 @@ export async function getRecruitmentBoardData() {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
-    // Ensure default stages exist
+    // --- MIGRATION: Unify Triagem + RH -> Seleção ---
+    // 1. Rename 'Triagem' to 'Seleção'
+    const triagemStage = await prisma.recruitmentStage.findFirst({ where: { name: "Triagem" } });
+    if (triagemStage) {
+        await prisma.recruitmentStage.update({
+            where: { id: triagemStage.id },
+            data: { name: "Seleção", order: 1 }
+        });
+    }
+
+    // 2. Move 'Entrevista RH' candidates to 'Seleção' and delete 'Entrevista RH'
+    const rhStage = await prisma.recruitmentStage.findFirst({ where: { name: "Entrevista RH" } });
+    if (rhStage) {
+        // Find Seleção (target)
+        const selecaoStage = await prisma.recruitmentStage.findFirst({ where: { name: "Seleção" } });
+        if (selecaoStage) {
+            await prisma.recruitmentCandidate.updateMany({
+                where: { stageId: rhStage.id },
+                data: { stageId: selecaoStage.id }
+            });
+            // Delete RH Stage
+            await prisma.recruitmentStage.delete({ where: { id: rhStage.id } });
+        }
+    }
+
+    // 3. Reorder remaining stages (Shift up)
+    // Seleção is 1. We want:
+    // Entrevista Técnica -> 2
+    // Oferta -> 3
+    // Contratado -> 4
+    // Posto -> 5
+
+    // Check if reordering is needed (simple check: if Entrevista Técnica is order 3, move to 2)
+    const tecStage = await prisma.recruitmentStage.findFirst({ where: { name: "Entrevista Técnica", order: 3 } });
+    if (tecStage) {
+        await prisma.recruitmentStage.update({ where: { id: tecStage.id }, data: { order: 2 } });
+
+        const ofertaStage = await prisma.recruitmentStage.findFirst({ where: { name: "Oferta" } });
+        if (ofertaStage) await prisma.recruitmentStage.update({ where: { id: ofertaStage.id }, data: { order: 3 } });
+
+        const hiredStage = await prisma.recruitmentStage.findFirst({ where: { name: "Contratado" } });
+        if (hiredStage) await prisma.recruitmentStage.update({ where: { id: hiredStage.id }, data: { order: 4 } });
+
+        // Posto might be 6 from previous logic, move to 5
+        const postoStage = await prisma.recruitmentStage.findFirst({ where: { name: "Posto" } });
+        if (postoStage && postoStage.order !== 5) await prisma.recruitmentStage.update({ where: { id: postoStage.id }, data: { order: 5 } });
+    } else {
+        // Safety check for Posto if it was just created as 6
+        const postoStage = await prisma.recruitmentStage.findFirst({ where: { name: "Posto", order: 6 } });
+        if (postoStage) await prisma.recruitmentStage.update({ where: { id: postoStage.id }, data: { order: 5 } });
+    }
+
+    // Ensure Default Stages (Corrected Set) exist if completely empty
     const stagesCount = await prisma.recruitmentStage.count();
     if (stagesCount === 0) {
         await prisma.recruitmentStage.createMany({
             data: [
-                { name: "Triagem", order: 1, slaDays: 2 },
-                { name: "Entrevista RH", order: 2, slaDays: 3 },
-                { name: "Entrevista Técnica", order: 3, slaDays: 5 },
-                { name: "Oferta", order: 4, slaDays: 2 },
-                { name: "Contratado", order: 5, slaDays: 0 },
+                { name: "Seleção", order: 1, slaDays: 3 }, // Unified SLA (2+3 avg?)
+                { name: "Entrevista Técnica", order: 2, slaDays: 5 },
+                { name: "Oferta", order: 3, slaDays: 2 },
+                { name: "Contratado", order: 4, slaDays: 0 },
+                { name: "Posto", order: 5, slaDays: 0 },
             ]
-        });
-    }
-
-    // Ensure 'Posto' stage exists (migrated logic)
-    const postoStageExists = await prisma.recruitmentStage.findFirst({ where: { name: "Posto" } });
-    if (!postoStageExists) {
-        await prisma.recruitmentStage.create({
-            data: { name: "Posto", order: 6, slaDays: 0 }
         });
     }
 
