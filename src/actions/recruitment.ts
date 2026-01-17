@@ -183,13 +183,20 @@ export async function getRecruitmentBoardData() {
     }
 
     // 1. Fetch Open Vacancies for the "R&S" column
+    // MOD: Filter out vacancies that already have candidates, simulating a "Single Slot" flow.
+    // If a vacancy has a candidate, it is considered "In Progress" and disappears from R&S.
     const openVacancies = await prisma.vacancy.findMany({
-        where: { status: 'OPEN' },
+        where: {
+            status: 'OPEN',
+            candidates: {
+                none: {} // Only show vacancies with zero candidates
+            }
+        },
         include: {
             role: true,
             posto: { include: { client: true } },
             company: true,
-            recruiter: { select: { id: true, name: true } } // NEW
+            recruiter: true
         },
         orderBy: { createdAt: 'desc' }
     });
