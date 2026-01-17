@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "echo '>>> MIGRATING...' && npx prisma generate && npx prisma db push --accept-data-loss && echo '>>> DONE.' && next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate && prisma db push --accept-data-loss"
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
