@@ -64,10 +64,10 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
         if (source.droppableId === destination.droppableId && source.index === destination.index) return;
 
         // Logic for dragging FROM "R&S" (Vacancy) TO any other stage (creating candidate)
-        if (source.droppableId === 'STAGE-RNS') {
+        const sourceStageRef = stages.find(s => s.id === source.droppableId);
+        if (sourceStageRef?.isSystem) {
             // Find the vacancy object
-            const sourceStage = stages.find(s => s.id === source.droppableId);
-            const item = sourceStage?.candidates.find(c => c.id === draggableId);
+            const item = sourceStageRef.candidates.find(c => c.id === draggableId);
 
             if (item && item.type === 'VACANCY') {
                 // Open Candidate Modal pre-filled
@@ -173,7 +173,8 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
             <DragDropContext onDragEnd={onDragEnd} onDragStart={() => setIsDragging(true)}>
                 <div className="flex gap-4 h-full min-w-max pb-4">
                     {stages.map((stage) => {
-                        const isRnsStage = stage.id === 'STAGE-RNS';
+                        // FIX: Use isSystem flag because ID is now dynamic from DB
+                        const isRnsStage = stage.isSystem;
                         return (
                             <div key={stage.id} className={`w-80 flex flex-col rounded-lg h-full max-h-full ${isRnsStage ? 'bg-indigo-50 border-indigo-100 border' : 'bg-slate-100'}`}>
                                 <div className={`p-3 font-semibold flex justify-between items-center border-b ${isRnsStage ? 'text-indigo-700 border-indigo-200' : 'text-slate-700 border-slate-200'}`}>
@@ -185,7 +186,7 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                     </div>
                                     <Popover>
                                         <PopoverTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-slate-700">
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-slate-700" title="Configurar SLA">
                                                 <Settings className="w-3.5 h-3.5" />
                                             </Button>
                                         </PopoverTrigger>

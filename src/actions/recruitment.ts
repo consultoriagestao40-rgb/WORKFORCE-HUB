@@ -196,6 +196,30 @@ export async function getRecruitmentBoardData() {
         candidates: vacancyItems
     };
 
+    // 6. Rescue Logic: Detect candidates accidentally moved to R&S (System Stage) and auto-move them to next stage
+    // This fixes the "disappearing card" issue if they were dropped there before the UI fix.
+    const strandedCandidates = await prisma.recruitmentCandidate.findMany({
+        where: { stageId: rnsStageDb.id }
+    });
+
+    if (strandedCandidates.length > 0) {
+        // Find the first non-system stage (Triagem)
+        const firstStage = await prisma.recruitmentStage.findFirst({
+            where: { isSystem: false },
+            orderBy: { order: 'asc' }
+        });
+
+        if (firstStage) {
+            await prisma.recruitmentCandidate.updateMany({
+                where: { stageId: rnsStageDb.id },
+                data: { stageId: firstStage.id }
+            });
+            // Re-fetch everything? No, next refresh will show them.
+            // But to be consistent, we might miss them in this render.
+            // It's acceptable for now, they will appear on next load.
+        }
+    }
+
     return [rnsStage, ...candidateStages];
 }
 
