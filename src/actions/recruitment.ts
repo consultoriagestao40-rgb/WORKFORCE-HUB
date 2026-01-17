@@ -145,8 +145,11 @@ export async function getRecruitmentBoardData() {
                                     client: true
                                 }
                             },
-                            company: true,
-                            recruiter: { select: { id: true, name: true } } // NEW
+                            company: true
+                            // recruiter already included inside vacancy root in mapped object via openVacancies logic, but here inside candidate include...
+                            // Wait, the include structure is: vacancy -> include -> recruiter.
+                            // I added it twice: once after `role: true` and once after `company: true`.
+                            // I should remove one.
                         }
                     }
                 }
