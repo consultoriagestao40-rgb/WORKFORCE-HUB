@@ -158,15 +158,17 @@ export async function getRecruitmentBoardData() {
     });
 
     // 4. Map candidates to include type and due date
-    const candidateStages = dbStages.map(stage => ({
-        ...stage,
-        candidates: stage.candidates.map(c => ({
-            ...c,
-            type: 'CANDIDATE',
-            realId: c.id
-            // stageDueDate already included
-        }))
-    }));
+    const candidateStages = dbStages
+        .filter(stage => stage.name !== 'R&S (Vagas)') // FIX: Remove duplicate R&S stage fetch from DB
+        .map(stage => ({
+            ...stage,
+            candidates: stage.candidates.map(c => ({
+                ...c,
+                type: 'CANDIDATE',
+                realId: c.id
+                // stageDueDate already included
+            }))
+        }));
 
     // 5. Get or Create the System "R&S" Stage for SLA persistence
     let rnsStageDb = await prisma.recruitmentStage.findFirst({
@@ -284,9 +286,34 @@ export async function updateStageSLA(stageId: string, slaDays: number) {
 
     // Check permission (Admin only ideally, but Supervisor ok for MVP)
 
-    await prisma.recruitmentStage.update({
-        where: { id: stageId },
-        data: { slaDays }
+    await prisma.$transaction(async (tx) => {
+        // 1. Update Stage SLA
+        await tx.recruitmentStage.update({
+            where: { id: stageId },
+            data: { slaDays }
+        });
+
+        // 2. Recalculate DueDate for all candidates currently in this stage
+        const candidatesInStage = await tx.recruitmentCandidate.findMany({
+            where: { stageId }
+        });
+
+        for (const candidate of candidatesInStage) {
+            // Calculate new due date based on when they entered the stage (updatedAt) + new SLA
+            // If slaDays is 0, stored as null
+            let newDueDate = null;
+            if (slaDays > 0) {
+                const baseDate = candidate.updatedAt; // Assuming updatedAt reflects entry time to stage
+                const dueDate = new Date(baseDate);
+                dueDate.setDate(dueDate.getDate() + slaDays);
+                newDueDate = dueDate;
+            }
+
+            await tx.recruitmentCandidate.update({
+                where: { id: candidate.id },
+                data: { stageDueDate: newDueDate }
+            });
+        }
     });
 
     revalidatePath("/admin/recrutamento");

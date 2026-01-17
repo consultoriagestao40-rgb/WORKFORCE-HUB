@@ -147,10 +147,14 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
         return { color: 'bg-emerald-100 text-emerald-700 border-emerald-200', text: `Vence ${formattedDate}`, icon: Clock };
     };
 
-    const getVacancyAge = (createdAt: Date) => {
-        const diff = new Date().getTime() - new Date(createdAt).getTime();
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        return days === 0 ? "Hoje" : `${days}d atrás`;
+    const getVacancyDueDateStatus = (createdAt: Date, slaDays: number) => {
+        if (slaDays <= 0) return { color: 'bg-slate-100 text-slate-500 border-slate-200', text: 'Sem prazo', icon: Clock };
+
+        const created = new Date(createdAt);
+        const due = new Date(created);
+        due.setDate(due.getDate() + slaDays);
+
+        return getDueDateStatus(due);
     };
 
     const getInitials = (name?: string) => {
@@ -280,10 +284,18 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
 
                                                                     <div className="flex justify-between items-center">
                                                                         {candidate.type === 'VACANCY' ? (
-                                                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 gap-1 bg-slate-50 text-slate-500 border-slate-200 font-medium">
-                                                                                <Clock className="w-3 h-3" />
-                                                                                {getVacancyAge(candidate.createdAt)}
-                                                                            </Badge>
+                                                                            (() => {
+                                                                                // @ts-ignore
+                                                                                const sla = stage.slaDays || 0;
+                                                                                const status = getVacancyDueDateStatus(candidate.createdAt, sla);
+                                                                                if (!status) return null;
+                                                                                return (
+                                                                                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 gap-1 ${status.color} font-medium`}>
+                                                                                        <status.icon className="w-3 h-3" />
+                                                                                        {status.text}
+                                                                                    </Badge>
+                                                                                );
+                                                                            })()
                                                                         ) : (
                                                                             dueStatus && (
                                                                                 <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 gap-1 ${dueStatus.color} font-medium`}>
