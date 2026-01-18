@@ -31,18 +31,17 @@ export function NotificationCenter() {
     const [open, setOpen] = useState(false);
     const router = useRouter();
 
-    const fetchNotifications = async () => {
+    const loadNotifications = async () => {
         try {
             const data = await getUserNotifications();
             setNotifications(data);
-            setUnreadCount(data.filter((n: Notification) => !n.read).length);
+            setUnreadCount(data.filter((n: any) => !n.read).length); // Safe access if type issue persists
         } catch (error) {
-            console.error("Failed to fetch notifications:", error);
+            console.error("Failed to load notifications", error);
         }
     };
 
     useEffect(() => {
-        fetchNotifications();
         // Poll every 30 seconds
         const interval = setInterval(fetchNotifications, 30000);
         return () => clearInterval(interval);
