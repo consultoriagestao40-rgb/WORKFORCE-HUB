@@ -221,9 +221,10 @@ export async function getRecruitmentBoardData() {
             posto: v.posto,
             company: v.company,
             description: v.description,
-            recruiter: v.recruiter, // NEW
-            createdAt: v.createdAt, // NEW
-            participants: v.participants // NEW
+            recruiter: v.recruiter,
+            createdAt: v.createdAt,
+            participants: v.participants,
+            id: v.id // FIX: Add ID so frontend can access candidate.vacancy.id
         }
     }));
 

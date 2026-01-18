@@ -532,20 +532,25 @@ function CommentsSection({ vacancyId, currentUser }: { vacancyId: string, curren
                 {comments.length === 0 ? (
                     <div className="text-center text-slate-400 text-sm py-4">Nenhum comentário.</div>
                 ) : (
-                    comments.map(c => (
-                        <div key={c.id} className="flex gap-3">
-                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs shrink-0">
-                                {c.user.name.substring(0, 2).toUpperCase()}
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-sm text-slate-800">{c.user.name}</span>
-                                    <span className="text-xs text-slate-400">{new Date(c.createdAt).toLocaleString()}</span>
+                    comments.map(c => {
+                        const isMe = currentUser?.id === c.user.id;
+                        return (
+                            <div key={c.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
+                                <Avatar className="w-8 h-8 border shadow-sm">
+                                    <AvatarFallback className={`${isMe ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'} text-xs font-bold`}>
+                                        {c.user.name.substring(0, 2).toUpperCase()}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div className={`max-w-[80%] rounded-lg p-3 ${isMe ? 'bg-emerald-50 border border-emerald-100' : 'bg-white border'}`}>
+                                    <div className={`flex items-center gap-2 mb-1 ${isMe ? 'flex-row-reverse justify-start' : ''}`}>
+                                        <span className="font-semibold text-xs text-slate-800">{c.user.name}</span>
+                                        <span className="text-[10px] text-slate-400">{new Date(c.createdAt).toLocaleString()}</span>
+                                    </div>
+                                    <div className="text-sm text-slate-700 whitespace-pre-wrap">{c.content}</div>
                                 </div>
-                                <div className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{c.content}</div>
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
             <div className="flex gap-2">
