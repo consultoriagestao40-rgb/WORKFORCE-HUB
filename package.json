@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "bash vercel-build.sh",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "next lint",
     "postinstall": "prisma generate"
   },
   "dependencies": {
