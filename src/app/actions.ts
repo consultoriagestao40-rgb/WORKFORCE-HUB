@@ -327,31 +327,67 @@ export async function createEmployee(formData: FormData) {
     const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
     const valeTransporte = parseFloat(formData.get("valeTransporte") as string) || 0;
 
+    // New: Mandatory Posto Link
+    const postoId = formData.get("postoId") as string;
+
     const admissionDate = admissionDateStr ? new Date(admissionDateStr) : new Date();
 
-    await prisma.employee.create({
-        data: {
-            name,
-            cpf,
-            roleId,
-            companyId: (formData.get("companyId") as string) || null,
-            type,
-            status: "Ativo", // Legacy alignment
-            situationId: situationId || undefined,
-            admissionDate,
-            salary,
-            insalubridade,
-            periculosidade,
-            gratificacao,
-            outrosAdicionais,
-            workload,
-            valeAlimentacao,
-            valeTransporte,
-            address: (formData.get("address") as string) || null,
-            phone: (formData.get("phone") as string) || null,
-            email: (formData.get("email") as string) || null,
-            birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : null,
-            gender: (formData.get("gender") as string) || null
+    await prisma.$transaction(async (tx) => {
+        // 1. Create Employee
+        const newEmployee = await tx.employee.create({
+            data: {
+                name,
+                cpf,
+                roleId,
+                companyId: (formData.get("companyId") as string) || null,
+                type,
+                status: "Ativo", // Legacy alignment
+                situationId: situationId || undefined,
+                admissionDate,
+                salary,
+                insalubridade,
+                periculosidade,
+                gratificacao,
+                outrosAdicionais,
+                workload,
+                valeAlimentacao,
+                valeTransporte,
+                address: (formData.get("address") as string) || null,
+                phone: (formData.get("phone") as string) || null,
+                email: (formData.get("email") as string) || null,
+                birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : null,
+                gender: (formData.get("gender") as string) || null
+            }
+        });
+
+        // 2. Create Assignment if Posto Provided
+        if (postoId) {
+            // Check if Posto exists
+            const posto = await tx.posto.findUnique({ where: { id: postoId } });
+            if (!posto) {
+                throw new Error("Posto informado para vínculo não encontrado.");
+            }
+
+            // Create Active Assignment
+            await tx.assignment.create({
+                data: {
+                    employeeId: newEmployee.id,
+                    postoId: postoId,
+                    startDate: admissionDate, // Starts at admission
+                    endDate: null // Active
+                }
+            });
+
+            // Log Auto-Assignment
+            const user = await getCurrentUser();
+            await tx.log.create({
+                data: {
+                    action: "ALOCACAO_AUTOMATICA",
+                    details: `Colaborador ${newEmployee.name} alocado automaticamente ao posto no cadastro (Origem: Recrutamento).`,
+                    employeeId: newEmployee.id,
+                    userId: user?.id
+                }
+            });
         }
     });
 

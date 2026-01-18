@@ -22,6 +22,8 @@ export interface NewEmployeeSheetProps {
         roleId?: string;
         companyId?: string;
         phone?: string;
+        postoId?: string;
+        postoName?: string;
     };
     onSuccess?: () => void;
 }
@@ -65,8 +67,16 @@ export function NewEmployeeSheet({
                 <SheetHeader>
                     <SheetTitle>Novo Colaborador</SheetTitle>
                     <SheetDescription>Cadastre um novo funcionário.</SheetDescription>
+                    {initialData?.postoName && (
+                        <div className="bg-blue-50 text-blue-700 p-3 rounded-md border border-blue-200 text-sm mt-2 flex items-center gap-2">
+                            <span>
+                                <strong>Vínculo Obrigatório:</strong> Será alocado em <u>{initialData.postoName}</u>
+                            </span>
+                        </div>
+                    )}
                 </SheetHeader>
                 <form action={handleSubmit} className="space-y-4 mt-6 h-[80vh] overflow-y-auto pr-4">
+                    {initialData?.postoId && <input type="hidden" name="postoId" value={initialData.postoId} />}
                     <div className="space-y-2">
                         <Label htmlFor="name">Nome Completo</Label>
                         <Input id="name" name="name" required defaultValue={initialData?.name || ''} />

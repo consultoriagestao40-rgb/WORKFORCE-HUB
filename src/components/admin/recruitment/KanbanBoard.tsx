@@ -35,6 +35,7 @@ interface Candidate {
         status: string;
         role?: { name: string } | null;
         posto?: {
+            id?: string; // New
             name: string;
             client: { name: string }
         } | null;
@@ -129,6 +130,10 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                     // Try to map role if possible, or leave empty
                     roleId: '', // Ideally we could map if names match, but safely leave for user
                     companyId: '', // Could map from vacancy.company or vacancy.posto.client...
+
+                    // Automatic Link to Posto
+                    postoId: candidateToMove.vacancy.posto?.id,
+                    postoName: candidateToMove.vacancy.posto ? `${candidateToMove.vacancy.posto.name} - ${candidateToMove.vacancy.posto.client.name}` : undefined
                 });
 
                 setIsEmployeeSheetOpen(true);
