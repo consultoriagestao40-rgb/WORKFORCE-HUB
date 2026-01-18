@@ -57,9 +57,10 @@ interface Stage {
 
 interface KanbanBoardProps {
     initialStages: Stage[];
+    currentUser?: any;
 }
 
-export function KanbanBoard({ initialStages }: KanbanBoardProps) {
+export function KanbanBoard({ initialStages, currentUser }: KanbanBoardProps) {
     const [stages, setStages] = useState(initialStages);
     const [isDragging, setIsDragging] = useState(false);
     const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
@@ -535,6 +536,7 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                 candidate={selectedCandidate}
                 stages={stages}
                 onWithdrawSuccess={handleWithdrawSuccess}
+                currentUser={currentUser}
             />
 
             <CandidateModal

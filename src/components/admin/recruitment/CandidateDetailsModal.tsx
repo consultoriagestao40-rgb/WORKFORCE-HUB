@@ -6,9 +6,9 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Briefcase, MapPin, Mail, Phone, Calendar, User, CheckCircle2, XCircle } from "lucide-react";
+import { Building2, Briefcase, MapPin, Mail, Phone, Calendar, User, CheckCircle2, XCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { withdrawCandidate, getRecruitmentTimeline, moveCandidate } from "@/actions/recruitment";
+import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate } from "@/actions/recruitment";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState, useEffect } from "react";
@@ -20,9 +20,10 @@ interface CandidateDetailsModalProps {
     candidate: any; // extended in implementation
     onWithdrawSuccess?: (candidateId: string) => void;
     stages?: any[]; // Passed from parent to determine flows
+    currentUser?: any;
 }
 
-export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdrawSuccess, stages = [] }: CandidateDetailsModalProps) {
+export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdrawSuccess, stages = [], currentUser }: CandidateDetailsModalProps) {
     const [timeline, setTimeline] = useState<any[]>([]);
     const [loadingTimeline, setLoadingTimeline] = useState(false);
 
@@ -378,6 +379,27 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                     }}
                                 >
                                     Candidato Desistiu
+                                </Button>
+                            )}
+
+                            {candidate.type !== 'VACANCY' && currentUser?.role === 'ADMIN' && (
+                                <Button
+                                    variant="destructive"
+                                    className="bg-red-800 hover:bg-red-900 border-red-900"
+                                    onClick={async () => {
+                                        if (!confirm("Confirmar EXCLUSÃO DEFINITIVA? Esta ação não pode ser desfeita e removerá todo o histórico.")) return;
+                                        try {
+                                            await deleteCandidate(candidate.id);
+                                            toast.success("Candidato excluído permanentemente.");
+                                            if (onWithdrawSuccess) onWithdrawSuccess(candidate.id);
+                                            onOpenChange(false);
+                                        } catch (e) {
+                                            toast.error("Erro ao excluir candidato");
+                                        }
+                                    }}
+                                >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Excluir (Admin)
                                 </Button>
                             )}
                             <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>

@@ -28,6 +28,7 @@ export default async function RecruitmentPage() {
             companies={companies}
             backlogs={backlogs}
             recruiters={users}
+            currentUser={await import("@/lib/auth").then(m => m.getCurrentUser())}
         />
     );
 }

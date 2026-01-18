@@ -487,6 +487,27 @@ export async function withdrawCandidate(candidateId: string) {
     revalidatePath("/admin/recrutamento");
 }
 
+export async function deleteCandidate(candidateId: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    // Strict Admin Check
+    if (user.role !== 'ADMIN') {
+        throw new Error("Apenas administradores podem excluir registros permanentemente.");
+    }
+
+    // Delete associated timeline entries first to be clean (optional but good for test data)
+    await prisma.recruitmentTimeline.deleteMany({
+        where: { candidateId: candidateId }
+    });
+
+    await prisma.recruitmentCandidate.delete({
+        where: { id: candidateId }
+    });
+
+    revalidatePath("/admin/recrutamento");
+}
+
 export async function createCandidate(data: {
     name: string;
     email?: string;
