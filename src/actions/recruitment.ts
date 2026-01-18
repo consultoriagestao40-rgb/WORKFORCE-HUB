@@ -807,8 +807,7 @@ export async function updateVacancy(vacancyId: string, data: { priority?: string
             "Recrutador Alterado",
             `Novo recrutador definido: ${newRecruiter?.name || 'Sistema'}`,
             'ASSIGNMENT',
-            '/admin/recrutamento?openId=VAC-' + vacancyId,
-            [data.recruiterId] // Ensure new recruiter gets it specifically if not caught by refetch
+            '/admin/recrutamento?openId=VAC-' + vacancyId
         );
     } else if (data.priority) {
         await notifyVacancyStakeholders(
@@ -846,8 +845,7 @@ export async function addVacancyParticipant(vacancyId: string, userId: string) {
         "Participante Adicionado",
         `${addedUser?.name} foi adicionado como participante na vaga.`,
         'ASSIGNMENT',
-        '/admin/recrutamento?openId=VAC-' + vacancyId,
-        [userId] // Ensure added user gets it
+        '/admin/recrutamento?openId=VAC-' + vacancyId
     );
 
     revalidatePath("/admin/recrutamento");
