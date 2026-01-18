@@ -110,6 +110,10 @@ export async function getRecruitmentBoardData() {
         }
     }
 
+    // --- SYNC BACKLOG GAPS TO VACANCIES ---
+    // Automatically create vacancies for vacant postos
+    await syncBacklogGaps();
+
     // 3. Reorder remaining stages (Shift up)
     // Seleção is 1. We want:
     // Entrevista Técnica -> 2
@@ -632,4 +636,48 @@ export async function getEmployeeFormData() {
         })
     ]);
     return { situations, roles, companies };
+}
+
+async function syncBacklogGaps() {
+    // 1. Get all postos that currently have NO active assignment
+    const vacantPostos = await prisma.posto.findMany({
+        where: {
+            assignments: {
+                none: {
+                    endDate: null // Active assignments have no end date
+                }
+            }
+        },
+        include: {
+            client: { include: { company: true } },
+            role: true,
+            vacancies: {
+                where: { status: 'OPEN' }
+            }
+        }
+    });
+
+    // 2. Filter out postos that ALREADY have an OPEN vacancy
+    const postosNeedingVacancy = vacantPostos.filter(p => p.vacancies.length === 0);
+
+    if (postosNeedingVacancy.length === 0) return;
+
+    // 3. Create Vacancies
+    console.log(`Creating ${postosNeedingVacancy.length} automatic vacancies for gaps.`);
+
+    // We can't use createMany easily because we need to map different relations (postoId, roleId, companyId) for each.
+    // Loop creation is safer here.
+    for (const p of postosNeedingVacancy) {
+        await prisma.vacancy.create({
+            data: {
+                title: `${p.role.name} - ${p.client.name}`,
+                description: `Vaga aberta automaticamente por vacância do posto.\nHorário: ${p.startTime} - ${p.endTime}\nEscala: ${p.schedule}`,
+                postoId: p.id,
+                roleId: p.roleId || undefined,
+                companyId: p.client.companyId || undefined, // Use client's company link if available
+                priority: "URGENT", // Gaps are usually urgent
+                status: "OPEN"
+            }
+        });
+    }
 }
