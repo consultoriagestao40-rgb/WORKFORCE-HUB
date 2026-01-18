@@ -889,9 +889,7 @@ export async function addRecruitmentComment(data: { vacancyId: string, content: 
     return { success: true, notifiedCount: 0, notifiedNames: [] };
 }
 
-revalidatePath("/admin/recrutamento");
-return comment;
-}
+
 
 export async function getRecruitmentComments(vacancyId: string) {
     const user = await getCurrentUser();
