@@ -17,9 +17,10 @@ interface RecruitmentClientPageProps {
     companies: any[];
     backlogs: any[];
     recruiters: any[];
+    currentUser?: any;
 }
 
-export function RecruitmentClientPage({ stages, vacancies, roles, postos, companies, backlogs, recruiters }: RecruitmentClientPageProps) {
+export function RecruitmentClientPage({ stages, vacancies, roles, postos, companies, backlogs, recruiters, currentUser }: RecruitmentClientPageProps) {
     const [isVacancyModalOpen, setIsVacancyModalOpen] = useState(false);
     const [isCandidateModalOpen, setIsCandidateModalOpen] = useState(false);
 
