@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { moveCandidate, updateStageConfig, getRecruiters } from "@/actions/recruitment";
 import { addBusinessDays } from "@/lib/business-days";
+import { isWeekend } from 'date-fns';
+import { isHoliday } from '@/lib/business-days';
 import { toast } from "sonner";
 import { Plus, Briefcase, User as UserIcon, Settings, Clock, AlertCircle, ShieldCheck } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -313,13 +315,22 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
         if (!dueDate) return null;
         const now = new Date();
         const due = new Date(dueDate);
-        const diffHours = (due.getTime() - now.getTime()) / (1000 * 60 * 60);
+        const diffMs = due.getTime() - now.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
 
-        // Format Date: "17/01"
         const formattedDate = due.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 
         if (diffHours < 0) return { color: 'bg-red-100 text-red-700 border-red-200', text: `Venceu ${formattedDate}`, icon: AlertCircle };
-        if (diffHours < 24) return { color: 'bg-amber-100 text-amber-700 border-amber-200', text: `Vence Hoje`, icon: Clock };
+
+        // Only show "Vence Hoje" if today is a business day (not weekend/holiday)
+        const isToday = due.toDateString() === now.toDateString();
+        const isTodayBusinessDay = !isWeekend(now) && !isHoliday(now);
+
+        if (isToday && isTodayBusinessDay) {
+            return { color: 'bg-amber-100 text-amber-700 border-amber-200', text: `Vence Hoje`, icon: Clock };
+        }
+
+        if (diffHours < 24) return { color: 'bg-amber-100 text-amber-700 border-amber-200', text: `Vence ${formattedDate}`, icon: Clock };
         return { color: 'bg-emerald-100 text-emerald-700 border-emerald-200', text: `Vence ${formattedDate}`, icon: Clock };
     };
 
