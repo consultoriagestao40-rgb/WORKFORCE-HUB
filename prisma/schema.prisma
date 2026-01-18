@@ -36,6 +36,7 @@ model User {
   approvedStages RecruitmentStage[]
   participatingVacancies Vacancy[] @relation("VacancyParticipants")
   recruitmentComments RecruitmentComment[]
+  notifications       Notification[]
 }
 
 // ... existing models ...
@@ -268,6 +269,22 @@ model RecruitmentComment {
   updatedAt DateTime @updatedAt
   
   @@index([vacancyId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  type      String   // SYSTEM, MENTION, ASSIGNMENT, MOVEMENT
+  link      String?
+  read      Boolean  @default(false)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
 }
 
 model RecruitmentCandidate {

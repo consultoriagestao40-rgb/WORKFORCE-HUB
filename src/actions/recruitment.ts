@@ -5,8 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { VacancyStatus } from "@prisma/client";
 import { addBusinessDays } from "@/lib/business-days";
-
-// --- Vacancies ---
+import { createNotification } from "./notifications";
 
 // --- Vacancies ---
 
@@ -433,6 +432,34 @@ export async function moveCandidate(candidateId: string, newStageId: string, jus
         });
     }
 
+    // --- NOTIFICATION: Candidate Movement ---
+    if (candidate.vacancyId) {
+        const vacancy = await prisma.vacancy.findUnique({
+            where: { id: candidate.vacancyId },
+            include: {
+                recruiter: true,
+                participants: true
+            }
+        });
+
+        if (vacancy) {
+            const message = `Candidato ${candidate.name} movido para ${newStage.name}`;
+            const link = `/admin/recrutamento`; // Ideally direct link but modal state is complex
+
+            // Notify Recruiter (if not self)
+            if (vacancy.recruiterId && vacancy.recruiterId !== user.id) {
+                await createNotification(vacancy.recruiterId, "Atualização de Candidato", message, 'MOVEMENT', link);
+            }
+
+            // Notify Participants
+            for (const p of vacancy.participants) {
+                if (p.id !== user.id) {
+                    await createNotification(p.id, "Atualização de Candidato", message, 'MOVEMENT', link);
+                }
+            }
+        }
+    }
+
     revalidatePath("/admin/recrutamento");
 }
 
@@ -736,6 +763,15 @@ export async function addVacancyParticipant(vacancyId: string, userId: string) {
             }
         }
     });
+
+    // --- NOTIFICATION: Assigned ---
+    if (userId !== user.id) {
+        const vacancy = await prisma.vacancy.findUnique({ where: { id: vacancyId } });
+        if (vacancy) {
+            await createNotification(userId, "Você foi adicionado", `Você agora participa da vaga: ${vacancy.title}`, 'ASSIGNMENT', '/admin/recrutamento');
+        }
+    }
+
     revalidatePath("/admin/recrutamento");
 }
 
@@ -769,6 +805,25 @@ export async function addRecruitmentComment(data: { vacancyId: string, content: 
             user: { select: { id: true, name: true } }
         }
     });
+
+    // --- NOTIFICATION: Mention Logic ---
+    const mentionRegex = /@([\w\sà-úÀ-Ú]+)/g;
+    const matches = data.content.match(mentionRegex);
+
+    if (matches) {
+        const mentionedNames = matches.map(m => m.substring(1).trim());
+        if (mentionedNames.length > 0) {
+            // Find users by name (fuzzy match or exact)
+            const allUsers = await prisma.user.findMany({ where: { isActive: true } });
+
+            for (const name of mentionedNames) {
+                const targetUser = allUsers.find(u => u.name.toLowerCase() === name.toLowerCase() || u.name.toLowerCase().includes(name.toLowerCase()));
+                if (targetUser && targetUser.id !== user.id) {
+                    await createNotification(targetUser.id, "Você foi mencionado", `${user.name} mencionou você em um comentário`, 'MENTION', '/admin/recrutamento');
+                }
+            }
+        }
+    }
 
     revalidatePath("/admin/recrutamento");
     return comment;

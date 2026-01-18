@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { KanbanBoard } from "@/components/admin/recruitment/KanbanBoard";
+import { NotificationCenter } from "@/components/admin/notifications/NotificationCenter";
 import { VacancyModal } from "@/components/admin/recruitment/VacancyModal";
 import { CandidateModal } from "@/components/admin/recruitment/CandidateModal";
 import { VacancyList } from "@/components/admin/recruitment/VacancyList";
@@ -30,7 +31,9 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
                 <div className="flex-1">
                     <div className="flex items-center gap-4">
                         <h1 className="text-2xl font-bold tracking-tight text-slate-900">Recrutamento e Seleção</h1>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
+                            <NotificationCenter />
+                            <div className="w-px h-6 bg-slate-200 mx-2" />
                             <Button onClick={() => setIsVacancyModalOpen(true)} size="sm" className="bg-pink-600 hover:bg-pink-700 text-white">
                                 <Plus className="w-4 h-4 mr-2" />
                                 Nova Vaga
