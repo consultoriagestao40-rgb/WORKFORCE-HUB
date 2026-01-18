@@ -824,6 +824,10 @@ async function syncBacklogGaps() {
     // 1. Get all postos that currently have NO active assignment
     const vacantPostos = await prisma.posto.findMany({
         where: {
+            // BLOCKER: Ignore Rotativo postos explicitly
+            client: {
+                name: { not: 'ROTATIVO' }
+            },
             assignments: {
                 none: {
                     endDate: null // Active assignments have no end date
@@ -850,6 +854,8 @@ async function syncBacklogGaps() {
     // We can't use createMany easily because we need to map different relations (postoId, roleId, companyId) for each.
     // Loop creation is safer here.
     for (const p of postosNeedingVacancy) {
+        // Double check safety
+        if (p.client.name === 'ROTATIVO') continue;
         await prisma.vacancy.create({
             data: {
                 title: `${p.role.name} - ${p.client.name}`,
