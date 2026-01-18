@@ -344,23 +344,24 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                             </div>
                                         </div>
                                     )}
-
-
-                                    {/* Posto Financial & Schedule Info */}
-
                                 </div>
 
 
-                                <div className="py-2">
-                                    <label className="text-xs font-medium text-slate-500 uppercase">Descrição da Vaga</label>
-                                    <div className="bg-slate-50 p-3 rounded mt-1 text-sm text-slate-600 whitespace-pre-wrap max-h-40 overflow-y-auto">
-                                        {candidate.vacancy?.description || "Sem descrição"}
-                                    </div>
-                                </div>
+                                {/* Posto Financial & Schedule Info */}
 
-                                {candidate.vacancy && (
-                                    <CommentsSection vacancyId={candidate.vacancy.id} currentUser={currentUser} users={recruiters} />
-                                )}
+                            </div>
+
+
+                            <div className="py-2">
+                                <label className="text-xs font-medium text-slate-500 uppercase">Descrição da Vaga</label>
+                                <div className="bg-slate-50 p-3 rounded mt-1 text-sm text-slate-600 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                                    {candidate.vacancy?.description || "Sem descrição"}
+                                </div>
+                            </div>
+
+                            {candidate.vacancy && (
+                                <CommentsSection vacancyId={candidate.vacancy.id} currentUser={currentUser} users={recruiters} />
+                            )}
                         </TabsContent>
 
                         <TabsContent value="history" className="mt-4">
