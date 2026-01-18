@@ -216,6 +216,70 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Posto Financial & Schedule Info */}
+                                    {candidate.vacancy?.posto && (
+                                        <div className="space-y-4 pt-2">
+                                            <h3 className="font-semibold text-emerald-600 flex items-center gap-2">
+                                                <Building2 className="w-5 h-5" />
+                                                Dados do Posto & Benefícios
+                                            </h3>
+                                            <div className="bg-emerald-50/50 p-4 rounded-lg border border-emerald-100 space-y-3">
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="text-xs font-medium text-slate-500 uppercase">Escala</label>
+                                                        <div className="text-slate-900 font-medium">{candidate.vacancy.posto.schedule}</div>
+                                                        <div className="text-xs text-slate-500">{candidate.vacancy.posto.startTime} - {candidate.vacancy.posto.endTime}</div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-xs font-medium text-slate-500 uppercase">Carga Horária</label>
+                                                        <div className="text-slate-900 font-medium">{candidate.vacancy.posto.requiredWorkload}h</div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="pt-2 border-t border-emerald-100/50 mt-2">
+                                                    <label className="text-xs font-medium text-slate-500 uppercase">Salário Base</label>
+                                                    <div className="text-slate-900 font-bold text-lg">
+                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.baseSalary || 0)}
+                                                    </div>
+                                                </div>
+
+                                                {(candidate.vacancy.posto.insalubridade > 0 ||
+                                                    candidate.vacancy.posto.periculosidade > 0 ||
+                                                    candidate.vacancy.posto.gratificacao > 0 ||
+                                                    candidate.vacancy.posto.outrosAdicionais > 0) && (
+                                                        <div className="pt-2 border-t border-emerald-100/50 mt-2 space-y-1">
+                                                            <label className="text-xs font-medium text-slate-500 uppercase">Adicionais</label>
+
+                                                            {candidate.vacancy.posto.insalubridade > 0 && (
+                                                                <div className="flex justify-between text-sm text-slate-700">
+                                                                    <span>Insalubridade</span>
+                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.insalubridade)}</span>
+                                                                </div>
+                                                            )}
+                                                            {candidate.vacancy.posto.periculosidade > 0 && (
+                                                                <div className="flex justify-between text-sm text-slate-700">
+                                                                    <span>Periculosidade</span>
+                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.periculosidade)}</span>
+                                                                </div>
+                                                            )}
+                                                            {candidate.vacancy.posto.gratificacao > 0 && (
+                                                                <div className="flex justify-between text-sm text-slate-700">
+                                                                    <span>Gratificação</span>
+                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.gratificacao)}</span>
+                                                                </div>
+                                                            )}
+                                                            {candidate.vacancy.posto.outrosAdicionais > 0 && (
+                                                                <div className="flex justify-between text-sm text-slate-700">
+                                                                    <span>Outros</span>
+                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.outrosAdicionais)}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -298,24 +362,24 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
 
                         <div className="flex gap-2">
                             {candidate.type !== 'VACANCY' && (
-                                    <Button
-                                        variant="destructive"
-                                        disabled={currentStage?.name === 'Posto'}
-                                        onClick={async () => {
-                                            if (!confirm("Confirmar desistência? O registro do candidato será removido e arquivado no histórico da vaga.")) return;
-                                            try {
-                                                await withdrawCandidate(candidate.id);
-                                                toast.success("Candidato removido. Histórico preservado na vaga.");
-                                                if (onWithdrawSuccess) onWithdrawSuccess(candidate.id);
-                                                onOpenChange(false);
-                                            } catch (e) {
-                                                toast.error("Erro ao registrar desistência");
-                                            }
-                                        }}
-                                    >
-                                        Candidato Desistiu
-                                    </Button>
-                                )}
+                                <Button
+                                    variant="destructive"
+                                    disabled={currentStage?.name === 'Posto'}
+                                    onClick={async () => {
+                                        if (!confirm("Confirmar desistência? O registro do candidato será removido e arquivado no histórico da vaga.")) return;
+                                        try {
+                                            await withdrawCandidate(candidate.id);
+                                            toast.success("Candidato removido. Histórico preservado na vaga.");
+                                            if (onWithdrawSuccess) onWithdrawSuccess(candidate.id);
+                                            onOpenChange(false);
+                                        } catch (e) {
+                                            toast.error("Erro ao registrar desistência");
+                                        }
+                                    }}
+                                >
+                                    Candidato Desistiu
+                                </Button>
+                            )}
                             <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
                         </div>
                     </div>
