@@ -63,7 +63,45 @@ export async function createVacancy(data: {
         }
     });
 
+    // Notify Recruiter about new assignment
+    if (data.recruiterId !== user.id) {
+        await createNotification(
+            data.recruiterId,
+            "Nova Atribuição de Vaga",
+            `Você foi definido como recrutador da vaga: ${data.title}`,
+            'ASSIGNMENT',
+            '/admin/recrutamento'
+        );
+    }
+
     revalidatePath("/admin/recrutamento");
+}
+
+// --- SHARED NOTIFICATION HELPER ---
+async function notifyVacancyStakeholders(vacancyId: string, title: string, message: string, type: 'SYSTEM' | 'MOVEMENT' | 'MENTION' | 'ASSIGNMENT', deepLink: string, excludeUserId?: string) {
+    const vacancy = await prisma.vacancy.findUnique({
+        where: { id: vacancyId },
+        include: { recruiter: true, participants: true }
+    });
+
+    if (!vacancy) return;
+
+    const notifiedIds = new Set<string>();
+    if (excludeUserId) notifiedIds.add(excludeUserId); // Don't notify self
+
+    // 1. Notify Recruiter
+    if (vacancy.recruiterId && !notifiedIds.has(vacancy.recruiterId)) {
+        await createNotification(vacancy.recruiterId, title, message, type, deepLink);
+        notifiedIds.add(vacancy.recruiterId);
+    }
+
+    // 2. Notify Participants
+    for (const p of vacancy.participants) {
+        if (!notifiedIds.has(p.id)) {
+            await createNotification(p.id, title, message, type, deepLink);
+            notifiedIds.add(p.id);
+        }
+    }
 }
 
 export async function updateVacancyStatus(id: string, status: VacancyStatus) {
@@ -444,19 +482,16 @@ export async function moveCandidate(candidateId: string, newStageId: string, jus
 
         if (vacancy) {
             const message = `Candidato ${candidate.name} movido para ${newStage.name}`;
-            const link = `/admin/recrutamento?openId=${candidate.id}`; // Open Candidate Card
+            const link = `/admin/recrutamento?openId=${candidate.id}`;
 
-            // Notify Recruiter (if not self)
-            if (vacancy.recruiterId && vacancy.recruiterId !== user.id) {
-                await createNotification(vacancy.recruiterId, "Atualização de Candidato", message, 'MOVEMENT', link);
-            }
-
-            // Notify Participants
-            for (const p of vacancy.participants) {
-                if (p.id !== user.id) {
-                    await createNotification(p.id, "Atualização de Candidato", message, 'MOVEMENT', link);
-                }
-            }
+            await notifyVacancyStakeholders(
+                candidate.vacancyId,
+                "Atualização de Candidato",
+                message,
+                'MOVEMENT',
+                link,
+                user.id
+            );
         }
     }
 
@@ -575,19 +610,29 @@ export async function createCandidate(data: {
             }
         });
 
-        await tx.recruitmentTimeline.create({
-            data: {
-                candidateId: newCandidate.id,
-                vacancyId: data.vacancyId,
-                candidateName: data.name,
-                action: "CREATED",
-                details: `Candidato cadastrado na etapa ${firstStage.name}`,
-                userId: user.id
-            }
+        details: `Candidato cadastrado na etapa ${firstStage.name}`,
+            userId: user.id
+    }
         });
+
+        // Notify Stakeholders
+        // Note: We need to wait for transaction to commit or use after logic, but valid here if no rollback
+        // However, notifyVacancyStakeholders is outside transaction context if it reads DB.
+        // It's safer to notify after transaction or assume consistency. 
+        // We will call it after await.
     });
 
-    revalidatePath("/admin/recrutamento");
+// Notify after transaction
+await notifyVacancyStakeholders(
+    data.vacancyId,
+    "Novo Candidato",
+    `Candidato ${data.name} adicionado à vaga`,
+    'SYSTEM',
+    '/admin/recrutamento?openId=VAC-' + data.vacancyId,
+    user.id
+);
+
+revalidatePath("/admin/recrutamento");
 }
 
 
