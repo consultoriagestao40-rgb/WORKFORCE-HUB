@@ -1,8 +1,7 @@
 
 import { addDays, isWeekend, isSameDay } from "date-fns";
 
-// Lista de feriados fixos nacionais (Brasil) - Exemplo básico
-// Pode ser expandido ou movido para banco de dados futuramente
+// Lista de feriados fixos nacionais (Brasil)
 const FIXED_HOLIDAYS = [
     "01-01", // Confraternização Universal
     "04-21", // Tiradentes
@@ -11,6 +10,7 @@ const FIXED_HOLIDAYS = [
     "10-12", // N. Sra. Aparecida
     "11-02", // Finados
     "11-15", // Proclamação da República
+    "11-20", // Dia da Consciência Negra (nacional desde 2024)
     "12-25", // Natal
 ];
 
