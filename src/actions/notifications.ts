@@ -65,9 +65,9 @@ export async function sendDebugNotification() {
     await createNotification(
         user.id,
         "Teste de Notificação",
-        "Se você está vendo isso, o sistema de notificações está funcionando!",
+        "Se você está vendo isso, o sistema de notificações está funcionando! Clique para testar o deep link.",
         "SYSTEM",
-        "/admin/recrutamento"
+        "/admin/recrutamento?openId=TEST-Link"
     );
     return { success: true };
 }

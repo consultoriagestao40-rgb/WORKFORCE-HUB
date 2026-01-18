@@ -822,6 +822,7 @@ export async function addRecruitmentComment(data: { vacancyId: string, content: 
 
     if (vacancy) {
         const notifiedUserIds = new Set<string>();
+        const notifiedNames: string[] = [];
         const commentAuthorId = user.id;
 
         // 1. Handle Mentions

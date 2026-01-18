@@ -568,10 +568,14 @@ function CommentsSection({ vacancyId, currentUser, users = [] }: { vacancyId: st
         if (!newComment.trim()) return;
         setLoading(true);
         try {
-            await addRecruitmentComment({ vacancyId, content: newComment });
+            const result = await addRecruitmentComment({ vacancyId, content: newComment });
             setNewComment("");
             loadComments();
-            toast.success("Comentário enviado");
+            if (result && result.notifiedNames.length > 0) {
+                toast.success(`Comentário enviado. Notificados: ${result.notifiedNames.join(", ")}`);
+            } else {
+                toast.success("Comentário enviado. Ninguém notificado (apenas registro).");
+            }
         } catch (error: any) {
             console.error(error);
             toast.error("Erro: " + (error.message || "Falha ao enviar"));
