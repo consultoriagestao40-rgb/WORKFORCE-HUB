@@ -6,7 +6,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { X, MessageSquare, Send, Paperclip, CheckCircle2, XCircle, Clock, Save, User, Mail, Phone, Calendar, Briefcase, MapPin, Building2, Building, DollarSign, AlertCircle } from "lucide-react";
+import { X, MessageSquare, Send, Paperclip, CheckCircle2, XCircle, Clock, Save, User, Mail, Phone, Calendar, Briefcase, MapPin, Building2, Building, DollarSign, AlertCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate, updateVacancy, addVacancyParticipant, removeVacancyParticipant, addRecruitmentComment, getRecruitmentComments } from "@/actions/recruitment";
 import { Textarea } from "@/components/ui/textarea";
