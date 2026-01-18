@@ -282,7 +282,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                     </div>
 
                                     {candidate.type === 'VACANCY' && candidate.vacancy && (
-                                        <CommentsSection vacancyId={candidate.vacancy.id} currentUser={currentUser} />
+                                        <CommentsSection vacancyId={candidate.vacancy.id} currentUser={currentUser} users={recruiters} />
                                     )}
                                 </div>
 
@@ -495,10 +495,62 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
 }
 
 // Sub-components for cleaner code (could be moved to separate files, but kept here for now)
-function CommentsSection({ vacancyId, currentUser }: { vacancyId: string, currentUser: any }) {
+function CommentsSection({ vacancyId, currentUser, users = [] }: { vacancyId: string, currentUser: any, users?: any[] }) {
     const [comments, setComments] = useState<any[]>([]);
     const [newComment, setNewComment] = useState("");
     const [loading, setLoading] = useState(false);
+
+    // Mention State
+    const [showMentions, setShowMentions] = useState(false);
+    const [mentionQuery, setMentionQuery] = useState("");
+    const [cursorPosition, setCursorPosition] = useState(0);
+
+    const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const val = e.target.value;
+        setNewComment(val);
+
+        // Detect @ mention trigger
+        // Look for @ at the end or followed by characters up to the cursor
+        const cursor = e.target.selectionStart;
+        setCursorPosition(cursor);
+
+        const textBeforeCursor = val.slice(0, cursor);
+        const lastAt = textBeforeCursor.lastIndexOf('@');
+
+        if (lastAt !== -1) {
+            // Check if there's a space before @ (or it's start of string)
+            const globalIndex = lastAt;
+            const isStart = globalIndex === 0;
+            const hasSpaceBefore = !isStart && val[globalIndex - 1] === ' ';
+
+            if (isStart || hasSpaceBefore) {
+                const query = textBeforeCursor.slice(globalIndex + 1);
+                // Only show if query doesn't contain spaces (simple mention logic)
+                if (!query.includes(' ')) {
+                    setMentionQuery(query);
+                    setShowMentions(true);
+                    return;
+                }
+            }
+        }
+        setShowMentions(false);
+    };
+
+    const insertMention = (userName: string) => {
+        const textBeforeCursor = newComment.slice(0, cursorPosition);
+        const lastAt = textBeforeCursor.lastIndexOf('@');
+        const textAfterCursor = newComment.slice(cursorPosition);
+
+        const newText = textBeforeCursor.slice(0, lastAt) + `@${userName} ` + textAfterCursor;
+        setNewComment(newText);
+        setShowMentions(false);
+
+        // Refocus would be nice but simple state update works for now
+    };
+
+    const filteredUsers = showMentions
+        ? users.filter(u => u.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 5)
+        : [];
 
     useEffect(() => {
         loadComments();
@@ -553,11 +605,34 @@ function CommentsSection({ vacancyId, currentUser }: { vacancyId: string, curren
                     })
                 )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 relative">
+                {showMentions && filteredUsers.length > 0 && (
+                    <div className="absolute bottom-full left-0 mb-2 w-60 bg-white border rounded shadow-lg z-50 overflow-hidden">
+                        <div className="text-xs font-semibold px-2 py-1 bg-slate-50 text-slate-500 border-b">Mencionar usuário...</div>
+                        {filteredUsers.map(user => (
+                            <button
+                                key={user.id}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 flex items-center gap-2"
+                                onClick={() => insertMention(user.name)}
+                            >
+                                <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center text-[10px] font-bold text-indigo-700">
+                                    {user.name.substring(0, 1)}
+                                </div>
+                                {user.name}
+                            </button>
+                        ))}
+                    </div>
+                )}
                 <Textarea
                     value={newComment}
-                    onChange={e => setNewComment(e.target.value)}
-                    placeholder="Escreva um comentário..."
+                    onChange={handleTextChange}
+                    onKeyDown={(e) => {
+                        // Allow ESC to close suggestions
+                        if (showMentions && e.key === 'Escape') {
+                            setShowMentions(false);
+                        }
+                    }}
+                    placeholder="Escreva um comentário... Use @ para mencionar"
                     className="min-h-[80px]"
                 />
                 <Button onClick={handleSend} disabled={loading || !newComment.trim()} className="self-end">
