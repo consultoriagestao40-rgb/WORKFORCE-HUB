@@ -806,21 +806,67 @@ export async function addRecruitmentComment(data: { vacancyId: string, content: 
         }
     });
 
-    // --- NOTIFICATION: Mention Logic ---
-    const mentionRegex = /@([\w\sà-úÀ-Ú]+)/g;
-    const matches = data.content.match(mentionRegex);
+    // --- NOTIFICATION Logic ---
+    const vacancy = await prisma.vacancy.findUnique({
+        where: { id: data.vacancyId },
+        include: {
+            recruiter: true,
+            participants: true
+        }
+    });
 
-    if (matches) {
-        const mentionedNames = matches.map(m => m.substring(1).trim());
-        if (mentionedNames.length > 0) {
-            // Find users by name (fuzzy match or exact)
-            const allUsers = await prisma.user.findMany({ where: { isActive: true } });
+    if (vacancy) {
+        const notifiedUserIds = new Set<string>();
+        const commentAuthorId = user.id;
 
-            for (const name of mentionedNames) {
-                const targetUser = allUsers.find(u => u.name.toLowerCase() === name.toLowerCase() || u.name.toLowerCase().includes(name.toLowerCase()));
-                if (targetUser && targetUser.id !== user.id) {
-                    await createNotification(targetUser.id, "Você foi mencionado", `${user.name} mencionou você em um comentário`, 'MENTION', '/admin/recrutamento');
+        // 1. Handle Mentions
+        const mentionRegex = /@([\w\sà-úÀ-Ú]+)/g;
+        const matches = data.content.match(mentionRegex);
+
+        if (matches) {
+            const mentionedNames = matches.map(m => m.substring(1).trim());
+            if (mentionedNames.length > 0) {
+                const allUsers = await prisma.user.findMany({ where: { isActive: true } });
+
+                for (const name of mentionedNames) {
+                    const targetUser = allUsers.find(u => u.name.toLowerCase() === name.toLowerCase() || u.name.toLowerCase().includes(name.toLowerCase()));
+                    if (targetUser && targetUser.id !== commentAuthorId && !notifiedUserIds.has(targetUser.id)) {
+                        await createNotification(
+                            targetUser.id,
+                            "Você foi mencionado",
+                            `${user.name} mencionou você em um comentário na vaga ${vacancy.title}`,
+                            'MENTION',
+                            '/admin/recrutamento'
+                        );
+                        notifiedUserIds.add(targetUser.id);
+                    }
                 }
+            }
+        }
+
+        // 2. Notify Recruiter (if not author and not already notified)
+        if (vacancy.recruiterId && vacancy.recruiterId !== commentAuthorId && !notifiedUserIds.has(vacancy.recruiterId)) {
+            await createNotification(
+                vacancy.recruiterId,
+                "Novo Comentário",
+                `${user.name} comentou na vaga ${vacancy.title}`,
+                'SYSTEM',
+                '/admin/recrutamento'
+            );
+            notifiedUserIds.add(vacancy.recruiterId);
+        }
+
+        // 3. Notify Participants (if not author and not already notified)
+        for (const p of vacancy.participants) {
+            if (p.id !== commentAuthorId && !notifiedUserIds.has(p.id)) {
+                await createNotification(
+                    p.id,
+                    "Novo Comentário",
+                    `${user.name} comentou na vaga ${vacancy.title}`,
+                    'SYSTEM',
+                    '/admin/recrutamento'
+                );
+                notifiedUserIds.add(p.id);
             }
         }
     }
