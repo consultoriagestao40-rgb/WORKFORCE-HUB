@@ -517,8 +517,9 @@ function CommentsSection({ vacancyId, currentUser }: { vacancyId: string, curren
             setNewComment("");
             loadComments();
             toast.success("Comentário enviado");
-        } catch (error) {
-            toast.error("Erro ao enviar comentário");
+        } catch (error: any) {
+            console.error(error);
+            toast.error("Erro: " + (error.message || "Falha ao enviar"));
         } finally {
             setLoading(false);
         }
