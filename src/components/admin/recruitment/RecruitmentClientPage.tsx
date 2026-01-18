@@ -73,7 +73,7 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
 
             {/* <VacancyList /> removed as it is now integrated into Kanban R&S column */}
 
-            <div className="h-[calc(100vh-280px)]">
+            <div className="min-h-[calc(100vh-200px)]">
                 <KanbanBoard initialStages={stages} />
             </div>
 

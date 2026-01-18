@@ -359,14 +359,14 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
     };
 
     return (
-        <div className="h-full overflow-x-auto">
+        <div className="h-full min-h-[500px] overflow-x-auto">
             <DragDropContext onDragEnd={onDragEnd} onDragStart={() => setIsDragging(true)}>
-                <div className="flex gap-4 h-full min-w-max pb-4">
+                <div className="flex gap-4 min-w-max pb-4 items-start h-full">
                     {stages.map((stage) => {
                         // FIX: Use isSystem flag because ID is now dynamic from DB
                         const isRnsStage = stage.isSystem;
                         return (
-                            <div key={stage.id} className={`w-80 flex flex-col rounded-lg h-full max-h-full ${isRnsStage ? 'bg-indigo-50 border-indigo-100 border' : 'bg-slate-100'} `}>
+                            <div key={stage.id} className={`w-80 flex flex-col rounded-lg min-h-[200px] ${isRnsStage ? 'bg-indigo-50 border-indigo-100 border' : 'bg-slate-100'} `}>
                                 <div className={`p-3 font-semibold flex justify-between items-center border-b ${isRnsStage ? 'text-indigo-700 border-indigo-200' : 'text-slate-700 border-slate-200'} `}>
                                     <div className="flex items-center gap-2">
                                         <span>{stage.name}</span>
@@ -394,7 +394,7 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                         <div
                                             {...provided.droppableProps}
                                             ref={provided.innerRef}
-                                            className={`flex-1 p-2 overflow-y-auto space-y-2 transition-colors ${snapshot.isDraggingOver ? 'bg-slate-200/50' : ''}`}
+                                            className={`flex-1 p-2 space-y-2 transition-colors ${snapshot.isDraggingOver ? 'bg-slate-200/50' : ''}`}
                                         >
                                             {stage.candidates.map((candidate, index) => {
                                                 // MOD: Standardize SLA calculation based on CreatedAt (Birth Date) for ALL stages
