@@ -30,6 +30,7 @@ interface Candidate {
     updatedAt?: Date; // NEW
     stageDueDate?: Date; // NEW
     vacancy: {
+        id?: string; // NEW: Added to fix TS error
         title: string;
         priority: string;
         status: string;
