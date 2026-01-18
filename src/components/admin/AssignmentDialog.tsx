@@ -4,10 +4,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, UserMinus, AlertCircle } from "lucide-react";
-import { assignEmployee, unassignEmployee } from "@/app/actions";
+import { UserPlus, AlertCircle } from "lucide-react";
+import { assignEmployee } from "@/app/actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface AssignmentDialogProps {
@@ -21,6 +22,7 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
     const [open, setOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [createVacancy, setCreateVacancy] = useState(false);
 
     async function handleSubmit(formData: FormData) {
         setError(null);
@@ -31,6 +33,7 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
                 setError(result.error);
             } else {
                 setOpen(false);
+                setCreateVacancy(false); // Reset
             }
         } catch (e: any) {
             setError(e.message);
@@ -39,23 +42,8 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
         }
     }
 
-    async function handleUnassign() {
-        if (!confirm("Deseja realmente desvincular o colaborador deste posto?")) return;
-        setLoading(true);
-        try {
-            const formData = new FormData();
-            formData.append("postoId", postoId);
-            await unassignEmployee(formData);
-            setOpen(false);
-        } catch (e: any) {
-            setError(e.message);
-        } finally {
-            setLoading(false);
-        }
-    }
-
     return (
-        <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) setError(null); }}>
+        <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) { setError(null); setCreateVacancy(false); } }}>
             <DialogTrigger asChild>
                 <Button size="sm" variant="outline" className="gap-2">
                     <UserPlus className="w-3 h-3" />
@@ -64,9 +52,16 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Alocação de Posto</DialogTitle>
+                    <DialogTitle>
+                        {activeEmployeeName ? 'Realocação de Posto' : 'Alocação de Posto'}
+                    </DialogTitle>
                     <DialogDescription>
-                        Selecione o colaborador para assumir o posto de <strong>{postoRole}</strong>.
+                        {activeEmployeeName
+                            ? <>
+                                <strong>{activeEmployeeName}</strong> será desvinculado e um novo colaborador assumirá o posto de <strong>{postoRole}</strong>.
+                            </>
+                            : <>Selecione o colaborador para assumir o posto de <strong>{postoRole}</strong>.</>
+                        }
                     </DialogDescription>
                 </DialogHeader>
 
@@ -81,15 +76,8 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
                 <form action={handleSubmit} className="space-y-4 py-4">
                     <input type="hidden" name="postoId" value={postoId} />
 
-                    {activeEmployeeName && (
-                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-md mb-4 text-xs text-amber-800">
-                            <strong>Atenção:</strong> {activeEmployeeName} está alocado neste posto.
-                            Uma nova alocação encerrará a atual automaticamente.
-                        </div>
-                    )}
-
                     <div className="space-y-2">
-                        <Label>Colaborador</Label>
+                        <Label>Novo Colaborador *</Label>
                         <Select name="employeeId" required>
                             <SelectTrigger>
                                 <SelectValue placeholder="Selecione..." />
@@ -103,26 +91,32 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
                             </SelectContent>
                         </Select>
                     </div>
+
                     <div className="space-y-2">
                         <Label>Data de Início</Label>
                         <Input type="date" name="startDate" required defaultValue={new Date().toISOString().split('T')[0]} />
                     </div>
-                    <DialogFooter className="flex justify-between sm:justify-between w-full">
-                        {activeEmployeeName ? (
-                            <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                className="gap-2"
-                                onClick={handleUnassign}
-                                disabled={loading}
+
+                    {activeEmployeeName && (
+                        <div className="flex items-center space-x-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                            <Checkbox
+                                id="createVacancy"
+                                name="createVacancy"
+                                checked={createVacancy}
+                                onCheckedChange={(checked) => setCreateVacancy(checked === true)}
+                            />
+                            <Label
+                                htmlFor="createVacancy"
+                                className="text-sm font-normal cursor-pointer flex-1"
                             >
-                                <UserMinus className="w-4 h-4" />
-                                Desvincular
-                            </Button>
-                        ) : <div />}
-                        <Button type="submit" disabled={loading}>
-                            {loading ? "Processando..." : "Confirmar Alocação"}
+                                Abrir vaga no Recrutamento & Seleção para este posto?
+                            </Label>
+                        </div>
+                    )}
+
+                    <DialogFooter>
+                        <Button type="submit" disabled={loading} className="w-full">
+                            {loading ? "Processando..." : "Confirmar Realocação"}
                         </Button>
                     </DialogFooter>
                 </form>

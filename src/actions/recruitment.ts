@@ -7,6 +7,52 @@ import { VacancyStatus } from "@prisma/client";
 import { addBusinessDays } from "@/lib/business-days";
 import { createNotification } from "./notifications";
 
+// --- Helper: Create Vacancy from Posto ---
+export async function createVacancyFromPosto(postoId: string) {
+    const posto = await prisma.posto.findUnique({
+        where: { id: postoId },
+        include: {
+            role: true,
+            client: {
+                include: {
+                    company: true
+                }
+            }
+        }
+    });
+
+    if (!posto) throw new Error("Posto not found");
+
+    const title = `${posto.role.name} - ${posto.client.name}`;
+    const description = `Vaga aberta automaticamente após realocação de colaborador.\n\nDetalhes do posto:\n- Escala: ${posto.schedule}\n- Horário: ${posto.startTime} - ${posto.endTime}\n- Carga horária: ${posto.requiredWorkload}h`;
+
+    // Create vacancy without recruiter (will be assigned later)
+    const vacancy = await prisma.vacancy.create({
+        data: {
+            title,
+            description,
+            postoId: posto.id,
+            companyId: posto.client.company?.id || null,
+            status: 'OPEN',
+            priority: 'MEDIUM',
+            recruiterId: null // No recruiter assigned yet
+        }
+    });
+
+    revalidatePath("/admin/recrutamento");
+
+    // Notify stakeholders
+    await notifyVacancyStakeholders(
+        vacancy.id,
+        "Nova Vaga Aberta",
+        `Vaga "${title}" foi aberta automaticamente no R&S.`,
+        'SYSTEM',
+        `/admin/recrutamento?openId=VAC-${vacancy.id}`
+    );
+
+    return vacancy;
+}
+
 // --- Vacancies ---
 
 export async function getVacancies(filter?: { status?: string, companyId?: string }) {

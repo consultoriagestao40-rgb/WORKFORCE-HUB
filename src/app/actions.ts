@@ -398,6 +398,7 @@ export async function assignEmployee(formData: FormData) {
     const postoId = formData.get("postoId") as string;
     const employeeId = formData.get("employeeId") as string;
     const startDateStr = formData.get("startDate") as string;
+    const createVacancy = formData.get("createVacancy") === "on";
 
     if (!postoId || !employeeId) return { error: "Campos obrigatórios faltando." };
 
@@ -431,11 +432,26 @@ export async function assignEmployee(formData: FormData) {
         include: { employee: true }
     });
 
-    if (activeAssignment) {
-        return { error: `Este posto já está ocupado por ${activeAssignment.employee.name}. Desvincule-o primeiro.` };
-    }
-
     await prisma.$transaction(async (tx) => {
+        // 1. If there's an active assignment, end it
+        if (activeAssignment) {
+            await tx.assignment.update({
+                where: { id: activeAssignment.id },
+                data: { endDate: new Date() }
+            });
+
+            // Log unassignment
+            const currentUser = await getCurrentUser();
+            await tx.log.create({
+                data: {
+                    action: "DESVINCULACAO",
+                    details: `Colaborador ${activeAssignment.employee.name} desvinculado (realocação)`,
+                    employeeId: activeAssignment.employeeId,
+                    userId: currentUser?.id
+                }
+            });
+        }
+
         // 2. Create new assignment
         await tx.assignment.create({
             data: {
@@ -445,7 +461,7 @@ export async function assignEmployee(formData: FormData) {
             }
         });
 
-        // 3. Log
+        // 3. Log new assignment
         const emp = await tx.employee.findUnique({ where: { id: employeeId } });
         const posto = await tx.posto.findUnique({ where: { id: postoId }, include: { client: true, role: true } });
 
@@ -461,8 +477,20 @@ export async function assignEmployee(formData: FormData) {
         });
     });
 
+    // 4. Create vacancy if requested (OUTSIDE transaction to avoid nested transactions)
+    if (createVacancy && activeAssignment) {
+        try {
+            const { createVacancyFromPosto } = await import("@/actions/recruitment");
+            await createVacancyFromPosto(postoId);
+        } catch (error) {
+            console.error("Error creating vacancy:", error);
+            // Don't fail the whole operation if vacancy creation fails
+        }
+    }
+
     revalidatePath(`/admin/clients`);
     revalidatePath("/admin");
+    revalidatePath("/admin/recrutamento");
 }
 
 export async function unassignEmployee(formData: FormData) {
