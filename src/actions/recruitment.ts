@@ -87,7 +87,8 @@ async function notifyVacancyStakeholders(vacancyId: string, title: string, messa
     if (!vacancy) return;
 
     const notifiedIds = new Set<string>();
-    if (excludeUserId) notifiedIds.add(excludeUserId); // Don't notify self
+    // REMOVED: excludeUserId logic to allow self-notifications as requested by user ("Everything must notify")
+    // if (excludeUserId) notifiedIds.add(excludeUserId); 
 
     // 1. Notify Recruiter
     if (vacancy.recruiterId && !notifiedIds.has(vacancy.recruiterId)) {
