@@ -226,7 +226,7 @@ export async function getRecruitmentBoardData() {
         orderBy: { order: 'asc' },
         include: {
             candidates: {
-                where: { vacancy: { status: 'OPEN' } },
+                where: { vacancy: { status: { in: ['OPEN', 'CLOSED'] } } },
                 include: {
                     vacancy: {
                         include: {
@@ -416,6 +416,14 @@ export async function moveCandidate(candidateId: string, newStageId: string, jus
             }
         })
     ]);
+
+    // AUTO-CLOSE VACANCY if moved to "Posto"
+    if (newStage.name === "Posto") {
+        await prisma.vacancy.update({
+            where: { id: candidate.vacancyId },
+            data: { status: "CLOSED" }
+        });
+    }
 
     revalidatePath("/admin/recrutamento");
 }
