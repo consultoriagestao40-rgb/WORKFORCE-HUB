@@ -322,15 +322,19 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
 
         if (diffHours < 0) return { color: 'bg-red-100 text-red-700 border-red-200', text: `Venceu ${formattedDate}`, icon: AlertCircle };
 
-        // Only show "Vence Hoje" if today is a business day (not weekend/holiday)
-        const isToday = due.toDateString() === now.toDateString();
+        // Never show "Vence Hoje" on weekends/holidays
         const isTodayBusinessDay = !isWeekend(now) && !isHoliday(now);
+        const isToday = due.toDateString() === now.toDateString();
 
         if (isToday && isTodayBusinessDay) {
             return { color: 'bg-amber-100 text-amber-700 border-amber-200', text: `Vence Hoje`, icon: Clock };
         }
 
-        if (diffHours < 24) return { color: 'bg-amber-100 text-amber-700 border-amber-200', text: `Vence ${formattedDate}`, icon: Clock };
+        // Within 24h but not today or not a business day
+        if (diffHours < 24 && isTodayBusinessDay) {
+            return { color: 'bg-amber-100 text-amber-700 border-amber-200', text: `Vence ${formattedDate}`, icon: Clock };
+        }
+
         return { color: 'bg-emerald-100 text-emerald-700 border-emerald-200', text: `Vence ${formattedDate}`, icon: Clock };
     };
 
