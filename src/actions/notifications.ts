@@ -57,3 +57,17 @@ export async function markAllNotificationsAsRead() {
 
     revalidatePath("/admin");
 }
+
+export async function sendDebugNotification() {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    await createNotification(
+        user.id,
+        "Teste de Notificação",
+        "Se você está vendo isso, o sistema de notificações está funcionando!",
+        "SYSTEM",
+        "/admin/recrutamento"
+    );
+    return { success: true };
+}
