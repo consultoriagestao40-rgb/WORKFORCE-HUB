@@ -23,6 +23,11 @@ export async function createVacancyFromPosto(postoId: string) {
 
     if (!posto) throw new Error("Posto not found");
 
+    // BLOCKER: Prevent vacancy creation for ROTATIVO
+    if (posto.client.name === 'ROTATIVO') {
+        throw new Error("Não é permitido abrir vaga para o posto ROTATIVO.");
+    }
+
     const title = `${posto.role.name} - ${posto.client.name}`;
     const description = `Vaga aberta automaticamente após realocação de colaborador.\n\nDetalhes do posto:\n- Escala: ${posto.schedule}\n- Horário: ${posto.startTime} - ${posto.endTime}\n- Carga horária: ${posto.requiredWorkload}h`;
 
@@ -95,6 +100,20 @@ export async function createVacancy(data: {
 }) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
+
+    // Validate Rotativo
+    if (data.companyId) {
+        const company = await prisma.company.findUnique({ where: { id: data.companyId }, include: { clients: true } });
+        // Although Rotativo is a client, sometimes it might be linked via company? 
+        // Rotativo client has companyId=null usually.
+        // Let's check postoId if provided
+    }
+    if (data.postoId) {
+        const posto = await prisma.posto.findUnique({ where: { id: data.postoId }, include: { client: true } });
+        if (posto && posto.client.name === 'ROTATIVO') {
+            throw new Error("Não é permitido abrir vaga para o posto ROTATIVO.");
+        }
+    }
 
     await prisma.vacancy.create({
         data: {

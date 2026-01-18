@@ -1,0 +1,8 @@
+{
+    "crons": [
+        {
+            "path": "/api/cron/vacation-return",
+            "schedule": "0 8 * * *"
+        }
+    ]
+}
