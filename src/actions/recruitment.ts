@@ -73,7 +73,14 @@ export async function getVacancies(filter?: { status?: string, companyId?: strin
     }
 
     const vacancies = await prisma.vacancy.findMany({
-        where,
+        where: {
+            ...where,
+            posto: {
+                client: {
+                    name: { not: 'ROTATIVO' }
+                }
+            }
+        },
         include: {
             role: true,
             posto: { include: { client: true } },
