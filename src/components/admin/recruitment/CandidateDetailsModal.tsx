@@ -345,7 +345,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                         </div>
                                     )}
 
-                                    {candidate.type === 'VACANCY' && candidate.vacancy && (
+                                    {candidate.vacancy && (
                                         <CommentsSection vacancyId={candidate.vacancy.id} currentUser={currentUser} users={recruiters} />
                                     )}
                                 </div>
