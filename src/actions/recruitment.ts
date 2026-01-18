@@ -226,6 +226,8 @@ export async function getRecruitmentBoardData() {
     // --- SYNC BACKLOG GAPS TO VACANCIES ---
     // Automatically create vacancies for vacant postos
     await syncBacklogGaps();
+    // Automatically close vacancies for filled postos
+    await syncFilledVacancies();
 
     // 3. Reorder remaining stages (Shift up)
     // Seleção is 1. We want:
@@ -870,6 +872,33 @@ async function syncBacklogGaps() {
     }
 
     revalidatePath("/admin/recrutamento");
+}
+
+// Helper: Auto-close vacancies if post is filled
+async function syncFilledVacancies() {
+    // Find postos that have BOTH:
+    // 1. Active Assignment
+    // 2. Open Vacancy
+    const doubleBookedPostos = await prisma.posto.findMany({
+        where: {
+            assignments: { some: { endDate: null } },
+            vacancies: { some: { status: 'OPEN' } }
+        },
+        include: { vacancies: { where: { status: 'OPEN' } } }
+    });
+
+    if (doubleBookedPostos.length === 0) return;
+
+    console.log(`Closing ${doubleBookedPostos.length} vacancies for filled postos.`);
+
+    for (const p of doubleBookedPostos) {
+        for (const v of p.vacancies) {
+            await prisma.vacancy.update({
+                where: { id: v.id },
+                data: { status: 'FILLED' }
+            });
+        }
+    }
 }
 
 // --- NEW: Update Vacancy (Priority, Recruiter) ---
