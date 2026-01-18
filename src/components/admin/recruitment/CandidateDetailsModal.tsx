@@ -167,7 +167,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                 )}
 
                                 {/* Vacancy Info */}
-                                <div className={`space-y-4 ${candidate.type === 'VACANCY' ? 'col-span-2' : ''}`}>
+                                <div className="space-y-4 col-span-2">
                                     <h3 className="font-semibold text-orange-600 flex items-center gap-2">
                                         <Briefcase className="w-5 h-5" />
                                         Dados da Vaga
