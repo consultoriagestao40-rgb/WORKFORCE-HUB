@@ -63,15 +63,22 @@ async function getRoles() {
     });
 }
 
+async function getSituations() {
+    return await prisma.situation.findMany({
+        orderBy: { name: 'asc' }
+    });
+}
+
 export default async function ClientPostosPage(props: { params: Promise<{ id: string }> }) {
     const params = await props.params;
 
     // Parallelize data fetching
-    const [client, employees, schedules, roles, userRole] = await Promise.all([
+    const [client, employees, schedules, roles, situations, userRole] = await Promise.all([
         getClientDetails(params.id),
         getActiveEmployees(),
         getSchedules(),
         getRoles(),
+        getSituations(),
         getCurrentUserRole()
     ]);
 
@@ -182,6 +189,7 @@ export default async function ClientPostosPage(props: { params: Promise<{ id: st
                                                 postoRole={posto.role.name}
                                                 activeEmployeeName={activeEmployee?.name}
                                                 employees={employees}
+                                                situations={situations}
                                             />
 
                                             {activeEmployee && (

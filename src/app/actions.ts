@@ -495,8 +495,13 @@ export async function assignEmployee(formData: FormData) {
 
 export async function unassignEmployee(formData: FormData) {
     const postoId = formData.get("postoId") as string;
-    const endDateStr = formData.get("endDate") as string;
-    const endDate = endDateStr ? new Date(endDateStr) : new Date();
+    const situationId = formData.get("situationId") as string;
+    const createVacancy = formData.get("createVacancy") === "on";
+    const endDate = new Date();
+
+    if (!situationId) {
+        throw new Error("Situação é obrigatória ao desvincular colaborador");
+    }
 
     const currentAssignment = await prisma.assignment.findFirst({
         where: {
@@ -508,25 +513,79 @@ export async function unassignEmployee(formData: FormData) {
 
     if (!currentAssignment) return;
 
+    // Get situation details
+    const situation = await prisma.situation.findUnique({ where: { id: situationId } });
+    if (!situation) throw new Error("Situação não encontrada");
+
     await prisma.$transaction(async (tx) => {
+        // 1. End current assignment
         await tx.assignment.update({
             where: { id: currentAssignment.id },
             data: { endDate }
         });
 
-        const currentUser = await getCurrentUser();
-        await tx.log.create({
-            data: {
-                action: "DESVINCULACAO",
-                details: `Colaborador ${currentAssignment.employee.name} desvinculado do posto ${currentAssignment.posto.role.name} em ${currentAssignment.posto.client.name}`,
-                employeeId: currentAssignment.employeeId,
-                userId: currentUser?.id
-            }
+        // 2. Update employee situation
+        await tx.employee.update({
+            where: { id: currentAssignment.employeeId },
+            data: { situationId }
         });
+
+        // 3. Check if should allocate to Rotativo
+        const activeStatuses = ['Ativo', 'Férias', 'Afastamento', 'Licença INSS'];
+        const shouldAllocateToRotativo = activeStatuses.includes(situation.name);
+
+        if (shouldAllocateToRotativo) {
+            const { getOrCreateRotativoPosto } = await import("@/lib/rotativo");
+            const rotativoPosto = await getOrCreateRotativoPosto();
+
+            // For vacations, save origin posto
+            const isVacation = situation.name === 'Férias';
+
+            await tx.assignment.create({
+                data: {
+                    employeeId: currentAssignment.employeeId,
+                    postoId: rotativoPosto.id,
+                    startDate: endDate,
+                    originPostoId: isVacation ? postoId : null
+                }
+            });
+
+            const currentUser = await getCurrentUser();
+            await tx.log.create({
+                data: {
+                    action: isVacation ? "ALOCACAO_ROTATIVO_FERIAS" : "ALOCACAO_ROTATIVO",
+                    details: `${currentAssignment.employee.name} alocado no Rotativo (${situation.name})${isVacation ? ' - posto origem salvo' : ''}`,
+                    employeeId: currentAssignment.employeeId,
+                    userId: currentUser?.id
+                }
+            });
+        } else {
+            // Just log desvinculação for inactive statuses (Desligado, etc)
+            const currentUser = await getCurrentUser();
+            await tx.log.create({
+                data: {
+                    action: "DESVINCULACAO",
+                    details: `Colaborador ${currentAssignment.employee.name} desvinculado do posto ${currentAssignment.posto.role.name} em ${currentAssignment.posto.client.name} (${situation.name})`,
+                    employeeId: currentAssignment.employeeId,
+                    userId: currentUser?.id
+                }
+            });
+        }
     });
+
+    // 4. Create vacancy if requested (outside transaction)
+    if (createVacancy) {
+        try {
+            const { createVacancyFromPosto } = await import("@/actions/recruitment");
+            await createVacancyFromPosto(postoId);
+        } catch (error) {
+            console.error("Error creating vacancy:", error);
+        }
+    }
 
     revalidatePath(`/admin/clients`);
     revalidatePath("/admin");
+    revalidatePath("/admin/employees");
 }
 export async function createSchedule(formData: FormData) {
     const name = formData.get("name") as string;

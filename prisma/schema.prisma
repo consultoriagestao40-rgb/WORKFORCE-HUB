@@ -28,15 +28,15 @@ model User {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  requests  Request[]
-  resolvedRequests Request[] @relation("RequestResolver")
-  logs      Log[]
+  requests                   Request[]
+  resolvedRequests           Request[]             @relation("RequestResolver")
+  logs                       Log[]
   recruitmentTimelineEntries RecruitmentTimeline[]
-  vacancies Vacancy[]
-  approvedStages RecruitmentStage[]
-  participatingVacancies Vacancy[] @relation("VacancyParticipants")
-  recruitmentComments RecruitmentComment[]
-  notifications       Notification[]
+  vacancies                  Vacancy[]
+  approvedStages             RecruitmentStage[]
+  participatingVacancies     Vacancy[]             @relation("VacancyParticipants")
+  recruitmentComments        RecruitmentComment[]
+  notifications              Notification[]
 }
 
 // ... existing models ...
@@ -50,8 +50,8 @@ model Log {
   employeeId String?
   employee   Employee? @relation(fields: [employeeId], references: [id])
 
-  userId    String?
-  user      User?     @relation(fields: [userId], references: [id])
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
 
   @@index([timestamp])
   @@index([employeeId])
@@ -65,24 +65,24 @@ model Company {
   address   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   clients   Client[]
   employees Employee[]
   vacancies Vacancy[]
 }
 
 model Client {
-  id              String   @id @default(uuid())
-  companyId       String?  // Made optional for migration, should be mandatory in UI
-  company         Company? @relation(fields: [companyId], references: [id])
-  
+  id        String   @id @default(uuid())
+  companyId String? // Made optional for migration, should be mandatory in UI
+  company   Company? @relation(fields: [companyId], references: [id])
+
   name            String
   address         String
   paymentTermDays Int      @default(30)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  
-  postos          Posto[]
+
+  postos Posto[]
 
   @@index([companyId])
 }
@@ -96,38 +96,37 @@ model Schedule {
 }
 
 model Posto {
-  id           String   @id @default(uuid())
-  clientId     String
-  client       Client   @relation(fields: [clientId], references: [id])
-  
-  roleId       String   // Cargo
-  role         Role     @relation(fields: [roleId], references: [id])
-  startTime    String   // Horário Início (e.g. "08:00")
-  endTime      String   // Horário Fim (e.g. "18:00")
-  schedule     String   // Escala (5x2, 6x1, 12x36)
-  billingValue Float    // Valor Faturamento
-  
+  id       String @id @default(uuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  roleId       String // Cargo
+  role         Role   @relation(fields: [roleId], references: [id])
+  startTime    String // Horário Início (e.g. "08:00")
+  endTime      String // Horário Fim (e.g. "18:00")
+  schedule     String // Escala (5x2, 6x1, 12x36)
+  billingValue Float // Valor Faturamento
+
   // New fields for validation
-  requiredWorkload Int      @default(220) // Carga Horária Exigida (ex: 220, 180)
-  isNightShift     Boolean  @default(false)
+  requiredWorkload Int     @default(220) // Carga Horária Exigida (ex: 220, 180)
+  isNightShift     Boolean @default(false)
 
   // Budget/Quota fields (Quadro do Contrato)
-  baseSalary           Float   @default(0)
-  insalubridade        Float   @default(0)
-  periculosidade       Float   @default(0)
-  gratificacao         Float   @default(0)
-  outrosAdicionais     Float   @default(0)
+  baseSalary       Float @default(0)
+  insalubridade    Float @default(0)
+  periculosidade   Float @default(0)
+  gratificacao     Float @default(0)
+  outrosAdicionais Float @default(0)
 
-  assignments  Assignment[]
-  coverages    Coverage[]
-  occurrences  Occurrence[]
-  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  vacancies    Vacancy[]
-  
+  assignments       Assignment[]
+  originAssignments Assignment[] @relation("OriginPosto") // Track employees who will return to this posto
+  coverages         Coverage[]
+  occurrences       Occurrence[]
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vacancies Vacancy[]
 
   @@index([clientId])
 }
@@ -143,67 +142,65 @@ model Situation {
 }
 
 model Role {
-  id          String      @id @default(uuid())
-  name        String      @unique
+  id          String     @id @default(uuid())
+  name        String     @unique
   description String?
   employees   Employee[]
   postos      Posto[]
   vacancies   Vacancy[]
 
-
-  
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Employee {
-  id              String   @id @default(uuid())
-  name            String
-  cpf             String   @unique
+  id     String @id @default(uuid())
+  name   String
+  cpf    String @unique
   // Role/Cargo
-  roleId          String
-  role            Role       @relation(fields: [roleId], references: [id])
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
 
   // Company Link
-  companyId       String?
-  company         Company?   @relation(fields: [companyId], references: [id])
-  
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
   // Dynamic Situation
-  situationId     String?
-  situation       Situation? @relation(fields: [situationId], references: [id])
-  
-  status          String   // Legacy field, will keep for now but migrate to situationId
-  type            String   // CLT, Reserva Técnica
-  
+  situationId String?
+  situation   Situation? @relation(fields: [situationId], references: [id])
+
+  status String // Legacy field, will keep for now but migrate to situationId
+  type   String // CLT, Reserva Técnica
+
   // Personal Details
-  birthDate       DateTime?
-  gender          String?   // "Masculino", "Feminino", "Outro"
-  address         String?
-  phone           String?
-  email           String?
-  
+  birthDate DateTime?
+  gender    String? // "Masculino", "Feminino", "Outro"
+  address   String?
+  phone     String?
+  email     String?
+
   // Vacation & Admission
-  admissionDate   DateTime @default(now())
-  lastVacationStart DateTime?
-  lastVacationEnd   DateTime?
-  totalVacationDaysTaken Int @default(0)
-  
+  admissionDate          DateTime  @default(now())
+  lastVacationStart      DateTime?
+  lastVacationEnd        DateTime?
+  totalVacationDaysTaken Int       @default(0)
+
   // Enhanced Payroll Fields
-  salary          Float    @default(0) // Now considered Base Salary
-  insalubridade   Float    @default(0)
-  periculosidade  Float    @default(0)
-  gratificacao    Float    @default(0)
-  outrosAdicionais Float   @default(0)
-  workload        Int      @default(220) // Carga Horária (ex: 220, 180, 100)
-  
+  salary           Float @default(0) // Now considered Base Salary
+  insalubridade    Float @default(0)
+  periculosidade   Float @default(0)
+  gratificacao     Float @default(0)
+  outrosAdicionais Float @default(0)
+  workload         Int   @default(220) // Carga Horária (ex: 220, 180, 100)
+
   // Benefícios Mensais
-  valeAlimentacao Float    @default(0) // VA mensal
-  valeTransporte  Float    @default(0) // VT mensal
-  
-  assignments Assignment[]
-  coverages   Coverage[] @relation("CoveringEmployee")
+  valeAlimentacao Float @default(0) // VA mensal
+  valeTransporte  Float @default(0) // VT mensal
+
+  assignments      Assignment[]
+  coverages        Coverage[]          @relation("CoveringEmployee")
   customAllowances EmployeeAllowance[]
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -212,10 +209,10 @@ model Employee {
   dismissalNotes  String?
   probationStatus String? // "CONFIRMED", "DISMISSED", null (PENDING)
 
-  vacations Vacation[]
-  requests  Request[]
+  vacations   Vacation[]
+  requests    Request[]
   occurrences Occurrence[]
-  logs      Log[]
+  logs        Log[]
 }
 
 // ... existing models ...
@@ -226,124 +223,122 @@ model Employee {
 // --- Recruitment & Selection Module (SAFE IMPLEMENTATION) ---
 
 model Vacancy {
-  id          String   @id @default(uuid())
+  id          String        @id @default(uuid())
   title       String
   description String?
   status      VacancyStatus @default(OPEN)
-  priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+  priority    String        @default("MEDIUM") // LOW, MEDIUM, HIGH
 
   // Relacionamentos Opcionais
-  postoId     String?
-  posto       Posto?   @relation(fields: [postoId], references: [id])
-  
-  roleId      String?
-  role        Role?    @relation(fields: [roleId], references: [id])
-  
-  companyId   String?
-  company     Company? @relation(fields: [companyId], references: [id])
+  postoId String?
+  posto   Posto?  @relation(fields: [postoId], references: [id])
+
+  roleId String?
+  role   Role?   @relation(fields: [roleId], references: [id])
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
 
   // Recruiter Link
   recruiterId String?
-  recruiter   User?    @relation(fields: [recruiterId], references: [id])
+  recruiter   User?   @relation(fields: [recruiterId], references: [id])
 
-  candidates  RecruitmentCandidate[]
-  timelines   RecruitmentTimeline[] // Audit Log for Vacancy
-  participants User[] @relation("VacancyParticipants")
+  candidates   RecruitmentCandidate[]
+  timelines    RecruitmentTimeline[] // Audit Log for Vacancy
+  participants User[]                 @relation("VacancyParticipants")
   comments     RecruitmentComment[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model RecruitmentComment {
-  id        String   @id @default(uuid())
-  content   String
-  
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  
+  id      String @id @default(uuid())
+  content String
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
   vacancyId String
-  vacancy   Vacancy  @relation(fields: [vacancyId], references: [id])
-  
+  vacancy   Vacancy @relation(fields: [vacancyId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([vacancyId])
 }
 
 model Notification {
-  id        String   @id @default(uuid())
-  title     String
-  message   String
-  type      String   // SYSTEM, MENTION, ASSIGNMENT, MOVEMENT
-  link      String?
-  read      Boolean  @default(false)
-  
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  
+  id      String  @id @default(uuid())
+  title   String
+  message String
+  type    String // SYSTEM, MENTION, ASSIGNMENT, MOVEMENT
+  link    String?
+  read    Boolean @default(false)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
   createdAt DateTime @default(now())
-  
+
   @@index([userId])
 }
 
 model RecruitmentCandidate {
-  id        String   @id @default(uuid())
-  name      String
-  email     String?
-  phone     String?
-  
+  id    String  @id @default(uuid())
+  name  String
+  email String?
+  phone String?
+
   // Link to Vacancy
   vacancyId String
   vacancy   Vacancy @relation(fields: [vacancyId], references: [id])
-  
+
   // State
-  stageId   String
-  stage     RecruitmentStage @relation(fields: [stageId], references: [id])
-  
+  stageId String
+  stage   RecruitmentStage @relation(fields: [stageId], references: [id])
+
   stageDueDate DateTime? // Calculated based on Stage SLA
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  timeline  RecruitmentTimeline[]
+
+  timeline RecruitmentTimeline[]
 }
 
 model RecruitmentStage {
-  id          String   @id @default(uuid())
-  name        String
-  order       Int
-  isSystem    Boolean  @default(false)
-  slaDays     Int      @default(3) // Default SLA in days
-  
-  approverId  String?
-  approver    User?    @relation(fields: [approverId], references: [id])
-  
-  candidates  RecruitmentCandidate[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id       String  @id @default(uuid())
+  name     String
+  order    Int
+  isSystem Boolean @default(false)
+  slaDays  Int     @default(3) // Default SLA in days
+
+  approverId String?
+  approver   User?   @relation(fields: [approverId], references: [id])
+
+  candidates RecruitmentCandidate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-
-
 model RecruitmentTimeline {
-  id          String   @id @default(uuid())
-  candidateId String?
-  candidate   RecruitmentCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  id            String                @id @default(uuid())
+  candidateId   String?
+  candidate     RecruitmentCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
   candidateName String? // Snapshot for history preservation
 
   // Link to Vacancy (Audit Context)
-  vacancyId   String?
-  vacancy     Vacancy? @relation(fields: [vacancyId], references: [id])
-  
-  action      String   // "MOVED", "COMMENT", "EMAIL", "WITHDRAWN", "CREATED"
-  details     String?
-  
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id])
-  
-  createdAt   DateTime @default(now())
+  vacancyId String?
+  vacancy   Vacancy? @relation(fields: [vacancyId], references: [id])
+
+  action  String // "MOVED", "COMMENT", "EMAIL", "WITHDRAWN", "CREATED"
+  details String?
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
 }
 
 enum VacancyStatus {
@@ -353,108 +348,113 @@ enum VacancyStatus {
 }
 
 model Vacation {
-  id          String   @id @default(uuid())
-  employeeId  String
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  
-  startDate   DateTime
-  endDate     DateTime
-  daysTaken   Int
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  startDate DateTime
+  endDate   DateTime
+  daysTaken Int
+  processed Boolean  @default(false) // Track if vacation return was processed
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([employeeId])
+  @@index([endDate, processed]) // For cron job queries
 }
 
 model AllowanceType {
-  id               String              @id @default(uuid())
-  name             String              @unique
-  description      String?
-  isPercentage     Boolean             @default(false) // false = R$, true = %
-  
+  id           String  @id @default(uuid())
+  name         String  @unique
+  description  String?
+  isPercentage Boolean @default(false) // false = R$, true = %
+
   employeeAllowances EmployeeAllowance[]
-  
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model EmployeeAllowance {
-  id               String         @id @default(uuid())
-  employeeId       String
-  allowanceTypeId  String
-  value            Float          @default(0)
-  
-  employee         Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  allowanceType    AllowanceType  @relation(fields: [allowanceTypeId], references: [id])
-  
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  
+  id              String @id @default(uuid())
+  employeeId      String
+  allowanceTypeId String
+  value           Float  @default(0)
+
+  employee      Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  allowanceType AllowanceType @relation(fields: [allowanceTypeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([employeeId, allowanceTypeId])
 }
 
 model Assignment {
-  id         String    @id @default(uuid())
+  id         String   @id @default(uuid())
   postoId    String
-  posto      Posto     @relation(fields: [postoId], references: [id])
+  posto      Posto    @relation(fields: [postoId], references: [id])
   employeeId String
-  employee   Employee  @relation(fields: [employeeId], references: [id])
-  
-  startDate  DateTime
-  endDate    DateTime?
-  
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  startDate DateTime
+  endDate   DateTime?
+
+  // Origin posto for vacation/leave returns
+  originPostoId String?
+  originPosto   Posto?  @relation("OriginPosto", fields: [originPostoId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([postoId])
   @@index([employeeId])
   @@index([endDate])
+  @@index([originPostoId])
 }
 
 model Coverage {
-  id            String   @id @default(uuid())
-  postoId       String
-  posto         Posto    @relation(fields: [postoId], references: [id])
-  
-  type          String   // Diarista, Hora Extra, Reserva Técnica
+  id      String @id @default(uuid())
+  postoId String
+  posto   Posto  @relation(fields: [postoId], references: [id])
+
+  type          String // Diarista, Hora Extra, Reserva Técnica
   date          DateTime
   costValue     Float
-  paymentStatus String   // A Vista, Folha
+  paymentStatus String // A Vista, Folha
 
   coveringEmployeeId String?
   coveringEmployee   Employee? @relation("CoveringEmployee", fields: [coveringEmployeeId], references: [id])
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([postoId])
   @@index([date])
   @@index([type])
 }
 
-
-
 model Request {
-  id          String        @id @default(uuid())
-  type        RequestType
-  status      RequestStatus @default(PENDENTE)
-  
+  id     String        @id @default(uuid())
+  type   RequestType
+  status RequestStatus @default(PENDENTE)
+
   dueDate     DateTime
   description String
-  
-  requesterId String
-  requester   User          @relation(fields: [requesterId], references: [id])
-  
-  employeeId  String?
-  employee    Employee?     @relation(fields: [employeeId], references: [id])
 
-  resolverId  String?
-  resolver    User?         @relation("RequestResolver", fields: [resolverId], references: [id])
+  requesterId String
+  requester   User   @relation(fields: [requesterId], references: [id])
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+
+  resolverId      String?
+  resolver        User?   @relation("RequestResolver", fields: [resolverId], references: [id])
   resolutionNotes String?
-  
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([requesterId])
   @@index([status])
@@ -481,22 +481,18 @@ model Occurrence {
   id          String   @id @default(uuid())
   title       String
   description String
-  type        String   // "Disciplinar", "Operacional", "Falha", "Elogio", "Outros"
+  type        String // "Disciplinar", "Operacional", "Falha", "Elogio", "Outros"
   date        DateTime @default(now())
-  
-  postoId     String
-  posto       Posto    @relation(fields: [postoId], references: [id])
 
-  employeeId  String?
-  employee    Employee? @relation(fields: [employeeId], references: [id])
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  postoId String
+  posto   Posto  @relation(fields: [postoId], references: [id])
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([postoId])
   @@index([employeeId])
 }
-
-
-
-
