@@ -78,29 +78,44 @@ export async function createVacancy(data: {
 }
 
 // --- SHARED NOTIFICATION HELPER ---
-async function notifyVacancyStakeholders(vacancyId: string, title: string, message: string, type: 'SYSTEM' | 'MOVEMENT' | 'MENTION' | 'ASSIGNMENT', deepLink: string, excludeUserId?: string) {
+async function notifyVacancyStakeholders(vacancyId: string, title: string, message: string, type: 'SYSTEM' | 'MOVEMENT' | 'MENTION' | 'ASSIGNMENT', deepLink: string, extraUserIds: string[] = []) {
     const vacancy = await prisma.vacancy.findUnique({
         where: { id: vacancyId },
         include: { recruiter: true, participants: true }
     });
 
+    // Also get current user (Actor) to force notification "Log" style
+    const actor = await getCurrentUser();
+
     if (!vacancy) return;
 
     const notifiedIds = new Set<string>();
-    // REMOVED: excludeUserId logic to allow self-notifications as requested by user ("Everything must notify")
-    // if (excludeUserId) notifiedIds.add(excludeUserId); 
 
-    // 1. Notify Recruiter
+    // 1. Always notify the ACTOR (User who caused the event) - Confirmation Log
+    if (actor) {
+        notifiedIds.add(actor.id);
+        await createNotification(actor.id, title, message, type, deepLink);
+    }
+
+    // 2. Notify Recruiter (if not Actor)
     if (vacancy.recruiterId && !notifiedIds.has(vacancy.recruiterId)) {
         await createNotification(vacancy.recruiterId, title, message, type, deepLink);
         notifiedIds.add(vacancy.recruiterId);
     }
 
-    // 2. Notify Participants
+    // 3. Notify Participants (if not Actor)
     for (const p of vacancy.participants) {
         if (!notifiedIds.has(p.id)) {
             await createNotification(p.id, title, message, type, deepLink);
             notifiedIds.add(p.id);
+        }
+    }
+
+    // 4. Notify Extra Users (e.g. Added Participant)
+    for (const uid of extraUserIds) {
+        if (!notifiedIds.has(uid)) {
+            await createNotification(uid, title, message, type, deepLink);
+            notifiedIds.add(uid);
         }
     }
 }
@@ -490,8 +505,7 @@ export async function moveCandidate(candidateId: string, newStageId: string, jus
                 "Atualização de Candidato",
                 message,
                 'MOVEMENT',
-                link,
-                user.id
+                link
             );
         }
     }
@@ -629,8 +643,7 @@ export async function createCandidate(data: {
         "Novo Candidato",
         `Candidato ${data.name} adicionado à vaga`,
         'SYSTEM',
-        '/admin/recrutamento?openId=VAC-' + data.vacancyId,
-        user.id
+        '/admin/recrutamento?openId=VAC-' + data.vacancyId
     );
 
     revalidatePath("/admin/recrutamento");
@@ -780,10 +793,55 @@ async function syncBacklogGaps() {
     }
 }
 
+// --- SHARED NOTIFICATION HELPER ---
+async function notifyVacancyStakeholders(vacancyId: string, title: string, message: string, type: 'SYSTEM' | 'MOVEMENT' | 'MENTION' | 'ASSIGNMENT', deepLink: string, extraUserIds: string[] = []) {
+    const vacancy = await prisma.vacancy.findUnique({
+        where: { id: vacancyId },
+        include: { recruiter: true, participants: true }
+    });
+
+    // Also get current user (Actor) to force notification "Log" style
+    const actor = await getCurrentUser();
+
+    if (!vacancy) return;
+
+    const notifiedIds = new Set<string>();
+
+    // 1. Always notify the ACTOR (User who caused the event) - Confirmation Log
+    if (actor) {
+        notifiedIds.add(actor.id);
+        await createNotification(actor.id, title, message, type, deepLink);
+    }
+
+    // 2. Notify Recruiter (if not Actor)
+    if (vacancy.recruiterId && !notifiedIds.has(vacancy.recruiterId)) {
+        await createNotification(vacancy.recruiterId, title, message, type, deepLink);
+        notifiedIds.add(vacancy.recruiterId);
+    }
+
+    // 3. Notify Participants (if not Actor)
+    for (const p of vacancy.participants) {
+        if (!notifiedIds.has(p.id)) {
+            await createNotification(p.id, title, message, type, deepLink);
+            notifiedIds.add(p.id);
+        }
+    }
+
+    // 4. Notify Extra Users (e.g. Added Participant)
+    for (const uid of extraUserIds) {
+        if (!notifiedIds.has(uid)) {
+            await createNotification(uid, title, message, type, deepLink);
+            notifiedIds.add(uid);
+        }
+    }
+}
+
 // --- NEW: Update Vacancy (Priority, Recruiter) ---
 export async function updateVacancy(vacancyId: string, data: { priority?: string, recruiterId?: string }) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
+
+    const oldVacancy = await prisma.vacancy.findUnique({ where: { id: vacancyId } });
 
     await prisma.vacancy.update({
         where: { id: vacancyId },
@@ -793,6 +851,55 @@ export async function updateVacancy(vacancyId: string, data: { priority?: string
         }
     });
 
+    // Detect Changes for Notification
+    if (data.recruiterId && oldVacancy?.recruiterId !== data.recruiterId) {
+        // Recruiter Changed
+        const newRecruiter = await prisma.user.findUnique({ where: { id: data.recruiterId } });
+        await notifyVacancyStakeholders(
+            vacancyId,
+            "Recrutador Alterado",
+            `Novo recrutador definido: ${newRecruiter?.name || 'Sistema'}`,
+            'ASSIGNMENT',
+            '/admin/recrutamento?openId=VAC-' + vacancyId,
+            [data.recruiterId] // Ensure new recruiter gets it specifically if not caught by refetch
+        );
+    } else if (data.priority) {
+        await notifyVacancyStakeholders(
+            vacancyId,
+            "Prioridade Atualizada",
+            `Prioridade alterada para ${data.priority}`,
+            'SYSTEM',
+            '/admin/recrutamento?openId=VAC-' + vacancyId
+        );
+    }
+
+    revalidatePath("/admin/recrutamento");
+}
+
+export async function withdrawCandidate(candidateId: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const candidate = await prisma.recruitmentCandidate.update({
+        where: { id: candidateId },
+        data: {
+            status: 'WITHDRAWN',
+            stageId: null, // Remove from any stage
+            stageDueDate: null,
+            withdrawnAt: new Date(),
+            withdrawnByUserId: user.id
+        }
+    });
+
+    if (candidate && candidate.vacancyId) {
+        await notifyVacancyStakeholders(
+            candidate.vacancyId,
+            "Desistência de Candidato",
+            `Candidato ${candidate.name} desistiu do processo.`,
+            'SYSTEM',
+            '/admin/recrutamento?openId=VAC-' + candidate.vacancyId
+        );
+    }
     revalidatePath("/admin/recrutamento");
 }
 
@@ -810,13 +917,18 @@ export async function addVacancyParticipant(vacancyId: string, userId: string) {
         }
     });
 
-    // --- NOTIFICATION: Assigned ---
-    if (userId !== user.id) {
-        const vacancy = await prisma.vacancy.findUnique({ where: { id: vacancyId } });
-        if (vacancy) {
-            await createNotification(userId, "Você foi adicionado", `Você agora participa da vaga: ${vacancy.title}`, 'ASSIGNMENT', `/admin/recrutamento?openId=VAC-${vacancy.id}`);
-        }
-    }
+    const addedUser = await prisma.user.findUnique({ where: { id: userId } });
+
+    // Broadcast: "User X added as participant"
+    // Helper will notify: Actor (Admin), Recruiter, Existing Participants, and we add New Participant
+    await notifyVacancyStakeholders(
+        vacancyId,
+        "Participante Adicionado",
+        `${addedUser?.name} foi adicionado como participante na vaga.`,
+        'ASSIGNMENT',
+        '/admin/recrutamento?openId=VAC-' + vacancyId,
+        [userId] // Ensure added user gets it
+    );
 
     revalidatePath("/admin/recrutamento");
 }
