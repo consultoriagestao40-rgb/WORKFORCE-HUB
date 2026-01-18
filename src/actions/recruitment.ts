@@ -444,7 +444,7 @@ export async function moveCandidate(candidateId: string, newStageId: string, jus
 
         if (vacancy) {
             const message = `Candidato ${candidate.name} movido para ${newStage.name}`;
-            const link = `/admin/recrutamento`; // Ideally direct link but modal state is complex
+            const link = `/admin/recrutamento?openId=${candidate.id}`; // Open Candidate Card
 
             // Notify Recruiter (if not self)
             if (vacancy.recruiterId && vacancy.recruiterId !== user.id) {
@@ -768,7 +768,7 @@ export async function addVacancyParticipant(vacancyId: string, userId: string) {
     if (userId !== user.id) {
         const vacancy = await prisma.vacancy.findUnique({ where: { id: vacancyId } });
         if (vacancy) {
-            await createNotification(userId, "Você foi adicionado", `Você agora participa da vaga: ${vacancy.title}`, 'ASSIGNMENT', '/admin/recrutamento');
+            await createNotification(userId, "Você foi adicionado", `Você agora participa da vaga: ${vacancy.title}`, 'ASSIGNMENT', `/admin/recrutamento?openId=VAC-${vacancy.id}`);
         }
     }
 

@@ -6,7 +6,7 @@ import { moveCandidate, updateStageConfig, getRecruiters } from "@/actions/recru
 import { addBusinessDays } from "@/lib/business-days";
 import { toast } from "sonner";
 import { Plus, Briefcase, User as UserIcon, Settings, Clock, AlertCircle, ShieldCheck } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -89,6 +89,32 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
     useEffect(() => {
         getEmployeeFormData().then(setEmployeeFormData).catch(console.error);
     }, []);
+
+    // Deep Linking Logic
+    const searchParams = useSearchParams();
+    const openId = searchParams.get('openId');
+
+    useEffect(() => {
+        if (openId && stages.length > 0) {
+            // Try to find the candidate/vacancy in any stage
+            let found = null;
+            for (const stage of stages) {
+                found = stage.candidates.find(c =>
+                    c.id === openId ||
+                    c.realId === openId ||
+                    (c.type === 'VACANCY' && `VAC-${c.vacancy.id}` === openId) ||
+                    (c.type === 'VACANCY' && c.id === openId)
+                );
+                if (found) break;
+            }
+
+            if (found) {
+                // Determine if we should open via handleCardClick logic
+                setSelectedCandidate(found);
+                setIsDetailsOpen(true);
+            }
+        }
+    }, [openId, stages]);
 
     const onDragEnd = async (result: DropResult) => {
         setIsDragging(false);
