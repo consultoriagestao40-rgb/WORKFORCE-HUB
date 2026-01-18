@@ -78,11 +78,13 @@ export async function createVacancy(data: {
 }
 
 // --- SHARED NOTIFICATION HELPER ---
-// Notifies ALL users with access to Recruitment (Admin role)
+// Notifies ALL users with admin/management access (everyone except regular USERs)
 async function notifyVacancyStakeholders(vacancyId: string, title: string, message: string, type: 'SYSTEM' | 'MOVEMENT' | 'MENTION' | 'ASSIGNMENT', deepLink: string) {
-    // Fetch all users with Admin role (only role with recruitment access)
+    // Fetch all users EXCEPT role 'USER' (includes ADMIN, MANAGER, FINANCE, etc.)
     const users = await prisma.user.findMany({
-        where: { role: 'ADMIN' },
+        where: {
+            role: { not: 'USER' }
+        },
         select: { id: true }
     });
 
