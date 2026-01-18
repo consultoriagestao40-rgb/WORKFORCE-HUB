@@ -103,6 +103,20 @@ export async function updateVacancyStatus(id: string, status: VacancyStatus) {
         data: { status }
     });
 
+    // Notify all stakeholders about status change
+    const statusLabels: Record<string, string> = {
+        'OPEN': 'Aberta',
+        'FILLED': 'Preenchida',
+        'CANCELLED': 'Cancelada'
+    };
+    await notifyVacancyStakeholders(
+        id,
+        "Status da Vaga Alterado",
+        `Vaga foi marcada como: ${statusLabels[status] || status}`,
+        'SYSTEM',
+        '/admin/recrutamento?openId=VAC-' + id
+    );
+
     revalidatePath("/admin/recrutamento");
 }
 
