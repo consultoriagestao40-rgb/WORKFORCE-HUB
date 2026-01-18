@@ -62,12 +62,8 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
 
                 <NavLink href="/admin" icon={LayoutDashboard} label="Dashboard Overview" />
 
-                {!isAssistRH && (
-                    <>
-                        <NavLink href="/admin/companies" icon={Building2} label="Minhas Empresas" />
-                        <NavLink href="/admin/clients" icon={Building} label="Cliente & Contrato" />
-                    </>
-                )}
+                <NavLink href="/admin/companies" icon={Building2} label="Minhas Empresas" />
+                <NavLink href="/admin/clients" icon={Building} label="Cliente & Contrato" />
 
                 {role === 'ADMIN' && (
                     <NavLink href="/admin/users" icon={ShieldAlert} label="Gestão de Acessos" colorClass="text-indigo-400" />
@@ -77,15 +73,11 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
 
                 {!isCollapsed && <div className="h-px bg-white/5 my-6 mx-3" />}
 
-                {!isAssistRH && (
-                    <>
-                        <SectionHeader title="Estrutura & Cargos" />
-                        <NavLink href="/admin/schedules" icon={Clock} label="Escalas de Posto" />
-                        <NavLink href="/admin/roles" icon={Briefcase} label="Cargos/Funções" />
-                        <NavLink href="/admin/allowance-types" icon={DollarSign} label="Tipos de Adicionais" />
-                        <NavLink href="/admin/situations" icon={ShieldAlert} label="Situações de RH" colorClass="text-primary" />
-                    </>
-                )}
+                <SectionHeader title="Estrutura & Cargos" />
+                <NavLink href="/admin/schedules" icon={Clock} label="Escalas de Posto" />
+                <NavLink href="/admin/roles" icon={Briefcase} label="Cargos/Funções" />
+                <NavLink href="/admin/allowance-types" icon={DollarSign} label="Tipos de Adicionais" />
+                <NavLink href="/admin/situations" icon={ShieldAlert} label="Situações de RH" colorClass="text-primary" />
 
                 <SectionHeader title="Operação" />
 
