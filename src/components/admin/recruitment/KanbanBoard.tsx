@@ -58,14 +58,14 @@ interface Stage {
 interface KanbanBoardProps {
     initialStages: Stage[];
     currentUser?: any;
+    recruiters?: any[]; // Passed for assignment
 }
 
-export function KanbanBoard({ initialStages, currentUser }: KanbanBoardProps) {
+export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: KanbanBoardProps) {
     const [stages, setStages] = useState(initialStages);
     const [isDragging, setIsDragging] = useState(false);
     const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-    const [recruiters, setRecruiters] = useState<{ id: string, name: string }[]>([]);
 
     // New Candidate Modal State
     const [isCandidateModalOpen, setIsCandidateModalOpen] = useState(false);
@@ -87,7 +87,6 @@ export function KanbanBoard({ initialStages, currentUser }: KanbanBoardProps) {
     }, [initialStages]);
 
     useEffect(() => {
-        getRecruiters().then(setRecruiters).catch(console.error);
         getEmployeeFormData().then(setEmployeeFormData).catch(console.error);
     }, []);
 
@@ -537,6 +536,7 @@ export function KanbanBoard({ initialStages, currentUser }: KanbanBoardProps) {
                 stages={stages}
                 onWithdrawSuccess={handleWithdrawSuccess}
                 currentUser={currentUser}
+                recruiters={recruiters}
             />
 
             <CandidateModal

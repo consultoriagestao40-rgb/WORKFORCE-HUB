@@ -8,7 +8,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Building2, Briefcase, MapPin, Mail, Phone, Calendar, User, CheckCircle2, XCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate } from "@/actions/recruitment";
+import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate, updateVacancy, addVacancyParticipant, removeVacancyParticipant, addRecruitmentComment, getRecruitmentComments } from "@/actions/recruitment";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Check, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState, useEffect } from "react";
@@ -21,9 +27,10 @@ interface CandidateDetailsModalProps {
     onWithdrawSuccess?: (candidateId: string) => void;
     stages?: any[]; // Passed from parent to determine flows
     currentUser?: any;
+    recruiters?: any[];
 }
 
-export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdrawSuccess, stages = [], currentUser }: CandidateDetailsModalProps) {
+export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdrawSuccess, stages = [], currentUser, recruiters = [] }: CandidateDetailsModalProps) {
     const [timeline, setTimeline] = useState<any[]>([]);
     const [loadingTimeline, setLoadingTimeline] = useState(false);
 
@@ -166,25 +173,60 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                         Dados da Vaga
                                     </h3>
                                     <div className="bg-orange-50/50 p-4 rounded-lg border border-orange-100 space-y-3">
-                                        <div>
-                                            <label className="text-xs font-medium text-slate-500 uppercase">Título da Vaga</label>
-                                            <div className="text-slate-900 font-medium">{candidate.vacancy?.title}</div>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <label className="text-xs font-medium text-slate-500 uppercase">Título da Vaga</label>
+                                                <div className="text-slate-900 font-medium">{candidate.vacancy?.title}</div>
+                                            </div>
+                                            <div className="text-right">
+                                                <label className="text-xs font-medium text-slate-500 uppercase">Status</label>
+                                                <div className="text-sm font-medium">{candidate.vacancy?.status}</div>
+                                            </div>
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="text-xs font-medium text-slate-500 uppercase">Prioridade</label>
-                                                <div className="mt-1">
-                                                    <Badge variant={candidate.vacancy?.priority === 'URGENT' ? 'destructive' : 'secondary'}>
-                                                        {candidate.vacancy?.priority}
-                                                    </Badge>
-                                                </div>
+                                                <label className="text-xs font-medium text-slate-500 uppercase mb-1 block">Prioridade</label>
+                                                <Select
+                                                    defaultValue={candidate.vacancy?.priority}
+                                                    onValueChange={async (val) => {
+                                                        try {
+                                                            await updateVacancy(candidate.vacancy.id, { priority: val });
+                                                            toast.success("Prioridade atualizada");
+                                                        } catch (e) { toast.error("Erro ao atualizar"); }
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="h-8 bg-white">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="LOW">Baixa</SelectItem>
+                                                        <SelectItem value="MEDIUM">Média</SelectItem>
+                                                        <SelectItem value="HIGH">Alta</SelectItem>
+                                                        <SelectItem value="URGENT">Urgente</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
                                             </div>
                                             <div>
-                                                <label className="text-xs font-medium text-slate-500 uppercase">Status</label>
-                                                <div className="mt-1 text-sm font-medium">
-                                                    {candidate.vacancy?.status}
-                                                </div>
+                                                <label className="text-xs font-medium text-slate-500 uppercase mb-1 block">Recrutador (Owner)</label>
+                                                <Select
+                                                    defaultValue={candidate.vacancy?.recruiter?.id || candidate.vacancy?.recruiterId}
+                                                    onValueChange={async (val) => {
+                                                        try {
+                                                            await updateVacancy(candidate.vacancy.id, { recruiterId: val });
+                                                            toast.success("Recrutador atualizado");
+                                                        } catch (e) { toast.error("Erro ao atualizar"); }
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="h-8 bg-white">
+                                                        <SelectValue placeholder="Selecione..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {recruiters.map((r: any) => (
+                                                            <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
                                             </div>
                                         </div>
 
@@ -216,73 +258,100 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                 </div>
                                             </div>
                                         </div>
+
+                                        {/* Participants Section */}
+                                        {candidate.type === 'VACANCY' && candidate.vacancy && (
+                                            <ParticipantsSection
+                                                vacancyId={candidate.vacancy.id}
+                                                currentParticipants={candidate.vacancy.participants || []}
+                                                allUsers={recruiters}
+                                                onAdd={async (uid) => {
+                                                    try {
+                                                        await addVacancyParticipant(candidate.vacancy.id, uid);
+                                                        toast.success("Participante adicionado");
+                                                    } catch (e) { toast.error("Erro ao adicionar"); }
+                                                }}
+                                                onRemove={async (uid) => {
+                                                    try {
+                                                        await removeVacancyParticipant(candidate.vacancy.id, uid);
+                                                        toast.success("Participante removido");
+                                                    } catch (e) { toast.error("Erro ao remover"); }
+                                                }}
+                                            />
+                                        )}
                                     </div>
 
-                                    {/* Posto Financial & Schedule Info */}
-                                    {candidate.vacancy?.posto && (
-                                        <div className="space-y-4 pt-2">
-                                            <h3 className="font-semibold text-emerald-600 flex items-center gap-2">
-                                                <Building2 className="w-5 h-5" />
-                                                Dados do Posto & Benefícios
-                                            </h3>
-                                            <div className="bg-emerald-50/50 p-4 rounded-lg border border-emerald-100 space-y-3">
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div>
-                                                        <label className="text-xs font-medium text-slate-500 uppercase">Escala</label>
-                                                        <div className="text-slate-900 font-medium">{candidate.vacancy.posto.schedule}</div>
-                                                        <div className="text-xs text-slate-500">{candidate.vacancy.posto.startTime} - {candidate.vacancy.posto.endTime}</div>
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-medium text-slate-500 uppercase">Carga Horária</label>
-                                                        <div className="text-slate-900 font-medium">{candidate.vacancy.posto.requiredWorkload}h</div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="pt-2 border-t border-emerald-100/50 mt-2">
-                                                    <label className="text-xs font-medium text-slate-500 uppercase">Salário Base</label>
-                                                    <div className="text-slate-900 font-bold text-lg">
-                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.baseSalary || 0)}
-                                                    </div>
-                                                </div>
-
-                                                {(candidate.vacancy.posto.insalubridade > 0 ||
-                                                    candidate.vacancy.posto.periculosidade > 0 ||
-                                                    candidate.vacancy.posto.gratificacao > 0 ||
-                                                    candidate.vacancy.posto.outrosAdicionais > 0) && (
-                                                        <div className="pt-2 border-t border-emerald-100/50 mt-2 space-y-1">
-                                                            <label className="text-xs font-medium text-slate-500 uppercase">Adicionais</label>
-
-                                                            {candidate.vacancy.posto.insalubridade > 0 && (
-                                                                <div className="flex justify-between text-sm text-slate-700">
-                                                                    <span>Insalubridade</span>
-                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.insalubridade)}</span>
-                                                                </div>
-                                                            )}
-                                                            {candidate.vacancy.posto.periculosidade > 0 && (
-                                                                <div className="flex justify-between text-sm text-slate-700">
-                                                                    <span>Periculosidade</span>
-                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.periculosidade)}</span>
-                                                                </div>
-                                                            )}
-                                                            {candidate.vacancy.posto.gratificacao > 0 && (
-                                                                <div className="flex justify-between text-sm text-slate-700">
-                                                                    <span>Gratificação</span>
-                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.gratificacao)}</span>
-                                                                </div>
-                                                            )}
-                                                            {candidate.vacancy.posto.outrosAdicionais > 0 && (
-                                                                <div className="flex justify-between text-sm text-slate-700">
-                                                                    <span>Outros</span>
-                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.outrosAdicionais)}</span>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                            </div>
-                                        </div>
+                                    {candidate.type === 'VACANCY' && candidate.vacancy && (
+                                        <CommentsSection vacancyId={candidate.vacancy.id} currentUser={currentUser} />
                                     )}
                                 </div>
+
+                                {/* Posto Financial & Schedule Info */}
+                                {candidate.vacancy?.posto && (
+                                    <div className="space-y-4 pt-2">
+                                        <h3 className="font-semibold text-emerald-600 flex items-center gap-2">
+                                            <Building2 className="w-5 h-5" />
+                                            Dados do Posto & Benefícios
+                                        </h3>
+                                        <div className="bg-emerald-50/50 p-4 rounded-lg border border-emerald-100 space-y-3">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="text-xs font-medium text-slate-500 uppercase">Escala</label>
+                                                    <div className="text-slate-900 font-medium">{candidate.vacancy.posto.schedule}</div>
+                                                    <div className="text-xs text-slate-500">{candidate.vacancy.posto.startTime} - {candidate.vacancy.posto.endTime}</div>
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-medium text-slate-500 uppercase">Carga Horária</label>
+                                                    <div className="text-slate-900 font-medium">{candidate.vacancy.posto.requiredWorkload}h</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-2 border-t border-emerald-100/50 mt-2">
+                                                <label className="text-xs font-medium text-slate-500 uppercase">Salário Base</label>
+                                                <div className="text-slate-900 font-bold text-lg">
+                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.baseSalary || 0)}
+                                                </div>
+                                            </div>
+
+                                            {(candidate.vacancy.posto.insalubridade > 0 ||
+                                                candidate.vacancy.posto.periculosidade > 0 ||
+                                                candidate.vacancy.posto.gratificacao > 0 ||
+                                                candidate.vacancy.posto.outrosAdicionais > 0) && (
+                                                    <div className="pt-2 border-t border-emerald-100/50 mt-2 space-y-1">
+                                                        <label className="text-xs font-medium text-slate-500 uppercase">Adicionais</label>
+
+                                                        {candidate.vacancy.posto.insalubridade > 0 && (
+                                                            <div className="flex justify-between text-sm text-slate-700">
+                                                                <span>Insalubridade</span>
+                                                                <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.insalubridade)}</span>
+                                                            </div>
+                                                        )}
+                                                        {candidate.vacancy.posto.periculosidade > 0 && (
+                                                            <div className="flex justify-between text-sm text-slate-700">
+                                                                <span>Periculosidade</span>
+                                                                <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.periculosidade)}</span>
+                                                            </div>
+                                                        )}
+                                                        {candidate.vacancy.posto.gratificacao > 0 && (
+                                                            <div className="flex justify-between text-sm text-slate-700">
+                                                                <span>Gratificação</span>
+                                                                <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.gratificacao)}</span>
+                                                            </div>
+                                                        )}
+                                                        {candidate.vacancy.posto.outrosAdicionais > 0 && (
+                                                            <div className="flex justify-between text-sm text-slate-700">
+                                                                <span>Outros</span>
+                                                                <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.outrosAdicionais)}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+
+
 
                             <div className="py-2">
                                 <label className="text-xs font-medium text-slate-500 uppercase">Descrição da Vaga</label>
@@ -334,7 +403,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                 )}
                             </div>
                         </TabsContent>
-                    </Tabs>
+                    </Tabs >
 
                     <div className="flex justify-between pt-4 border-t mt-4">
                         <div className="flex gap-2">
@@ -411,8 +480,8 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                             <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
                         </div>
                     </div>
-                </DialogContent>
-            </Dialog>
+                </DialogContent >
+            </Dialog >
 
             <ApprovalModal
                 open={approvalModalOpen}
@@ -422,5 +491,136 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                 onConfirm={handleConfirmApproval}
             />
         </>
+    );
+}
+
+// Sub-components for cleaner code (could be moved to separate files, but kept here for now)
+function CommentsSection({ vacancyId, currentUser }: { vacancyId: string, currentUser: any }) {
+    const [comments, setComments] = useState<any[]>([]);
+    const [newComment, setNewComment] = useState("");
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        loadComments();
+    }, [vacancyId]);
+
+    const loadComments = async () => {
+        const data = await getRecruitmentComments(vacancyId);
+        setComments(data);
+    };
+
+    const handleSend = async () => {
+        if (!newComment.trim()) return;
+        setLoading(true);
+        try {
+            await addRecruitmentComment({ vacancyId, content: newComment });
+            setNewComment("");
+            loadComments();
+            toast.success("Comentário enviado");
+        } catch (error) {
+            toast.error("Erro ao enviar comentário");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="space-y-4">
+            <h3 className="font-semibold text-slate-800 flex items-center gap-2">Comentários</h3>
+            <div className="bg-slate-50 border rounded-lg p-4 max-h-[300px] overflow-y-auto space-y-4">
+                {comments.length === 0 ? (
+                    <div className="text-center text-slate-400 text-sm py-4">Nenhum comentário.</div>
+                ) : (
+                    comments.map(c => (
+                        <div key={c.id} className="flex gap-3">
+                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs shrink-0">
+                                {c.user.name.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-sm text-slate-800">{c.user.name}</span>
+                                    <span className="text-xs text-slate-400">{new Date(c.createdAt).toLocaleString()}</span>
+                                </div>
+                                <div className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{c.content}</div>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+            <div className="flex gap-2">
+                <Textarea
+                    value={newComment}
+                    onChange={e => setNewComment(e.target.value)}
+                    placeholder="Escreva um comentário..."
+                    className="min-h-[80px]"
+                />
+                <Button onClick={handleSend} disabled={loading || !newComment.trim()} className="self-end">
+                    Enviar
+                </Button>
+            </div>
+        </div>
+    );
+}
+
+
+
+function ParticipantsSection({ vacancyId, currentParticipants = [], allUsers = [], onAdd, onRemove }: { vacancyId: string, currentParticipants: any[], allUsers: any[], onAdd: (id: string) => void, onRemove: (id: string) => void }) {
+    const [open, setOpen] = useState(false);
+
+    // Filter users not already participating
+    const availableUsers = allUsers.filter(u => !currentParticipants.some(p => p.id === u.id));
+
+    return (
+        <div className="space-y-4 pt-4 border-t border-orange-100/50">
+            <h3 className="font-semibold text-slate-800 flex items-center gap-2 text-sm uppercase">Participantes</h3>
+            <div className="flex flex-wrap gap-2 items-center">
+                {currentParticipants.map(user => (
+                    <div key={user.id} className="relative group">
+                        <Avatar className="w-8 h-8 border-2 border-white shadow-sm cursor-help" title={user.name}>
+                            <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xs">
+                                {user.name.substring(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                        </Avatar>
+                        <button
+                            onClick={() => onRemove(user.id)}
+                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-[2px] opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                            <Plus className="w-3 h-3 rotate-45" />
+                        </button>
+                    </div>
+                ))}
+
+                <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8 w-8 rounded-full p-0 border-dashed border-slate-300 hover:border-indigo-500 text-slate-400 hover:text-indigo-600">
+                            <Plus className="w-4 h-4" />
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-[200px]" align="start">
+                        <div className="p-2">
+                            <div className="text-xs font-medium text-slate-500 mb-2 px-2">Adicionar User</div>
+                            {availableUsers.length === 0 ? (
+                                <div className="text-sm text-slate-500 px-2">Todos já adicionados.</div>
+                            ) : (
+                                <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                                    {availableUsers.map(u => (
+                                        <button
+                                            key={u.id}
+                                            onClick={() => { onAdd(u.id); setOpen(false); }}
+                                            className="w-full text-left px-2 py-1.5 hover:bg-slate-100 rounded text-sm flex items-center gap-2"
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold">
+                                                {u.name.substring(0, 1)}
+                                            </div>
+                                            <span className="truncate">{u.name}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </PopoverContent>
+                </Popover>
+            </div>
+        </div>
     );
 }

@@ -34,6 +34,8 @@ model User {
   recruitmentTimelineEntries RecruitmentTimeline[]
   vacancies Vacancy[]
   approvedStages RecruitmentStage[]
+  participatingVacancies Vacancy[] @relation("VacancyParticipants")
+  recruitmentComments RecruitmentComment[]
 }
 
 // ... existing models ...
@@ -245,9 +247,27 @@ model Vacancy {
 
   candidates  RecruitmentCandidate[]
   timelines   RecruitmentTimeline[] // Audit Log for Vacancy
+  participants User[] @relation("VacancyParticipants")
+  comments     RecruitmentComment[]
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model RecruitmentComment {
+  id        String   @id @default(uuid())
+  content   String
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  vacancyId String
+  vacancy   Vacancy  @relation(fields: [vacancyId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([vacancyId])
 }
 
 model RecruitmentCandidate {

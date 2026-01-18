@@ -200,7 +200,8 @@ export async function getRecruitmentBoardData() {
             role: true,
             posto: { include: { client: true } },
             company: true,
-            recruiter: true
+            recruiter: true,
+            participants: { select: { id: true, name: true } } // NEW
         },
         orderBy: { createdAt: 'desc' }
     });
@@ -221,7 +222,8 @@ export async function getRecruitmentBoardData() {
             company: v.company,
             description: v.description,
             recruiter: v.recruiter, // NEW
-            createdAt: v.createdAt // NEW
+            createdAt: v.createdAt, // NEW
+            participants: v.participants // NEW
         }
     }));
 
@@ -241,7 +243,8 @@ export async function getRecruitmentBoardData() {
                                     client: true
                                 }
                             },
-                            company: true
+                            company: true,
+                            participants: { select: { id: true, name: true } } // NEW
                             // recruiter already included inside vacancy root in mapped object via openVacancies logic, but here inside candidate include...
                             // Wait, the include structure is: vacancy -> include -> recruiter.
                             // I added it twice: once after `role: true` and once after `company: true`.
@@ -701,4 +704,84 @@ async function syncBacklogGaps() {
             }
         });
     }
+}
+
+// --- NEW: Update Vacancy (Priority, Recruiter) ---
+export async function updateVacancy(vacancyId: string, data: { priority?: string, recruiterId?: string }) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    await prisma.vacancy.update({
+        where: { id: vacancyId },
+        data: {
+            priority: data.priority,
+            recruiterId: data.recruiterId
+        }
+    });
+
+    revalidatePath("/admin/recrutamento");
+}
+
+// --- NEW: Participants Management ---
+export async function addVacancyParticipant(vacancyId: string, userId: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    await prisma.vacancy.update({
+        where: { id: vacancyId },
+        data: {
+            participants: {
+                connect: { id: userId }
+            }
+        }
+    });
+    revalidatePath("/admin/recrutamento");
+}
+
+export async function removeVacancyParticipant(vacancyId: string, userId: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    await prisma.vacancy.update({
+        where: { id: vacancyId },
+        data: {
+            participants: {
+                disconnect: { id: userId }
+            }
+        }
+    });
+    revalidatePath("/admin/recrutamento");
+}
+
+// --- NEW: Comments System ---
+export async function addRecruitmentComment(data: { vacancyId: string, content: string }) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const comment = await prisma.recruitmentComment.create({
+        data: {
+            content: data.content,
+            vacancyId: data.vacancyId,
+            userId: user.id
+        },
+        include: {
+            user: { select: { id: true, name: true } }
+        }
+    });
+
+    revalidatePath("/admin/recrutamento");
+    return comment;
+}
+
+export async function getRecruitmentComments(vacancyId: string) {
+    const user = await getCurrentUser();
+    if (!user) return [];
+
+    return prisma.recruitmentComment.findMany({
+        where: { vacancyId },
+        include: {
+            user: { select: { id: true, name: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+    });
 }
