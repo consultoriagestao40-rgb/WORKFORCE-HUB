@@ -132,8 +132,8 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                     companyId: '', // Could map from vacancy.company or vacancy.posto.client...
 
                     // Automatic Link to Posto
-                    postoId: candidateToMove.vacancy.posto?.id,
-                    postoName: candidateToMove.vacancy.posto ? `${candidateToMove.vacancy.posto.name} - ${candidateToMove.vacancy.posto.client.name}` : undefined
+                    postoId: candidateToMove.vacancy.posto?.id || '',
+                    postoName: candidateToMove.vacancy.posto ? `${candidateToMove.vacancy.posto.name || 'Sem Nome'} - ${candidateToMove.vacancy.posto.client.name}` : undefined
                 });
 
                 setIsEmployeeSheetOpen(true);

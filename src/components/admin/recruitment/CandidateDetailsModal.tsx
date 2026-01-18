@@ -298,23 +298,24 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
 
                         <div className="flex gap-2">
                             {candidate.type !== 'VACANCY' && (
-                                <Button
-                                    variant="destructive"
-                                    onClick={async () => {
-                                        if (!confirm("Confirmar desistência? O registro do candidato será removido e arquivado no histórico da vaga.")) return;
-                                        try {
-                                            await withdrawCandidate(candidate.id);
-                                            toast.success("Candidato removido. Histórico preservado na vaga.");
-                                            if (onWithdrawSuccess) onWithdrawSuccess(candidate.id);
-                                            onOpenChange(false);
-                                        } catch (e) {
-                                            toast.error("Erro ao registrar desistência");
-                                        }
-                                    }}
-                                >
-                                    Candidato Desistiu
-                                </Button>
-                            )}
+                                    <Button
+                                        variant="destructive"
+                                        disabled={currentStage?.name === 'Posto'}
+                                        onClick={async () => {
+                                            if (!confirm("Confirmar desistência? O registro do candidato será removido e arquivado no histórico da vaga.")) return;
+                                            try {
+                                                await withdrawCandidate(candidate.id);
+                                                toast.success("Candidato removido. Histórico preservado na vaga.");
+                                                if (onWithdrawSuccess) onWithdrawSuccess(candidate.id);
+                                                onOpenChange(false);
+                                            } catch (e) {
+                                                toast.error("Erro ao registrar desistência");
+                                            }
+                                        }}
+                                    >
+                                        Candidato Desistiu
+                                    </Button>
+                                )}
                             <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
                         </div>
                     </div>
