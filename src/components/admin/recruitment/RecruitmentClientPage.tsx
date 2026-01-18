@@ -36,22 +36,6 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
                         <div className="flex gap-2 items-center">
                             <NotificationCenter />
                             <div className="w-px h-6 bg-slate-200 mx-2" />
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100"
-                                onClick={async () => {
-                                    try {
-                                        await sendDebugNotification();
-                                        toast.success("Notificação de teste enviada! Verifique o sino.");
-                                    } catch (err) {
-                                        toast.error("Erro ao enviar teste.");
-                                    }
-                                }}
-                            >
-                                <Bug className="w-4 h-4 mr-2" />
-                                Testar Notificação
-                            </Button>
                             <Button onClick={() => setIsVacancyModalOpen(true)} size="sm" className="bg-pink-600 hover:bg-pink-700 text-white">
                                 <Plus className="w-4 h-4 mr-2" />
                                 Nova Vaga

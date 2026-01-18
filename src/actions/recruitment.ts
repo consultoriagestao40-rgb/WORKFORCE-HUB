@@ -78,16 +78,11 @@ export async function createVacancy(data: {
 }
 
 // --- SHARED NOTIFICATION HELPER ---
-// Notifies ALL users with access to Recruitment (Admin/RH roles)
+// Notifies ALL users with access to Recruitment (Admin role)
 async function notifyVacancyStakeholders(vacancyId: string, title: string, message: string, type: 'SYSTEM' | 'MOVEMENT' | 'MENTION' | 'ASSIGNMENT', deepLink: string) {
-    // Fetch all users with Admin or RH role
+    // Fetch all users with Admin role (only role with recruitment access)
     const users = await prisma.user.findMany({
-        where: {
-            OR: [
-                { role: 'ADMIN' },
-                { role: 'RH' }
-            ]
-        },
+        where: { role: 'ADMIN' },
         select: { id: true }
     });
 
