@@ -480,8 +480,19 @@ export async function assignEmployee(formData: FormData) {
     // 4. Create vacancy if requested (OUTSIDE transaction to avoid nested transactions)
     if (createVacancy && activeAssignment) {
         try {
-            const { createVacancyFromPosto } = await import("@/actions/recruitment");
-            await createVacancyFromPosto(postoId);
+            // Retrieve full posto details to check Client
+            const sourcePosto = await prisma.posto.findUnique({
+                where: { id: postoId },
+                include: { client: true }
+            });
+
+            // NUCLEAR BLOCK: If client is ROTATIVO, NEVER create vacancy
+            if (sourcePosto && sourcePosto.client.name !== 'ROTATIVO') {
+                const { createVacancyFromPosto } = await import("@/actions/recruitment");
+                await createVacancyFromPosto(postoId);
+            } else {
+                console.log("Skipping vacancy creation for ROTATIVO posto.");
+            }
         } catch (error) {
             console.error("Error creating vacancy:", error);
             // Don't fail the whole operation if vacancy creation fails
