@@ -24,6 +24,14 @@ interface RecruitmentClientPageProps {
 }
 
 export function RecruitmentClientPage({ stages, vacancies, roles, postos, companies, backlogs, recruiters, currentUser }: RecruitmentClientPageProps) {
+    // Nuclear option: Client-side filter
+    const safeVacancies = vacancies.filter(v => v.posto?.client?.name !== 'ROTATIVO');
+    // Also filter stages if they contain vacancies (though initialStages is usually what's passed)
+    const safeStages = stages.map(stage => ({
+        ...stage,
+        vacancies: stage.vacancies?.filter((v: any) => v.posto?.client?.name !== 'ROTATIVO') || []
+    }));
+
     const [isVacancyModalOpen, setIsVacancyModalOpen] = useState(false);
     const [isCandidateModalOpen, setIsCandidateModalOpen] = useState(false);
 
@@ -53,7 +61,7 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
                 <div className="flex gap-4">
                     <div className="text-right">
                         <div className="text-sm font-medium text-slate-500 uppercase">Vagas Abertas</div>
-                        <div className="text-2xl font-bold text-slate-900">{vacancies.length}</div>
+                        <div className="text-2xl font-bold text-slate-900">{safeVacancies.length}</div>
                     </div>
                 </div>
             </div>
@@ -80,7 +88,7 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
             {/* <VacancyList /> removed as it is now integrated into Kanban R&S column */}
 
             <div className="min-h-[calc(100vh-200px)]">
-                <KanbanBoard initialStages={stages} currentUser={currentUser} recruiters={recruiters} />
+                <KanbanBoard initialStages={safeStages} currentUser={currentUser} recruiters={recruiters} />
             </div>
 
             <VacancyModal
