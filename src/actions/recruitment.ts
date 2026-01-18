@@ -822,7 +822,7 @@ export async function addRecruitmentComment(data: { vacancyId: string, content: 
 
     if (vacancy) {
         const notifiedUserIds = new Set<string>();
-        const notifiedNames: string[] = [];
+        const notifiedNames: string[] = []; // Track names
         const commentAuthorId = user.id;
 
         // 1. Handle Mentions
@@ -843,9 +843,10 @@ export async function addRecruitmentComment(data: { vacancyId: string, content: 
                             "Você foi mencionado",
                             `${user.name} mencionou você em um comentário na vaga ${vacancy.title}`,
                             'MENTION',
-                            '/admin/recrutamento'
+                            `/admin/recrutamento?openId=VAC-${vacancy.id}`
                         );
                         notifiedUserIds.add(targetUser.id);
+                        notifiedNames.push(targetUser.name);
                     }
                 }
             }
@@ -859,9 +860,10 @@ export async function addRecruitmentComment(data: { vacancyId: string, content: 
                 "Novo Comentário",
                 `${user.name} comentou na vaga ${vacancy.title}`,
                 'SYSTEM',
-                '/admin/recrutamento'
+                `/admin/recrutamento?openId=VAC-${vacancy.id}`
             );
             notifiedUserIds.add(vacancy.recruiterId);
+            if (vacancy.recruiter) notifiedNames.push(vacancy.recruiter.name);
         }
 
         // 3. Notify Participants (if not author and not already notified)
@@ -872,15 +874,23 @@ export async function addRecruitmentComment(data: { vacancyId: string, content: 
                     "Novo Comentário",
                     `${user.name} comentou na vaga ${vacancy.title}`,
                     'SYSTEM',
-                    '/admin/recrutamento'
+                    `/admin/recrutamento?openId=VAC-${vacancy.id}`
                 );
                 notifiedUserIds.add(p.id);
+                notifiedNames.push(p.name);
             }
         }
+
+        revalidatePath("/admin/recrutamento");
+        return { success: true, notifiedCount: notifiedUserIds.size, notifiedNames };
     }
 
     revalidatePath("/admin/recrutamento");
-    return comment;
+    return { success: true, notifiedCount: 0, notifiedNames: [] };
+}
+
+revalidatePath("/admin/recrutamento");
+return comment;
 }
 
 export async function getRecruitmentComments(vacancyId: string) {
