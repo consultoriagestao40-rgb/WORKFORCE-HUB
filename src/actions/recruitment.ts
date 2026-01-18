@@ -610,29 +610,29 @@ export async function createCandidate(data: {
             }
         });
 
-        details: `Candidato cadastrado na etapa ${firstStage.name}`,
-            userId: user.id
-    }
+        await tx.recruitmentTimeline.create({
+            data: {
+                candidateId: newCandidate.id,
+                vacancyId: data.vacancyId,
+                candidateName: data.name,
+                action: "CREATED",
+                details: `Candidato cadastrado na etapa ${firstStage.name}`,
+                userId: user.id
+            }
         });
-
-        // Notify Stakeholders
-        // Note: We need to wait for transaction to commit or use after logic, but valid here if no rollback
-        // However, notifyVacancyStakeholders is outside transaction context if it reads DB.
-        // It's safer to notify after transaction or assume consistency. 
-        // We will call it after await.
     });
 
-// Notify after transaction
-await notifyVacancyStakeholders(
-    data.vacancyId,
-    "Novo Candidato",
-    `Candidato ${data.name} adicionado à vaga`,
-    'SYSTEM',
-    '/admin/recrutamento?openId=VAC-' + data.vacancyId,
-    user.id
-);
+    // Notify after transaction
+    await notifyVacancyStakeholders(
+        data.vacancyId,
+        "Novo Candidato",
+        `Candidato ${data.name} adicionado à vaga`,
+        'SYSTEM',
+        '/admin/recrutamento?openId=VAC-' + data.vacancyId,
+        user.id
+    );
 
-revalidatePath("/admin/recrutamento");
+    revalidatePath("/admin/recrutamento");
 }
 
 
