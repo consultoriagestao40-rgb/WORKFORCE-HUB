@@ -574,7 +574,7 @@ function CommentsSection({ vacancyId, currentUser, users = [] }: { vacancyId: st
             if (result && result.notifiedNames.length > 0) {
                 toast.success(`Comentário enviado. Notificados: ${result.notifiedNames.join(", ")}`);
             } else {
-                toast.success("Comentário enviado. Ninguém notificado (apenas registro).");
+                toast.warning("Comentário salvo, mas NINGUÉM foi notificado! (Vaga sem Recrutador/Participantes)");
             }
         } catch (error: any) {
             console.error(error);
