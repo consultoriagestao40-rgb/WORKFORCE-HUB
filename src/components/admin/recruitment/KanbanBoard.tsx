@@ -153,6 +153,12 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
         const sourceStageIndex = stages.findIndex(s => s.id === source.droppableId);
         const destStageIndex = stages.findIndex(s => s.id === destination.droppableId);
 
+        // --- RESTRICTION: Prevent Backward Drag ---
+        if (destStageIndex < sourceStageIndex) {
+            toast.error("Movimentação de retorno não permitida manualmente. Use as opções de Reprovar ou Desistir.");
+            return;
+        }
+
         const newStages = [...stages];
         const newSourceStage = { ...newStages[sourceStageIndex] };
         const newDestStage = { ...newStages[destStageIndex] };
@@ -401,7 +407,12 @@ export function KanbanBoard({ initialStages }: KanbanBoardProps) {
                                                 const recruiterName = candidate.vacancy?.recruiter?.name;
 
                                                 return (
-                                                    <Draggable key={candidate.id} draggableId={candidate.id} index={index}>
+                                                    <Draggable
+                                                        key={candidate.id}
+                                                        draggableId={candidate.id}
+                                                        index={index}
+                                                        isDragDisabled={stage.name === 'Aprovação Técnica' || !!stage.approverId}
+                                                    >
                                                         {(provided, snapshot) => (
                                                             <div
                                                                 ref={provided.innerRef}
