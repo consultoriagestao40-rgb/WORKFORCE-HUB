@@ -788,276 +788,244 @@ async function syncBacklogGaps() {
                 companyId: p.client.companyId || undefined, // Use client's company link if available
                 priority: "URGENT", // Gaps are usually urgent
                 status: "OPEN"
-            }
-        });
-    }
-}
-
 // --- SHARED NOTIFICATION HELPER ---
 async function notifyVacancyStakeholders(vacancyId: string, title: string, message: string, type: 'SYSTEM' | 'MOVEMENT' | 'MENTION' | 'ASSIGNMENT', deepLink: string, extraUserIds: string[] = []) {
-    const vacancy = await prisma.vacancy.findUnique({
-        where: { id: vacancyId },
-        include: { recruiter: true, participants: true }
-    });
+            const vacancy = await prisma.vacancy.findUnique({
+                where: { id: vacancyId },
+                include: { recruiter: true, participants: true }
+            });
 
-    // Also get current user (Actor) to force notification "Log" style
-    const actor = await getCurrentUser();
+            // Also get current user (Actor) to force notification "Log" style
+            const actor = await getCurrentUser();
 
-    if (!vacancy) return;
+            if(!vacancy) return;
 
-    const notifiedIds = new Set<string>();
+            const notifiedIds = new Set<string>();
 
-    // 1. Always notify the ACTOR (User who caused the event) - Confirmation Log
-    if (actor) {
-        notifiedIds.add(actor.id);
-        await createNotification(actor.id, title, message, type, deepLink);
-    }
+            // 1. Always notify the ACTOR (User who caused the event) - Confirmation Log
+            if(actor) {
+                notifiedIds.add(actor.id);
+                await createNotification(actor.id, title, message, type, deepLink);
+            }
 
     // 2. Notify Recruiter (if not Actor)
-    if (vacancy.recruiterId && !notifiedIds.has(vacancy.recruiterId)) {
-        await createNotification(vacancy.recruiterId, title, message, type, deepLink);
-        notifiedIds.add(vacancy.recruiterId);
-    }
+    if(vacancy.recruiterId && !notifiedIds.has(vacancy.recruiterId)) {
+            await createNotification(vacancy.recruiterId, title, message, type, deepLink);
+            notifiedIds.add(vacancy.recruiterId);
+        }
 
-    // 3. Notify Participants (if not Actor)
-    for (const p of vacancy.participants) {
-        if (!notifiedIds.has(p.id)) {
-            await createNotification(p.id, title, message, type, deepLink);
-            notifiedIds.add(p.id);
+        // 3. Notify Participants (if not Actor)
+        for (const p of vacancy.participants) {
+            if (!notifiedIds.has(p.id)) {
+                await createNotification(p.id, title, message, type, deepLink);
+                notifiedIds.add(p.id);
+            }
+        }
+
+        // 4. Notify Extra Users (e.g. Added Participant)
+        for (const uid of extraUserIds) {
+            if (!notifiedIds.has(uid)) {
+                await createNotification(uid, title, message, type, deepLink);
+                notifiedIds.add(uid);
+            }
         }
     }
 
-    // 4. Notify Extra Users (e.g. Added Participant)
-    for (const uid of extraUserIds) {
-        if (!notifiedIds.has(uid)) {
-            await createNotification(uid, title, message, type, deepLink);
-            notifiedIds.add(uid);
+    // --- NEW: Update Vacancy (Priority, Recruiter) ---
+    export async function updateVacancy(vacancyId: string, data: { priority?: string, recruiterId?: string }) {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
+
+        const oldVacancy = await prisma.vacancy.findUnique({ where: { id: vacancyId } });
+
+        await prisma.vacancy.update({
+            where: { id: vacancyId },
+            data: {
+                priority: data.priority,
+                recruiterId: data.recruiterId
+            }
+        });
+
+        // Detect Changes for Notification
+        if (data.recruiterId && oldVacancy?.recruiterId !== data.recruiterId) {
+            // Recruiter Changed
+            const newRecruiter = await prisma.user.findUnique({ where: { id: data.recruiterId } });
+            await notifyVacancyStakeholders(
+                vacancyId,
+                "Recrutador Alterado",
+                `Novo recrutador definido: ${newRecruiter?.name || 'Sistema'}`,
+                'ASSIGNMENT',
+                '/admin/recrutamento?openId=VAC-' + vacancyId,
+                [data.recruiterId] // Ensure new recruiter gets it specifically if not caught by refetch
+            );
+        } else if (data.priority) {
+            await notifyVacancyStakeholders(
+                vacancyId,
+                "Prioridade Atualizada",
+                `Prioridade alterada para ${data.priority}`,
+                'SYSTEM',
+                '/admin/recrutamento?openId=VAC-' + vacancyId
+            );
         }
+
+        revalidatePath("/admin/recrutamento");
     }
-}
 
-// --- NEW: Update Vacancy (Priority, Recruiter) ---
-export async function updateVacancy(vacancyId: string, data: { priority?: string, recruiterId?: string }) {
-    const user = await getCurrentUser();
-    if (!user) throw new Error("Unauthorized");
+    // --- NEW: Participants Management ---
+    export async function addVacancyParticipant(vacancyId: string, userId: string) {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
 
-    const oldVacancy = await prisma.vacancy.findUnique({ where: { id: vacancyId } });
+        await prisma.vacancy.update({
+            where: { id: vacancyId },
+            data: {
+                participants: {
+                    connect: { id: userId }
+                }
+            }
+        });
 
-    await prisma.vacancy.update({
-        where: { id: vacancyId },
-        data: {
-            priority: data.priority,
-            recruiterId: data.recruiterId
-        }
-    });
+        const addedUser = await prisma.user.findUnique({ where: { id: userId } });
 
-    // Detect Changes for Notification
-    if (data.recruiterId && oldVacancy?.recruiterId !== data.recruiterId) {
-        // Recruiter Changed
-        const newRecruiter = await prisma.user.findUnique({ where: { id: data.recruiterId } });
+        // Broadcast: "User X added as participant"
+        // Helper will notify: Actor (Admin), Recruiter, Existing Participants, and we add New Participant
         await notifyVacancyStakeholders(
             vacancyId,
-            "Recrutador Alterado",
-            `Novo recrutador definido: ${newRecruiter?.name || 'Sistema'}`,
+            "Participante Adicionado",
+            `${addedUser?.name} foi adicionado como participante na vaga.`,
             'ASSIGNMENT',
             '/admin/recrutamento?openId=VAC-' + vacancyId,
-            [data.recruiterId] // Ensure new recruiter gets it specifically if not caught by refetch
+            [userId] // Ensure added user gets it
         );
-    } else if (data.priority) {
-        await notifyVacancyStakeholders(
-            vacancyId,
-            "Prioridade Atualizada",
-            `Prioridade alterada para ${data.priority}`,
-            'SYSTEM',
-            '/admin/recrutamento?openId=VAC-' + vacancyId
-        );
+
+        revalidatePath("/admin/recrutamento");
     }
 
-    revalidatePath("/admin/recrutamento");
-}
+    export async function removeVacancyParticipant(vacancyId: string, userId: string) {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
 
-export async function withdrawCandidate(candidateId: string) {
-    const user = await getCurrentUser();
-    if (!user) throw new Error("Unauthorized");
-
-    const candidate = await prisma.recruitmentCandidate.update({
-        where: { id: candidateId },
-        data: {
-            status: 'WITHDRAWN',
-            stageId: null, // Remove from any stage
-            stageDueDate: null,
-            withdrawnAt: new Date(),
-            withdrawnByUserId: user.id
-        }
-    });
-
-    if (candidate && candidate.vacancyId) {
-        await notifyVacancyStakeholders(
-            candidate.vacancyId,
-            "Desistência de Candidato",
-            `Candidato ${candidate.name} desistiu do processo.`,
-            'SYSTEM',
-            '/admin/recrutamento?openId=VAC-' + candidate.vacancyId
-        );
+        await prisma.vacancy.update({
+            where: { id: vacancyId },
+            data: {
+                participants: {
+                    disconnect: { id: userId }
+                }
+            }
+        });
+        revalidatePath("/admin/recrutamento");
     }
-    revalidatePath("/admin/recrutamento");
-}
 
-// --- NEW: Participants Management ---
-export async function addVacancyParticipant(vacancyId: string, userId: string) {
-    const user = await getCurrentUser();
-    if (!user) throw new Error("Unauthorized");
+    // --- NEW: Comments System ---
+    export async function addRecruitmentComment(data: { vacancyId: string, content: string }) {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
 
-    await prisma.vacancy.update({
-        where: { id: vacancyId },
-        data: {
-            participants: {
-                connect: { id: userId }
+        const comment = await prisma.recruitmentComment.create({
+            data: {
+                content: data.content,
+                vacancyId: data.vacancyId,
+                userId: user.id
+            },
+            include: {
+                user: { select: { id: true, name: true } }
             }
-        }
-    });
+        });
 
-    const addedUser = await prisma.user.findUnique({ where: { id: userId } });
-
-    // Broadcast: "User X added as participant"
-    // Helper will notify: Actor (Admin), Recruiter, Existing Participants, and we add New Participant
-    await notifyVacancyStakeholders(
-        vacancyId,
-        "Participante Adicionado",
-        `${addedUser?.name} foi adicionado como participante na vaga.`,
-        'ASSIGNMENT',
-        '/admin/recrutamento?openId=VAC-' + vacancyId,
-        [userId] // Ensure added user gets it
-    );
-
-    revalidatePath("/admin/recrutamento");
-}
-
-export async function removeVacancyParticipant(vacancyId: string, userId: string) {
-    const user = await getCurrentUser();
-    if (!user) throw new Error("Unauthorized");
-
-    await prisma.vacancy.update({
-        where: { id: vacancyId },
-        data: {
-            participants: {
-                disconnect: { id: userId }
+        // --- NOTIFICATION Logic ---
+        const vacancy = await prisma.vacancy.findUnique({
+            where: { id: data.vacancyId },
+            include: {
+                recruiter: true,
+                participants: true
             }
-        }
-    });
-    revalidatePath("/admin/recrutamento");
-}
+        });
 
-// --- NEW: Comments System ---
-export async function addRecruitmentComment(data: { vacancyId: string, content: string }) {
-    const user = await getCurrentUser();
-    if (!user) throw new Error("Unauthorized");
+        console.log(`[NOTIFY] Comment on Vacancy ${vacancy?.title} (${vacancy?.id})`);
+        console.log(`[NOTIFY] Comment Author: ${user.name} (${user.id})`);
+        console.log(`[NOTIFY] Recruiter: ${vacancy?.recruiterId}`);
+        console.log(`[NOTIFY] Participants: ${vacancy?.participants?.length}`);
 
-    const comment = await prisma.recruitmentComment.create({
-        data: {
-            content: data.content,
-            vacancyId: data.vacancyId,
-            userId: user.id
-        },
-        include: {
-            user: { select: { id: true, name: true } }
-        }
-    });
+        if (vacancy) {
+            const notifiedUserIds = new Set<string>();
+            const notifiedNames: string[] = []; // Track names
+            const commentAuthorId = user.id;
 
-    // --- NOTIFICATION Logic ---
-    const vacancy = await prisma.vacancy.findUnique({
-        where: { id: data.vacancyId },
-        include: {
-            recruiter: true,
-            participants: true
-        }
-    });
+            // 1. Handle Mentions
+            const mentionRegex = /@([\w\sà-úÀ-Ú]+)/g;
+            const matches = data.content.match(mentionRegex);
 
-    console.log(`[NOTIFY] Comment on Vacancy ${vacancy?.title} (${vacancy?.id})`);
-    console.log(`[NOTIFY] Comment Author: ${user.name} (${user.id})`);
-    console.log(`[NOTIFY] Recruiter: ${vacancy?.recruiterId}`);
-    console.log(`[NOTIFY] Participants: ${vacancy?.participants?.length}`);
+            if (matches) {
+                const mentionedNames = matches.map(m => m.substring(1).trim());
+                if (mentionedNames.length > 0) {
+                    const allUsers = await prisma.user.findMany({ where: { isActive: true } });
 
-    if (vacancy) {
-        const notifiedUserIds = new Set<string>();
-        const notifiedNames: string[] = []; // Track names
-        const commentAuthorId = user.id;
-
-        // 1. Handle Mentions
-        const mentionRegex = /@([\w\sà-úÀ-Ú]+)/g;
-        const matches = data.content.match(mentionRegex);
-
-        if (matches) {
-            const mentionedNames = matches.map(m => m.substring(1).trim());
-            if (mentionedNames.length > 0) {
-                const allUsers = await prisma.user.findMany({ where: { isActive: true } });
-
-                for (const name of mentionedNames) {
-                    const targetUser = allUsers.find(u => u.name.toLowerCase() === name.toLowerCase() || u.name.toLowerCase().includes(name.toLowerCase()));
-                    if (targetUser && targetUser.id !== commentAuthorId && !notifiedUserIds.has(targetUser.id)) {
-                        console.log(`[NOTIFY] Triggering MENTION for ${targetUser.name}`);
-                        await createNotification(
-                            targetUser.id,
-                            "Você foi mencionado",
-                            `${user.name} mencionou você em um comentário na vaga ${vacancy.title}`,
-                            'MENTION',
-                            `/admin/recrutamento?openId=VAC-${vacancy.id}`
-                        );
-                        notifiedUserIds.add(targetUser.id);
-                        notifiedNames.push(targetUser.name);
+                    for (const name of mentionedNames) {
+                        const targetUser = allUsers.find(u => u.name.toLowerCase() === name.toLowerCase() || u.name.toLowerCase().includes(name.toLowerCase()));
+                        if (targetUser && targetUser.id !== commentAuthorId && !notifiedUserIds.has(targetUser.id)) {
+                            console.log(`[NOTIFY] Triggering MENTION for ${targetUser.name}`);
+                            await createNotification(
+                                targetUser.id,
+                                "Você foi mencionado",
+                                `${user.name} mencionou você em um comentário na vaga ${vacancy.title}`,
+                                'MENTION',
+                                `/admin/recrutamento?openId=VAC-${vacancy.id}`
+                            );
+                            notifiedUserIds.add(targetUser.id);
+                            notifiedNames.push(targetUser.name);
+                        }
                     }
                 }
             }
-        }
 
-        // 2. Notify Recruiter (if not author and not already notified)
-        if (vacancy.recruiterId && vacancy.recruiterId !== commentAuthorId && !notifiedUserIds.has(vacancy.recruiterId)) {
-            console.log(`[NOTIFY] Triggering RECRUITER alert for ${vacancy.recruiterId}`);
-            await createNotification(
-                vacancy.recruiterId,
-                "Novo Comentário",
-                `${user.name} comentou na vaga ${vacancy.title}`,
-                'SYSTEM',
-                `/admin/recrutamento?openId=VAC-${vacancy.id}`
-            );
-            notifiedUserIds.add(vacancy.recruiterId);
-            if (vacancy.recruiter) notifiedNames.push(vacancy.recruiter.name);
-        }
-
-        // 3. Notify Participants (if not author and not already notified)
-        for (const p of vacancy.participants) {
-            if (p.id !== commentAuthorId && !notifiedUserIds.has(p.id)) {
+            // 2. Notify Recruiter (if not author and not already notified)
+            if (vacancy.recruiterId && vacancy.recruiterId !== commentAuthorId && !notifiedUserIds.has(vacancy.recruiterId)) {
+                console.log(`[NOTIFY] Triggering RECRUITER alert for ${vacancy.recruiterId}`);
                 await createNotification(
-                    p.id,
+                    vacancy.recruiterId,
                     "Novo Comentário",
                     `${user.name} comentou na vaga ${vacancy.title}`,
                     'SYSTEM',
                     `/admin/recrutamento?openId=VAC-${vacancy.id}`
                 );
-                notifiedUserIds.add(p.id);
-                notifiedNames.push(p.name);
+                notifiedUserIds.add(vacancy.recruiterId);
+                if (vacancy.recruiter) notifiedNames.push(vacancy.recruiter.name);
             }
+
+            // 3. Notify Participants (if not author and not already notified)
+            for (const p of vacancy.participants) {
+                if (p.id !== commentAuthorId && !notifiedUserIds.has(p.id)) {
+                    await createNotification(
+                        p.id,
+                        "Novo Comentário",
+                        `${user.name} comentou na vaga ${vacancy.title}`,
+                        'SYSTEM',
+                        `/admin/recrutamento?openId=VAC-${vacancy.id}`
+                    );
+                    notifiedUserIds.add(p.id);
+                    notifiedNames.push(p.name);
+                }
+            }
+
+            revalidatePath("/admin/recrutamento");
+            return { success: true, notifiedCount: notifiedUserIds.size, notifiedNames };
         }
 
         revalidatePath("/admin/recrutamento");
-        return { success: true, notifiedCount: notifiedUserIds.size, notifiedNames };
+        return { success: true, notifiedCount: 0, notifiedNames: [] };
     }
 
-    revalidatePath("/admin/recrutamento");
-    return { success: true, notifiedCount: 0, notifiedNames: [] };
-}
 
 
+    export async function getRecruitmentComments(vacancyId: string) {
+        const user = await getCurrentUser();
+        if (!user) return [];
 
-export async function getRecruitmentComments(vacancyId: string) {
-    const user = await getCurrentUser();
-    if (!user) return [];
-
-    return prisma.recruitmentComment.findMany({
-        where: { vacancyId },
-        include: {
-            user: { select: { id: true, name: true } }
-        },
-        orderBy: { createdAt: 'desc' }
-    });
-}
+        return prisma.recruitmentComment.findMany({
+            where: { vacancyId },
+            include: {
+                user: { select: { id: true, name: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+    }
