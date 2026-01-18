@@ -795,49 +795,6 @@ async function syncBacklogGaps() {
     revalidatePath("/admin/recrutamento");
 }
 
-// --- SHARED NOTIFICATION HELPER ---
-async function notifyVacancyStakeholders(vacancyId: string, title: string, message: string, type: 'SYSTEM' | 'MOVEMENT' | 'MENTION' | 'ASSIGNMENT', deepLink: string, extraUserIds: string[] = []) {
-    const vacancy = await prisma.vacancy.findUnique({
-        where: { id: vacancyId },
-        include: { recruiter: true, participants: true }
-    });
-
-    // Also get current user (Actor) to force notification "Log" style
-    const actor = await getCurrentUser();
-
-    if (!vacancy) return;
-
-    const notifiedIds = new Set<string>();
-
-    // 1. Always notify the ACTOR (User who caused the event) - Confirmation Log
-    if (actor) {
-        notifiedIds.add(actor.id);
-        await createNotification(actor.id, title, message, type, deepLink);
-    }
-
-    // 2. Notify Recruiter (if not Actor)
-    if (vacancy.recruiterId && !notifiedIds.has(vacancy.recruiterId)) {
-        await createNotification(vacancy.recruiterId, title, message, type, deepLink);
-        notifiedIds.add(vacancy.recruiterId);
-    }
-
-    // 3. Notify Participants (if not Actor)
-    for (const p of vacancy.participants) {
-        if (!notifiedIds.has(p.id)) {
-            await createNotification(p.id, title, message, type, deepLink);
-            notifiedIds.add(p.id);
-        }
-    }
-
-    // 4. Notify Extra Users (e.g. Added Participant)
-    for (const uid of extraUserIds) {
-        if (!notifiedIds.has(uid)) {
-            await createNotification(uid, title, message, type, deepLink);
-            notifiedIds.add(uid);
-        }
-    }
-}
-
 // --- NEW: Update Vacancy (Priority, Recruiter) ---
 export async function updateVacancy(vacancyId: string, data: { priority?: string, recruiterId?: string }) {
     const user = await getCurrentUser();
