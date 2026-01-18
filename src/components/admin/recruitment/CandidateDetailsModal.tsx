@@ -119,17 +119,6 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                         </div>
                     </DialogHeader>
 
-                    {/* WARNING: No Recruiter */}
-                    {candidate?.vacancy && !candidate.vacancy.recruiterId && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-4 flex items-start gap-2">
-                            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                            <div className="text-sm text-amber-800">
-                                <span className="font-semibold">Atenção:</span> Esta vaga não tem <strong>Recrutador</strong> definido.
-                                <p className="text-xs mt-1 text-amber-700">Comentários e movimentações não gerarão notificações até que um responsável seja atribuído.</p>
-                            </div>
-                        </div>
-                    )}
-
                     <Tabs defaultValue="details" className="w-full">
                         <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="details">Detalhes</TabsTrigger>
