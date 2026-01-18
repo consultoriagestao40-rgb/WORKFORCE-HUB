@@ -539,6 +539,17 @@ export async function withdrawCandidate(candidateId: string) {
         where: { id: candidateId }
     });
 
+    // 4. Notify all stakeholders about withdrawal
+    if (candidate && candidate.vacancyId) {
+        await notifyVacancyStakeholders(
+            candidate.vacancyId,
+            "Desistência de Candidato",
+            `Candidato ${candidate.name} desistiu do processo.`,
+            'SYSTEM',
+            '/admin/recrutamento?openId=VAC-' + candidate.vacancyId
+        );
+    }
+
     revalidatePath("/admin/recrutamento");
 }
 

@@ -113,6 +113,11 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                 // Determine if we should open via handleCardClick logic
                 setSelectedCandidate(found);
                 setIsDetailsOpen(true);
+
+                // Clear the openId from URL to prevent reopening on refresh
+                const url = new URL(window.location.href);
+                url.searchParams.delete('openId');
+                window.history.replaceState({}, '', url.toString());
             }
         }
     }, [openId, stages]);
