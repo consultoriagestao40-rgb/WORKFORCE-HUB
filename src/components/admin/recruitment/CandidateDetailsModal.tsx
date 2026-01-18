@@ -382,19 +382,24 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                 </Button>
                             )}
 
-                            {candidate.type !== 'VACANCY' && currentUser?.role === 'ADMIN' && (
+                            {candidate.type !== 'VACANCY' && currentUser && (
                                 <Button
                                     variant="destructive"
                                     className="bg-red-800 hover:bg-red-900 border-red-900"
                                     onClick={async () => {
+                                        if (currentUser.role !== 'ADMIN') {
+                                            toast.error(`Permissão negada. Seu papel é: ${currentUser.role}`);
+                                            return;
+                                        }
+
                                         if (!confirm("Confirmar EXCLUSÃO DEFINITIVA? Esta ação não pode ser desfeita e removerá todo o histórico.")) return;
                                         try {
                                             await deleteCandidate(candidate.id);
                                             toast.success("Candidato excluído permanentemente.");
                                             if (onWithdrawSuccess) onWithdrawSuccess(candidate.id);
                                             onOpenChange(false);
-                                        } catch (e) {
-                                            toast.error("Erro ao excluir candidato");
+                                        } catch (e: any) {
+                                            toast.error(e.message || "Erro ao excluir candidato");
                                         }
                                     }}
                                 >
