@@ -78,33 +78,22 @@ export async function createVacancy(data: {
 }
 
 // --- SHARED NOTIFICATION HELPER ---
-async function notifyVacancyStakeholders(vacancyId: string, title: string, message: string, type: 'SYSTEM' | 'MOVEMENT' | 'MENTION' | 'ASSIGNMENT', deepLink: string, excludeUserId?: string) {
-    const vacancy = await prisma.vacancy.findUnique({
-        where: { id: vacancyId },
-        include: { recruiter: true, participants: true }
+// Notifies ALL users with access to Recruitment (Admin/RH roles)
+async function notifyVacancyStakeholders(vacancyId: string, title: string, message: string, type: 'SYSTEM' | 'MOVEMENT' | 'MENTION' | 'ASSIGNMENT', deepLink: string) {
+    // Fetch all users with Admin or RH role
+    const users = await prisma.user.findMany({
+        where: {
+            OR: [
+                { role: 'ADMIN' },
+                { role: 'RH' }
+            ]
+        },
+        select: { id: true }
     });
 
-    if (!vacancy) return;
-
-    const notifiedIds = new Set<string>();
-
-    // Exclude the user who performed the action
-    if (excludeUserId) {
-        notifiedIds.add(excludeUserId);
-    }
-
-    // 1. Notify Recruiter (if not the actor)
-    if (vacancy.recruiterId && !notifiedIds.has(vacancy.recruiterId)) {
-        await createNotification(vacancy.recruiterId, title, message, type, deepLink);
-        notifiedIds.add(vacancy.recruiterId);
-    }
-
-    // 2. Notify Participants (if not the actor)
-    for (const p of vacancy.participants) {
-        if (!notifiedIds.has(p.id)) {
-            await createNotification(p.id, title, message, type, deepLink);
-            notifiedIds.add(p.id);
-        }
+    // Notify everyone (including the actor)
+    for (const user of users) {
+        await createNotification(user.id, title, message, type, deepLink);
     }
 }
 
