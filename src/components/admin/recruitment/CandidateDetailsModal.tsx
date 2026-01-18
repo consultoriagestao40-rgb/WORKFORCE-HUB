@@ -408,11 +408,6 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                 </Button>
                             )}
 
-                            {/* DEBUG INFO */}
-                            <div className="text-[10px] text-slate-300">
-                                {currentUser ? `User: ${currentUser.name} (${currentUser.role})` : 'Usuário não detectado no cliente'}
-                            </div>
-
                             <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
                         </div>
                     </div>
