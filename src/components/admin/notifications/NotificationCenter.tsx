@@ -42,8 +42,9 @@ export function NotificationCenter() {
     };
 
     useEffect(() => {
-        // Poll every 30 seconds
-        const interval = setInterval(fetchNotifications, 30000);
+        loadNotifications();
+        // Poll every 5 seconds
+        const interval = setInterval(loadNotifications, 5000);
         return () => clearInterval(interval);
     }, []);
 
