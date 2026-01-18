@@ -815,6 +815,11 @@ export async function addRecruitmentComment(data: { vacancyId: string, content: 
         }
     });
 
+    console.log(`[NOTIFY] Comment on Vacancy ${vacancy?.title} (${vacancy?.id})`);
+    console.log(`[NOTIFY] Comment Author: ${user.name} (${user.id})`);
+    console.log(`[NOTIFY] Recruiter: ${vacancy?.recruiterId}`);
+    console.log(`[NOTIFY] Participants: ${vacancy?.participants?.length}`);
+
     if (vacancy) {
         const notifiedUserIds = new Set<string>();
         const commentAuthorId = user.id;
@@ -831,6 +836,7 @@ export async function addRecruitmentComment(data: { vacancyId: string, content: 
                 for (const name of mentionedNames) {
                     const targetUser = allUsers.find(u => u.name.toLowerCase() === name.toLowerCase() || u.name.toLowerCase().includes(name.toLowerCase()));
                     if (targetUser && targetUser.id !== commentAuthorId && !notifiedUserIds.has(targetUser.id)) {
+                        console.log(`[NOTIFY] Triggering MENTION for ${targetUser.name}`);
                         await createNotification(
                             targetUser.id,
                             "Você foi mencionado",
@@ -846,6 +852,7 @@ export async function addRecruitmentComment(data: { vacancyId: string, content: 
 
         // 2. Notify Recruiter (if not author and not already notified)
         if (vacancy.recruiterId && vacancy.recruiterId !== commentAuthorId && !notifiedUserIds.has(vacancy.recruiterId)) {
+            console.log(`[NOTIFY] Triggering RECRUITER alert for ${vacancy.recruiterId}`);
             await createNotification(
                 vacancy.recruiterId,
                 "Novo Comentário",
