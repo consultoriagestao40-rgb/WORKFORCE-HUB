@@ -260,7 +260,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                         </div>
 
                                         {/* Participants Section */}
-                                        {candidate.type === 'VACANCY' && candidate.vacancy && (
+                                        {candidate.vacancy && (
                                             <ParticipantsSection
                                                 vacancyId={candidate.vacancy.id}
                                                 currentParticipants={candidate.vacancy.participants || []}
