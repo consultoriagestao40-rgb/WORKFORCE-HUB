@@ -895,7 +895,7 @@ async function syncFilledVacancies() {
         for (const v of p.vacancies) {
             await prisma.vacancy.update({
                 where: { id: v.id },
-                data: { status: 'FILLED' }
+                data: { status: 'CLOSED' }
             });
         }
     }
