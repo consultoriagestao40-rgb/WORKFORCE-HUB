@@ -427,16 +427,44 @@ export async function assignEmployee(formData: FormData) {
         return { error: `Colaborador em férias até ${vacationConflict.endDate.toLocaleDateString('pt-BR')}. Não é possível alocar.` };
     }
 
-    const activeAssignment = await prisma.assignment.findFirst({
+
+    // FIXED: Check for ANY active assignment for this employee (Rotativo or other Posto)
+    const employeeActiveAssignment = await prisma.assignment.findFirst({
+        where: { 
+            employeeId: employeeId,
+            endDate: null 
+        },
+        include: { posto: { include: { client: true, role: true } } }
+    });
+
+    const targetPostoHasAssignment = await prisma.assignment.findFirst({
         where: { postoId, endDate: null },
         include: { employee: true }
     });
 
     await prisma.$transaction(async (tx) => {
-        // 1. If there's an active assignment, end it
-        if (activeAssignment) {
+        // 1. If currently assigned somewhere (including Rotativo), end it AND log it
+        if (employeeActiveAssignment) {
+             await tx.assignment.update({
+                where: { id: employeeActiveAssignment.id },
+                data: { endDate: new Date() } // Ends immediately before new start
+            });
+
+             const currentUser = await getCurrentUser();
+             await tx.log.create({
+                data: {
+                    action: "REALOCACAO",
+                    details: `Colaborador movido de ${employeeActiveAssignment.posto.client.name} para novo posto.`,
+                    employeeId: employeeId,
+                    userId: currentUser?.id
+                }
+            });
+        }
+
+        // 2. If the TARGET POSTO has someone, remove them (swap logic)
+        if (targetPostoHasAssignment) {
             await tx.assignment.update({
-                where: { id: activeAssignment.id },
+                where: { id: targetPostoHasAssignment.id },
                 data: { endDate: new Date() }
             });
 
@@ -445,8 +473,8 @@ export async function assignEmployee(formData: FormData) {
             await tx.log.create({
                 data: {
                     action: "DESVINCULACAO",
-                    details: `Colaborador ${activeAssignment.employee.name} desvinculado (realocação)`,
-                    employeeId: activeAssignment.employeeId,
+                    details: `Colaborador ${targetPostoHasAssignment.employee.name} desvinculado (realocação do posto)`,
+                    employeeId: targetPostoHasAssignment.employeeId,
                     userId: currentUser?.id
                 }
             });
