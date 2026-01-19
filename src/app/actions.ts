@@ -720,6 +720,12 @@ export async function deleteClient(id: string) {
             await tx.coverage.deleteMany({ where: { postoId: { in: postoIds } } });
             await tx.occurrence.deleteMany({ where: { postoId: { in: postoIds } } });
 
+            // 2.1 Close Vacancies linked to these Postos
+            await tx.vacancy.updateMany({
+                where: { postoId: { in: postoIds }, status: 'OPEN' },
+                data: { status: 'CLOSED' }
+            });
+
             // 3. Delete Postos
             await tx.posto.deleteMany({ where: { id: { in: postoIds } } });
         }
@@ -743,6 +749,12 @@ export async function deletePosto(id: string) {
         await tx.assignment.deleteMany({ where: { postoId: id } });
         await tx.coverage.deleteMany({ where: { postoId: id } });
         await tx.occurrence.deleteMany({ where: { postoId: id } });
+
+        // 1.1 Close open vacancies for this Posto
+        await tx.vacancy.updateMany({
+            where: { postoId: id, status: 'OPEN' },
+            data: { status: 'CLOSED' }
+        });
 
         // 2. Delete Posto
         await tx.posto.delete({ where: { id } });
