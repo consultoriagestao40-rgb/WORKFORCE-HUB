@@ -7,8 +7,9 @@ import { VacancyModal } from "@/components/admin/recruitment/VacancyModal";
 import { CandidateModal } from "@/components/admin/recruitment/CandidateModal";
 import { VacancyList } from "@/components/admin/recruitment/VacancyList";
 import { Button } from "@/components/ui/button";
-import { Plus, UserPlus, Bug } from "lucide-react";
+import { Plus, UserPlus, Bug, Search } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { sendDebugNotification } from "@/actions/notifications";
 import { toast } from "sonner";
 
@@ -24,16 +25,37 @@ interface RecruitmentClientPageProps {
 }
 
 export function RecruitmentClientPage({ stages, vacancies, roles, postos, companies, backlogs, recruiters, currentUser }: RecruitmentClientPageProps) {
-    // Nuclear option: Client-side filter
-    const safeVacancies = vacancies.filter(v => v.posto?.client?.name !== 'ROTATIVO');
-    // Also filter stages if they contain vacancies (though initialStages is usually what's passed)
-    const safeStages = stages.map(stage => ({
-        ...stage,
-        vacancies: stage.vacancies?.filter((v: any) => v.posto?.client?.name !== 'ROTATIVO') || []
-    }));
-
+    const [searchTerm, setSearchTerm] = useState("");
     const [isVacancyModalOpen, setIsVacancyModalOpen] = useState(false);
     const [isCandidateModalOpen, setIsCandidateModalOpen] = useState(false);
+
+    // Filter Logic
+    const filteredStages = stages.map(stage => ({
+        ...stage,
+        candidates: stage.candidates.filter((c: any) => {
+            // 1. Mandatory Filter: Remove ROTATIVO (Nuclear Option)
+            const clientName = c.vacancy?.posto?.client?.name || "";
+            if (clientName === 'ROTATIVO') return false;
+
+            // 2. Search Filter
+            if (!searchTerm) return true;
+
+            const searchLower = searchTerm.toLowerCase();
+            const title = c.type === 'VACANCY' ? c.vacancy.title : c.name;
+            const roleName = c.vacancy?.role?.name || "";
+            const companyName = c.vacancy?.company?.name || "";
+            // clientName already defined above
+
+            return (
+                (title && title.toLowerCase().includes(searchLower)) ||
+                (roleName && roleName.toLowerCase().includes(searchLower)) ||
+                (companyName && companyName.toLowerCase().includes(searchLower)) ||
+                (clientName && clientName.toLowerCase().includes(searchLower))
+            );
+        })
+    }));
+
+    const safeVacancies = vacancies.filter(v => v.posto?.client?.name !== 'ROTATIVO');
 
     return (
         <div className="space-y-6">
@@ -58,8 +80,17 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
                 </div>
 
                 {/* Stats Mini */}
-                <div className="flex gap-4">
-                    <div className="text-right">
+                <div className="flex gap-4 items-center">
+                    <div className="relative w-72">
+                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
+                        <Input
+                            placeholder="Buscar por cargo, empresa, cliente..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-8"
+                        />
+                    </div>
+                    <div className="text-right border-l pl-4 ml-2">
                         <div className="text-sm font-medium text-slate-500 uppercase">Vagas Abertas</div>
                         <div className="text-2xl font-bold text-slate-900">{safeVacancies.length}</div>
                     </div>
@@ -88,7 +119,7 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
             {/* <VacancyList /> removed as it is now integrated into Kanban R&S column */}
 
             <div className="min-h-[calc(100vh-200px)]">
-                <KanbanBoard initialStages={safeStages} currentUser={currentUser} recruiters={recruiters} />
+                <KanbanBoard initialStages={filteredStages} currentUser={currentUser} recruiters={recruiters} />
             </div>
 
             <VacancyModal
