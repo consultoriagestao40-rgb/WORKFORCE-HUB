@@ -430,9 +430,9 @@ export async function assignEmployee(formData: FormData) {
 
     // FIXED: Check for ANY active assignment for this employee (Rotativo or other Posto)
     const employeeActiveAssignment = await prisma.assignment.findFirst({
-        where: { 
+        where: {
             employeeId: employeeId,
-            endDate: null 
+            endDate: null
         },
         include: { posto: { include: { client: true, role: true } } }
     });
@@ -445,13 +445,13 @@ export async function assignEmployee(formData: FormData) {
     await prisma.$transaction(async (tx) => {
         // 1. If currently assigned somewhere (including Rotativo), end it AND log it
         if (employeeActiveAssignment) {
-             await tx.assignment.update({
+            await tx.assignment.update({
                 where: { id: employeeActiveAssignment.id },
                 data: { endDate: new Date() } // Ends immediately before new start
             });
 
-             const currentUser = await getCurrentUser();
-             await tx.log.create({
+            const currentUser = await getCurrentUser();
+            await tx.log.create({
                 data: {
                     action: "REALOCACAO",
                     details: `Colaborador movido de ${employeeActiveAssignment.posto.client.name} para novo posto.`,
@@ -506,7 +506,7 @@ export async function assignEmployee(formData: FormData) {
     });
 
     // 4. Create vacancy if requested (OUTSIDE transaction to avoid nested transactions)
-    if (createVacancy && activeAssignment) {
+    if (createVacancy && targetPostoHasAssignment) {
         try {
             // Retrieve full posto details to check Client
             const sourcePosto = await prisma.posto.findUnique({
