@@ -1,20 +1,10 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/db";
-import { GlobalRoster } from "@/components/admin/GlobalRoster";
+import { GlobalRoster, RosterItem } from "@/components/admin/GlobalRoster";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CalendarDays } from "lucide-react";
 
 import { DashboardFilters } from "@/components/admin/DashboardFilters";
-
-interface RosterItem {
-    id: string;
-    employeeName: string;
-    siteName: string;
-    role: string;
-    schedule: string;
-    startDate: Date;
-    postoId: string;
-}
 
 async function getRosterData(companyId?: string, clientId?: string, search?: string): Promise<RosterItem[]> {
 

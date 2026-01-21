@@ -10,7 +10,7 @@ import * as XLSX from "xlsx";
 import { useReactToPrint } from "react-to-print";
 import { getScheduleOverrides, toggleScheduleOverride } from "@/actions/roster";
 
-interface RosterItem {
+export interface RosterItem {
     id: string;
     employeeName: string;
     siteName: string;
