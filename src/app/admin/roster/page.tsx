@@ -52,7 +52,8 @@ async function getRosterData(companyId?: string, clientId?: string, search?: str
         siteName: a.posto.client.name,
         role: a.posto.role.name,
         schedule: a.posto.schedule,
-        startDate: a.startDate
+        startDate: a.startDate,
+        postoId: a.postoId
     }));
 }
 

@@ -101,8 +101,23 @@ model Posto {
   client            Client       @relation(fields: [clientId], references: [id])
   role              Role         @relation(fields: [roleId], references: [id])
   vacancies         Vacancy[]
+  scheduleOverrides ScheduleOverride[]
 
   @@index([clientId])
+}
+
+model ScheduleOverride {
+  id        String   @id @default(uuid())
+  postoId   String
+  date      DateTime
+  isDayOff  Boolean
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  posto     Posto    @relation(fields: [postoId], references: [id])
+
+  @@unique([postoId, date])
+  @@index([postoId])
+  @@index([date])
 }
 
 model Situation {
