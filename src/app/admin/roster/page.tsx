@@ -6,7 +6,17 @@ import { CalendarDays } from "lucide-react";
 
 import { DashboardFilters } from "@/components/admin/DashboardFilters";
 
-async function getRosterData(companyId?: string, clientId?: string, search?: string) {
+interface RosterItem {
+    id: string;
+    employeeName: string;
+    siteName: string;
+    role: string;
+    schedule: string;
+    startDate: Date;
+    postoId: string;
+}
+
+async function getRosterData(companyId?: string, clientId?: string, search?: string): Promise<RosterItem[]> {
 
 
     const whereClause: any = { endDate: null };
