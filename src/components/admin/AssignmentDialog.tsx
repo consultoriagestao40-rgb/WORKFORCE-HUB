@@ -16,17 +16,31 @@ interface AssignmentDialogProps {
     postoId: string;
     postoRole: string;
     activeEmployeeName?: string;
+    currentSchedule?: string;
+    scheduleOptions?: { id: string; name: string; }[];
     employees: { id: string; name: string; role: { name: string } }[];
-    situations?: { id: string; name: string; color: string }[]; // NEW: situations list
+    situations?: { id: string; name: string; color: string }[];
 }
 
-export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, employees, situations = [] }: AssignmentDialogProps) {
+export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, employees, situations = [], currentSchedule, scheduleOptions = [] }: AssignmentDialogProps) {
     const [open, setOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [createVacancy, setCreateVacancy] = useState(false);
     const [mode, setMode] = useState<'assign' | 'unassign'>('assign');
     const [selectedSituation, setSelectedSituation] = useState<string>("");
+    const [employeeSearch, setEmployeeSearch] = useState("");
+    const [schedule, setSchedule] = useState(currentSchedule || "12x36");
+
+    useEffect(() => {
+        if (open && currentSchedule) {
+            setSchedule(currentSchedule);
+        }
+    }, [open, currentSchedule]);
+
+    const filteredEmployees = employees.filter(emp =>
+        emp.name.toLowerCase().includes(employeeSearch.toLowerCase())
+    ).slice(0, 50); // Limit to 50 for performance
 
     async function handleSubmit(formData: FormData) {
         setError(null);
@@ -77,7 +91,9 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
         setError(null);
         setCreateVacancy(false);
         setSelectedSituation("");
+        setEmployeeSearch(""); // Reset search
         setOpen(true);
+        if (currentSchedule) setSchedule(currentSchedule);
     }
 
     return (
@@ -130,13 +146,22 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
                             <input type="hidden" name="postoId" value={postoId} />
 
                             <div className="space-y-2">
-                                <Label>Novo Colaborador *</Label>
+                                <Label>Buscar Colaborador</Label>
+                                <Input
+                                    placeholder="Digite o nome..."
+                                    value={employeeSearch}
+                                    onChange={(e) => setEmployeeSearch(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Selecionar Colaborador * ({filteredEmployees.length})</Label>
                                 <Select name="employeeId" required>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Selecione..." />
+                                        <SelectValue placeholder="Selecione na lista..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {employees.map(emp => (
+                                        {filteredEmployees.map(emp => (
                                             <SelectItem key={emp.id} value={emp.id}>
                                                 {emp.name} ({emp.role.name})
                                             </SelectItem>
@@ -145,9 +170,28 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
                                 </Select>
                             </div>
 
-                            <div className="space-y-2">
-                                <Label>Data de Início</Label>
-                                <Input type="date" name="startDate" required defaultValue={new Date().toISOString().split('T')[0]} />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Data de Início</Label>
+                                    <Input type="date" name="startDate" required defaultValue={new Date().toISOString().split('T')[0]} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Escala</Label>
+                                    <Select name="schedule" value={schedule} onValueChange={setSchedule}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Selecione..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {scheduleOptions.map(opt => (
+                                                <SelectItem key={opt.id} value={opt.name}>
+                                                    {opt.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {/* Fallback hidden input/manual input if needed? Assuming options cover it or we need a creatable select. Sticking to options for now as requested. */}
+                                    <input type="hidden" name="schedule" value={schedule} />
+                                </div>
                             </div>
 
                             {activeEmployeeName && (

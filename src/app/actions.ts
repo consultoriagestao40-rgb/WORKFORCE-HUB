@@ -398,16 +398,26 @@ export async function assignEmployee(formData: FormData) {
     const postoId = formData.get("postoId") as string;
     const employeeId = formData.get("employeeId") as string;
     const startDateStr = formData.get("startDate") as string;
+    const schedule = formData.get("schedule") as string;
     const createVacancy = formData.get("createVacancy") === "on";
 
     if (!postoId || !employeeId) return { error: "Campos obrigatórios faltando." };
 
-    const startDate = startDateStr ? new Date(startDateStr) : new Date();
+    // Fix: Append T12:00:00 to ensure date falls on the correct day in local time (avoiding UTC roll-back)
+    const startDate = startDateStr ? new Date(`${startDateStr}T12:00:00`) : new Date();
 
     const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
     const posto = await prisma.posto.findUnique({ where: { id: postoId } });
 
     if (!employee || !posto) return { error: "Dados não encontrados." };
+
+    // Update Posto Schedule if provided and different
+    if (schedule && schedule !== posto.schedule) {
+        await prisma.posto.update({
+            where: { id: postoId },
+            data: { schedule }
+        });
+    }
 
     // Workload validation
     if (employee.workload < posto.requiredWorkload) {

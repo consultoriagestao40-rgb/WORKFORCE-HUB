@@ -190,6 +190,8 @@ export default async function ClientPostosPage(props: { params: Promise<{ id: st
                                                 activeEmployeeName={activeEmployee?.name}
                                                 employees={employees}
                                                 situations={situations}
+                                                currentSchedule={posto.schedule}
+                                                scheduleOptions={schedules}
                                             />
 
                                             {activeEmployee && (
