@@ -160,8 +160,11 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label>Data de Início</Label>
+                                    <Label>Data de Início da Nova Alocação</Label>
                                     <Input type="date" name="startDate" required defaultValue={new Date().toISOString().split('T')[0]} />
+                                    <p className="text-[10px] text-muted-foreground">
+                                        Para corrigir a data atual, use o menu <strong>Escala</strong>.
+                                    </p>
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Escala</Label>
