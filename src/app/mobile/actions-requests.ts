@@ -19,15 +19,26 @@ export async function createRequest(formData: FormData) {
 
     const dueDate = new Date(dueDateStr);
 
-    await prisma.request.create({
-        data: {
-            type,
-            description,
-            dueDate,
-            requesterId: user.id,
-            employeeId: employeeId || null,
-            status: "PENDENTE"
-        }
+    await prisma.$transaction(async (tx) => {
+        const newRequest = await tx.request.create({
+            data: {
+                type,
+                description,
+                dueDate,
+                requesterId: user.id,
+                employeeId: employeeId || null,
+                status: "PENDENTE"
+            }
+        });
+
+        await tx.log.create({
+            data: {
+                action: "SOLICITACAO_CRIADA",
+                details: `Nova solicitação (${type}) criada por mobile: ${description.substring(0, 100)}...`,
+                employeeId: employeeId || null,
+                userId: user.id
+            }
+        });
     });
 
     revalidatePath("/mobile/requests");
