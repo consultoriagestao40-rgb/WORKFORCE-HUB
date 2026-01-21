@@ -46,15 +46,18 @@ async function getRosterData(companyId?: string, clientId?: string, search?: str
         }
     });
 
-    return assignments.map(a => ({
-        id: a.id,
-        employeeName: a.employee.name,
-        siteName: a.posto.client.name,
-        role: a.posto.role.name,
-        schedule: a.posto.schedule,
-        startDate: a.startDate,
-        postoId: a.postoId
-    }));
+    return assignments.map(a => {
+        const item: RosterItem = {
+            id: a.id,
+            employeeName: a.employee.name,
+            siteName: a.posto.client.name,
+            role: a.posto.role.name,
+            schedule: a.posto.schedule,
+            startDate: a.startDate,
+            postoId: a.postoId
+        };
+        return item;
+    });
 }
 
 // Next.js 15+ searchParams is a Promise
@@ -73,7 +76,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
         })
     ]);
 
-    const data = await getRosterData(companyId, clientId, search);
+    const rosterData = await getRosterData(companyId, clientId, search) as RosterItem[];
 
     return (
         <div className="space-y-6">
@@ -89,7 +92,7 @@ export default async function RosterPage({ searchParams }: { searchParams: Promi
 
             <DashboardFilters companies={companies} clients={clients} />
 
-            <GlobalRoster data={data} />
+            <GlobalRoster data={rosterData} />
 
             <Card className="bg-blue-50 border-blue-100">
                 <CardHeader className="py-3">
