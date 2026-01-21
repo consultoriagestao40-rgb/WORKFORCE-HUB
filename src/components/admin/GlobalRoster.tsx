@@ -17,7 +17,7 @@ export interface RosterItem {
     role: string;
     schedule: string;
     startDate: Date;
-    postoId: string; // Ensure we have postoId here. We might need to map it in RosterPage.
+    postoId?: string; // Optional to fix build mismatch
 }
 
 interface ScheduleOverride {
@@ -45,7 +45,9 @@ const RosterRow = memo(({ item, days, overrides, onToggle }: { item: RosterItem,
             </td>
             {roster.map(day => {
                 // Check if there is an override for this day
-                const override = overrides.find(o => o.postoId === item.postoId && isSameDay(new Date(o.date), day.date));
+                // Use fallback to avoid crash if postoId is missing
+                const pid = item.postoId || "";
+                const override = overrides.find(o => o.postoId === pid && isSameDay(new Date(o.date), day.date));
 
                 // Effective status logic
                 let isWork = day.status === 'Trabalho';
@@ -143,7 +145,8 @@ export function GlobalRoster({ data }: GlobalRosterProps) {
                 const dayStr = format(day.date, 'dd/MM');
 
                 // Override Logic for Excel
-                const override = overrides.find(o => o.postoId === item.postoId && isSameDay(new Date(o.date), day.date));
+                const pid = item.postoId || "";
+                const override = overrides.find(o => o.postoId === pid && isSameDay(new Date(o.date), day.date));
                 let isWork = day.status === 'Trabalho';
                 if (override) isWork = !override.isDayOff;
 
@@ -223,7 +226,7 @@ export function GlobalRoster({ data }: GlobalRosterProps) {
                                 item={item}
                                 days={days}
                                 overrides={overrides}
-                                onToggle={(date, status) => handleToggle(item.postoId, date, status)}
+                                onToggle={(date, status) => handleToggle(item.postoId || "", date, status)}
                             />
                         ))}
                     </tbody>
