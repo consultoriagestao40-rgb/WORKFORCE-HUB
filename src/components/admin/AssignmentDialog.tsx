@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { UserPlus, UserMinus, AlertCircle } from "lucide-react";
 import { assignEmployee, unassignEmployee } from "@/app/actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Combobox } from "@/components/ui/combobox"; // NEW
 
 interface AssignmentDialogProps {
     postoId: string;
@@ -29,8 +30,9 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
     const [createVacancy, setCreateVacancy] = useState(false);
     const [mode, setMode] = useState<'assign' | 'unassign'>('assign');
     const [selectedSituation, setSelectedSituation] = useState<string>("");
-    const [employeeSearch, setEmployeeSearch] = useState("");
+    // const [employeeSearch, setEmployeeSearch] = useState(""); // REMOVED
     const [schedule, setSchedule] = useState(currentSchedule || "12x36");
+    const [employeeId, setEmployeeId] = useState(""); // NEW for Combobox
 
     useEffect(() => {
         if (open && currentSchedule) {
@@ -38,9 +40,7 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
         }
     }, [open, currentSchedule]);
 
-    const filteredEmployees = employees.filter(emp =>
-        emp.name.toLowerCase().includes(employeeSearch.toLowerCase())
-    ).slice(0, 50); // Limit to 50 for performance
+    // Filter logic moved to Combobox component
 
     async function handleSubmit(formData: FormData) {
         setError(null);
@@ -91,7 +91,7 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
         setError(null);
         setCreateVacancy(false);
         setSelectedSituation("");
-        setEmployeeSearch(""); // Reset search
+        setEmployeeId(""); // Reset selection
         setOpen(true);
         if (currentSchedule) setSchedule(currentSchedule);
     }
@@ -144,30 +144,18 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
                     {mode === 'assign' ? (
                         <form action={handleSubmit} className="space-y-4 py-4">
                             <input type="hidden" name="postoId" value={postoId} />
+                            <input type="hidden" name="employeeId" value={employeeId} />
 
                             <div className="space-y-2">
-                                <Label>Buscar Colaborador</Label>
-                                <Input
-                                    placeholder="Digite o nome..."
-                                    value={employeeSearch}
-                                    onChange={(e) => setEmployeeSearch(e.target.value)}
+                                <Label>Colaborador *</Label>
+                                <Combobox
+                                    options={employees.map(e => ({ value: e.id, label: `${e.name} (${e.role.name})` }))}
+                                    value={employeeId}
+                                    onChange={setEmployeeId}
+                                    placeholder="Selecione o colaborador..."
+                                    searchPlaceholder="Buscar colaborador..."
+                                    emptyMessage="Nenhum colaborador encontrado."
                                 />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Selecionar Colaborador * ({filteredEmployees.length})</Label>
-                                <Select name="employeeId" required>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecione na lista..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {filteredEmployees.map(emp => (
-                                            <SelectItem key={emp.id} value={emp.id}>
-                                                {emp.name} ({emp.role.name})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -189,7 +177,6 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
                                             ))}
                                         </SelectContent>
                                     </Select>
-                                    {/* Fallback hidden input/manual input if needed? Assuming options cover it or we need a creatable select. Sticking to options for now as requested. */}
                                     <input type="hidden" name="schedule" value={schedule} />
                                 </div>
                             </div>

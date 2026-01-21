@@ -401,10 +401,14 @@ export async function assignEmployee(formData: FormData) {
     const schedule = formData.get("schedule") as string;
     const createVacancy = formData.get("createVacancy") === "on";
 
+    console.log("Assign Employee Debug:", { postoId, employeeId, startDateStr, schedule });
+
     if (!postoId || !employeeId) return { error: "Campos obrigatórios faltando." };
 
     // Fix: Append T12:00:00 to ensure date falls on the correct day in local time (avoiding UTC roll-back)
     const startDate = startDateStr ? new Date(`${startDateStr}T12:00:00`) : new Date();
+
+    console.log("Parsed Start Date:", startDate);
 
     const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
     const posto = await prisma.posto.findUnique({ where: { id: postoId } });
