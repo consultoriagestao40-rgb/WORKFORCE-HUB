@@ -18,6 +18,7 @@ import { AssignmentDialog } from "@/components/admin/AssignmentDialog";
 import { EditPostoSheet } from "@/components/admin/EditPostoSheet";
 import { getCurrentUserRole } from "@/lib/auth";
 import { DeletePostoButton } from "@/components/admin/DeletePostoButton";
+import { ScheduleDialog } from "@/components/admin/ScheduleDialog";
 
 async function getClientDetails(id: string) {
     return await prisma.client.findUnique({
@@ -195,28 +196,14 @@ export default async function ClientPostosPage(props: { params: Promise<{ id: st
                                             />
 
                                             {activeEmployee && (
-                                                <Dialog>
-                                                    <DialogTrigger asChild>
-                                                        <Button size="sm" variant="outline" className="ml-2 gap-2 text-blue-600 hover:text-blue-700">
-                                                            <Calendar className="w-3 h-3" />
-                                                            Escala
-                                                        </Button>
-                                                    </DialogTrigger>
-                                                    <DialogContent>
-                                                        <DialogHeader>
-                                                            <DialogTitle>Calendário de Trabalho</DialogTitle>
-                                                            <DialogDescription>
-                                                                Visualização da escala <strong>{posto.schedule}</strong> iniciada em {new Date(currentAssignment.startDate).toLocaleDateString('pt-BR')}.
-                                                            </DialogDescription>
-                                                        </DialogHeader>
-                                                        <div className="flex justify-center py-4">
-                                                            <CalendarView
-                                                                scheduleType={posto.schedule}
-                                                                startDate={currentAssignment.startDate.toISOString()}
-                                                            />
-                                                        </div>
-                                                    </DialogContent>
-                                                </Dialog>
+                                                <ScheduleDialog
+                                                    postoId={posto.id}
+                                                    postoRole={posto.role.name}
+                                                    currentSchedule={posto.schedule}
+                                                    startDate={currentAssignment.startDate}
+                                                    scheduleOptions={schedules}
+                                                    assignmentId={currentAssignment.id}
+                                                />
                                             )}
 
                                             {userRole === 'ADMIN' && (

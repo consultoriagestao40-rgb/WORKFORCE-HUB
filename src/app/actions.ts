@@ -1606,3 +1606,50 @@ export async function requestProbationDismissal(employeeId: string) {
 }
 
 
+
+export async function updateAssignmentSchedule(formData: FormData) {
+    const assignmentId = formData.get("assignmentId") as string;
+    const postoId = formData.get("postoId") as string;
+    const startDateStr = formData.get("startDate") as string;
+    const schedule = formData.get("schedule") as string;
+
+    if (!assignmentId || !postoId || !schedule) {
+        return { error: "Campos obrigatórios faltando." };
+    }
+
+    // Date fix
+    const startDate = startDateStr ? new Date(`${startDateStr}T12:00:00`) : undefined;
+
+    await prisma.$transaction(async (tx) => {
+        // 1. Update Assignment Start Date
+        if (startDate) {
+            await tx.assignment.update({
+                where: { id: assignmentId },
+                data: { startDate }
+            });
+        }
+
+        // 2. Update Posto Schedule
+        await tx.posto.update({
+            where: { id: postoId },
+            data: { schedule }
+        });
+
+        // 3. Log
+        const currentUser = await getCurrentUser();
+        const posto = await tx.posto.findUnique({ where: { id: postoId }, include: { client: true, role: true } });
+
+        await tx.log.create({
+            data: {
+                action: "ALTERACAO_ESCALA",
+                details: `Escala/Data atualizada no posto ${posto?.role.name} (${posto?.client.name}). Nova escala: ${schedule}. Data início: ${startDate?.toLocaleDateString('pt-BR')}`,
+                userId: currentUser?.id,
+                // We don't necessarily update the employee here, but we could link it if we fetched the assignment.
+                // For conciseness, we omit extra fetches unless needed.
+            }
+        });
+    });
+
+    revalidatePath("/admin/clients");
+    revalidatePath("/admin/employees");
+}
