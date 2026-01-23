@@ -13,21 +13,43 @@ export async function createRequest(formData: FormData) {
     const dueDateStr = formData.get("dueDate") as string;
     const employeeId = formData.get("employeeId") as string;
 
-    if (!type || !description || !dueDateStr) {
+    if (!type || !description) {
         throw new Error("Missing fields");
     }
 
-    const dueDate = new Date(dueDateStr);
+    // Default dueDate from form, but try to override with SLA Config
+    let dueDate = dueDateStr ? new Date(dueDateStr) : new Date();
 
-    await prisma.request.create({
-        data: {
-            type,
-            description,
-            dueDate,
-            requesterId: user.id,
-            employeeId: employeeId || null,
-            status: "PENDENTE"
-        }
+    const slaConfig = await prisma.requestStageConfiguration.findUnique({
+        where: { status: 'PENDENTE' }
+    });
+
+    if (slaConfig) {
+        const today = new Date();
+        today.setDate(today.getDate() + slaConfig.slaDays);
+        dueDate = today;
+    }
+
+    await prisma.$transaction(async (tx) => {
+        const newRequest = await tx.request.create({
+            data: {
+                type,
+                description,
+                dueDate,
+                requesterId: user.id,
+                employeeId: employeeId || null,
+                status: "PENDENTE"
+            }
+        });
+
+        await tx.log.create({
+            data: {
+                action: "SOLICITACAO_CRIADA",
+                details: `Nova solicitação (${type}) criada por mobile: ${description.substring(0, 100)}...`,
+                employeeId: employeeId || null,
+                userId: user.id
+            }
+        });
     });
 
     revalidatePath("/mobile/requests");

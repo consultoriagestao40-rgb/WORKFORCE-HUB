@@ -259,6 +259,11 @@ export function RequestDetailsSheet({ request, open, onOpenChange }: RequestDeta
                                 </div>
                             </div>
                         </div>
+
+                        {/* Comments Section - Always Visible in Detail Tab */}
+                        <div className="pt-2">
+                            <RequestCommentsSection requestId={request.id} />
+                        </div>
                     </TabsContent>
 
                     <TabsContent value="history">

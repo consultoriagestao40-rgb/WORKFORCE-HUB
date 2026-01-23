@@ -13,11 +13,22 @@ export async function createRequest(formData: FormData) {
     const dueDateStr = formData.get("dueDate") as string;
     const employeeId = formData.get("employeeId") as string;
 
-    if (!type || !description || !dueDateStr) {
+    if (!type || !description) {
         throw new Error("Missing fields");
     }
 
-    const dueDate = new Date(dueDateStr);
+    // Default dueDate from form, but try to override with SLA Config
+    let dueDate = dueDateStr ? new Date(dueDateStr) : new Date();
+
+    const slaConfig = await prisma.requestStageConfiguration.findUnique({
+        where: { status: 'PENDENTE' }
+    });
+
+    if (slaConfig) {
+        const today = new Date();
+        today.setDate(today.getDate() + slaConfig.slaDays);
+        dueDate = today;
+    }
 
     await prisma.$transaction(async (tx) => {
         const newRequest = await tx.request.create({
