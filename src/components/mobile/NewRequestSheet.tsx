@@ -53,9 +53,15 @@ export function NewRequestSheet({ employees }: { employees: EmployeeOption[] }) 
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="FERIAS">Programação de Férias</SelectItem>
-                                <SelectItem value="MOVIMENTACAO">Movimentação / Mudança</SelectItem>
                                 <SelectItem value="UNIFORME">Uniforme / EPI</SelectItem>
                                 <SelectItem value="HORARIO">Mudança de Horário</SelectItem>
+                                <SelectItem value="MOVIMENTACAO">Solicitação de Movimentação de posto de trabalho</SelectItem>
+                                <SelectItem value="MUDANCA_ESCALA">Mudança de Escala de Trabalho</SelectItem>
+                                <SelectItem value="ALTERACAO_FUNCIONAL">Alteração funcional</SelectItem>
+                                <SelectItem value="TERMINO_CONTRATO_EXPERIENCIA">Término de contrato de experiencia</SelectItem>
+                                <SelectItem value="TERMINO_CONTRATO_ANTECIPADO">Término de contrato de experiencia antecipado</SelectItem>
+                                <SelectItem value="DEMISSAO_COLABORADOR">Demissão por iniciativa do colaborador</SelectItem>
+                                <SelectItem value="DEMISSAO_EMPRESA">Demissão por iniciativa da empresa</SelectItem>
                                 <SelectItem value="OUTROS">Outros Assuntos</SelectItem>
                             </SelectContent>
                         </Select>
