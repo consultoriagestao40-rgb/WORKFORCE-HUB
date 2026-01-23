@@ -1,3 +1,6 @@
+"use client";
+
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { RequestCommentsSection } from "./RequestCommentsSection";
 
 // ... (existing code, I can't restart imports here easily without a larger replace, but verify if I can add import at top separately or if I should assume multiple replaces)
