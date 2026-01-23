@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { getAdminRequests } from "./actions";
-import { RequestKanbanBoard } from "@/components/admin/requests/RequestKanban";
+import { RequestKanban } from "../../../components/admin/requests/RequestKanban";
 import { Inbox } from "lucide-react";
 
 export default async function AdminRequestsPage() {
@@ -25,7 +25,7 @@ export default async function AdminRequestsPage() {
                 </div>
             </div>
 
-            <RequestKanbanBoard requests={requests} />
+            <RequestKanban requests={requests} />
         </div>
     );
 }

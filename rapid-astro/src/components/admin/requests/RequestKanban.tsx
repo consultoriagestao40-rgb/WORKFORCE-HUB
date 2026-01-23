@@ -25,7 +25,7 @@ const COLUMNS = [
     { id: 'REPROVADO_CANCELADO', title: 'Reprovado / Cancelado', status: ['REJEITADO', 'CANCELADO'], color: 'bg-red-50' }
 ];
 
-export function RequestKanbanBoard({ requests }: RequestKanbanBoardProps) {
+export function RequestKanban({ requests }: RequestKanbanBoardProps) {
     const [actionRequest, setActionRequest] = useState<any>(null);
     const [actionType, setActionType] = useState<string | null>(null);
     const [comment, setComment] = useState("");
@@ -123,7 +123,7 @@ export function RequestKanbanBoard({ requests }: RequestKanbanBoardProps) {
                                         {/* Show Status Badge only in mixed/closed columns if needed, or always? User requested separation so maybe redundant, but keeping for clarity if specific status matters (e.g. Cancelado vs Rejeitado) */}
                                         {(col.id === 'CONCLUIDOS' || col.id === 'REPROVADO_CANCELADO') && (
                                             <Badge className={`text-[9px] h-5 px-1.5 ${req.status === 'CONCLUIDO' ? 'bg-emerald-100 text-emerald-700' :
-                                                    req.status === 'REJEITADO' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'
+                                                req.status === 'REJEITADO' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'
                                                 } border-none`}>
                                                 {req.status}
                                             </Badge>
