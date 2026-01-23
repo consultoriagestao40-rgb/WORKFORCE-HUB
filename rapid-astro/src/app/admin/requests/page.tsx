@@ -1,9 +1,6 @@
 export const dynamic = "force-dynamic";
 import { getAdminRequests } from "./actions";
-import { RequestKanbanBoard } from "@/components/admin/requests/RequestKanbanBoard";
-import { Inbox } from "lucide-react";
-
-
+import { RequestKanbanBoard } from "@/components/admin/requests/RequestKanbanBoardV2";
 
 export default async function AdminRequestsPage() {
     const requests: any = await getAdminRequests();
