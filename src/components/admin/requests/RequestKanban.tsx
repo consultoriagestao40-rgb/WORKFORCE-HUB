@@ -11,7 +11,20 @@ import { transitionRequest } from "@/app/admin/requests/actions";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { CheckCircle2, XCircle, AlertCircle, ArrowLeft, Clock, User, Briefcase, FileText, Settings } from "lucide-react";
+import { RequestDetailsSheet } from "./RequestDetailsSheet";
 import { RequestStageConfigDialog } from "./RequestStageConfigDialog";
+
+interface RequestKanbanBoardProps {
+    requests: any[];
+}
+
+const COLUMNS = [
+    { id: 'SOLICITACAO', title: 'Solicitação', status: ['PENDENTE', 'EM_ANDAMENTO'], color: 'bg-slate-50' },
+    { id: 'APROVACAO', title: 'Aprovação', status: ['AGUARDANDO_APROVACAO'], color: 'bg-purple-50' },
+    { id: 'RH_DP', title: 'RH / DP', status: ['EM_ANALISE_RH'], color: 'bg-pink-50' },
+    { id: 'CONCLUIDOS', title: 'Concluídos', status: ['CONCLUIDO'], color: 'bg-emerald-50' },
+    { id: 'REPROVADO_CANCELADO', title: 'Reprovado / Cancelado', status: ['REJEITADO', 'CANCELADO'], color: 'bg-red-50' }
+];
 
 export function RequestKanban({ requests }: RequestKanbanBoardProps) {
     const [actionRequest, setActionRequest] = useState<any>(null);
@@ -47,8 +60,7 @@ export function RequestKanban({ requests }: RequestKanbanBoardProps) {
         setComment("");
 
         if (type === 'APPROVE_TO_RH') {
-            handleTransition(req.id, 'EM_ANALISE_RH');
-            return;
+            // Updated to require comment via dialog
         }
 
         setIsDialogOpen(true);
@@ -67,7 +79,7 @@ export function RequestKanban({ requests }: RequestKanbanBoardProps) {
     const submitAction = () => {
         if (!actionRequest || !actionType) return;
 
-        if (['RETURN_INFO', 'REJECT', 'CONCLUDE', 'CANCEL'].includes(actionType) && !comment.trim()) {
+        if (['RETURN_INFO', 'REJECT', 'CONCLUDE', 'CANCEL', 'APPROVE_TO_RH'].includes(actionType) && !comment.trim()) {
             toast.error("Comentário é obrigatório para esta ação.");
             return;
         }
@@ -78,6 +90,7 @@ export function RequestKanban({ requests }: RequestKanbanBoardProps) {
             case 'REJECT': newStatus = 'REJEITADO'; break;
             case 'CONCLUDE': newStatus = 'CONCLUIDO'; break;
             case 'CANCEL': newStatus = 'CANCELADO'; break;
+            case 'APPROVE_TO_RH': newStatus = 'EM_ANALISE_RH'; break;
         }
 
         if (newStatus) {
@@ -233,6 +246,7 @@ export function RequestKanban({ requests }: RequestKanbanBoardProps) {
                             {actionType === 'CONCLUDE' && "Concluir Solicitação"}
                             {actionType === 'CANCEL' && "Cancelar Solicitação"}
                             {actionType === 'AGUARDANDO_APROVACAO' && "Enviar para Aprovação"}
+                            {actionType === 'APPROVE_TO_RH' && "Aprovar Solicitação"}
                         </DialogTitle>
                         <DialogDescription>
                             {actionType === 'AGUARDANDO_APROVACAO'
