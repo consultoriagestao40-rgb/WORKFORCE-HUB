@@ -22,33 +22,23 @@ export async function getAdminRequests() {
     });
 }
 
-export async function updateRequestStatus(id: string, newStatus: string) {
-    const userRole = await getCurrentUserRole();
-    if (userRole === 'SUPERVISOR') throw new Error("Unauthorized");
-
-    await prisma.request.update({
-        where: { id },
-        data: { status: newStatus as any }
-    });
-
-    revalidatePath("/admin/requests");
-    revalidatePath("/mobile/requests");
-}
-
-export async function resolveRequest(formData: FormData) {
+export async function transitionRequest(id: string, newStatus: string, notes?: string) {
     const user = await getCurrentUser();
     if (!user || user.role === 'SUPERVISOR') throw new Error("Unauthorized");
 
-    const id = formData.get("id") as string;
-    const notes = formData.get("notes") as string;
+    const data: any = { status: newStatus as any };
+
+    // If notes provided, we might want to append or overwrite. 
+    // For "Solicitar Mais Informações" (Back to PENDENTE), we should probably update notes.
+    // For "Concluir" (CONCLUIDO), we definitely update resolutionNotes.
+    if (notes) {
+        data.resolutionNotes = notes;
+        data.resolverId = user.id;
+    }
 
     await prisma.request.update({
         where: { id },
-        data: {
-            status: "CONCLUIDO",
-            resolutionNotes: notes,
-            resolverId: user.id
-        }
+        data
     });
 
     revalidatePath("/admin/requests");
