@@ -1,9 +1,7 @@
 export const dynamic = "force-dynamic";
 import { getAdminRequests } from "./actions";
-import { RequestKanbanBoard } from "@/components/admin/requests/RequestKanbanBoard";
+import { RequestKanban } from "../../../components/admin/requests/RequestKanban";
 import { Inbox } from "lucide-react";
-
-
 
 export default async function AdminRequestsPage() {
     const requests: any = await getAdminRequests();
@@ -16,7 +14,7 @@ export default async function AdminRequestsPage() {
                     <div className="flex items-center gap-2 text-primary font-black text-xs uppercase tracking-[0.3em] mb-2">
                         Service Desk
                     </div>
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter">Central de Solicitações</h1>
+                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter">Central de Solicitações (Root)</h1>
                     <p className="text-slate-500 font-medium italic">Gerencie demandas e tarefas operacionais</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -27,7 +25,7 @@ export default async function AdminRequestsPage() {
                 </div>
             </div>
 
-            <RequestKanbanBoard requests={requests} />
+            <RequestKanban requests={requests} />
         </div>
     );
 }
