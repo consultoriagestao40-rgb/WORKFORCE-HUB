@@ -55,3 +55,40 @@ export async function deleteRequest(id: string) {
 
     revalidatePath("/admin/requests");
 }
+
+export async function getStageConfiguration(status: string) {
+    const config = await prisma.requestStageConfiguration.findUnique({
+        where: { status: status as any },
+        include: { approver: { select: { id: true, name: true } } }
+    });
+    return config;
+}
+
+export async function updateStageConfiguration(status: string, data: { slaDays: number, approverId?: string }) {
+    const user = await getCurrentUserRole();
+    if (user !== 'ADMIN') throw new Error("Unauthorized");
+
+    await prisma.requestStageConfiguration.upsert({
+        where: { status: status as any },
+        create: {
+            status: status as any,
+            slaDays: data.slaDays,
+            approverId: data.approverId
+        },
+        update: {
+            slaDays: data.slaDays,
+            approverId: data.approverId
+        }
+    });
+
+    revalidatePath("/admin/requests");
+}
+
+export async function getRecruiters() {
+    // Get users who can be approvers (e.g. ADMIN, COORD_RH, or specific roles. For now all users or Admin/RH)
+    return await prisma.user.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, role: true },
+        orderBy: { name: 'asc' }
+    });
+}

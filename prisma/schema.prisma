@@ -413,6 +413,16 @@ enum RequestType {
   ALTERACAO_FUNCIONAL
 }
 
+model RequestStageConfiguration {
+  id         String        @id @default(uuid())
+  status     RequestStatus @unique
+  slaDays    Int           @default(3)
+  approverId String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  approver   User?         @relation(fields: [approverId], references: [id])
+}
+
 enum RequestStatus {
   PENDENTE
   AGUARDANDO_APROVACAO

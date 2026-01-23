@@ -11,19 +11,7 @@ import { transitionRequest } from "@/app/admin/requests/actions";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { CheckCircle2, XCircle, AlertCircle, ArrowLeft, Clock, User, Briefcase, FileText, Settings } from "lucide-react";
-import { RequestDetailsSheet } from "./RequestDetailsSheet";
-
-interface RequestKanbanBoardProps {
-    requests: any[];
-}
-
-const COLUMNS = [
-    { id: 'SOLICITACAO', title: 'Solicitação', status: ['PENDENTE', 'EM_ANDAMENTO'], color: 'bg-slate-50' },
-    { id: 'APROVACAO', title: 'Aprovação', status: ['AGUARDANDO_APROVACAO'], color: 'bg-purple-50' },
-    { id: 'RH_DP', title: 'RH / DP', status: ['EM_ANALISE_RH'], color: 'bg-pink-50' },
-    { id: 'CONCLUIDOS', title: 'Concluídos', status: ['CONCLUIDO'], color: 'bg-emerald-50' },
-    { id: 'REPROVADO_CANCELADO', title: 'Reprovado / Cancelado', status: ['REJEITADO', 'CANCELADO'], color: 'bg-red-50' }
-];
+import { RequestStageConfigDialog } from "./RequestStageConfigDialog";
 
 export function RequestKanban({ requests }: RequestKanbanBoardProps) {
     const [actionRequest, setActionRequest] = useState<any>(null);
@@ -31,9 +19,21 @@ export function RequestKanban({ requests }: RequestKanbanBoardProps) {
     const [comment, setComment] = useState("");
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
+    // Config Dialog State
+    const [configOpen, setConfigOpen] = useState(false);
+    const [configColumn, setConfigColumn] = useState<{ title: string, status: string } | null>(null);
+
     // Details Sheet State
     const [selectedRequest, setSelectedRequest] = useState<any>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+    const openConfig = (col: any) => {
+        // Map column ID to a representative status for configuration
+        // We use the first status in the list as the key
+        const status = col.status[0];
+        setConfigColumn({ title: col.title, status });
+        setConfigOpen(true);
+    };
 
     const getRequestsByColumn = (colId: string) => {
         const statuses = COLUMNS.find(c => c.id === colId)?.status || [];
@@ -101,8 +101,12 @@ export function RequestKanban({ requests }: RequestKanbanBoardProps) {
                                 {getRequestsByColumn(col.id).length}
                             </Badge>
                         </div>
-                        {/* Settings Icon - Placeholder functionality */}
-                        <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 opacity-0 group-hover/header:opacity-100 transition-opacity">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-slate-400 opacity-0 group-hover/header:opacity-100 transition-opacity hover:text-indigo-600 hover:bg-indigo-50"
+                            onClick={() => openConfig(col)}
+                        >
                             <Settings className="w-3.5 h-3.5" />
                         </Button>
                     </div>
@@ -210,6 +214,15 @@ export function RequestKanban({ requests }: RequestKanbanBoardProps) {
                 open={isDetailsOpen}
                 onOpenChange={setIsDetailsOpen}
             />
+
+            {configColumn && (
+                <RequestStageConfigDialog
+                    open={configOpen}
+                    onOpenChange={setConfigOpen}
+                    columnTitle={configColumn.title}
+                    targetStatus={configColumn.status}
+                />
+            )}
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent>
