@@ -18,7 +18,6 @@ import { toast } from "sonner";
 import { transitionRequest } from "@/app/admin/requests/actions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RequestCommentsSection } from "./RequestCommentsSection";
 
 interface RequestDetailsSheetProps {
     request: any;
