@@ -1,6 +1,8 @@
-"use client";
+import { RequestCommentsSection } from "./RequestCommentsSection";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+// ... (existing code, I can't restart imports here easily without a larger replace, but verify if I can add import at top separately or if I should assume multiple replaces)
+// Actually I will do two replaces or one big one. Since I need to adding import at top and usage at bottom.
+// I will use multi_replace_file_content.
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,6 +15,7 @@ import { toast } from "sonner";
 import { transitionRequest } from "@/app/admin/requests/actions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RequestCommentsSection } from "./RequestCommentsSection";
 
 interface RequestDetailsSheetProps {
     request: any;
@@ -257,9 +260,7 @@ export function RequestDetailsSheet({ request, open, onOpenChange }: RequestDeta
                     </TabsContent>
 
                     <TabsContent value="history">
-                        <div className="bg-white rounded-xl border p-6 min-h-[300px] flex items-center justify-center text-slate-400">
-                            Histórico de alterações em breve.
-                        </div>
+                        <RequestCommentsSection requestId={request.id} />
                     </TabsContent>
                 </Tabs>
 

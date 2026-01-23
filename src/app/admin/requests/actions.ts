@@ -28,12 +28,20 @@ export async function transitionRequest(id: string, newStatus: string, notes?: s
 
     const data: any = { status: newStatus as any };
 
-    // If notes provided, we might want to append or overwrite. 
     // For "Solicitar Mais Informações" (Back to PENDENTE), we should probably update notes.
     // For "Concluir" (CONCLUIDO), we definitely update resolutionNotes.
     if (notes) {
         data.resolutionNotes = notes;
         data.resolverId = user.id;
+
+        // ALSO create a permanent comment record
+        await prisma.requestComment.create({
+            data: {
+                content: notes,
+                requestId: id,
+                userId: user.id
+            }
+        });
     }
 
     await prisma.request.update({
@@ -90,5 +98,28 @@ export async function getRecruiters() {
         where: { isActive: true },
         select: { id: true, name: true, role: true },
         orderBy: { name: 'asc' }
+    });
+}
+
+export async function addRequestComment(requestId: string, content: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    await prisma.requestComment.create({
+        data: {
+            content,
+            requestId,
+            userId: user.id
+        }
+    });
+
+    revalidatePath("/admin/requests");
+}
+
+export async function getRequestComments(requestId: string) {
+    return await prisma.requestComment.findMany({
+        where: { requestId },
+        include: { user: { select: { name: true, role: true } } },
+        orderBy: { createdAt: 'desc' }
     });
 }
