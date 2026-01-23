@@ -26,6 +26,7 @@ model User {
   resolvedRequests           Request[]             @relation("RequestResolver")
   vacancies                  Vacancy[]
   participatingVacancies     Vacancy[]             @relation("VacancyParticipants")
+  requestStageConfigurations RequestStageConfiguration[]
 }
 
 model Log {
