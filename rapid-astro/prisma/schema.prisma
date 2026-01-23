@@ -24,6 +24,7 @@ model User {
   recruitmentTimelineEntries RecruitmentTimeline[]
   requests                   Request[]
   resolvedRequests           Request[]             @relation("RequestResolver")
+  requestComments            RequestComment[]
   vacancies                  Vacancy[]
   participatingVacancies     Vacancy[]             @relation("VacancyParticipants")
   requestStageConfigurations RequestStageConfiguration[]
@@ -366,8 +367,21 @@ model Request {
   requester       User          @relation(fields: [requesterId], references: [id])
   resolver        User?         @relation("RequestResolver", fields: [resolverId], references: [id])
 
-  @@index([requesterId])
   @@index([status])
+  comments        RequestComment[]
+}
+
+model RequestComment {
+  id        String   @id @default(uuid())
+  content   String
+  userId    String
+  requestId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+  request   Request  @relation(fields: [requestId], references: [id])
+
+  @@index([requestId])
 }
 
 model Occurrence {
