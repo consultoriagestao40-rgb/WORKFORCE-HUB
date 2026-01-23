@@ -10,17 +10,19 @@ import { Label } from "@/components/ui/label";
 import { transitionRequest } from "@/app/admin/requests/actions";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, AlertCircle, ArrowLeft, Clock, User, Briefcase, FileText } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, ArrowLeft, Clock, User, Briefcase, FileText, Settings } from "lucide-react";
+import { RequestDetailsSheet } from "./RequestDetailsSheet";
 
 interface RequestKanbanBoardProps {
     requests: any[];
 }
 
 const COLUMNS = [
-    { id: 'SOLICITACAO', title: 'Solicitação', status: ['PENDENTE', 'EM_ANDAMENTO'] },
-    { id: 'APROVACAO', title: 'Aprovação', status: ['AGUARDANDO_APROVACAO'] },
-    { id: 'RH_DP', title: 'RH / DP', status: ['EM_ANALISE_RH'] },
-    { id: 'CONCLUIDO', title: 'Arquivados', status: ['CONCLUIDO', 'REJEITADO', 'CANCELADO'] }
+    { id: 'SOLICITACAO', title: 'Solicitação', status: ['PENDENTE', 'EM_ANDAMENTO'], color: 'bg-slate-50' },
+    { id: 'APROVACAO', title: 'Aprovação', status: ['AGUARDANDO_APROVACAO'], color: 'bg-purple-50' },
+    { id: 'RH_DP', title: 'RH / DP', status: ['EM_ANALISE_RH'], color: 'bg-pink-50' },
+    { id: 'CONCLUIDOS', title: 'Concluídos', status: ['CONCLUIDO'], color: 'bg-emerald-50' },
+    { id: 'REPROVADO_CANCELADO', title: 'Reprovado / Cancelado', status: ['REJEITADO', 'CANCELADO'], color: 'bg-red-50' }
 ];
 
 export function RequestKanbanBoard({ requests }: RequestKanbanBoardProps) {
@@ -29,28 +31,22 @@ export function RequestKanbanBoard({ requests }: RequestKanbanBoardProps) {
     const [comment, setComment] = useState("");
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
+    // Details Sheet State
+    const [selectedRequest, setSelectedRequest] = useState<any>(null);
+    const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
     const getRequestsByColumn = (colId: string) => {
         const statuses = COLUMNS.find(c => c.id === colId)?.status || [];
         return requests.filter(r => statuses.includes(r.status));
     };
 
-    const handleAction = (req: any, type: string) => {
+    const handleAction = (e: React.MouseEvent, req: any, type: string) => {
+        e.stopPropagation(); // Prevent card click
         setActionRequest(req);
         setActionType(type);
         setComment("");
 
-        // Immediate actions without comment?
-        // User said:
-        // Etapa 2: Aprovado -> next. Reprovado -> archived. Info -> back. (Info needs comment usually)
-        // Etapa 3: Concluir/Cancelar -> Mandatory comment.
-
-        // Let's force modal for everything to be safe and consistent, except maybe "Approve" (unless user wants optional comment)
-        // But simplifying: open modal for all transitions that define a flow change just to be safe.
-
         if (type === 'APPROVE_TO_RH') {
-            // Direct? Or Optional comment? Let's do direct for speed if no strict rule.
-            // "Aprovação do Diretor Cristiano nessa etapa terás botão aprovado > vai para próxima tapa"
-            // Let's assume direct is OK.
             handleTransition(req.id, 'EM_ANALISE_RH');
             return;
         }
@@ -89,33 +85,43 @@ export function RequestKanbanBoard({ requests }: RequestKanbanBoardProps) {
         }
     };
 
-    // Helper to move from Solicitação to Aprovação (Simulating "Done" in step 1 or auto?)
-    // "Etapa 01... fica as solicitações".
-    // Director probably picks from there? Or someone moves it to Approval?
-    // Let's assume there is a "Enviar para Aprovação" button in Step 1.
+    const openDetails = (req: any) => {
+        setSelectedRequest(req);
+        setIsDetailsOpen(true);
+    };
 
     return (
         <div className="flex h-full gap-4 overflow-x-auto pb-4 items-start min-h-[calc(100vh-200px)]">
             {COLUMNS.map(col => (
-                <div key={col.id} className="w-80 shrink-0 flex flex-col bg-slate-50/50 rounded-xl border border-slate-200 h-full max-h-full">
-                    <div className="p-3 border-b bg-white/50 backdrop-blur rounded-t-xl sticky top-0 z-10 flex justify-between items-center">
-                        <h3 className="font-bold text-slate-700">{col.title}</h3>
-                        <Badge variant="secondary" className="bg-slate-200 text-slate-600 border-none">
-                            {getRequestsByColumn(col.id).length}
-                        </Badge>
+                <div key={col.id} className={`w-80 shrink-0 flex flex-col rounded-xl border border-slate-200 h-full max-h-full ${col.color || 'bg-slate-50/50'}`}>
+                    <div className="p-3 border-b bg-white/60 backdrop-blur rounded-t-xl sticky top-0 z-10 flex justify-between items-center group/header">
+                        <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wide">{col.title}</h3>
+                            <Badge variant="secondary" className="bg-white/80 text-slate-600 border border-slate-100 shadow-sm text-xs px-1.5 h-5">
+                                {getRequestsByColumn(col.id).length}
+                            </Badge>
+                        </div>
+                        {/* Settings Icon - Placeholder functionality */}
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 opacity-0 group-hover/header:opacity-100 transition-opacity">
+                            <Settings className="w-3.5 h-3.5" />
+                        </Button>
                     </div>
 
                     <div className="p-2 space-y-3 overflow-y-auto flex-1 h-full min-h-[200px]">
                         {getRequestsByColumn(col.id).map(req => (
-                            <Card key={req.id} className="bg-white shadow-sm border-slate-200 hover:shadow-md transition-shadow group">
+                            <Card
+                                key={req.id}
+                                className="bg-white shadow-sm border-slate-200 hover:shadow-md transition-all cursor-pointer group active:scale-[0.98]"
+                                onClick={() => openDetails(req)}
+                            >
                                 <CardContent className="p-3 space-y-3">
-                                    {/* Header: Type and Status */}
+                                    {/* Header: Type */}
                                     <div className="flex justify-between items-start gap-2">
                                         <Badge variant="outline" className="font-bold border-indigo-100 bg-indigo-50 text-indigo-700 text-[10px] break-normal whitespace-normal text-left">
                                             {req.type.replace(/_/g, " ")}
                                         </Badge>
-                                        {/* Status Badge only if Archived/Mixed */}
-                                        {col.id === 'CONCLUIDO' && (
+                                        {/* Show Status Badge only in mixed/closed columns if needed, or always? User requested separation so maybe redundant, but keeping for clarity if specific status matters (e.g. Cancelado vs Rejeitado) */}
+                                        {(col.id === 'CONCLUIDOS' || col.id === 'REPROVADO_CANCELADO') && (
                                             <Badge className={`text-[9px] h-5 px-1.5 ${req.status === 'CONCLUIDO' ? 'bg-emerald-100 text-emerald-700' :
                                                     req.status === 'REJEITADO' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'
                                                 } border-none`}>
@@ -124,7 +130,7 @@ export function RequestKanbanBoard({ requests }: RequestKanbanBoardProps) {
                                         )}
                                     </div>
 
-                                    {/* Body: Requester, Employee, Posto */}
+                                    {/* Body */}
                                     <div className="space-y-1.5 text-xs text-slate-600">
                                         <div className="flex items-center gap-2">
                                             <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -136,10 +142,6 @@ export function RequestKanbanBoard({ requests }: RequestKanbanBoardProps) {
                                                 <span className="truncate" title={req.employee.name}>Colab: {req.employee.name}</span>
                                             </div>
                                         )}
-                                        {/* Posto isn't directly on Request but usually linked via Employee or Description? 
-                                            Schema says Request -> Employee. Employee -> Assignments -> Posto.
-                                            Or standard Description. Assuming we show what we have.
-                                        */}
 
                                         <div className="flex items-start gap-2 pt-1 border-t border-slate-100 mt-2">
                                             <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
@@ -147,27 +149,15 @@ export function RequestKanbanBoard({ requests }: RequestKanbanBoardProps) {
                                                 {req.description}
                                             </p>
                                         </div>
-
-                                        {/* Resolution Notes (Visible in body) */}
-                                        {req.resolutionNotes && (
-                                            <div className="bg-emerald-50 text-emerald-700 p-2 rounded text-[10px] mt-2 border border-emerald-100">
-                                                <strong>Obs:</strong> {req.resolutionNotes}
-                                            </div>
-                                        )}
-
-                                        <div className="text-[10px] text-slate-400 flex items-center gap-1 pt-1">
-                                            <Clock className="w-3 h-3" />
-                                            {format(new Date(req.createdAt), "dd/MM/yyyy HH:mm")}
-                                        </div>
                                     </div>
                                 </CardContent>
 
-                                {/* Actions Footer */}
-                                {col.id !== 'CONCLUIDO' && (
-                                    <div className="p-2 border-t bg-slate-50/50 flex flex-wrap gap-2 justify-end">
+                                {/* Actions Footer - Only for Active Columns */}
+                                {['SOLICITACAO', 'APROVACAO', 'RH_DP'].includes(col.id) && (
+                                    <div className="p-2 border-t bg-slate-50/50 flex flex-wrap gap-2 justify-end" onClick={(e) => e.stopPropagation()}>
                                         {col.id === 'SOLICITACAO' && (
                                             <Button size="sm" variant="outline" className="h-7 text-xs bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50 w-full"
-                                                onClick={() => handleTransition(req.id, 'AGUARDANDO_APROVACAO')}
+                                                onClick={(e) => handleAction(e, req, 'AGUARDANDO_APROVACAO')} // Should map to a transition or direct? Wait, handleAction usage is generic. Let's fix.
                                             >
                                                 Enviar p/ Aprovação
                                             </Button>
@@ -176,17 +166,17 @@ export function RequestKanbanBoard({ requests }: RequestKanbanBoardProps) {
                                         {col.id === 'APROVACAO' && (
                                             <>
                                                 <Button size="sm" variant="outline" className="h-7 text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
-                                                    onClick={() => handleAction(req, 'RETURN_INFO')}
+                                                    onClick={(e) => handleAction(e, req, 'RETURN_INFO')}
                                                 >
                                                     <ArrowLeft className="w-3 h-3 mr-1" /> Info
                                                 </Button>
                                                 <Button size="sm" variant="outline" className="h-7 text-xs border-red-200 text-red-700 hover:bg-red-50"
-                                                    onClick={() => handleAction(req, 'REJECT')}
+                                                    onClick={(e) => handleAction(e, req, 'REJECT')}
                                                 >
                                                     <XCircle className="w-3 h-3 mr-1" /> Reprovar
                                                 </Button>
                                                 <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                                                    onClick={() => handleAction(req, 'APPROVE_TO_RH')}
+                                                    onClick={(e) => handleAction(e, req, 'APPROVE_TO_RH')}
                                                 >
                                                     <CheckCircle2 className="w-3 h-3 mr-1" /> Aprovar
                                                 </Button>
@@ -196,12 +186,12 @@ export function RequestKanbanBoard({ requests }: RequestKanbanBoardProps) {
                                         {col.id === 'RH_DP' && (
                                             <>
                                                 <Button size="sm" variant="outline" className="h-7 text-xs border-red-200 text-red-700 hover:bg-red-50"
-                                                    onClick={() => handleAction(req, 'CANCEL')}
+                                                    onClick={(e) => handleAction(e, req, 'CANCEL')}
                                                 >
                                                     Cancelar
                                                 </Button>
                                                 <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white flex-1"
-                                                    onClick={() => handleAction(req, 'CONCLUDE')}
+                                                    onClick={(e) => handleAction(e, req, 'CONCLUDE')}
                                                 >
                                                     <CheckCircle2 className="w-3 h-3 mr-1" /> Concluir
                                                 </Button>
@@ -215,6 +205,12 @@ export function RequestKanbanBoard({ requests }: RequestKanbanBoardProps) {
                 </div>
             ))}
 
+            <RequestDetailsSheet
+                request={selectedRequest}
+                open={isDetailsOpen}
+                onOpenChange={setIsDetailsOpen}
+            />
+
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -223,25 +219,39 @@ export function RequestKanbanBoard({ requests }: RequestKanbanBoardProps) {
                             {actionType === 'REJECT' && "Reprovar Solicitação"}
                             {actionType === 'CONCLUDE' && "Concluir Solicitação"}
                             {actionType === 'CANCEL' && "Cancelar Solicitação"}
+                            {actionType === 'AGUARDANDO_APROVACAO' && "Enviar para Aprovação"}
                         </DialogTitle>
                         <DialogDescription>
-                            Adicione um comentário obrigatório para prosseguir.
+                            {actionType === 'AGUARDANDO_APROVACAO'
+                                ? "Confirma o envio desta solicitação para a etapa de aprovação?"
+                                : "Adicione um comentário obrigatório para prosseguir."
+                            }
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-2">
-                        <div className="space-y-2">
-                            <Label>Comentário / Observação</Label>
-                            <Textarea
-                                value={comment}
-                                onChange={(e) => setComment(e.target.value)}
-                                placeholder="Digite aqui..."
-                                className="min-h-[100px]"
-                            />
+
+                    {actionType !== 'AGUARDANDO_APROVACAO' && (
+                        <div className="space-y-4 py-2">
+                            <div className="space-y-2">
+                                <Label>Comentário / Observação</Label>
+                                <Textarea
+                                    value={comment}
+                                    onChange={(e) => setComment(e.target.value)}
+                                    placeholder="Digite aqui..."
+                                    className="min-h-[100px]"
+                                />
+                            </div>
                         </div>
-                    </div>
+                    )}
+
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-                        <Button onClick={submitAction}>Confirmar</Button>
+                        <Button onClick={() => {
+                            if (actionType === 'AGUARDANDO_APROVACAO') {
+                                handleTransition(actionRequest.id, 'AGUARDANDO_APROVACAO');
+                            } else {
+                                submitAction();
+                            }
+                        }}>Confirmar</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
