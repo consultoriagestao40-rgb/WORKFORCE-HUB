@@ -148,7 +148,7 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
         const destStageRef = stages.find(s => s.id === destination.droppableId);
 
         // --- ACTION 03: Intercept Move to "Posto" ---
-        if (destStageRef?.name === 'Posto') {
+        if (destStageRef?.name?.toLowerCase() === 'posto') {
             const sourceStageRef = stages.find(s => s.id === source.droppableId);
             const candidateToMove = sourceStageRef?.candidates[source.index];
 
@@ -518,6 +518,28 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                             {candidate.vacancy.posto?.client?.name || candidate.vacancy.company?.name || "N/A"}
                                                                         </span>
 
+                                                                        {/* RESCUE BUTTON: Finalize Hiring if in Posto */}
+                                                                        {stage.name.toLowerCase() === 'posto' && (
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="default"
+                                                                                className="h-6 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white ml-2"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setPrefilledEmployee({
+                                                                                        name: candidate.name,
+                                                                                        email: candidate.email || '',
+                                                                                        phone: candidate.phone || '',
+                                                                                        postoId: candidate.vacancy.posto?.id || '',
+                                                                                        postoName: candidate.vacancy.posto ? `${candidate.vacancy.posto.name || 'Sem Nome'} - ${candidate.vacancy.posto.client.name}` : undefined
+                                                                                    });
+                                                                                    setIsEmployeeSheetOpen(true);
+                                                                                }}
+                                                                            >
+                                                                                Finalizar Contratação
+                                                                            </Button>
+                                                                        )}
+
                                                                         {/* Recruiter Avatar */}
                                                                         {recruiterName && (
                                                                             <div className="flex items-center gap-1" title={`Recrutador: ${recruiterName}`}>
@@ -648,6 +670,10 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                             });
 
                         setPendingMove(null);
+                        setIsEmployeeSheetOpen(false);
+                    } else {
+                        // Manual 'Finish Hiring' success case
+                        toast.success("Contratação finalizada! Colaborador criado e vinculado.");
                         setIsEmployeeSheetOpen(false);
                     }
                 }}
