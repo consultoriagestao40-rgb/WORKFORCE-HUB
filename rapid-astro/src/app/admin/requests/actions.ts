@@ -28,6 +28,19 @@ export async function transitionRequest(id: string, newStatus: string, notes?: s
 
     const data: any = { status: newStatus as any };
 
+    // Check for SLA Configuration for the new status (Stage 1 or 2)
+    if (newStatus === 'PENDENTE' || newStatus === 'AGUARDANDO_APROVACAO') {
+        const slaConfig = await prisma.requestStageConfiguration.findUnique({
+            where: { status: newStatus as any }
+        });
+
+        if (slaConfig) {
+            const newDueDate = new Date();
+            newDueDate.setDate(newDueDate.getDate() + slaConfig.slaDays);
+            data.dueDate = newDueDate;
+        }
+    }
+
     // For "Solicitar Mais Informações" (Back to PENDENTE), we should probably update notes.
     // For "Concluir" (CONCLUIDO), we definitely update resolutionNotes.
     if (notes) {
