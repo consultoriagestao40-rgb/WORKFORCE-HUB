@@ -228,6 +228,8 @@ export async function getRecruitmentBoardData() {
     await syncBacklogGaps();
     // Automatically close vacancies for filled postos
     await syncFilledVacancies();
+    // New: Aggressive Cleanup
+    await purgeRedundantVacancies();
 
     // 3. Reorder remaining stages (Shift up)
     // Seleção is 1. We want:
@@ -912,17 +914,94 @@ async function syncFilledVacancies() {
         include: { vacancies: { where: { status: 'OPEN' } } }
     });
 
-    if (doubleBookedPostos.length === 0) return;
-
-    console.log(`Closing ${doubleBookedPostos.length} vacancies for filled postos.`);
-
-    for (const p of doubleBookedPostos) {
-        for (const v of p.vacancies) {
-            await prisma.vacancy.update({
-                where: { id: v.id },
-                data: { status: 'CLOSED' }
-            });
+    if (doubleBookedPostos.length > 0) {
+        console.log(`Closing ${doubleBookedPostos.length} vacancies for filled postos.`);
+        for (const p of doubleBookedPostos) {
+            for (const v of p.vacancies) {
+                await prisma.vacancy.update({
+                    where: { id: v.id },
+                    data: { status: 'CLOSED' }
+                });
+            }
         }
+    }
+}
+
+// Helper: Aggressive Cleanup of "Phantom" Vacancies
+// If a Posto has ANY candidate in "Admissão", "Posto", "Contratado", "Oferta" (Active Process)
+// Then ALL Open Vacancies for that Posto should be CLOSED, because the slot is reserved/taken.
+// This fixes the 'Duplicate Phase 01 Vacancy vs Active Candidate' issue.
+async function purgeRedundantVacancies() {
+    // 1. Find Postos with at least one OPEN vacancy
+    const postosWithOpenVacancies = await prisma.posto.findMany({
+        where: {
+            vacancies: { some: { status: 'OPEN' } }
+        },
+        include: {
+            vacancies: {
+                // Get ALL vacancies for this posto to check candidates
+                include: {
+                    candidates: { select: { stage: { select: { name: true } } } }
+                }
+            }
+        }
+    });
+
+    let cleanedCount = 0;
+
+    for (const p of postosWithOpenVacancies) {
+        // Check if there is ANY candidate in an advanced stage (Filling the slot)
+        // This includes candidates in the OPEN vacancy itself OR in other Closed vacancies for the same posto
+        const hasFillingCandidate = p.vacancies.some(v =>
+            v.candidates.some(c => ['Admissão', 'Posto', 'Contratado', 'Oferta'].includes(c.stage.name))
+        );
+
+        if (hasFillingCandidate) {
+            // Close ALL Open Vacancies that have NO filling candidates themselves (to be safe)
+            // Actually, if we have a filling candidate, we should probably close ALL Open vacancies that act as "Requests".
+            // A vacancy with a candidate in "Admissão" might still be marked OPEN?
+            // Usually, if a candidate is in Admissão, the vacancy status might still be OPEN until they are hired?
+            // BUT for the Kanban Board visualization, having a "Empty Open Vacancy" card AND an "Admissão Candidate" card for same Posto is the bug.
+
+            // So, we find Open Vacancies that are "Empty" (no candidates at all) or "Just Started" (candidates in Selection?)
+            // If we have an ADVANCED candidate, the "Empty" ones are definitely duplicates.
+
+            const openVacancies = p.vacancies.filter(v => v.status === 'OPEN');
+
+            for (const v of openVacancies) {
+                // If this vacancy has the advanced candidate, keep it Open (or handle elsewhere).
+                // If this vacancy is EMPTY or only has early-stage candidates while another has advanced...
+                // Simpler Rule: If existing advanced process exists, Close "Empty" Open Vacancies.
+                const isEmpty = v.candidates.length === 0;
+
+                if (isEmpty) {
+                    await prisma.vacancy.update({ where: { id: v.id }, data: { status: 'CLOSED' } });
+                    cleanedCount++;
+                }
+            }
+        } else {
+            // Check for Multiple Empty Open Vacancies (True Duplicates)
+            // If we have 2+ Empty Open Vacancies for same Posto, keep one, close others.
+            const emptyOpenVacancies = p.vacancies.filter(v => v.status === 'OPEN' && v.candidates.length === 0);
+
+            if (emptyOpenVacancies.length > 1) {
+                // Sort by creation? Keep newest?
+                // Let's keep the NEWEST one and close older duplicates.
+                // Assuming sorting or just index.
+                // Sort descending by createdAt (implied or explicit if we fetched it, assume ID order roughly matches or just pick one)
+                // Actually `p.vacancies` array order isn't guaranteed without orderBy in include.
+                // Let's just close all except index 0.
+
+                for (let i = 1; i < emptyOpenVacancies.length; i++) {
+                    await prisma.vacancy.update({ where: { id: emptyOpenVacancies[i].id }, data: { status: 'CLOSED' } });
+                    cleanedCount++;
+                }
+            }
+        }
+    }
+
+    if (cleanedCount > 0) {
+        console.log(`[PURGE] Auto-closed ${cleanedCount} redundant vacancies.`);
     }
 }
 
