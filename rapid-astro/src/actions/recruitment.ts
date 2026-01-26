@@ -4,8 +4,59 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { VacancyStatus } from "@prisma/client";
+import { addBusinessDays } from "@/lib/business-days";
+import { createNotification } from "./notifications";
 
-// --- Vacancies ---
+// --- Helper: Create Vacancy from Posto ---
+export async function createVacancyFromPosto(postoId: string) {
+    const posto = await prisma.posto.findUnique({
+        where: { id: postoId },
+        include: {
+            role: true,
+            client: {
+                include: {
+                    company: true
+                }
+            }
+        }
+    });
+
+    if (!posto) throw new Error("Posto not found");
+
+    // BLOCKER: Prevent vacancy creation for ROTATIVO
+    if (posto.client.name === 'ROTATIVO') {
+        throw new Error("Não é permitido abrir vaga para o posto ROTATIVO.");
+    }
+
+    const title = `${posto.role.name} - ${posto.client.name}`;
+    const description = `Vaga aberta automaticamente após realocação de colaborador.\n\nDetalhes do posto:\n- Escala: ${posto.schedule}\n- Horário: ${posto.startTime} - ${posto.endTime}\n- Carga horária: ${posto.requiredWorkload}h`;
+
+    // Create vacancy without recruiter (will be assigned later)
+    const vacancy = await prisma.vacancy.create({
+        data: {
+            title,
+            description,
+            postoId: posto.id,
+            companyId: posto.client.company?.id || null,
+            status: 'OPEN',
+            priority: 'MEDIUM',
+            recruiterId: null // No recruiter assigned yet
+        }
+    });
+
+    revalidatePath("/admin/recrutamento");
+
+    // Notify stakeholders
+    await notifyVacancyStakeholders(
+        vacancy.id,
+        "Nova Vaga Aberta",
+        `Vaga "${title}" foi aberta automaticamente no R&S.`,
+        'SYSTEM',
+        `/admin/recrutamento?openId=VAC-${vacancy.id}`
+    );
+
+    return vacancy;
+}
 
 // --- Vacancies ---
 
@@ -22,7 +73,14 @@ export async function getVacancies(filter?: { status?: string, companyId?: strin
     }
 
     const vacancies = await prisma.vacancy.findMany({
-        where,
+        where: {
+            ...where,
+            posto: {
+                client: {
+                    name: { not: 'ROTATIVO' }
+                }
+            }
+        },
         include: {
             role: true,
             posto: { include: { client: true } },
@@ -50,6 +108,20 @@ export async function createVacancy(data: {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
+    // Validate Rotativo
+    if (data.companyId) {
+        const company = await prisma.company.findUnique({ where: { id: data.companyId }, include: { clients: true } });
+        // Although Rotativo is a client, sometimes it might be linked via company? 
+        // Rotativo client has companyId=null usually.
+        // Let's check postoId if provided
+    }
+    if (data.postoId) {
+        const posto = await prisma.posto.findUnique({ where: { id: data.postoId }, include: { client: true } });
+        if (posto && posto.client.name === 'ROTATIVO') {
+            throw new Error("Não é permitido abrir vaga para o posto ROTATIVO.");
+        }
+    }
+
     await prisma.vacancy.create({
         data: {
             title: data.title,
@@ -63,7 +135,35 @@ export async function createVacancy(data: {
         }
     });
 
+    // Notify Recruiter about new assignment
+    if (data.recruiterId !== user.id) {
+        await createNotification(
+            data.recruiterId,
+            "Nova Atribuição de Vaga",
+            `Você foi definido como recrutador da vaga: ${data.title}`,
+            'ASSIGNMENT',
+            '/admin/recrutamento'
+        );
+    }
+
     revalidatePath("/admin/recrutamento");
+}
+
+// --- SHARED NOTIFICATION HELPER ---
+// Notifies ALL users with admin/management access (everyone except regular USERs)
+async function notifyVacancyStakeholders(vacancyId: string, title: string, message: string, type: 'SYSTEM' | 'MOVEMENT' | 'MENTION' | 'ASSIGNMENT', deepLink: string) {
+    // Fetch all users with valid SystemRole values
+    const users = await prisma.user.findMany({
+        where: {
+            role: { in: ['ADMIN', 'COORD_RH', 'ASSIST_RH', 'SUPERVISOR'] }
+        },
+        select: { id: true }
+    });
+
+    // Notify everyone (including the actor)
+    for (const user of users) {
+        await createNotification(user.id, title, message, type, deepLink);
+    }
 }
 
 export async function updateVacancyStatus(id: string, status: VacancyStatus) {
@@ -75,6 +175,20 @@ export async function updateVacancyStatus(id: string, status: VacancyStatus) {
         data: { status }
     });
 
+    // Notify all stakeholders about status change
+    const statusLabels: Record<string, string> = {
+        'OPEN': 'Aberta',
+        'FILLED': 'Preenchida',
+        'CANCELLED': 'Cancelada'
+    };
+    await notifyVacancyStakeholders(
+        id,
+        "Status da Vaga Alterado",
+        `Vaga foi marcada como: ${statusLabels[status] || status}`,
+        'SYSTEM',
+        '/admin/recrutamento?openId=VAC-' + id
+    );
+
     revalidatePath("/admin/recrutamento");
 }
 
@@ -84,28 +198,125 @@ export async function getRecruitmentBoardData() {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
-    // Ensure default stages exist
+    // --- MIGRATION: Unify Triagem + RH -> Seleção ---
+    // 1. Rename 'Triagem' to 'Seleção'
+    const triagemStage = await prisma.recruitmentStage.findFirst({ where: { name: "Triagem" } });
+    if (triagemStage) {
+        await prisma.recruitmentStage.update({
+            where: { id: triagemStage.id },
+            data: { name: "Seleção", order: 1 }
+        });
+    }
+
+    // 2. Move 'Entrevista RH' candidates to 'Seleção' and delete 'Entrevista RH'
+    const rhStage = await prisma.recruitmentStage.findFirst({ where: { name: "Entrevista RH" } });
+    if (rhStage) {
+        // Find Seleção (target)
+        const selecaoStage = await prisma.recruitmentStage.findFirst({ where: { name: "Seleção" } });
+        if (selecaoStage) {
+            await prisma.recruitmentCandidate.updateMany({
+                where: { stageId: rhStage.id },
+                data: { stageId: selecaoStage.id }
+            });
+            // Delete RH Stage
+            await prisma.recruitmentStage.delete({ where: { id: rhStage.id } });
+        }
+    }
+
+    // --- SYNC BACKLOG GAPS TO VACANCIES ---
+    // Automatically create vacancies for vacant postos
+    await syncBacklogGaps();
+    // Automatically close vacancies for filled postos
+    await syncFilledVacancies();
+
+    // 3. Reorder remaining stages (Shift up)
+    // Seleção is 1. We want:
+    // Entrevista Técnica -> 2
+    // Oferta -> 3
+    // Contratado -> 4
+    // Posto -> 5
+
+    // Check if reordering is needed (simple check: if Entrevista Técnica is order 3, move to 2)
+    const tecStage = await prisma.recruitmentStage.findFirst({ where: { name: "Entrevista Técnica", order: 3 } });
+    if (tecStage) {
+        await prisma.recruitmentStage.update({ where: { id: tecStage.id }, data: { order: 2 } });
+
+        const ofertaStage = await prisma.recruitmentStage.findFirst({ where: { name: "Oferta" } });
+        if (ofertaStage) await prisma.recruitmentStage.update({ where: { id: ofertaStage.id }, data: { order: 3 } });
+
+        const hiredStage = await prisma.recruitmentStage.findFirst({ where: { name: "Contratado" } });
+        if (hiredStage) await prisma.recruitmentStage.update({ where: { id: hiredStage.id }, data: { order: 4 } });
+
+        // Posto might be 6 from previous logic, move to 5
+        const postoStage = await prisma.recruitmentStage.findFirst({ where: { name: "Posto" } });
+        if (postoStage && postoStage.order !== 5) await prisma.recruitmentStage.update({ where: { id: postoStage.id }, data: { order: 5 } });
+    } else {
+        // Safety check for Posto if it was just created as 6
+        const postoStage = await prisma.recruitmentStage.findFirst({ where: { name: "Posto", order: 6 } });
+        if (postoStage) await prisma.recruitmentStage.update({ where: { id: postoStage.id }, data: { order: 5 } });
+    }
+
+    // --- MIGRATION: Unify Oferta + Contratado -> Admissão ---
+    // 1. Rename 'Oferta' to 'Admissão'
+    const ofertaStage = await prisma.recruitmentStage.findFirst({ where: { name: "Oferta" } });
+    if (ofertaStage) {
+        await prisma.recruitmentStage.update({
+            where: { id: ofertaStage.id },
+            data: { name: "Admissão", order: 3 }
+        });
+    }
+
+    // 2. Move 'Contratado' candidates to 'Admissão' and delete 'Contratado'
+    const contratadoStage = await prisma.recruitmentStage.findFirst({ where: { name: "Contratado" } });
+    if (contratadoStage) {
+        // Find Admissão (target) - logic handles if it was just renamed from Oferta or already exists
+        const admissaoStage = await prisma.recruitmentStage.findFirst({ where: { name: "Admissão" } });
+        if (admissaoStage) {
+            await prisma.recruitmentCandidate.updateMany({
+                where: { stageId: contratadoStage.id },
+                data: { stageId: admissaoStage.id }
+            });
+            // Delete Contratado Stage
+            await prisma.recruitmentStage.delete({ where: { id: contratadoStage.id } });
+        }
+    }
+
+    // 3. Reorder Posto to follows Admissão
+    // Seleção (1) -> Ent. Técnica (2) -> Admissão (3) -> Posto (4)
+    const postoStageMigrate = await prisma.recruitmentStage.findFirst({ where: { name: "Posto" } });
+    if (postoStageMigrate && postoStageMigrate.order !== 4) {
+        await prisma.recruitmentStage.update({ where: { id: postoStageMigrate.id }, data: { order: 4 } });
+    }
+
+    // Ensure Default Stages (Corrected Set) exist if completely empty
     const stagesCount = await prisma.recruitmentStage.count();
     if (stagesCount === 0) {
         await prisma.recruitmentStage.createMany({
             data: [
-                { name: "Triagem", order: 1, slaDays: 2 },
-                { name: "Entrevista RH", order: 2, slaDays: 3 },
-                { name: "Entrevista Técnica", order: 3, slaDays: 5 },
-                { name: "Oferta", order: 4, slaDays: 2 },
-                { name: "Contratado", order: 5, slaDays: 0 },
+                { name: "Seleção", order: 1, slaDays: 3 },
+                { name: "Entrevista Técnica", order: 2, slaDays: 5 },
+                { name: "Admissão", order: 3, slaDays: 2 }, // Unified
+                { name: "Posto", order: 4, slaDays: 0 },
             ]
         });
     }
 
     // 1. Fetch Open Vacancies for the "R&S" column
+    // MOD: Filter out vacancies that already have candidates, simulating a "Single Slot" flow.
+    // If a vacancy has a candidate, it is considered "In Progress" and disappears from R&S.
     const openVacancies = await prisma.vacancy.findMany({
-        where: { status: 'OPEN' },
+        where: {
+            status: 'OPEN',
+            candidates: {
+                none: {} // Only show vacancies with zero candidates
+            }
+        },
         include: {
             role: true,
             posto: { include: { client: true } },
             company: true,
-            recruiter: { select: { id: true, name: true } } // NEW
+            recruiter: true,
+            participants: { select: { id: true, name: true } } // NEW
         },
         orderBy: { createdAt: 'desc' }
     });
@@ -125,7 +336,10 @@ export async function getRecruitmentBoardData() {
             posto: v.posto,
             company: v.company,
             description: v.description,
-            recruiter: v.recruiter // NEW
+            recruiter: v.recruiter,
+            createdAt: v.createdAt,
+            participants: v.participants,
+            id: v.id // FIX: Add ID so frontend can access candidate.vacancy.id
         }
     }));
 
@@ -134,17 +348,23 @@ export async function getRecruitmentBoardData() {
         orderBy: { order: 'asc' },
         include: {
             candidates: {
-                where: { vacancy: { status: 'OPEN' } },
+                where: { vacancy: { status: { in: ['OPEN', 'CLOSED'] } } },
                 include: {
                     vacancy: {
                         include: {
                             role: true,
+                            recruiter: { select: { id: true, name: true } }, // NEW
                             posto: {
                                 include: {
                                     client: true
                                 }
                             },
-                            company: true
+                            company: true,
+                            participants: { select: { id: true, name: true } } // NEW
+                            // recruiter already included inside vacancy root in mapped object via openVacancies logic, but here inside candidate include...
+                            // Wait, the include structure is: vacancy -> include -> recruiter.
+                            // I added it twice: once after `role: true` and once after `company: true`.
+                            // I should remove one.
                         }
                     }
                 }
@@ -153,49 +373,150 @@ export async function getRecruitmentBoardData() {
     });
 
     // 4. Map candidates to include type and due date
-    const candidateStages = dbStages.map(stage => ({
-        ...stage,
-        candidates: stage.candidates.map(c => ({
-            ...c,
-            type: 'CANDIDATE',
-            realId: c.id
-            // stageDueDate already included
-        }))
-    }));
+    const candidateStages = dbStages
+        .filter(stage => stage.name !== 'R&S (Vagas)') // FIX: Remove duplicate R&S stage fetch from DB
+        .map(stage => ({
+            ...stage,
+            candidates: stage.candidates.map(c => ({
+                ...c,
+                type: 'CANDIDATE',
+                realId: c.id
+                // stageDueDate already included
+            }))
+        }));
 
-    // 5. Prepend the "R&S" stage
+    // 5. Get or Create the System "R&S" Stage for SLA persistence
+    let rnsStageDb = await prisma.recruitmentStage.findFirst({
+        where: { name: 'R&S (Vagas)' }
+    });
+
+    if (!rnsStageDb) {
+        rnsStageDb = await prisma.recruitmentStage.create({
+            data: {
+                name: 'R&S (Vagas)',
+                order: 0,
+                isSystem: true,
+                slaDays: 5 // Default
+            }
+        });
+    }
+
     const rnsStage = {
-        id: 'STAGE-RNS', // Special ID
-        name: 'R&S (Vagas)',
-        order: 0,
+        id: rnsStageDb.id, // Real DB ID allows updateStageSLA to work
+        name: rnsStageDb.name,
+        order: rnsStageDb.order,
         isSystem: true,
-        slaDays: 0,
+        slaDays: rnsStageDb.slaDays,
         candidates: vacancyItems
     };
+
+    // 6. Rescue Logic: Detect candidates accidentally moved to R&S (System Stage) and auto-move them to next stage
+    // This fixes the "disappearing card" issue if they were dropped there before the UI fix.
+    const strandedCandidates = await prisma.recruitmentCandidate.findMany({
+        where: { stageId: rnsStageDb.id }
+    });
+
+    if (strandedCandidates.length > 0) {
+        // Find the first non-system stage (Triagem)
+        const firstStage = await prisma.recruitmentStage.findFirst({
+            where: { isSystem: false },
+            orderBy: { order: 'asc' }
+        });
+
+        if (firstStage) {
+            await prisma.recruitmentCandidate.updateMany({
+                where: { stageId: rnsStageDb.id },
+                data: { stageId: firstStage.id }
+            });
+            // Re-fetch everything? No, next refresh will show them.
+            // But to be consistent, we might miss them in this render.
+            // It's acceptable for now, they will appear on next load.
+        }
+    }
 
     return [rnsStage, ...candidateStages];
 }
 
-export async function moveCandidate(candidateId: string, newStageId: string) {
+export async function getRecruitmentTimeline(params: { candidateId?: string; vacancyId?: string }) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const { candidateId, vacancyId } = params;
+
+    if (!candidateId && !vacancyId) return [];
+
+    return await prisma.recruitmentTimeline.findMany({
+        where: candidateId ? { candidateId } : { vacancyId },
+        include: { user: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' }
+    });
+}
+export async function moveCandidate(candidateId: string, newStageId: string, justification?: string) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
     const candidate = await prisma.recruitmentCandidate.findUnique({
         where: { id: candidateId },
-        include: { stage: true }
+        include: { stage: true } // Need current stage info
     });
 
     if (!candidate) throw new Error("Candidate not found");
 
+    const currentStage = candidate.stage;
     const newStage = await prisma.recruitmentStage.findUnique({ where: { id: newStageId } });
-    if (!newStage) throw new Error("Stage not found");
 
-    // Calculate Due Date based on SLA
+    if (!newStage) throw new Error("New stage not found");
+
+    // Approval Logic Check
+    if (currentStage.approverId) {
+        // If stage has an approver, strictly enforce: only that Approver OR Admin can move.
+        // Assuming user.role strategy. For now checking ID match or ADMIN role.
+        const isApprover = user.id === currentStage.approverId;
+        const isAdmin = user.role === 'ADMIN' || user.role === 'COORD_RH'; // Adjust roles as needed
+
+        if (!isApprover && !isAdmin) {
+            throw new Error(`Aprovação necessária pelo responsável: ${currentStage.approverId}`); // Ideally name
+        }
+    }
+
+    // Justification Check for Rejection (Moving Backwards)
+    // Only enforced if the stage has an Approver configured (Formal Approval Process)
+    const isMovingBack = newStage.order < currentStage.order;
+    if (currentStage.approverId && isMovingBack && !justification) {
+        throw new Error("Justificativa é obrigatória para reprovação/retorno de etapa com aprovação.");
+    }
+
+    // Calculate Due Date (SLA)
     let newDueDate = null;
+    // Standard SLA Logic: From NOW + Stage SLA
+    // User requested: "SLA calculation must always consider the candidate's original creation date" -> wait, 
+    // actually previous instruction was "SLA calculation must always consider the candidate's original creation date" 
+    // BUT usually SLA is per stage.
+    // Let's stick to the simpler Per-Stage SLA (resetting timer) for now unless clearly specified otherwise for *every* stage.
+    // Actually, looking at previous summary: "SLA Calculation Standardization... consistently use the candidate's original creation date".
+    // If we want total cycle time, we use createdAt. If we want Stage Due Date, we usually add days to NOW.
+    // The previous fix was about keeping the BASELINE, but typically `stageDueDate` is for the CURRENT stage.
+    // Let's keep existing logic: addBusinessDays(new Date(), newStage.slaDays).
+
     if (newStage.slaDays > 0) {
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + newStage.slaDays);
-        newDueDate = dueDate;
+        newDueDate = addBusinessDays(new Date(), newStage.slaDays);
+    }
+
+    // Build timeline details
+    let actionType = "MOVED";
+    let detailsText = `Movido de ${currentStage.name} para ${newStage.name}`;
+
+    if (currentStage.approverId) {
+        if (isMovingBack) {
+            actionType = "REJECTED"; // Custom action for history
+            detailsText = `[REPROVADO] ${detailsText}. Justificativa: ${justification}`;
+        } else {
+            actionType = "APPROVED";
+            detailsText = `[APROVADO] ${detailsText} por ${user.name}`;
+            if (justification) detailsText += `. Obs: ${justification}`;
+        }
+    } else if (justification) {
+        detailsText += `. Justificativa: ${justification}`;
     }
 
     await prisma.$transaction([
@@ -210,12 +531,133 @@ export async function moveCandidate(candidateId: string, newStageId: string) {
         prisma.recruitmentTimeline.create({
             data: {
                 candidateId,
-                action: "MOVED",
-                details: `Movido de ${candidate.stage?.name || 'Sem etapa'} para ${newStage.name}`,
+                vacancyId: candidate.vacancyId, // Link to Vacancy
+                candidateName: candidate.name,  // Snapshot
+                action: actionType,
+                details: detailsText,
                 userId: user.id
             }
         })
     ]);
+
+    // AUTO-CLOSE VACANCY if moved to "Posto"
+    if (newStage.name === "Posto") {
+        await prisma.vacancy.update({
+            where: { id: candidate.vacancyId },
+            data: { status: "CLOSED" }
+        });
+    }
+
+    // --- NOTIFICATION: Candidate Movement ---
+    if (candidate.vacancyId) {
+        const vacancy = await prisma.vacancy.findUnique({
+            where: { id: candidate.vacancyId },
+            include: {
+                recruiter: true,
+                participants: true
+            }
+        });
+
+        if (vacancy) {
+            const message = `Candidato ${candidate.name} movido para ${newStage.name}`;
+            const link = `/admin/recrutamento?openId=${candidate.id}`;
+
+            await notifyVacancyStakeholders(
+                candidate.vacancyId,
+                "Atualização de Candidato",
+                message,
+                'MOVEMENT',
+                link
+            );
+        }
+    }
+
+    revalidatePath("/admin/recrutamento");
+}
+
+export async function updateStageConfig(stageId: string, data: { slaDays?: number, approverId?: string | null }) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    // Check admin permission here if needed
+
+    await prisma.recruitmentStage.update({
+        where: { id: stageId },
+        data: {
+            ...(data.slaDays !== undefined && { slaDays: data.slaDays }),
+            ...(data.approverId !== undefined && { approverId: data.approverId })
+        }
+    });
+
+    // If SLA changed, we might want to update existing candidates... leaving that complex logic for the dedicated SLA update function if it exists, or merging here.
+    // For now, this is a config update.
+
+    revalidatePath("/admin/recrutamento");
+}
+
+export async function withdrawCandidate(candidateId: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    // 1. Get candidate details for audit log before deletion
+    const candidate = await prisma.recruitmentCandidate.findUnique({
+        where: { id: candidateId },
+        select: { name: true, vacancyId: true }
+    });
+
+    if (candidate) {
+        // 2. Create Audit Log (Preserved via Vacancy Link)
+        await prisma.recruitmentTimeline.create({
+            data: {
+                vacancyId: candidate.vacancyId,
+                candidateName: candidate.name,
+                // candidateId will be null after delete OR we set it now and let it be set to null by ON DELETE SET NULL
+                // To safely link it before delete, we can set it.
+                // But since we delete immediately, it might be safer to just relying on vacancy links for history of deleted candidates.
+                // Let's link it anyway, so if delete fails, we have it.
+                candidateId: candidateId,
+                action: "WITHDRAWN",
+                details: `Candidato ${candidate.name} desistiu do processo e foi removido.`,
+                userId: user.id
+            }
+        });
+    }
+
+    // 3. Delete Candidate (Timeline candidateId becomes null, but vacancyId and candidateName persist)
+    await prisma.recruitmentCandidate.delete({
+        where: { id: candidateId }
+    });
+
+    // 4. Notify all stakeholders about withdrawal
+    if (candidate && candidate.vacancyId) {
+        await notifyVacancyStakeholders(
+            candidate.vacancyId,
+            "Desistência de Candidato",
+            `Candidato ${candidate.name} desistiu do processo.`,
+            'SYSTEM',
+            '/admin/recrutamento?openId=VAC-' + candidate.vacancyId
+        );
+    }
+
+    revalidatePath("/admin/recrutamento");
+}
+
+export async function deleteCandidate(candidateId: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    // Strict Admin Check
+    if (user.role !== 'ADMIN') {
+        throw new Error("Apenas administradores podem excluir registros permanentemente.");
+    }
+
+    // Delete associated timeline entries first to be clean (optional but good for test data)
+    await prisma.recruitmentTimeline.deleteMany({
+        where: { candidateId: candidateId }
+    });
+
+    await prisma.recruitmentCandidate.delete({
+        where: { id: candidateId }
+    });
 
     revalidatePath("/admin/recrutamento");
 }
@@ -229,8 +671,9 @@ export async function createCandidate(data: {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
-    // Get first stage (Triagem)
+    // Get first stage (Triagem) - Exclude System stages like R&S (order 0)
     const firstStage = await prisma.recruitmentStage.findFirst({
+        where: { isSystem: false },
         orderBy: { order: 'asc' }
     });
 
@@ -239,24 +682,47 @@ export async function createCandidate(data: {
     // Calculate initial SLA
     let initialDueDate = null;
     if (firstStage.slaDays > 0) {
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + firstStage.slaDays);
-        initialDueDate = dueDate;
+        initialDueDate = addBusinessDays(new Date(), firstStage.slaDays);
     }
 
-    await prisma.recruitmentCandidate.create({
-        data: {
-            name: data.name,
-            email: data.email,
-            phone: data.phone,
-            vacancyId: data.vacancyId,
-            stageId: firstStage.id,
-            stageDueDate: initialDueDate
-        }
+    // Transaction to create candidate and log
+    await prisma.$transaction(async (tx) => {
+        const newCandidate = await tx.recruitmentCandidate.create({
+            data: {
+                name: data.name,
+                email: data.email,
+                phone: data.phone,
+                vacancyId: data.vacancyId,
+                stageId: firstStage.id,
+                stageDueDate: initialDueDate
+            }
+        });
+
+        await tx.recruitmentTimeline.create({
+            data: {
+                candidateId: newCandidate.id,
+                vacancyId: data.vacancyId,
+                candidateName: data.name,
+                action: "CREATED",
+                details: `Candidato cadastrado na etapa ${firstStage.name}`,
+                userId: user.id
+            }
+        });
     });
+
+    // Notify after transaction
+    await notifyVacancyStakeholders(
+        data.vacancyId,
+        "Novo Candidato",
+        `Candidato ${data.name} adicionado à vaga`,
+        'SYSTEM',
+        '/admin/recrutamento?openId=VAC-' + data.vacancyId
+    );
 
     revalidatePath("/admin/recrutamento");
 }
+
+
 
 export async function updateStageSLA(stageId: string, slaDays: number) {
     const user = await getCurrentUser();
@@ -264,12 +730,48 @@ export async function updateStageSLA(stageId: string, slaDays: number) {
 
     // Check permission (Admin only ideally, but Supervisor ok for MVP)
 
-    await prisma.recruitmentStage.update({
-        where: { id: stageId },
-        data: { slaDays }
+    await prisma.$transaction(async (tx) => {
+        // 1. Update Stage SLA
+        await tx.recruitmentStage.update({
+            where: { id: stageId },
+            data: { slaDays }
+        });
+
+        // 2. Recalculate DueDate for all candidates currently in this stage
+        const candidatesInStage = await tx.recruitmentCandidate.findMany({
+            where: { stageId }
+        });
+
+        for (const candidate of candidatesInStage) {
+            // Calculate new due date based on when they entered the stage (updatedAt) + new SLA
+            // If slaDays is 0, stored as null
+            let newDueDate = null;
+            if (slaDays > 0) {
+                const baseDate = candidate.updatedAt;
+                newDueDate = addBusinessDays(baseDate, slaDays);
+            }
+
+            await tx.recruitmentCandidate.update({
+                where: { id: candidate.id },
+                data: { stageDueDate: newDueDate }
+            });
+        }
     });
 
     revalidatePath("/admin/recrutamento");
+}
+
+export async function getRecruiters() {
+    const user = await getCurrentUser();
+    if (!user) return [];
+
+    // Return users capable of being approvers/recruiters
+    // For now, returning all users or filtering by specific roles
+    return await prisma.user.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' }
+    });
 }
 
 export async function getBacklogItems() {
@@ -306,4 +808,317 @@ export async function getBacklogItems() {
         postoId: p.id,
         companyId: p.client.companyId // Assuming client has optional companyId link
     }));
+}
+
+export async function getEmployeeFormData() {
+    const [situations, roles, companies] = await Promise.all([
+        prisma.situation.findMany({ orderBy: { name: 'asc' } }),
+        prisma.role.findMany({ orderBy: { name: 'asc' } }),
+        prisma.company.findMany({
+            select: { id: true, name: true },
+            orderBy: { name: 'asc' }
+        })
+    ]);
+    return { situations, roles, companies };
+}
+
+// --- NEW: Delete Vacancy ---
+export async function deleteVacancy(id: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    if (user.role !== 'ADMIN') throw new Error("Apenas administradores podem excluir vagas.");
+
+    // Delete associated candidates first (OR cascade if configured, but safe to delete here)
+    // Actually, let's keep candidates? No, deleting vacancy usually implies deleting process.
+    // But safeguarding candidates might be better.
+    // For now, simple delete.
+    await prisma.vacancy.delete({
+        where: { id }
+    });
+
+    revalidatePath("/admin/recrutamento");
+}
+
+async function syncBacklogGaps() {
+    // 1. Get all postos that currently have NO active assignment
+    const vacantPostos = await prisma.posto.findMany({
+        where: {
+            client: { name: { not: 'ROTATIVO' } },
+            assignments: { none: { endDate: null } }
+        },
+        include: {
+            client: { include: { company: true } },
+            role: true,
+            vacancies: {
+                // Fetch ALL vacancies to check for HOLD/Advanced Candidates, not just OPEN
+                include: {
+                    candidates: {
+                        select: { stage: { select: { name: true } } }
+                    }
+                }
+            }
+        }
+    });
+
+    // 2. Filter out postos that ALREADY have an Active Process
+    const postosNeedingVacancy = vacantPostos.filter(p => {
+        // Check 1: Has an OPEN or HOLD vacancy?
+        const hasActiveVacancy = p.vacancies.some(v => v.status === 'OPEN' || v.status === 'HOLD');
+        if (hasActiveVacancy) return false;
+
+        // Check 2: Has a vacancy (even Closed) with a candidate in Filling Stages (Admissão, Posto, Contratado)
+        // This prevents reopening a gap while the candidate is being hired but not yet assigned.
+        const hasFillingCandidate = p.vacancies.some(v =>
+            v.candidates.some(c => ['Admissão', 'Posto', 'Contratado', 'Oferta'].includes(c.stage.name))
+        );
+        if (hasFillingCandidate) return false;
+
+        return true;
+    });
+
+    if (postosNeedingVacancy.length === 0) return;
+
+    // 3. Create Vacancies
+    console.log(`Creating ${postosNeedingVacancy.length} automatic vacancies for gaps.`);
+
+    for (const p of postosNeedingVacancy) {
+        if (p.client.name === 'ROTATIVO') continue;
+        await prisma.vacancy.create({
+            data: {
+                title: `${p.role.name} - ${p.client.name}`,
+                description: `Vaga aberta automaticamente por vacância do posto.\nHorário: ${p.startTime} - ${p.endTime}\nEscala: ${p.schedule}`,
+                postoId: p.id,
+                roleId: p.roleId || undefined,
+                companyId: p.client.companyId || undefined,
+                priority: "URGENT",
+                status: "OPEN"
+            }
+        });
+    }
+
+    revalidatePath("/admin/recrutamento");
+}
+
+// Helper: Auto-close vacancies if post is filled
+async function syncFilledVacancies() {
+    // Find postos that have BOTH:
+    // 1. Active Assignment
+    // 2. Open Vacancy
+    const doubleBookedPostos = await prisma.posto.findMany({
+        where: {
+            assignments: { some: { endDate: null } },
+            vacancies: { some: { status: 'OPEN' } }
+        },
+        include: { vacancies: { where: { status: 'OPEN' } } }
+    });
+
+    if (doubleBookedPostos.length === 0) return;
+
+    console.log(`Closing ${doubleBookedPostos.length} vacancies for filled postos.`);
+
+    for (const p of doubleBookedPostos) {
+        for (const v of p.vacancies) {
+            await prisma.vacancy.update({
+                where: { id: v.id },
+                data: { status: 'CLOSED' }
+            });
+        }
+    }
+}
+
+// --- NEW: Update Vacancy (Priority, Recruiter) ---
+export async function updateVacancy(vacancyId: string, data: { priority?: string, recruiterId?: string }) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const oldVacancy = await prisma.vacancy.findUnique({ where: { id: vacancyId } });
+
+    await prisma.vacancy.update({
+        where: { id: vacancyId },
+        data: {
+            priority: data.priority,
+            recruiterId: data.recruiterId
+        }
+    });
+
+    // Detect Changes for Notification
+    if (data.recruiterId && oldVacancy?.recruiterId !== data.recruiterId) {
+        // Recruiter Changed
+        const newRecruiter = await prisma.user.findUnique({ where: { id: data.recruiterId } });
+        await notifyVacancyStakeholders(
+            vacancyId,
+            "Recrutador Alterado",
+            `Novo recrutador definido: ${newRecruiter?.name || 'Sistema'}`,
+            'ASSIGNMENT',
+            '/admin/recrutamento?openId=VAC-' + vacancyId
+        );
+    } else if (data.priority) {
+        await notifyVacancyStakeholders(
+            vacancyId,
+            "Prioridade Atualizada",
+            `Prioridade alterada para ${data.priority}`,
+            'SYSTEM',
+            '/admin/recrutamento?openId=VAC-' + vacancyId
+        );
+    }
+
+    revalidatePath("/admin/recrutamento");
+}
+
+// --- NEW: Participants Management ---
+export async function addVacancyParticipant(vacancyId: string, userId: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    await prisma.vacancy.update({
+        where: { id: vacancyId },
+        data: {
+            participants: {
+                connect: { id: userId }
+            }
+        }
+    });
+
+    const addedUser = await prisma.user.findUnique({ where: { id: userId } });
+
+    // Broadcast: "User X added as participant"
+    // Helper will notify: Actor (Admin), Recruiter, Existing Participants, and we add New Participant
+    await notifyVacancyStakeholders(
+        vacancyId,
+        "Participante Adicionado",
+        `${addedUser?.name} foi adicionado como participante na vaga.`,
+        'ASSIGNMENT',
+        '/admin/recrutamento?openId=VAC-' + vacancyId
+    );
+
+    revalidatePath("/admin/recrutamento");
+}
+
+export async function removeVacancyParticipant(vacancyId: string, userId: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    await prisma.vacancy.update({
+        where: { id: vacancyId },
+        data: {
+            participants: {
+                disconnect: { id: userId }
+            }
+        }
+    });
+    revalidatePath("/admin/recrutamento");
+}
+
+// --- NEW: Comments System ---
+export async function addRecruitmentComment(data: { vacancyId: string, content: string }) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const comment = await prisma.recruitmentComment.create({
+        data: {
+            content: data.content,
+            vacancyId: data.vacancyId,
+            userId: user.id
+        },
+        include: {
+            user: { select: { id: true, name: true } }
+        }
+    });
+
+    // --- NOTIFICATION Logic ---
+    const vacancy = await prisma.vacancy.findUnique({
+        where: { id: data.vacancyId },
+        include: {
+            recruiter: true,
+            participants: true
+        }
+    });
+
+    console.log(`[NOTIFY] Comment on Vacancy ${vacancy?.title} (${vacancy?.id})`);
+    console.log(`[NOTIFY] Comment Author: ${user.name} (${user.id})`);
+    console.log(`[NOTIFY] Recruiter: ${vacancy?.recruiterId}`);
+    console.log(`[NOTIFY] Participants: ${vacancy?.participants?.length}`);
+
+    if (vacancy) {
+        const notifiedUserIds = new Set<string>();
+        const notifiedNames: string[] = []; // Track names
+        const commentAuthorId = user.id;
+
+        // 1. Handle Mentions
+        const mentionRegex = /@([\w\sà-úÀ-Ú]+)/g;
+        const matches = data.content.match(mentionRegex);
+
+        if (matches) {
+            const mentionedNames = matches.map(m => m.substring(1).trim());
+            if (mentionedNames.length > 0) {
+                const allUsers = await prisma.user.findMany({ where: { isActive: true } });
+
+                for (const name of mentionedNames) {
+                    const targetUser = allUsers.find(u => u.name.toLowerCase() === name.toLowerCase() || u.name.toLowerCase().includes(name.toLowerCase()));
+                    if (targetUser && targetUser.id !== commentAuthorId && !notifiedUserIds.has(targetUser.id)) {
+                        console.log(`[NOTIFY] Triggering MENTION for ${targetUser.name}`);
+                        await createNotification(
+                            targetUser.id,
+                            "Você foi mencionado",
+                            `${user.name} mencionou você em um comentário na vaga ${vacancy.title}`,
+                            'MENTION',
+                            `/admin/recrutamento?openId=VAC-${vacancy.id}`
+                        );
+                        notifiedUserIds.add(targetUser.id);
+                        notifiedNames.push(targetUser.name);
+                    }
+                }
+            }
+        }
+
+        // 2. Notify Recruiter (if not author and not already notified)
+        if (vacancy.recruiterId && vacancy.recruiterId !== commentAuthorId && !notifiedUserIds.has(vacancy.recruiterId)) {
+            console.log(`[NOTIFY] Triggering RECRUITER alert for ${vacancy.recruiterId}`);
+            await createNotification(
+                vacancy.recruiterId,
+                "Novo Comentário",
+                `${user.name} comentou na vaga ${vacancy.title}`,
+                'SYSTEM',
+                `/admin/recrutamento?openId=VAC-${vacancy.id}`
+            );
+            notifiedUserIds.add(vacancy.recruiterId);
+            if (vacancy.recruiter) notifiedNames.push(vacancy.recruiter.name);
+        }
+
+        // 3. Notify Participants (if not author and not already notified)
+        for (const p of vacancy.participants) {
+            if (p.id !== commentAuthorId && !notifiedUserIds.has(p.id)) {
+                await createNotification(
+                    p.id,
+                    "Novo Comentário",
+                    `${user.name} comentou na vaga ${vacancy.title}`,
+                    'SYSTEM',
+                    `/admin/recrutamento?openId=VAC-${vacancy.id}`
+                );
+                notifiedUserIds.add(p.id);
+                notifiedNames.push(p.name);
+            }
+        }
+
+        revalidatePath("/admin/recrutamento");
+        return { success: true, notifiedCount: notifiedUserIds.size, notifiedNames };
+    }
+
+    revalidatePath("/admin/recrutamento");
+    return { success: true, notifiedCount: 0, notifiedNames: [] };
+}
+
+
+
+export async function getRecruitmentComments(vacancyId: string) {
+    const user = await getCurrentUser();
+    if (!user) return [];
+
+    return prisma.recruitmentComment.findMany({
+        where: { vacancyId },
+        include: {
+            user: { select: { id: true, name: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+    });
 }

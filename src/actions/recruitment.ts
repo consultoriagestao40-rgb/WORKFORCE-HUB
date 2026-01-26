@@ -822,41 +822,66 @@ export async function getEmployeeFormData() {
     return { situations, roles, companies };
 }
 
+// --- NEW: Delete Vacancy ---
+export async function deleteVacancy(id: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+    if (user.role !== 'ADMIN') throw new Error("Apenas administradores podem excluir vagas.");
+
+    // Delete associated candidates first (OR cascade if configured, but safe to delete here)
+    // Actually, let's keep candidates? No, deleting vacancy usually implies deleting process.
+    // But safeguarding candidates might be better.
+    // For now, simple delete.
+    await prisma.vacancy.delete({
+        where: { id }
+    });
+
+    revalidatePath("/admin/recrutamento");
+}
+
 async function syncBacklogGaps() {
     // 1. Get all postos that currently have NO active assignment
     const vacantPostos = await prisma.posto.findMany({
         where: {
-            // BLOCKER: Ignore Rotativo postos explicitly
-            client: {
-                name: { not: 'ROTATIVO' }
-            },
-            assignments: {
-                none: {
-                    endDate: null // Active assignments have no end date
-                }
-            }
+            client: { name: { not: 'ROTATIVO' } },
+            assignments: { none: { endDate: null } }
         },
         include: {
             client: { include: { company: true } },
             role: true,
             vacancies: {
-                where: { status: 'OPEN' }
+                // Fetch ALL vacancies to check for HOLD/Advanced Candidates, not just OPEN
+                include: {
+                    candidates: {
+                        select: { stage: { select: { name: true } } }
+                    }
+                }
             }
         }
     });
 
-    // 2. Filter out postos that ALREADY have an OPEN vacancy
-    const postosNeedingVacancy = vacantPostos.filter(p => p.vacancies.length === 0);
+    // 2. Filter out postos that ALREADY have an Active Process
+    const postosNeedingVacancy = vacantPostos.filter(p => {
+        // Check 1: Has an OPEN or HOLD vacancy?
+        const hasActiveVacancy = p.vacancies.some(v => v.status === 'OPEN' || v.status === 'HOLD');
+        if (hasActiveVacancy) return false;
+
+        // Check 2: Has a vacancy (even Closed) with a candidate in Filling Stages (Admissão, Posto, Contratado)
+        // This prevents reopening a gap while the candidate is being hired but not yet assigned.
+        const hasFillingCandidate = p.vacancies.some(v =>
+            v.candidates.some(c => ['Admissão', 'Posto', 'Contratado', 'Oferta'].includes(c.stage.name))
+        );
+        if (hasFillingCandidate) return false;
+
+        return true;
+    });
 
     if (postosNeedingVacancy.length === 0) return;
 
     // 3. Create Vacancies
     console.log(`Creating ${postosNeedingVacancy.length} automatic vacancies for gaps.`);
 
-    // We can't use createMany easily because we need to map different relations (postoId, roleId, companyId) for each.
-    // Loop creation is safer here.
     for (const p of postosNeedingVacancy) {
-        // Double check safety
         if (p.client.name === 'ROTATIVO') continue;
         await prisma.vacancy.create({
             data: {
@@ -864,8 +889,8 @@ async function syncBacklogGaps() {
                 description: `Vaga aberta automaticamente por vacância do posto.\nHorário: ${p.startTime} - ${p.endTime}\nEscala: ${p.schedule}`,
                 postoId: p.id,
                 roleId: p.roleId || undefined,
-                companyId: p.client.companyId || undefined, // Use client's company link if available
-                priority: "URGENT", // Gaps are usually urgent
+                companyId: p.client.companyId || undefined,
+                priority: "URGENT",
                 status: "OPEN"
             }
         });
