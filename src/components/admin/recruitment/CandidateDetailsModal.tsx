@@ -454,7 +454,8 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                 </Button>
                             )}
 
-                            {candidate.type !== 'VACANCY' && currentUser && (
+
+                            {currentUser?.role === 'ADMIN' && (
                                 <Button
                                     variant="destructive"
                                     className="bg-red-800 hover:bg-red-900 border-red-900"
@@ -464,14 +465,23 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                             return;
                                         }
 
-                                        if (!confirm("Confirmar EXCLUSÃO DEFINITIVA? Esta ação não pode ser desfeita e removerá todo o histórico.")) return;
+                                        if (!confirm("Confirmar EXCLUSÃO DEFINITIVA? Esta ação não pode ser desfeita.")) return;
                                         try {
-                                            await deleteCandidate(candidate.id);
-                                            toast.success("Candidato excluído permanentemente.");
-                                            if (onWithdrawSuccess) onWithdrawSuccess(candidate.id);
+                                            if (candidate.type === 'VACANCY') {
+                                                const vacancyId = candidate.realId || candidate.id.replace('VAC-', '');
+                                                const { deleteVacancy } = await import("@/actions/recruitment");
+                                                await deleteVacancy(vacancyId);
+                                                toast.success("Vaga excluída permanentemente.");
+                                                // Trigger parent refresh or remove from list
+                                                if (onWithdrawSuccess) onWithdrawSuccess(candidate.id); // Reuse withdraw handler to remove from view
+                                            } else {
+                                                await deleteCandidate(candidate.id);
+                                                toast.success("Candidato excluído permanentemente.");
+                                                if (onWithdrawSuccess) onWithdrawSuccess(candidate.id);
+                                            }
                                             onOpenChange(false);
                                         } catch (e: any) {
-                                            toast.error(e.message || "Erro ao excluir candidato");
+                                            toast.error(e.message || "Erro ao excluir");
                                         }
                                     }}
                                 >
