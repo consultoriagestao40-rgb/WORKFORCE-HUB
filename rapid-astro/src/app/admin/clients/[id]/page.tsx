@@ -18,6 +18,7 @@ import { AssignmentDialog } from "@/components/admin/AssignmentDialog";
 import { EditPostoSheet } from "@/components/admin/EditPostoSheet";
 import { getCurrentUserRole } from "@/lib/auth";
 import { DeletePostoButton } from "@/components/admin/DeletePostoButton";
+import { ScheduleDialog } from "@/components/admin/ScheduleDialog";
 
 async function getClientDetails(id: string) {
     return await prisma.client.findUnique({
@@ -63,15 +64,22 @@ async function getRoles() {
     });
 }
 
+async function getSituations() {
+    return await prisma.situation.findMany({
+        orderBy: { name: 'asc' }
+    });
+}
+
 export default async function ClientPostosPage(props: { params: Promise<{ id: string }> }) {
     const params = await props.params;
 
     // Parallelize data fetching
-    const [client, employees, schedules, roles, userRole] = await Promise.all([
+    const [client, employees, schedules, roles, situations, userRole] = await Promise.all([
         getClientDetails(params.id),
         getActiveEmployees(),
         getSchedules(),
         getRoles(),
+        getSituations(),
         getCurrentUserRole()
     ]);
 
@@ -91,6 +99,48 @@ export default async function ClientPostosPage(props: { params: Promise<{ id: st
                 </div>
 
                 <NewPostoSheet clientId={client.id} schedules={schedules} roles={roles} />
+            </div>
+
+            {/* TOTALIZERS */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-slate-500">Total de Postos</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{client.postos.length}</div>
+                        <p className="text-xs text-slate-500 mt-1">
+                            {client.postos.filter(p => !p.assignments.some(a => !a.endDate)).length} Vagos
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-slate-500">Receita Mensal (Faturamento)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-green-600">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                                client.postos.reduce((acc, p) => acc + p.billingValue, 0)
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-slate-500">Custo Salarial Estimado</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-blue-600">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                                client.postos.reduce((acc, p) => acc + (p.baseSalary || 0) + (p.insalubridade || 0) + (p.periculosidade || 0) + (p.gratificacao || 0) + (p.outrosAdicionais || 0), 0)
+                            )}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1 italic">
+                            Salário Base + Adicionais
+                        </p>
+                    </CardContent>
+                </Card>
             </div>
 
             <Card>
@@ -182,31 +232,20 @@ export default async function ClientPostosPage(props: { params: Promise<{ id: st
                                                 postoRole={posto.role.name}
                                                 activeEmployeeName={activeEmployee?.name}
                                                 employees={employees}
+                                                situations={situations}
+                                                currentSchedule={posto.schedule}
+                                                scheduleOptions={schedules}
                                             />
 
                                             {activeEmployee && (
-                                                <Dialog>
-                                                    <DialogTrigger asChild>
-                                                        <Button size="sm" variant="outline" className="ml-2 gap-2 text-blue-600 hover:text-blue-700">
-                                                            <Calendar className="w-3 h-3" />
-                                                            Escala
-                                                        </Button>
-                                                    </DialogTrigger>
-                                                    <DialogContent>
-                                                        <DialogHeader>
-                                                            <DialogTitle>Calendário de Trabalho</DialogTitle>
-                                                            <DialogDescription>
-                                                                Visualização da escala <strong>{posto.schedule}</strong> iniciada em {new Date(currentAssignment.startDate).toLocaleDateString('pt-BR')}.
-                                                            </DialogDescription>
-                                                        </DialogHeader>
-                                                        <div className="flex justify-center py-4">
-                                                            <CalendarView
-                                                                scheduleType={posto.schedule}
-                                                                startDate={currentAssignment.startDate.toISOString()}
-                                                            />
-                                                        </div>
-                                                    </DialogContent>
-                                                </Dialog>
+                                                <ScheduleDialog
+                                                    postoId={posto.id}
+                                                    postoRole={posto.role.name}
+                                                    currentSchedule={posto.schedule}
+                                                    startDate={currentAssignment.startDate}
+                                                    scheduleOptions={schedules}
+                                                    assignmentId={currentAssignment.id}
+                                                />
                                             )}
 
                                             {userRole === 'ADMIN' && (
