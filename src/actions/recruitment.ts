@@ -865,15 +865,26 @@ async function syncBacklogGaps() {
     // 2. Filter out postos that ALREADY have an Active Process
     const postosNeedingVacancy = vacantPostos.filter(p => {
         // Check 1: Has an OPEN or HOLD vacancy?
-        const hasActiveVacancy = p.vacancies.some(v => v.status === 'OPEN' || v.status === 'HOLD');
-        if (hasActiveVacancy) return false;
+        // MOD: Also check for CLOSED vacancies. If there is a CLOSED vacancy (that is empty), it means it was manually cancelled/closed.
+        // We should NOT reopen it automatically. The user must manually reopen if needed.
+        const hasActiveOrClosedVacancy = p.vacancies.some(v => v.status === 'OPEN' || v.status === 'HOLD' || v.status === 'CLOSED');
+        if (hasActiveOrClosedVacancy) return false;
 
         // Check 2: Has a vacancy (even Closed) with a candidate in Filling Stages (Admissão, Posto, Contratado)
-        // This prevents reopening a gap while the candidate is being hired but not yet assigned.
-        const hasFillingCandidate = p.vacancies.some(v =>
-            v.candidates.some(c => ['Admissão', 'Posto', 'Contratado', 'Oferta'].includes(c.stage.name))
-        );
-        if (hasFillingCandidate) return false;
+        // ... (This check is now redundant if we check ALL status above? 
+        // No, because 'hasActiveOrClosedVacancy' covers the vacancy existence.
+        // But what if the vacancy was DELETED? Then p.vacancies is empty.
+        // If p.vacancies is empty, we create one.
+        // This is correct. If user hard deletes, we recreate.
+        // We must rely on user NOT hard deleting, or converting hard delete to soft close.
+
+        // Wait, if I include CLOSED in Check 1, then:
+        // Helper `syncFilledVacancies` closes vacancies when filled.
+        // So a filled posto has a CLOSED vacancy.
+        // `syncBacklogGaps` looks for postos with NO assignments.
+        // So this loop only runs for GAPS.
+        // If I have a GAP and a CLOSED vacancy, it means "I have a gap but I closed the vacancy".
+        // Correct behavior: Do NOT create new vacancy.
 
         return true;
     });

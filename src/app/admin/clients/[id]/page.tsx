@@ -101,6 +101,48 @@ export default async function ClientPostosPage(props: { params: Promise<{ id: st
                 <NewPostoSheet clientId={client.id} schedules={schedules} roles={roles} />
             </div>
 
+            {/* TOTALIZERS */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-slate-500">Total de Postos</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{client.postos.length}</div>
+                        <p className="text-xs text-slate-500 mt-1">
+                            {client.postos.filter(p => !p.assignments.some(a => !a.endDate)).length} Vagos
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-slate-500">Receita Mensal (Faturamento)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-green-600">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                                client.postos.reduce((acc, p) => acc + p.billingValue, 0)
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-slate-500">Custo Salarial Estimado</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-blue-600">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                                client.postos.reduce((acc, p) => acc + (p.baseSalary || 0) + (p.insalubridade || 0) + (p.periculosidade || 0) + (p.gratificacao || 0) + (p.outrosAdicionais || 0), 0)
+                            )}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1 italic">
+                            Salário Base + Adicionais
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+
             <Card>
                 <CardHeader>
                     <CardTitle>Postos Contratados</CardTitle>
