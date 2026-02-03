@@ -865,10 +865,11 @@ async function syncBacklogGaps() {
     // 2. Filter out postos that ALREADY have an Active Process
     const postosNeedingVacancy = vacantPostos.filter(p => {
         // Check 1: Has an OPEN or HOLD vacancy?
-        // MOD: Also check for CLOSED vacancies. If there is a CLOSED vacancy (that is empty), it means it was manually cancelled/closed.
-        // We should NOT reopen it automatically. The user must manually reopen if needed.
-        const hasActiveOrClosedVacancy = p.vacancies.some(v => v.status === 'OPEN' || v.status === 'HOLD' || v.status === 'CLOSED');
-        if (hasActiveOrClosedVacancy) return false;
+        // REVERT: We ONLY check for OPEN or HOLD. If there are CLOSED vacancies, it implies past attempts.
+        // If the Posto is STILL empty, we MUST create a new vacancy (the gap persists).
+        // To stop hiring, the user should use HOLD.
+        const hasActiveVacancy = p.vacancies.some(v => v.status === 'OPEN' || v.status === 'HOLD');
+        if (hasActiveVacancy) return false;
 
         // Check 2: Has a vacancy (even Closed) with a candidate in Filling Stages (Admissão, Posto, Contratado)
         // ... (This check is now redundant if we check ALL status above? 
