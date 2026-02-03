@@ -876,7 +876,7 @@ async function syncBacklogGaps() {
         const hasFillingCandidate = p.vacancies.some(v =>
             (v.status === 'OPEN' || v.status === 'HOLD') &&
             v.candidates.some(c =>
-                c.stage?.name && ['Admissão', 'Posto', 'Contratado', 'Oferta'].includes(c.stage.name)
+                c.stage?.name && ['Admissão', 'Contratado', 'Oferta'].includes(c.stage.name)
             )
         );
 
