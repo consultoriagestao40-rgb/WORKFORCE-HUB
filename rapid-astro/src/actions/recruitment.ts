@@ -871,23 +871,16 @@ async function syncBacklogGaps() {
         const hasActiveVacancy = p.vacancies.some(v => v.status === 'OPEN' || v.status === 'HOLD');
         if (hasActiveVacancy) return false;
 
-        // Check 2: Has a vacancy (even Closed) with a candidate in Filling Stages (Admissão, Posto, Contratado)
-        // ... (This check is now redundant if we check ALL status above? 
-        // No, because 'hasActiveOrClosedVacancy' covers the vacancy existence.
-        // But what if the vacancy was DELETED? Then p.vacancies is empty.
-        // If p.vacancies is empty, we create one.
-        // This is correct. If user hard deletes, we recreate.
-        // We must rely on user NOT hard deleting, or converting hard delete to soft close.
+        // Check 2: Has a vacancy (only OPEN or HOLD) with a candidate in Filling Stages
+        // If the vacancy is CLOSED, we ignore its candidates (Zombie check).
+        const hasFillingCandidate = p.vacancies.some(v =>
+            (v.status === 'OPEN' || v.status === 'HOLD') &&
+            v.candidates.some(c =>
+                c.stage?.name && ['Admissão', 'Posto', 'Contratado', 'Oferta'].includes(c.stage.name)
+            )
+        );
 
-        // Wait, if I include CLOSED in Check 1, then:
-        // Helper `syncFilledVacancies` closes vacancies when filled.
-        // So a filled posto has a CLOSED vacancy.
-        // `syncBacklogGaps` looks for postos with NO assignments.
-        // So this loop only runs for GAPS.
-        // If I have a GAP and a CLOSED vacancy, it means "I have a gap but I closed the vacancy".
-        // Correct behavior: Do NOT create new vacancy.
-
-        return true;
+        if (hasFillingCandidate) return false;
     });
 
     if (postosNeedingVacancy.length === 0) return;
