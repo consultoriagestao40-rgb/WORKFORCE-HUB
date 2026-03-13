@@ -10,9 +10,10 @@ import { Label } from "@/components/ui/label";
 import { transitionRequest } from "@/app/admin/requests/actions";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, AlertCircle, ArrowLeft, Clock, User, Briefcase, FileText, Settings } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, ArrowLeft, Clock, User, Briefcase, FileText, Settings, Search } from "lucide-react";
 import { RequestDetailsSheet } from "./RequestDetailsSheet";
 import { RequestStageConfigDialog } from "./RequestStageConfigDialog";
+import { Input } from "@/components/ui/input";
 
 interface RequestKanbanBoardProps {
     requests: any[];
@@ -30,6 +31,7 @@ export function RequestKanban({ requests }: RequestKanbanBoardProps) {
     const [actionRequest, setActionRequest] = useState<any>(null);
     const [actionType, setActionType] = useState<string | null>(null);
     const [comment, setComment] = useState("");
+    const [searchTerm, setSearchTerm] = useState("");
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     // Config Dialog State
@@ -48,9 +50,19 @@ export function RequestKanban({ requests }: RequestKanbanBoardProps) {
         setConfigOpen(true);
     };
 
+    const filteredRequests = requests.filter(r => {
+        const term = searchTerm.toLowerCase();
+        return (
+            r.requester?.name?.toLowerCase().includes(term) ||
+            r.employee?.name?.toLowerCase().includes(term) ||
+            r.description?.toLowerCase().includes(term) ||
+            r.type?.toLowerCase().replace(/_/g, " ").includes(term)
+        );
+    });
+
     const getRequestsByColumn = (colId: string) => {
         const statuses = COLUMNS.find(c => c.id === colId)?.status || [];
-        return requests.filter(r => statuses.includes(r.status));
+        return filteredRequests.filter(r => statuses.includes(r.status));
     };
 
     const handleAction = (e: React.MouseEvent, req: any, type: string) => {
@@ -104,7 +116,19 @@ export function RequestKanban({ requests }: RequestKanbanBoardProps) {
     };
 
     return (
-        <div className="flex h-full gap-4 overflow-x-auto pb-4 items-start min-h-[calc(100vh-200px)]">
+        <div className="space-y-4">
+            {/* Barra de Pesquisa */}
+            <div className="relative max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                    placeholder="Pesquisar por solicitante, colaborador, descrição ou tipo..."
+                    className="pl-10 bg-white border-slate-200 focus:ring-indigo-500 rounded-xl"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+
+            <div className="flex h-full gap-4 overflow-x-auto pb-4 items-start min-h-[calc(100vh-200px)]">
             {COLUMNS.map(col => (
                 <div key={col.id} className={`w-80 shrink-0 flex flex-col rounded-xl border border-slate-200 h-full max-h-full ${col.color || 'bg-slate-50/50'}`}>
                     <div className="p-3 border-b bg-white/60 backdrop-blur rounded-t-xl sticky top-0 z-10 flex justify-between items-center group/header">
@@ -282,6 +306,7 @@ export function RequestKanban({ requests }: RequestKanbanBoardProps) {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            </div>
         </div>
     );
 }
