@@ -46,17 +46,17 @@ async function getProbationData(companyId?: string, search?: string) {
     const today = new Date();
 
     return employees.map((emp: any) => {
-        const d45 = addDays(emp.admissionDate, 45);
-        const d90 = addDays(emp.admissionDate, 90);
+        const d45 = addDays(emp.admissionDate, 44); // Dia da admissão + 44 dias = 45 dias corridos
+        const d90 = addDays(emp.admissionDate, 89); // Dia da admissão + 89 dias = 90 dias corridos
 
         let status = 'NONE';
         let deadline = null;
         let daysLeft = 0;
         let period = '';
 
-        const daysSinceHiring = differenceInDays(today, emp.admissionDate);
+        const daysSinceHiring = differenceInDays(today, emp.admissionDate) + 1; // +1 para considerar o próprio dia da admissão
 
-        // Logic adjusted to be inclusive of the period
+        // Lógica ajustada para considerar 45 e 90 dias corridos
         if (daysSinceHiring <= 45) {
             status = '45_DAYS';
             deadline = d45;
@@ -68,7 +68,7 @@ async function getProbationData(companyId?: string, search?: string) {
             daysLeft = differenceInDays(d90, today);
             period = '2º Período';
         } else {
-            return null; // Expired probation
+            return null; // Expiração do período de experiência
         }
 
         let statusBadge = 'NO_PRAZO';
