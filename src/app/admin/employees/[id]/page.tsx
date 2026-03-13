@@ -29,6 +29,7 @@ import { EditEmployeeSheet } from "@/components/admin/EditEmployeeSheet";
 import { calculateMonthlyPayroll } from "@/lib/payroll";
 import { getEmployeeTimeline } from "@/app/actions";
 import { EmployeeTimeline } from "@/components/admin/EmployeeTimeline";
+import { VacationHistory } from "@/components/admin/VacationHistory";
 
 async function getEmployeeDetails(id: string) {
     const [employee, situations, roles, companies] = await Promise.all([
@@ -90,8 +91,12 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
     const today = new Date();
     const fullYearsWorked = differenceInYears(today, admissionDate);
     const totalDaysEarned = fullYearsWorked * 30;
-    const daysRemaining = totalDaysEarned - employee.totalVacationDaysTaken;
-    const earliestPendingPeriodYear = Math.floor(employee.totalVacationDaysTaken / 30) + 1;
+
+    // Soma real dos dias de férias lançados
+    const actualDaysTaken = employee.vacations.reduce((acc: number, v: any) => acc + v.daysTaken, 0);
+
+    const daysRemaining = totalDaysEarned - actualDaysTaken;
+    const earliestPendingPeriodYear = Math.floor(actualDaysTaken / 30) + 1;
     const concessiveLimitDate = addYears(admissionDate, earliestPendingPeriodYear + 1);
 
     const isCritical = daysRemaining > 0 && isBefore(concessiveLimitDate, today);
@@ -232,7 +237,7 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
                                 </div>
                                 <div className="p-4 bg-white rounded-2xl shadow-inner-premium border border-slate-100">
                                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Consumido</span>
-                                    <span className="text-xl font-black text-slate-800 text-primary">{employee.totalVacationDaysTaken} <small className="text-xs text-slate-400">Dias</small></span>
+                                    <span className="text-xl font-black text-primary">{actualDaysTaken} <small className="text-xs text-slate-400">Dias</small></span>
                                 </div>
                                 <div className="p-4 bg-white rounded-2xl shadow-inner-premium border border-slate-100">
                                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Saldo</span>
@@ -296,9 +301,10 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
                     <div className="bg-gradient-to-br from-slate-50 to-white p-8 rounded-[2.5rem] shadow-premium border border-slate-100 flex flex-col gap-6">
                         <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Operational Tools</h5>
 
-                        <Button className="w-full bg-slate-900 text-white rounded-2xl h-14 font-black justify-between group hover:bg-black">
-                            Record Vacation <Zap className="w-4 h-4 fill-primary text-primary group-hover:scale-125 transition-transform" />
-                        </Button>
+                        <VacationHistory
+                            employeeId={employee.id}
+                            vacations={employee.vacations}
+                        />
 
                         <Button variant="outline" className="w-full border-slate-200 text-slate-900 rounded-2xl h-14 font-black justify-between group">
                             Generate Report <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -306,7 +312,7 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
 
                         <div className="mt-4 p-5 bg-primary/5 rounded-3xl border border-primary/10">
                             <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Visão de RH</p>
-                            <p className="text-xs text-slate-600 font-bold leading-relaxed">Este colaborador consumiu {((employee.totalVacationDaysTaken / totalDaysEarned) * 100).toFixed(0)}% de seu crédito total de férias adquirido.</p>
+                            <p className="text-xs text-slate-600 font-bold leading-relaxed">Este colaborador consumiu {((actualDaysTaken / totalDaysEarned) * 100).toFixed(0)}% de seu crédito total de férias adquirido.</p>
                         </div>
                     </div>
                 </div>

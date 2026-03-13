@@ -29,6 +29,7 @@ async function getVacationData() {
             role: true,
             situation: true,
             company: true,
+            vacations: true,
             assignments: {
                 where: { endDate: null },
                 include: { posto: { include: { client: true } } }
@@ -41,13 +42,16 @@ async function getVacationData() {
         const today = new Date();
         const admissionDate = new Date(emp.admissionDate);
 
+        // Soma real dos dias de férias lançados para métrica precisa
+        const actualDaysTaken = emp.vacations.reduce((acc: number, v: any) => acc + v.daysTaken, 0);
+
         // Mesmo cálculo do perfil individual
         const fullYearsWorked = differenceInYears(today, admissionDate);
         const totalDaysEarned = fullYearsWorked * 30;
-        const daysRemaining = totalDaysEarned - emp.totalVacationDaysTaken;
+        const daysRemaining = totalDaysEarned - actualDaysTaken;
 
         // Calcular prazo concessivo (MESMA lógica do perfil)
-        const earliestPendingPeriodYear = Math.floor(emp.totalVacationDaysTaken / 30) + 1;
+        const earliestPendingPeriodYear = Math.floor(actualDaysTaken / 30) + 1;
         const concessiveLimitDate = addYears(admissionDate, earliestPendingPeriodYear + 1);
         const daysUntilLimit = differenceInDays(concessiveLimitDate, today);
 
@@ -76,7 +80,7 @@ async function getVacationData() {
             cpf: emp.cpf,
             role: emp.role,
             admissionDate: emp.admissionDate,
-            totalVacationDaysTaken: emp.totalVacationDaysTaken,
+            totalVacationDaysTaken: actualDaysTaken,
             lastVacationStart: emp.lastVacationStart,
             daysRemaining,
             daysUntilLimit,
