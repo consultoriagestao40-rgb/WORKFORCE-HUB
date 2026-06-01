@@ -14,11 +14,9 @@ import Link from "next/link";
 import { createPosto, assignEmployee } from "@/app/actions";
 import { CalendarView } from "@/components/CalendarView";
 import { NewPostoSheet } from "@/components/admin/NewPostoSheet";
-import { AssignmentDialog } from "@/components/admin/AssignmentDialog";
-import { EditPostoSheet } from "@/components/admin/EditPostoSheet";
 import { getCurrentUserRole } from "@/lib/auth";
-import { DeletePostoButton } from "@/components/admin/DeletePostoButton";
-import { ScheduleDialog } from "@/components/admin/ScheduleDialog";
+import { ClientPostosTable } from "@/components/admin/ClientPostosTable";
+import { ClientVacantPostosDialog } from "@/components/admin/ClientVacantPostosDialog";
 
 async function getClientDetails(id: string) {
     return await prisma.client.findUnique({
@@ -28,7 +26,6 @@ async function getClientDetails(id: string) {
                 include: {
                     role: true,
                     assignments: {
-                        where: { endDate: null },
                         include: {
                             employee: {
                                 include: {
@@ -102,7 +99,7 @@ export default async function ClientPostosPage(props: { params: Promise<{ id: st
             </div>
 
             {/* TOTALIZERS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-slate-500">Total de Postos</CardTitle>
@@ -110,10 +107,13 @@ export default async function ClientPostosPage(props: { params: Promise<{ id: st
                     <CardContent>
                         <div className="text-2xl font-bold">{client.postos.length}</div>
                         <p className="text-xs text-slate-500 mt-1">
-                            {client.postos.filter(p => !p.assignments.some(a => !a.endDate)).length} Vagos
+                            {client.postos.filter(p => p.assignments.some(a => !a.endDate)).length} Ocupados
                         </p>
                     </CardContent>
                 </Card>
+
+                <ClientVacantPostosDialog postos={client.postos} />
+
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-slate-500">Receita Mensal (Faturamento)</CardTitle>
@@ -148,125 +148,16 @@ export default async function ClientPostosPage(props: { params: Promise<{ id: st
                     <CardTitle>Postos Contratados</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Cargo</TableHead>
-                                <TableHead>Escala</TableHead>
-                                <TableHead>Carga</TableHead>
-                                <TableHead>Horário</TableHead>
-                                <TableHead>Ocupante Atual</TableHead>
-                                <TableHead>Faturamento</TableHead>
-                                <TableHead className="text-right">Ação</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {client.postos.map((posto) => {
-                                const currentAssignment = posto.assignments[0]; // Since we filtered by endDate: null
-                                const activeEmployee = currentAssignment?.employee as any;
-
-                                const today = new Date();
-                                today.setHours(0, 0, 0, 0);
-
-                                let statusAlert = null;
-
-                                if (activeEmployee) {
-                                    // Check Vacation
-                                    const activeVacation = activeEmployee.vacations?.find((v: any) =>
-                                        new Date(v.startDate) <= today && new Date(v.endDate) >= today
-                                    );
-
-                                    if (activeVacation) {
-                                        statusAlert = (
-                                            <span className="flex items-center gap-1 text-[10px] text-orange-600 font-bold bg-orange-50 px-1.5 py-0.5 rounded-md mt-1 w-fit">
-                                                🏖️ Em Férias (até {activeVacation.endDate.toLocaleDateString('pt-BR')})
-                                            </span>
-                                        );
-                                    }
-                                    // Check Situation (if not Active and not Vacation - or both)
-                                    else if (activeEmployee.situation && activeEmployee.situation.name !== 'Ativo' && activeEmployee.situation.name !== 'Em Férias') {
-                                        statusAlert = (
-                                            <span className="text-[10px] text-red-600 font-bold bg-red-50 px-1.5 py-0.5 rounded-md mt-1 w-fit">
-                                                ⚠️ {activeEmployee.situation.name}
-                                            </span>
-                                        );
-                                    }
-                                }
-
-                                return (
-                                    <TableRow key={posto.id} className={statusAlert ? "bg-red-50/30" : ""}>
-                                        <TableCell className="font-medium">
-                                            <div className="flex items-center gap-1 group">
-                                                {posto.role.name}
-                                                <EditPostoSheet posto={posto} schedules={schedules} roles={roles} />
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>{posto.schedule}</TableCell>
-                                        <TableCell>{posto.requiredWorkload}h</TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-col">
-                                                <span>{posto.startTime} - {posto.endTime}</span>
-                                                {posto.isNightShift && <span className="text-[10px] text-purple-600 font-bold uppercase">Noturno</span>}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            {activeEmployee ? (
-                                                <div className="flex flex-col">
-                                                    <Link href={`/admin/employees/${activeEmployee.id}`} className="text-blue-600 hover:underline font-medium">
-                                                        {activeEmployee.name}
-                                                    </Link>
-                                                    <span className="text-[10px] text-slate-400">Carga: {activeEmployee.workload}h</span>
-                                                    {statusAlert}
-                                                </div>
-                                            ) : (
-                                                <div className="flex flex-col">
-                                                    <span className="text-slate-400 italic">Vago</span>
-                                                    <span className="text-[10px] text-red-500 font-bold">Necessita Cobertura</span>
-                                                </div>
-                                            )}
-                                        </TableCell>
-                                        <TableCell>R$ {posto.billingValue.toFixed(2)}</TableCell>
-                                        <TableCell className="text-right">
-                                            <AssignmentDialog
-                                                postoId={posto.id}
-                                                postoRole={posto.role.name}
-                                                activeEmployeeName={activeEmployee?.name}
-                                                employees={employees}
-                                                situations={situations}
-                                                currentSchedule={posto.schedule}
-                                                scheduleOptions={schedules}
-                                            />
-
-                                            {activeEmployee && (
-                                                <ScheduleDialog
-                                                    postoId={posto.id}
-                                                    postoRole={posto.role.name}
-                                                    currentSchedule={posto.schedule}
-                                                    startDate={currentAssignment.startDate}
-                                                    scheduleOptions={schedules}
-                                                    assignmentId={currentAssignment.id}
-                                                />
-                                            )}
-
-                                            {userRole === 'ADMIN' && (
-                                                <DeletePostoButton
-                                                    postoId={posto.id}
-                                                    postoRole={posto.role.name}
-                                                />
-                                            )}
-                                        </TableCell>
-                                    </TableRow>
-                                );
-                            })}
-                            {client.postos.length === 0 && (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="text-center text-slate-500 py-6">Nenhum posto cadastrado.</TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
+                    <ClientPostosTable
+                        postos={client.postos}
+                        employees={employees}
+                        schedules={schedules}
+                        roles={roles}
+                        situations={situations}
+                        userRole={userRole}
+                    />
                 </CardContent>
             </Card>
-        </div >
+        </div>
     );
 }
