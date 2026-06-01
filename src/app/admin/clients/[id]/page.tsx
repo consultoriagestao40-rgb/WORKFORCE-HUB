@@ -154,7 +154,7 @@ export default async function ClientPostosPage(props: { params: Promise<{ id: st
                         schedules={schedules}
                         roles={roles}
                         situations={situations}
-                        userRole={userRole}
+                        userRole={userRole || ""}
                     />
                 </CardContent>
             </Card>
