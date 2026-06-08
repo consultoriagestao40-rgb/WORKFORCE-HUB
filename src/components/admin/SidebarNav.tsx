@@ -56,7 +56,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
     };
 
     return (
-        <nav className="relative z-10 space-y-1.5 flex-1 overflow-y-auto overflow-x-hidden pr-0 scrollbar-none flex flex-col">
+        <nav className="relative z-10 space-y-1.5 flex-1 overflow-x-hidden pr-0 sidebar-scrollbar flex flex-col">
             <div className="flex-1 space-y-1.5">
                 <SectionHeader title="Gestão Core" />
 
