@@ -75,7 +75,10 @@ async function getVacantStats() {
             vacantSinceDate = p.createdAt;
         }
 
-        const vacantDateClean = new Date(vacantSinceDate);
+        // Se o posto ficou vago antes do início do mês, conta apenas a partir do dia 1 do mês atual
+        const calculationStartDate = vacantSinceDate < firstDayOfMonth ? firstDayOfMonth : vacantSinceDate;
+
+        const vacantDateClean = new Date(calculationStartDate);
         vacantDateClean.setHours(0, 0, 0, 0);
 
         const diffTime = Math.abs(today.getTime() - vacantDateClean.getTime());

@@ -109,7 +109,7 @@ async function getAdminStats() {
         } else {
             vacantPostos.push(p);
 
-            // Calcular dias de vacância
+            // Calcular dias de vacância (limitado ao mês atual)
             const endedAssignments = p.assignments.filter(a => a.endDate);
             let vacantSinceDate: Date;
             if (endedAssignments.length > 0) {
@@ -119,7 +119,10 @@ async function getAdminStats() {
                 vacantSinceDate = p.createdAt;
             }
 
-            const vacantDateClean = new Date(vacantSinceDate);
+            // Se o posto ficou vago antes do início do mês, conta apenas a partir do dia 1 do mês atual
+            const calculationStartDate = vacantSinceDate < firstDayOfMonth ? firstDayOfMonth : vacantSinceDate;
+
+            const vacantDateClean = new Date(calculationStartDate);
             vacantDateClean.setHours(0, 0, 0, 0);
 
             const diffTime = Math.abs(todayDate.getTime() - vacantDateClean.getTime());
