@@ -90,7 +90,7 @@ function calculateIRRF(salary: number, inss: number): number {
     if (base <= 4664.68) return (base * 0.225) - 662.77;
     return (base * 0.275) - 896.00;
 }
-
+const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 export function FinancialCostsClient({
     employees,
     averageStayMonths,
@@ -530,16 +530,16 @@ export function FinancialCostsClient({
                                                     </span>
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-slate-700">
-                                                    R$ {group.proporcionalVal.toFixed(2)}
+                                                    {formatCurrency(group.proporcionalVal)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-slate-700">
-                                                    R$ {group.thirdConstitucional.toFixed(2)}
+                                                    {formatCurrency(group.thirdConstitucional)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-slate-600 italic">
-                                                    R$ {group.incidentesLegais.toFixed(2)}
+                                                    {formatCurrency(group.incidentesLegais)}
                                                 </TableCell>
                                                 <TableCell className="text-right font-extrabold text-slate-900 text-sm">
-                                                    R$ {group.totalVal.toFixed(2)}
+                                                    {formatCurrency(group.totalVal)}
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -557,16 +557,16 @@ export function FinancialCostsClient({
                                                 <TableCell className="text-center">{feriasData.length} colaboradores</TableCell>
                                                 <TableCell className="text-center">{feriasTotals.totalDays.toFixed(1)} dias</TableCell>
                                                 <TableCell className="text-right">
-                                                    R$ {feriasGroupedByContract.reduce((s, g) => s + g.proporcionalVal, 0).toFixed(2)}
+                                                    {formatCurrency(feriasGroupedByContract.reduce((s, g) => s + g.proporcionalVal, 0))}
                                                 </TableCell>
                                                 <TableCell className="text-right">
-                                                    R$ {feriasGroupedByContract.reduce((s, g) => s + g.thirdConstitucional, 0).toFixed(2)}
+                                                    {formatCurrency(feriasGroupedByContract.reduce((s, g) => s + g.thirdConstitucional, 0))}
                                                 </TableCell>
                                                 <TableCell className="text-right italic">
-                                                    R$ {feriasGroupedByContract.reduce((s, g) => s + g.incidentesLegais, 0).toFixed(2)}
+                                                    {formatCurrency(feriasGroupedByContract.reduce((s, g) => s + g.incidentesLegais, 0))}
                                                 </TableCell>
                                                 <TableCell className="text-right text-emerald-700">
-                                                    R$ {feriasTotals.totalValue.toFixed(2)}
+                                                    {formatCurrency(feriasTotals.totalValue)}
                                                 </TableCell>
                                             </TableRow>
                                         )}
@@ -611,16 +611,16 @@ export function FinancialCostsClient({
                                                     </span>
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-slate-700">
-                                                    R$ {item.proporcionalVal.toFixed(2)}
+                                                    {formatCurrency(item.proporcionalVal)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-slate-700">
-                                                    R$ {item.thirdConstitucional.toFixed(2)}
+                                                    {formatCurrency(item.thirdConstitucional)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-slate-600 italic">
-                                                    R$ {item.incidentesLegais.toFixed(2)}
+                                                    {formatCurrency(item.incidentesLegais)}
                                                 </TableCell>
                                                 <TableCell className="text-right font-extrabold text-slate-900 text-xs">
-                                                    R$ {item.totalVal.toFixed(2)}
+                                                    {formatCurrency(item.totalVal)}
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -794,19 +794,19 @@ export function FinancialCostsClient({
                                                 <TableCell>Total Geral</TableCell>
                                                 <TableCell className="text-center">{decimoTerceiroData.length} colaboradores</TableCell>
                                                 <TableCell className="text-right">
-                                                    R$ {decimoTerceiroTotals.totalAcumuladoLiquido.toFixed(2)}
+                                                    {formatCurrency(decimoTerceiroTotals.totalAcumuladoLiquido)}
                                                 </TableCell>
                                                 <TableCell className="text-right italic">
-                                                    R$ {decimoTerceiroTotals.totalEncargos.toFixed(2)}
+                                                    {formatCurrency(decimoTerceiroTotals.totalEncargos)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-blue-600">
-                                                    R$ {decimoTerceiroTotals.totalPrimeira.toFixed(2)}
+                                                    {formatCurrency(decimoTerceiroTotals.totalPrimeira)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-slate-950">
-                                                    R$ {decimoTerceiroTotals.totalSegunda.toFixed(2)}
+                                                    {formatCurrency(decimoTerceiroTotals.totalSegunda)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-emerald-700">
-                                                    R$ {(decimoTerceiroTotals.totalPrimeira + decimoTerceiroTotals.totalSegunda + decimoTerceiroTotals.totalEncargos).toFixed(2)}
+                                                    {formatCurrency(decimoTerceiroTotals.totalPrimeira + decimoTerceiroTotals.totalSegunda + decimoTerceiroTotals.totalEncargos)}
                                                 </TableCell>
                                             </TableRow>
                                         )}
@@ -850,16 +850,16 @@ export function FinancialCostsClient({
                                                         {item.monthsInYear} / 12
                                                     </TableCell>
                                                     <TableCell className="text-right text-xs font-semibold text-slate-700">
-                                                        R$ {item.valorAcumuladoLiquido.toFixed(2)}
+                                                        {formatCurrency(item.valorAcumuladoLiquido)}
                                                     </TableCell>
                                                     <TableCell className="text-right text-xs text-slate-600 italic">
-                                                        R$ {(item.totalAnualBruto * (taxRate / 100)).toFixed(2)}
+                                                        {formatCurrency(item.totalAnualBruto * (taxRate / 100))}
                                                     </TableCell>
                                                     <TableCell className="text-right text-xs text-blue-600 font-bold">
-                                                        R$ {item.primeiraParcela.toFixed(2)}
+                                                        {formatCurrency(item.primeiraParcela)}
                                                     </TableCell>
                                                     <TableCell className="text-right text-xs text-slate-800 font-bold">
-                                                        R$ {item.segundaParcela.toFixed(2)}
+                                                        {formatCurrency(item.segundaParcela)}
                                                     </TableCell>
                                                     <TableCell className="text-center">
                                                         <div className="flex items-center justify-center gap-1.5">
@@ -885,16 +885,16 @@ export function FinancialCostsClient({
                                                 <TableCell colSpan={2} className="text-slate-900">Total</TableCell>
                                                 <TableCell className="text-center"></TableCell>
                                                 <TableCell className="text-right text-slate-950">
-                                                    R$ {decimoTerceiroTotals.totalAcumuladoLiquido.toFixed(2)}
+                                                    {formatCurrency(decimoTerceiroTotals.totalAcumuladoLiquido)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-slate-600 italic">
-                                                    R$ {decimoTerceiroTotals.totalEncargos.toFixed(2)}
+                                                    {formatCurrency(decimoTerceiroTotals.totalEncargos)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-blue-600">
-                                                    R$ {decimoTerceiroTotals.totalPrimeira.toFixed(2)}
+                                                    {formatCurrency(decimoTerceiroTotals.totalPrimeira)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-slate-950">
-                                                    R$ {decimoTerceiroTotals.totalSegunda.toFixed(2)}
+                                                    {formatCurrency(decimoTerceiroTotals.totalSegunda)}
                                                 </TableCell>
                                                 <TableCell></TableCell>
                                             </TableRow>
