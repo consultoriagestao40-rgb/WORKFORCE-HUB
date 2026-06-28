@@ -414,96 +414,103 @@ export function FinancialCostsClient({
                 {/* TAB CONTENT: 13º SALÁRIO */}
                 <TabsContent value="decimo" className="space-y-6 pt-4">
                     {/* CARDS TOTALIZADORES 13º */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
-                            <CardHeader className="pb-2">
-                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Colaboradores Ativos</CardDescription>
-                                <CardTitle className="text-2xl font-black text-slate-900 flex items-center justify-between">
-                                    <span>{decimoTerceiroData.length} ativos</span>
-                                    <Users className="w-5 h-5 text-indigo-500" />
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                    Sem demitidos/afastados
-                                </p>
-                            </CardContent>
-                        </Card>
+                    {/* CARDS TOTALIZADORES 13º EM LAYOUT AGRUPADO */}
+                    <div className="space-y-4">
+                        {/* Linha 1: Destaques (Custo Total e Ativos) */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                            <Card className="lg:col-span-2 border-none shadow-premium bg-gradient-to-br from-emerald-600 to-teal-700 text-white">
+                                <CardHeader className="pb-2">
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-emerald-100">Custo Total Previsto (Projeção Anual)</CardDescription>
+                                    <CardTitle className="text-3xl font-black flex items-center justify-between">
+                                        <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalPrimeira + decimoTerceiroTotals.totalSegunda + decimoTerceiroTotals.totalEncargos)}</span>
+                                        <DollarSign className="w-8 h-8 text-emerald-200" />
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-[10px] text-emerald-100 font-bold uppercase tracking-wider">
+                                        Soma das Projeções: Parcela 1 (Bruto) + Parcela 2 (Est. Líquida) + Encargos Patronais ({taxRate}%)
+                                    </p>
+                                </CardContent>
+                            </Card>
 
-                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
-                            <CardHeader className="pb-2">
-                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">13º Líquido Acumulado</CardDescription>
-                                <CardTitle className="text-2xl font-black text-slate-900 flex items-center justify-between">
-                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalAcumuladoLiquido)}</span>
-                                    <Calendar className="w-5 h-5 text-blue-500" />
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                    Líquido acumulado até hoje
-                                </p>
-                            </CardContent>
-                        </Card>
+                            <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                                <CardHeader className="pb-2">
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Colaboradores Ativos</CardDescription>
+                                    <CardTitle className="text-3xl font-black text-slate-900 flex items-center justify-between">
+                                        <span>{decimoTerceiroData.length} ativos</span>
+                                        <Users className="w-6 h-6 text-indigo-500" />
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                        Sem demitidos ou afastados
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        </div>
 
-                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
-                            <CardHeader className="pb-2">
-                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Encargos s/ Acumulado ({taxRate}%)</CardDescription>
-                                <CardTitle className="text-2xl font-black text-slate-900 flex items-center justify-between">
-                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalEncargosAcumulado)}</span>
-                                    <DollarSign className="w-5 h-5 text-slate-400" />
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                    FGTS + Encargos até hoje
-                                </p>
-                            </CardContent>
-                        </Card>
+                        {/* Linha 2: Detalhamento das parcelas e acumulado */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                                <CardHeader className="pb-2">
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">13º Líquido Acumulado</CardDescription>
+                                    <CardTitle className="text-xl font-extrabold text-slate-900 flex items-center justify-between">
+                                        <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalAcumuladoLiquido)}</span>
+                                        <Calendar className="w-5 h-5 text-blue-500" />
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                        Líquido acumulado até hoje
+                                    </p>
+                                </CardContent>
+                            </Card>
 
-                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
-                            <CardHeader className="pb-2">
-                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estimativa 1ª Parcela (Bruto)</CardDescription>
-                                <CardTitle className="text-2xl font-black text-blue-600 flex items-center justify-between">
-                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalPrimeira)}</span>
-                                    <DollarSign className="w-5 h-5" />
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                    Pago sem descontos legais
-                                </p>
-                            </CardContent>
-                        </Card>
+                            <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                                <CardHeader className="pb-2">
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Encargos s/ Acumulado ({taxRate}%)</CardDescription>
+                                    <CardTitle className="text-xl font-extrabold text-slate-900 flex items-center justify-between">
+                                        <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalEncargosAcumulado)}</span>
+                                        <DollarSign className="w-5 h-5 text-slate-400" />
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                        FGTS + Encargos até hoje
+                                    </p>
+                                </CardContent>
+                            </Card>
 
-                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
-                            <CardHeader className="pb-2">
-                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estimativa 2ª Parcela (Líquido)</CardDescription>
-                                <CardTitle className="text-2xl font-black text-slate-900 flex items-center justify-between">
-                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalSegunda)}</span>
-                                    <TrendingDown className="w-5 h-5 text-red-500" />
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                    Deduções de INSS/IRRF retidos
-                                </p>
-                            </CardContent>
-                        </Card>
+                            <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                                <CardHeader className="pb-2">
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estimativa 1ª Parcela (Bruto)</CardDescription>
+                                    <CardTitle className="text-xl font-extrabold text-blue-600 flex items-center justify-between">
+                                        <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalPrimeira)}</span>
+                                        <DollarSign className="w-5 h-5" />
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                        Pago sem descontos legais
+                                    </p>
+                                </CardContent>
+                            </Card>
 
-                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
-                            <CardHeader className="pb-2">
-                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Custo Total Previsto (Ano)</CardDescription>
-                                <CardTitle className="text-2xl font-black text-emerald-600 flex items-center justify-between">
-                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalPrimeira + decimoTerceiroTotals.totalSegunda + decimoTerceiroTotals.totalEncargos)}</span>
-                                    <DollarSign className="w-5 h-5" />
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic text-emerald-600">
-                                    Parcela 1 + Parcela 2 + Encargos
-                                </p>
-                            </CardContent>
-                        </Card>
+                            <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                                <CardHeader className="pb-2">
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estimativa 2ª Parcela (Líquido)</CardDescription>
+                                    <CardTitle className="text-xl font-extrabold text-slate-900 flex items-center justify-between">
+                                        <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalSegunda)}</span>
+                                        <TrendingDown className="w-5 h-5 text-red-500" />
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                        Deduções de INSS/IRRF retidos
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        </div>
                     </div>
 
                     {/* TABELA DE 13º SALÁRIO */}
