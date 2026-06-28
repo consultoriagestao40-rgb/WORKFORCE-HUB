@@ -217,10 +217,18 @@ export function FinancialCostsClient({
                 acc.totalAcumuladoLiquido += item.valorAcumuladoLiquido;
                 acc.totalPrimeira += item.primeiraParcela;
                 acc.totalSegunda += item.segundaParcela;
-                acc.totalEncargos += item.valorAcumulado * (taxRate / 100);
+                acc.totalEncargos += item.totalAnualBruto * (taxRate / 100);
+                acc.totalEncargosAcumulado += item.valorAcumulado * (taxRate / 100);
                 return acc;
             },
-            { totalAcumulado: 0, totalAcumuladoLiquido: 0, totalPrimeira: 0, totalSegunda: 0, totalEncargos: 0 }
+            { 
+                totalAcumulado: 0, 
+                totalAcumuladoLiquido: 0, 
+                totalPrimeira: 0, 
+                totalSegunda: 0, 
+                totalEncargos: 0, 
+                totalEncargosAcumulado: 0 
+            }
         );
     }, [decimoTerceiroData, taxRate]);
 
@@ -576,7 +584,7 @@ export function FinancialCostsClient({
                                                 R$ {decimoTerceiroTotals.totalAcumuladoLiquido.toFixed(2)}
                                             </TableCell>
                                             <TableCell className="text-right text-slate-600 italic">
-                                                R$ {decimoTerceiroTotals.totalEncargos.toFixed(2)}
+                                                R$ {decimoTerceiroTotals.totalEncargosAcumulado.toFixed(2)}
                                             </TableCell>
                                             <TableCell className="text-right text-blue-600">
                                                 R$ {decimoTerceiroTotals.totalPrimeira.toFixed(2)}
