@@ -6,6 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar, DollarSign, Users, AlertTriangle, TrendingUp, TrendingDown, Info, Search, ShieldAlert, Award } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface Employee {
     id: string;
@@ -85,17 +87,25 @@ export function FinancialCostsClient({
     const [activeTab, setActiveTab] = useState("ferias");
     const [searchTerm, setSearchTerm] = useState("");
     const [taxRate, setTaxRate] = useState<number>(27.8);
+    const [taxRateInput, setTaxRateInput] = useState<string>("27.8");
 
     useEffect(() => {
         const saved = localStorage.getItem("workforce_hub_tax_rate");
         if (saved) {
             setTaxRate(Number(saved));
+            setTaxRateInput(saved);
         }
     }, []);
 
-    const handleTaxRateChange = (newRate: number) => {
-        setTaxRate(newRate);
-        localStorage.setItem("workforce_hub_tax_rate", String(newRate));
+    const handleSaveTaxRate = () => {
+        const rate = parseFloat(taxRateInput);
+        if (isNaN(rate) || rate < 0) {
+            toast.error("Por favor, insira uma alíquota válida.");
+            return;
+        }
+        setTaxRate(rate);
+        localStorage.setItem("workforce_hub_tax_rate", String(rate));
+        toast.success(`Alíquota de encargos salva em ${rate}% com sucesso!`);
     };
 
     const today = useMemo(() => new Date(), []);
@@ -265,17 +275,23 @@ export function FinancialCostsClient({
                         </TabsTrigger>
                     </TabsList>
 
-                    <div className="flex items-center gap-2 text-xs">
+                    <div className="flex items-center gap-3 text-xs">
                         <span className="font-semibold text-slate-500">Incidentes Legais (FGTS + Impostos):</span>
                         <div className="flex items-center gap-1">
                             <Input
-                                type="number"
-                                value={taxRate}
-                                onChange={(e) => handleTaxRateChange(Number(e.target.value))}
+                                type="text"
+                                value={taxRateInput}
+                                onChange={(e) => setTaxRateInput(e.target.value)}
                                 className="w-16 h-8 text-center font-bold text-slate-800 text-xs px-1"
                             />
                             <span className="font-bold text-slate-700">%</span>
                         </div>
+                        <Button 
+                            onClick={handleSaveTaxRate}
+                            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm transition-all"
+                        >
+                            Salvar
+                        </Button>
                     </div>
                 </div>
 
@@ -468,15 +484,15 @@ export function FinancialCostsClient({
 
                             <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
                                 <CardHeader className="pb-2">
-                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Encargos s/ Acumulado ({taxRate}%)</CardDescription>
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Encargos s/ 13º (Anual) ({taxRate}%)</CardDescription>
                                     <CardTitle className="text-xl font-extrabold text-slate-900 flex items-center justify-between">
-                                        <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalEncargosAcumulado)}</span>
+                                        <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalEncargos)}</span>
                                         <DollarSign className="w-5 h-5 text-slate-400" />
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                        FGTS + Encargos até hoje
+                                        FGTS + Outros Encargos do Ano
                                     </p>
                                 </CardContent>
                             </Card>
@@ -523,7 +539,7 @@ export function FinancialCostsClient({
                                         <TableHead className="font-bold text-slate-800">Admissão</TableHead>
                                         <TableHead className="font-bold text-slate-800 text-center">Meses Trabalhados</TableHead>
                                         <TableHead className="font-bold text-slate-800 text-right">13º Líquido Acum.</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-right">Encargos s/ 13º ({taxRate}%)</TableHead>
                                         <TableHead className="font-bold text-slate-800 text-right">1ª Parcela (50% Bruto)</TableHead>
                                         <TableHead className="font-bold text-slate-800 text-right">2ª Parcela (Est. Líquida)</TableHead>
                                         <TableHead className="font-bold text-slate-800 text-center">Risco Demissional / Turnover</TableHead>
@@ -556,7 +572,7 @@ export function FinancialCostsClient({
                                                     R$ {item.valorAcumuladoLiquido.toFixed(2)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-slate-600 italic">
-                                                    R$ {(item.valorAcumulado * (taxRate / 100)).toFixed(2)}
+                                                    R$ {(item.totalAnualBruto * (taxRate / 100)).toFixed(2)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-blue-600 font-bold">
                                                     R$ {item.primeiraParcela.toFixed(2)}
@@ -591,7 +607,7 @@ export function FinancialCostsClient({
                                                 R$ {decimoTerceiroTotals.totalAcumuladoLiquido.toFixed(2)}
                                             </TableCell>
                                             <TableCell className="text-right text-slate-600 italic">
-                                                R$ {decimoTerceiroTotals.totalEncargosAcumulado.toFixed(2)}
+                                                R$ {decimoTerceiroTotals.totalEncargos.toFixed(2)}
                                             </TableCell>
                                             <TableCell className="text-right text-blue-600">
                                                 R$ {decimoTerceiroTotals.totalPrimeira.toFixed(2)}
