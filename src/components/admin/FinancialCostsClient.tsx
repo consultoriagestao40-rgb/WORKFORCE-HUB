@@ -138,7 +138,9 @@ export function FinancialCostsClient({
             },
             { totalDays: 0, totalValue: 0 }
         );
-      // Lógica e Cálculos de 13º Salário
+    }, [feriasData]);
+
+    // Lógica e Cálculos de 13º Salário
     const decimoTerceiroData = useMemo(() => {
         return employees.map(emp => {
             const admission = new Date(emp.admissionDate);
