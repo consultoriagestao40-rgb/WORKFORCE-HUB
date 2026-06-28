@@ -303,24 +303,49 @@ export function FinancialCostsClient({
 
     // Lógica e Cálculos de Folha de Pagamento
     const folhaData = useMemo(() => {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = today.getMonth();
+        const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+
         return employees.map(emp => {
-            const salary = emp.salary || 0;
-            const insalubridade = emp.insalubridade || 0;
-            const periculosidade = emp.periculosidade || 0;
-            const gratificacao = emp.gratificacao || 0;
-            const outrosAdicionais = emp.outrosAdicionais || 0;
+            const admission = new Date(emp.admissionDate);
+            let salary = emp.salary || 0;
+            let insalubridade = emp.insalubridade || 0;
+            let periculosidade = emp.periculosidade || 0;
+            let gratificacao = emp.gratificacao || 0;
+            let outrosAdicionais = emp.outrosAdicionais || 0;
+
+            const vtDiario = (emp.valeTransporte !== undefined && emp.valeTransporte !== null && emp.valeTransporte > 0) ? emp.valeTransporte : 12;
+            const vaMensalCadastro = (emp.valeAlimentacao !== undefined && emp.valeAlimentacao !== null) ? emp.valeAlimentacao : 0;
+
+            // Check if admitted in the current month & year
+            const isAdmittedThisMonth = admission.getFullYear() === today.getFullYear() && admission.getMonth() === today.getMonth();
+            
+            let daysWorked = totalDaysInMonth;
+            let vtDays = 22;
+
+            if (isAdmittedThisMonth) {
+                daysWorked = totalDaysInMonth - admission.getDate() + 1;
+                salary = (salary / totalDaysInMonth) * daysWorked;
+                insalubridade = (insalubridade / totalDaysInMonth) * daysWorked;
+                periculosidade = (periculosidade / totalDaysInMonth) * daysWorked;
+                gratificacao = (gratificacao / totalDaysInMonth) * daysWorked;
+                outrosAdicionais = (outrosAdicionais / totalDaysInMonth) * daysWorked;
+                
+                // Pro-rata of 22 days worked
+                vtDays = Math.round((daysWorked / totalDaysInMonth) * 22);
+            }
 
             const totalAdicionais = insalubridade + periculosidade + gratificacao + outrosAdicionais;
             const remuneracaoTotal = salary + totalAdicionais;
-            const encargos = remuneracaoTotal * (taxRate / 100);
 
-            const vtDiario = (emp.valeTransporte !== undefined && emp.valeTransporte !== null && emp.valeTransporte > 0) ? emp.valeTransporte : 12;
-            const vtMensal = vtDiario * 22;
+            // Previsão de VT e VA
+            const vtMensal = vtDiario * vtDays;
+            const vaMensal = isAdmittedThisMonth ? (vaMensalCadastro / totalDaysInMonth) * daysWorked : vaMensalCadastro;
 
-            const vaDiario = emp.valeAlimentacao !== undefined && emp.valeAlimentacao !== null ? emp.valeAlimentacao : 0;
-            const vaMensal = vaDiario * 22;
-
-            const totalCustoMensal = remuneracaoTotal + encargos + vtMensal + vaMensal;
+            // Custo Total Sem encargos sociais
+            const totalCustoMensal = remuneracaoTotal + vtMensal + vaMensal;
 
             const clientName = emp.assignments?.[0]?.posto?.client?.name || "Reserva Técnica";
             const companyName = emp.company?.name || "Sem Empresa";
@@ -336,10 +361,9 @@ export function FinancialCostsClient({
                 outrosAdicionais,
                 totalAdicionais,
                 remuneracaoTotal,
-                encargos,
                 vtDiario,
                 vtMensal,
-                vaDiario,
+                vaDiario: vaMensalCadastro,
                 vaMensal,
                 totalCustoMensal,
                 contractName: clientName,
@@ -350,7 +374,7 @@ export function FinancialCostsClient({
             const matchesContract = selectedContract === "ALL" || item.contractName === selectedContract;
             return matchesSearch && matchesContract;
         });
-    }, [employees, taxRate, searchTerm, selectedContract]);
+    }, [employees, searchTerm, selectedContract]);
 
     const folhaTotals = useMemo(() => {
         return folhaData.reduce(
@@ -358,7 +382,6 @@ export function FinancialCostsClient({
                 acc.totalSalary += item.salary;
                 acc.totalAdicionais += item.totalAdicionais;
                 acc.totalRemuneracao += item.remuneracaoTotal;
-                acc.totalEncargos += item.encargos;
                 acc.totalVT += item.vtMensal;
                 acc.totalVA += item.vaMensal;
                 acc.totalCusto += item.totalCustoMensal;
@@ -368,7 +391,6 @@ export function FinancialCostsClient({
                 totalSalary: 0,
                 totalAdicionais: 0,
                 totalRemuneracao: 0,
-                totalEncargos: 0,
                 totalVT: 0,
                 totalVA: 0,
                 totalCusto: 0
@@ -384,7 +406,6 @@ export function FinancialCostsClient({
             totalSalary: number;
             totalAdicionais: number;
             totalRemuneracao: number;
-            totalEncargos: number;
             totalVT: number;
             totalVA: number;
             totalCusto: number;
@@ -399,7 +420,6 @@ export function FinancialCostsClient({
                     totalSalary: 0,
                     totalAdicionais: 0,
                     totalRemuneracao: 0,
-                    totalEncargos: 0,
                     totalVT: 0,
                     totalVA: 0,
                     totalCusto: 0
@@ -409,7 +429,6 @@ export function FinancialCostsClient({
             groups[contractKey].totalSalary += item.salary;
             groups[contractKey].totalAdicionais += item.totalAdicionais;
             groups[contractKey].totalRemuneracao += item.remuneracaoTotal;
-            groups[contractKey].totalEncargos += item.encargos;
             groups[contractKey].totalVT += item.vtMensal;
             groups[contractKey].totalVA += item.vaMensal;
             groups[contractKey].totalCusto += item.totalCustoMensal;
@@ -426,7 +445,6 @@ export function FinancialCostsClient({
             totalSalary: number;
             totalAdicionais: number;
             totalRemuneracao: number;
-            totalEncargos: number;
             totalVT: number;
             totalVA: number;
             totalCusto: number;
@@ -441,7 +459,6 @@ export function FinancialCostsClient({
                     totalSalary: 0,
                     totalAdicionais: 0,
                     totalRemuneracao: 0,
-                    totalEncargos: 0,
                     totalVT: 0,
                     totalVA: 0,
                     totalCusto: 0
@@ -451,7 +468,6 @@ export function FinancialCostsClient({
             groups[companyKey].totalSalary += item.salary;
             groups[companyKey].totalAdicionais += item.totalAdicionais;
             groups[companyKey].totalRemuneracao += item.remuneracaoTotal;
-            groups[companyKey].totalEncargos += item.encargos;
             groups[companyKey].totalVT += item.vtMensal;
             groups[companyKey].totalVA += item.vaMensal;
             groups[companyKey].totalCusto += item.totalCustoMensal;
@@ -1308,7 +1324,7 @@ export function FinancialCostsClient({
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                             <Card className="lg:col-span-2 border-none shadow-premium bg-gradient-to-br from-indigo-600 to-blue-700 text-white">
                                 <CardHeader className="pb-2">
-                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-indigo-100">Custo Mensal Total da Operação</CardDescription>
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-indigo-100">Custo Mensal Total da Operação (Massa + Benefícios)</CardDescription>
                                     <CardTitle className="text-3xl font-black flex items-center justify-between">
                                         <span>{formatCurrency(folhaTotals.totalCusto)}</span>
                                         <DollarSign className="w-8 h-8 text-indigo-200" />
@@ -1316,7 +1332,7 @@ export function FinancialCostsClient({
                                 </CardHeader>
                                 <CardContent>
                                     <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-wider">
-                                        Salários + Adicionais + Encargos ({taxRate}%) + VT (Previsão 22 dias) + VA (Previsão 22 dias)
+                                        Salários + Adicionais (Pro-rata de admissão se aplicável) + VT (Previsão 22 dias) + VA (Mensal do cadastro)
                                     </p>
                                 </CardContent>
                             </Card>
@@ -1349,7 +1365,7 @@ export function FinancialCostsClient({
                                 </CardHeader>
                                 <CardContent>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                        Somente salários contratuais
+                                        Salários contratuais (pro-rata no mês de admissão)
                                     </p>
                                 </CardContent>
                             </Card>
@@ -1394,7 +1410,7 @@ export function FinancialCostsClient({
                                 </CardHeader>
                                 <CardContent>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                        VA no cadastro (22 dias úteis)
+                                        VA real cadastrado nos colaboradores
                                     </p>
                                 </CardContent>
                             </Card>
@@ -1412,7 +1428,6 @@ export function FinancialCostsClient({
                                             <TableHead className="font-bold text-slate-800 text-right">Salários Base</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Adicionais</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Remuneração Total</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Previsão VT</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Previsão VA</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Custo Total</TableHead>
@@ -1436,9 +1451,6 @@ export function FinancialCostsClient({
                                                 <TableCell className="text-right text-xs text-slate-900 font-bold">
                                                     {formatCurrency(group.totalRemuneracao)}
                                                 </TableCell>
-                                                <TableCell className="text-right text-xs text-slate-600 italic">
-                                                    {formatCurrency(group.totalEncargos)}
-                                                </TableCell>
                                                 <TableCell className="text-right text-xs text-slate-700">
                                                     {formatCurrency(group.totalVT)}
                                                 </TableCell>
@@ -1452,7 +1464,7 @@ export function FinancialCostsClient({
                                         ))}
                                         {folhaGroupedByContract.length === 0 && (
                                             <TableRow>
-                                                <TableCell colSpan={9} className="text-center text-slate-500 py-10 font-semibold">
+                                                <TableCell colSpan={8} className="text-center text-slate-500 py-10 font-semibold">
                                                     Nenhum contrato encontrado.
                                                 </TableCell>
                                             </TableRow>
@@ -1464,7 +1476,6 @@ export function FinancialCostsClient({
                                                 <TableCell className="text-right">{formatCurrency(folhaTotals.totalSalary)}</TableCell>
                                                 <TableCell className="text-right">{formatCurrency(folhaTotals.totalAdicionais)}</TableCell>
                                                 <TableCell className="text-right">{formatCurrency(folhaTotals.totalRemuneracao)}</TableCell>
-                                                <TableCell className="text-right italic">{formatCurrency(folhaTotals.totalEncargos)}</TableCell>
                                                 <TableCell className="text-right">{formatCurrency(folhaTotals.totalVT)}</TableCell>
                                                 <TableCell className="text-right">{formatCurrency(folhaTotals.totalVA)}</TableCell>
                                                 <TableCell className="text-right text-emerald-700">{formatCurrency(folhaTotals.totalCusto)}</TableCell>
@@ -1483,7 +1494,6 @@ export function FinancialCostsClient({
                                             <TableHead className="font-bold text-slate-800 text-right">Salários Base</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Adicionais</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Remuneração Total</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Previsão VT</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Previsão VA</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Custo Total</TableHead>
@@ -1507,9 +1517,6 @@ export function FinancialCostsClient({
                                                 <TableCell className="text-right text-xs text-slate-900 font-bold">
                                                     {formatCurrency(group.totalRemuneracao)}
                                                 </TableCell>
-                                                <TableCell className="text-right text-xs text-slate-600 italic">
-                                                    {formatCurrency(group.totalEncargos)}
-                                                </TableCell>
                                                 <TableCell className="text-right text-xs text-slate-700">
                                                     {formatCurrency(group.totalVT)}
                                                 </TableCell>
@@ -1523,7 +1530,7 @@ export function FinancialCostsClient({
                                         ))}
                                         {folhaGroupedByCompany.length === 0 && (
                                             <TableRow>
-                                                <TableCell colSpan={9} className="text-center text-slate-500 py-10 font-semibold">
+                                                <TableCell colSpan={8} className="text-center text-slate-500 py-10 font-semibold">
                                                     Nenhuma empresa encontrada.
                                                 </TableCell>
                                             </TableRow>
@@ -1535,7 +1542,6 @@ export function FinancialCostsClient({
                                                 <TableCell className="text-right">{formatCurrency(folhaTotals.totalSalary)}</TableCell>
                                                 <TableCell className="text-right">{formatCurrency(folhaTotals.totalAdicionais)}</TableCell>
                                                 <TableCell className="text-right">{formatCurrency(folhaTotals.totalRemuneracao)}</TableCell>
-                                                <TableCell className="text-right italic">{formatCurrency(folhaTotals.totalEncargos)}</TableCell>
                                                 <TableCell className="text-right">{formatCurrency(folhaTotals.totalVT)}</TableCell>
                                                 <TableCell className="text-right">{formatCurrency(folhaTotals.totalVA)}</TableCell>
                                                 <TableCell className="text-right text-emerald-700">{formatCurrency(folhaTotals.totalCusto)}</TableCell>
@@ -1553,7 +1559,6 @@ export function FinancialCostsClient({
                                             <TableHead className="font-bold text-slate-800 text-right">Salário Base</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Adicionais</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Remuneração Total</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-center">Vale Transporte (VT)</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-center">Vale Alimentação (VA)</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Custo Mensal</TableHead>
@@ -1589,9 +1594,6 @@ export function FinancialCostsClient({
                                                 <TableCell className="text-right text-xs text-slate-900 font-bold">
                                                     {formatCurrency(item.remuneracaoTotal)}
                                                 </TableCell>
-                                                <TableCell className="text-right text-xs text-slate-600 italic">
-                                                    {formatCurrency(item.encargos)}
-                                                </TableCell>
                                                 <TableCell className="text-center text-xs">
                                                     <div className="flex flex-col">
                                                         <span className="text-slate-800 font-medium">{formatCurrency(item.vtMensal)}</span>
@@ -1611,7 +1613,7 @@ export function FinancialCostsClient({
                                         ))}
                                         {folhaData.length === 0 && (
                                             <TableRow>
-                                                <TableCell colSpan={8} className="text-center text-slate-500 py-10 font-semibold">
+                                                <TableCell colSpan={7} className="text-center text-slate-500 py-10 font-semibold">
                                                     Nenhum colaborador encontrado.
                                                 </TableCell>
                                             </TableRow>
@@ -1622,7 +1624,6 @@ export function FinancialCostsClient({
                                                 <TableCell className="text-right text-slate-950">{formatCurrency(folhaTotals.totalSalary)}</TableCell>
                                                 <TableCell className="text-right text-slate-950">{formatCurrency(folhaTotals.totalAdicionais)}</TableCell>
                                                 <TableCell className="text-right text-slate-950">{formatCurrency(folhaTotals.totalRemuneracao)}</TableCell>
-                                                <TableCell className="text-right text-slate-600 italic">{formatCurrency(folhaTotals.totalEncargos)}</TableCell>
                                                 <TableCell className="text-center text-slate-950">{formatCurrency(folhaTotals.totalVT)}</TableCell>
                                                 <TableCell className="text-center text-slate-950">{formatCurrency(folhaTotals.totalVA)}</TableCell>
                                                 <TableCell className="text-right text-emerald-700">{formatCurrency(folhaTotals.totalCusto)}</TableCell>
