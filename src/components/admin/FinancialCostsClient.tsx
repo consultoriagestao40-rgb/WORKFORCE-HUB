@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, DollarSign, Users, AlertTriangle, TrendingUp, TrendingDown, Info, Search, ShieldAlert, Award } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -18,6 +19,7 @@ interface Employee {
     lastVacationEnd: string | Date | null;
     role: { name: string } | null;
     situation: { name: string } | null;
+    type: string;
     vacations: { id: string; startDate: string | Date; endDate: string | Date }[];
 }
 
@@ -86,6 +88,7 @@ export function FinancialCostsClient({
 }: FinancialCostsClientProps) {
     const [activeTab, setActiveTab] = useState("ferias");
     const [searchTerm, setSearchTerm] = useState("");
+    const [contractType, setContractType] = useState<string>("ALL");
     const [taxRate, setTaxRate] = useState<number>(27.8);
     const [taxRateInput, setTaxRateInput] = useState<string>("27.8");
 
@@ -146,10 +149,15 @@ export function FinancialCostsClient({
                 thirdConstitucional,
                 incidentesLegais,
                 totalVal,
-                salary: emp.salary
+                salary: emp.salary,
+                type: emp.type
             };
-        }).filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase()));
-    }, [employees, taxRate, today, searchTerm]);
+        }).filter(item => {
+            const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesContract = contractType === "ALL" || item.type === contractType;
+            return matchesSearch && matchesContract;
+        });
+    }, [employees, taxRate, today, searchTerm, contractType]);
 
     const feriasTotals = useMemo(() => {
         return feriasData.reduce(
@@ -215,10 +223,15 @@ export function FinancialCostsClient({
                 totalAnualBruto,
                 monthsOfService,
                 riskStatus,
-                riskPercentage
+                riskPercentage,
+                type: emp.type
             };
-        }).filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase()));
-    }, [employees, firstDayOfCurrentYear, today, currentYear, averageStayMonths, searchTerm]);
+        }).filter(item => {
+            const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesContract = contractType === "ALL" || item.type === contractType;
+            return matchesSearch && matchesContract;
+        });
+    }, [employees, firstDayOfCurrentYear, today, currentYear, averageStayMonths, searchTerm, contractType]);
 
     const decimoTerceiroTotals = useMemo(() => {
         return decimoTerceiroData.reduce(
@@ -251,6 +264,17 @@ export function FinancialCostsClient({
                 </div>
 
                 <div className="flex items-center gap-3">
+                    <Select value={contractType} onValueChange={setContractType}>
+                        <SelectTrigger className="w-[180px] h-10 text-xs font-semibold bg-white border-slate-200 text-slate-700">
+                            <SelectValue placeholder="Tipo de Contrato" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL">Todos os Contratos</SelectItem>
+                            <SelectItem value="CLT">CLT (Efetivo)</SelectItem>
+                            <SelectItem value="Reserva Técnica">Reserva Técnica</SelectItem>
+                        </SelectContent>
+                    </Select>
+
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <Input
