@@ -765,19 +765,19 @@ export function FinancialCostsClient({
                                                     {group.count} colaboradores
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-slate-700">
-                                                    R$ {group.totalAcumuladoLiquido.toFixed(2)}
+                                                    {formatCurrency(group.totalAcumuladoLiquido)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-slate-600 italic">
-                                                    R$ {group.totalEncargos.toFixed(2)}
+                                                    {formatCurrency(group.totalEncargos)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-blue-600 font-bold">
-                                                    R$ {group.totalPrimeira.toFixed(2)}
+                                                    {formatCurrency(group.totalPrimeira)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-slate-800 font-bold">
-                                                    R$ {group.totalSegunda.toFixed(2)}
+                                                    {formatCurrency(group.totalSegunda)}
                                                 </TableCell>
                                                 <TableCell className="text-right font-extrabold text-emerald-700 text-sm">
-                                                    R$ {(group.totalPrimeira + group.totalSegunda + group.totalEncargos).toFixed(2)}
+                                                    {formatCurrency(group.totalPrimeira + group.totalSegunda + group.totalEncargos)}
                                                 </TableCell>
                                             </TableRow>
                                         ))}
