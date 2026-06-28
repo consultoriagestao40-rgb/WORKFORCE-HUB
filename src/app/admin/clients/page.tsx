@@ -66,7 +66,7 @@ async function getVacantStats() {
     today.setHours(0, 0, 0, 0);
 
     vacantPostos.forEach(p => {
-        const endedAssignments = p.assignments.filter(a => a.endDate);
+        const endedAssignments = p.assignments.filter((a: any) => a.endDate);
         let vacantSinceDate: Date;
         if (endedAssignments.length > 0) {
             const sorted = [...endedAssignments].sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
