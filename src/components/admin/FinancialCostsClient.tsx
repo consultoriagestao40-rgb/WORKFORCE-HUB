@@ -22,6 +22,12 @@ interface Employee {
     type: string;
     vacations: { id: string; startDate: string | Date; endDate: string | Date }[];
     company?: { id: string; name: string } | null;
+    insalubridade?: number;
+    periculosidade?: number;
+    gratificacao?: number;
+    outrosAdicionais?: number;
+    valeAlimentacao?: number;
+    valeTransporte?: number;
     assignments?: {
         id: string;
         posto: {
@@ -295,6 +301,165 @@ export function FinancialCostsClient({
         );
     }, [decimoTerceiroData, taxRate]);
 
+    // Lógica e Cálculos de Folha de Pagamento
+    const folhaData = useMemo(() => {
+        return employees.map(emp => {
+            const salary = emp.salary || 0;
+            const insalubridade = emp.insalubridade || 0;
+            const periculosidade = emp.periculosidade || 0;
+            const gratificacao = emp.gratificacao || 0;
+            const outrosAdicionais = emp.outrosAdicionais || 0;
+
+            const totalAdicionais = insalubridade + periculosidade + gratificacao + outrosAdicionais;
+            const remuneracaoTotal = salary + totalAdicionais;
+            const encargos = remuneracaoTotal * (taxRate / 100);
+
+            const vtDiario = emp.valeTransporte > 0 ? emp.valeTransporte : 12;
+            const vtMensal = vtDiario * 22;
+
+            const vaDiario = emp.valeAlimentacao || 0;
+            const vaMensal = vaDiario * 22;
+
+            const totalCustoMensal = remuneracaoTotal + encargos + vtMensal + vaMensal;
+
+            const clientName = emp.assignments?.[0]?.posto?.client?.name || "Reserva Técnica";
+            const companyName = emp.company?.name || "Sem Empresa";
+
+            return {
+                id: emp.id,
+                name: emp.name,
+                role: emp.role?.name || "-",
+                salary,
+                insalubridade,
+                periculosidade,
+                gratificacao,
+                outrosAdicionais,
+                totalAdicionais,
+                remuneracaoTotal,
+                encargos,
+                vtDiario,
+                vtMensal,
+                vaDiario,
+                vaMensal,
+                totalCustoMensal,
+                contractName: clientName,
+                companyName
+            };
+        }).filter(item => {
+            const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesContract = selectedContract === "ALL" || item.contractName === selectedContract;
+            return matchesSearch && matchesContract;
+        });
+    }, [employees, taxRate, searchTerm, selectedContract]);
+
+    const folhaTotals = useMemo(() => {
+        return folhaData.reduce(
+            (acc, item) => {
+                acc.totalSalary += item.salary;
+                acc.totalAdicionais += item.totalAdicionais;
+                acc.totalRemuneracao += item.remuneracaoTotal;
+                acc.totalEncargos += item.encargos;
+                acc.totalVT += item.vtMensal;
+                acc.totalVA += item.vaMensal;
+                acc.totalCusto += item.totalCustoMensal;
+                return acc;
+            },
+            {
+                totalSalary: 0,
+                totalAdicionais: 0,
+                totalRemuneracao: 0,
+                totalEncargos: 0,
+                totalVT: 0,
+                totalVA: 0,
+                totalCusto: 0
+            }
+        );
+    }, [folhaData]);
+
+    // Agrupamento por Contrato - Folha
+    const folhaGroupedByContract = useMemo(() => {
+        const groups: Record<string, {
+            type: string;
+            count: number;
+            totalSalary: number;
+            totalAdicionais: number;
+            totalRemuneracao: number;
+            totalEncargos: number;
+            totalVT: number;
+            totalVA: number;
+            totalCusto: number;
+        }> = {};
+
+        folhaData.forEach(item => {
+            const contractKey = item.contractName || "Reserva Técnica";
+            if (!groups[contractKey]) {
+                groups[contractKey] = {
+                    type: contractKey,
+                    count: 0,
+                    totalSalary: 0,
+                    totalAdicionais: 0,
+                    totalRemuneracao: 0,
+                    totalEncargos: 0,
+                    totalVT: 0,
+                    totalVA: 0,
+                    totalCusto: 0
+                };
+            }
+            groups[contractKey].count += 1;
+            groups[contractKey].totalSalary += item.salary;
+            groups[contractKey].totalAdicionais += item.totalAdicionais;
+            groups[contractKey].totalRemuneracao += item.remuneracaoTotal;
+            groups[contractKey].totalEncargos += item.encargos;
+            groups[contractKey].totalVT += item.vtMensal;
+            groups[contractKey].totalVA += item.vaMensal;
+            groups[contractKey].totalCusto += item.totalCustoMensal;
+        });
+
+        return Object.values(groups).sort((a, b) => a.type.localeCompare(b.type));
+    }, [folhaData]);
+
+    // Agrupamento por Empresa - Folha
+    const folhaGroupedByCompany = useMemo(() => {
+        const groups: Record<string, {
+            type: string;
+            count: number;
+            totalSalary: number;
+            totalAdicionais: number;
+            totalRemuneracao: number;
+            totalEncargos: number;
+            totalVT: number;
+            totalVA: number;
+            totalCusto: number;
+        }> = {};
+
+        folhaData.forEach(item => {
+            const companyKey = item.companyName || "Sem Empresa";
+            if (!groups[companyKey]) {
+                groups[companyKey] = {
+                    type: companyKey,
+                    count: 0,
+                    totalSalary: 0,
+                    totalAdicionais: 0,
+                    totalRemuneracao: 0,
+                    totalEncargos: 0,
+                    totalVT: 0,
+                    totalVA: 0,
+                    totalCusto: 0
+                };
+            }
+            groups[companyKey].count += 1;
+            groups[companyKey].totalSalary += item.salary;
+            groups[companyKey].totalAdicionais += item.totalAdicionais;
+            groups[companyKey].totalRemuneracao += item.remuneracaoTotal;
+            groups[companyKey].totalEncargos += item.encargos;
+            groups[companyKey].totalVT += item.vtMensal;
+            groups[companyKey].totalVA += item.vaMensal;
+            groups[companyKey].totalCusto += item.totalCustoMensal;
+        });
+
+        return Object.values(groups).sort((a, b) => a.type.localeCompare(b.type));
+    }, [folhaData]);
+
     // Agrupamento por Contrato - Férias
     const feriasGroupedByContract = useMemo(() => {
         const groups: Record<string, {
@@ -492,6 +657,9 @@ export function FinancialCostsClient({
                         </TabsTrigger>
                         <TabsTrigger value="decimo" className="px-4 py-2 text-xs font-bold rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm">
                             13º Salário Proporcional
+                        </TabsTrigger>
+                        <TabsTrigger value="folha" className="px-4 py-2 text-xs font-bold rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                            Folha de Pagamento
                         </TabsTrigger>
                     </TabsList>
 
@@ -1125,6 +1293,339 @@ export function FinancialCostsClient({
                                                     {formatCurrency(decimoTerceiroTotals.totalSegunda)}
                                                 </TableCell>
                                                 <TableCell></TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            )}
+                        </div>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="folha" className="space-y-6 pt-4">
+                    <div className="space-y-4">
+                        {/* Linha 1: Destaques (Custo Total e Ativos) */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                            <Card className="lg:col-span-2 border-none shadow-premium bg-gradient-to-br from-indigo-600 to-blue-700 text-white">
+                                <CardHeader className="pb-2">
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-indigo-100">Custo Mensal Total da Operação</CardDescription>
+                                    <CardTitle className="text-3xl font-black flex items-center justify-between">
+                                        <span>{formatCurrency(folhaTotals.totalCusto)}</span>
+                                        <DollarSign className="w-8 h-8 text-indigo-200" />
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-wider">
+                                        Salários + Adicionais + Encargos ({taxRate}%) + VT (Previsão 22 dias) + VA (Previsão 22 dias)
+                                    </p>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                                <CardHeader className="pb-2">
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Média por Colaborador</CardDescription>
+                                    <CardTitle className="text-3xl font-black text-slate-900 flex items-center justify-between">
+                                        <span>{formatCurrency(folhaTotals.totalCusto / (folhaData.length || 1))}</span>
+                                        <Users className="w-6 h-6 text-indigo-500" />
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                        Base de cálculo: {folhaData.length} colaboradores ativos
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* Linha 2: Detalhamento por categoria */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                                <CardHeader className="pb-2">
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Massa Salarial Base</CardDescription>
+                                    <CardTitle className="text-xl font-extrabold text-slate-900 flex items-center justify-between">
+                                        <span>{formatCurrency(folhaTotals.totalSalary)}</span>
+                                        <Calendar className="w-5 h-5 text-blue-500" />
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                        Somente salários contratuais
+                                    </p>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                                <CardHeader className="pb-2">
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Adicionais Salariais</CardDescription>
+                                    <CardTitle className="text-xl font-extrabold text-slate-900 flex items-center justify-between">
+                                        <span>{formatCurrency(folhaTotals.totalAdicionais)}</span>
+                                        <DollarSign className="w-5 h-5 text-slate-400" />
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                        Insalubridade, Periculosidade e Gratificações
+                                    </p>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                                <CardHeader className="pb-2">
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Previsão Mensal VT</CardDescription>
+                                    <CardTitle className="text-xl font-extrabold text-blue-600 flex items-center justify-between">
+                                        <span>{formatCurrency(folhaTotals.totalVT)}</span>
+                                        <DollarSign className="w-5 h-5" />
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                        VT no cadastro (ou padrão R$ 12/dia)
+                                    </p>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                                <CardHeader className="pb-2">
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Previsão Mensal VA</CardDescription>
+                                    <CardTitle className="text-xl font-extrabold text-slate-900 flex items-center justify-between">
+                                        <span>{formatCurrency(folhaTotals.totalVA)}</span>
+                                        <TrendingDown className="w-5 h-5 text-red-500" />
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                        VA no cadastro (22 dias úteis)
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </div>
+
+                    <Card className="border-none shadow-premium bg-white overflow-hidden">
+                        <div className="w-full overflow-x-auto">
+                            {viewMode === "contrato" && (
+                                <Table>
+                                    <TableHeader className="bg-slate-50">
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800">Cliente / Contrato</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Colaboradores</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Salários Base</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Adicionais</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Remuneração Total</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Previsão VT</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Previsão VA</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Custo Total</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {folhaGroupedByContract.map((group) => (
+                                            <TableRow key={group.type} className="hover:bg-slate-50/50 font-medium">
+                                                <TableCell className="font-bold text-slate-900 text-sm">
+                                                    {group.type}
+                                                </TableCell>
+                                                <TableCell className="text-center text-xs text-slate-800">
+                                                    {group.count} colaboradores
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    {formatCurrency(group.totalSalary)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    {formatCurrency(group.totalAdicionais)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-900 font-bold">
+                                                    {formatCurrency(group.totalRemuneracao)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-600 italic">
+                                                    {formatCurrency(group.totalEncargos)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    {formatCurrency(group.totalVT)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    {formatCurrency(group.totalVA)}
+                                                </TableCell>
+                                                <TableCell className="text-right font-extrabold text-emerald-700 text-sm">
+                                                    {formatCurrency(group.totalCusto)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {folhaGroupedByContract.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={9} className="text-center text-slate-500 py-10 font-semibold">
+                                                    Nenhum contrato encontrado.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                        {folhaGroupedByContract.length > 0 && (
+                                            <TableRow className="bg-slate-100 font-black border-t-2 border-slate-200">
+                                                <TableCell>Total Geral</TableCell>
+                                                <TableCell className="text-center">{folhaData.length} colaboradores</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(folhaTotals.totalSalary)}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(folhaTotals.totalAdicionais)}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(folhaTotals.totalRemuneracao)}</TableCell>
+                                                <TableCell className="text-right italic">{formatCurrency(folhaTotals.totalEncargos)}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(folhaTotals.totalVT)}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(folhaTotals.totalVA)}</TableCell>
+                                                <TableCell className="text-right text-emerald-700">{formatCurrency(folhaTotals.totalCusto)}</TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            )}
+
+                            {viewMode === "empresa" && (
+                                <Table>
+                                    <TableHeader className="bg-slate-50">
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800">Empresa</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Colaboradores</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Salários Base</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Adicionais</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Remuneração Total</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Previsão VT</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Previsão VA</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Custo Total</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {folhaGroupedByCompany.map((group) => (
+                                            <TableRow key={group.type} className="hover:bg-slate-50/50 font-medium">
+                                                <TableCell className="font-bold text-slate-900 text-sm">
+                                                    {group.type}
+                                                </TableCell>
+                                                <TableCell className="text-center text-xs text-slate-800">
+                                                    {group.count} colaboradores
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    {formatCurrency(group.totalSalary)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    {formatCurrency(group.totalAdicionais)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-900 font-bold">
+                                                    {formatCurrency(group.totalRemuneracao)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-600 italic">
+                                                    {formatCurrency(group.totalEncargos)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    {formatCurrency(group.totalVT)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    {formatCurrency(group.totalVA)}
+                                                </TableCell>
+                                                <TableCell className="text-right font-extrabold text-emerald-700 text-sm">
+                                                    {formatCurrency(group.totalCusto)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {folhaGroupedByCompany.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={9} className="text-center text-slate-500 py-10 font-semibold">
+                                                    Nenhuma empresa encontrada.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                        {folhaGroupedByCompany.length > 0 && (
+                                            <TableRow className="bg-slate-100 font-black border-t-2 border-slate-200">
+                                                <TableCell>Total Geral</TableCell>
+                                                <TableCell className="text-center">{folhaData.length} colaboradores</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(folhaTotals.totalSalary)}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(folhaTotals.totalAdicionais)}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(folhaTotals.totalRemuneracao)}</TableCell>
+                                                <TableCell className="text-right italic">{formatCurrency(folhaTotals.totalEncargos)}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(folhaTotals.totalVT)}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(folhaTotals.totalVA)}</TableCell>
+                                                <TableCell className="text-right text-emerald-700">{formatCurrency(folhaTotals.totalCusto)}</TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            )}
+
+                            {viewMode === "colaborador" && (
+                                <Table>
+                                    <TableHeader className="bg-slate-50">
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Salário Base</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Adicionais</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Remuneração Total</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Vale Transporte (VT)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Vale Alimentação (VA)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Custo Mensal</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {folhaData.map((item) => (
+                                            <TableRow key={item.id} className="hover:bg-slate-50/50">
+                                                <TableCell>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold text-slate-900">{item.name}</span>
+                                                        <span className="text-[10px] text-slate-400">{item.role}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    {formatCurrency(item.salary)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs">
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="text-slate-800 font-medium">{formatCurrency(item.totalAdicionais)}</span>
+                                                        {item.totalAdicionais > 0 && (
+                                                            <span className="text-[9px] text-slate-400">
+                                                                {[
+                                                                    item.insalubridade > 0 && `Insal.: ${formatCurrency(item.insalubridade)}`,
+                                                                    item.periculosidade > 0 && `Peric.: ${formatCurrency(item.periculosidade)}`,
+                                                                    item.gratificacao > 0 && `Gratif.: ${formatCurrency(item.gratificacao)}`,
+                                                                    item.outrosAdicionais > 0 && `Outros: ${formatCurrency(item.outrosAdicionais)}`
+                                                                ].filter(Boolean).join(" | ")}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-900 font-bold">
+                                                    {formatCurrency(item.remuneracaoTotal)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-600 italic">
+                                                    {formatCurrency(item.encargos)}
+                                                </TableCell>
+                                                <TableCell className="text-center text-xs">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-slate-800 font-medium">{formatCurrency(item.vtMensal)}</span>
+                                                        <span className="text-[9px] text-slate-400">({formatCurrency(item.vtDiario)}/dia)</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-center text-xs">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-slate-800 font-medium">{formatCurrency(item.vaMensal)}</span>
+                                                        <span className="text-[9px] text-slate-400">({formatCurrency(item.vaDiario)}/dia)</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-right font-extrabold text-slate-900 text-xs">
+                                                    {formatCurrency(item.totalCustoMensal)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {folhaData.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={8} className="text-center text-slate-500 py-10 font-semibold">
+                                                    Nenhum colaborador encontrado.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                        {folhaData.length > 0 && (
+                                            <TableRow className="bg-slate-50 font-bold hover:bg-slate-50 border-t-2 border-slate-200">
+                                                <TableCell className="text-slate-900">Total</TableCell>
+                                                <TableCell className="text-right text-slate-950">{formatCurrency(folhaTotals.totalSalary)}</TableCell>
+                                                <TableCell className="text-right text-slate-950">{formatCurrency(folhaTotals.totalAdicionais)}</TableCell>
+                                                <TableCell className="text-right text-slate-950">{formatCurrency(folhaTotals.totalRemuneracao)}</TableCell>
+                                                <TableCell className="text-right text-slate-600 italic">{formatCurrency(folhaTotals.totalEncargos)}</TableCell>
+                                                <TableCell className="text-center text-slate-950">{formatCurrency(folhaTotals.totalVT)}</TableCell>
+                                                <TableCell className="text-center text-slate-950">{formatCurrency(folhaTotals.totalVA)}</TableCell>
+                                                <TableCell className="text-right text-emerald-700">{formatCurrency(folhaTotals.totalCusto)}</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>
