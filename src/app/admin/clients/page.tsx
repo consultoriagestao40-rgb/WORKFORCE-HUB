@@ -70,9 +70,9 @@ async function getVacantStats() {
         let vacantSinceDate: Date;
         if (endedAssignments.length > 0) {
             const sorted = [...endedAssignments].sort((a, b) => new Date(b.endDate!).getTime() - new Date(a.endDate!).getTime());
-            vacantSinceDate = new Date(sorted[0].endDate);
+            vacantSinceDate = sorted[0].endDate!;
         } else {
-            vacantSinceDate = new Date(p.createdAt);
+            vacantSinceDate = p.createdAt;
         }
 
         const vacantDateClean = new Date(vacantSinceDate);
