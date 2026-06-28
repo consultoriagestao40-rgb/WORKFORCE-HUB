@@ -15,8 +15,12 @@ import Link from "next/link";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ChevronDown } from "lucide-react";
 
 interface VacantPostosDialogProps {
     vagoDaysCount: number;
@@ -34,7 +38,33 @@ interface VacantPostosDialogProps {
 export function VacantPostosDialog({ vagoDaysCount, glosaProjetada, vacantPostos, companies = [] }: VacantPostosDialogProps) {
     const [searchTerm, setSearchTerm] = useState("");
     const [companyFilter, setCompanyFilter] = useState("all");
-    const [clientFilter, setClientFilter] = useState("all");
+
+    const availableClients = useMemo(() => {
+        return Array.from(new Set(vacantPostos.map(p => p.client.id)))
+            .map(id => vacantPostos.find(p => p.client.id === id)?.client)
+            .filter(Boolean)
+            .sort((a, b) => a!.name.localeCompare(b!.name));
+    }, [vacantPostos]);
+
+    const [selectedClients, setSelectedClients] = useState<string[]>(() =>
+        availableClients.map(c => c!.id)
+    );
+
+    const toggleClient = (clientId: string) => {
+        setSelectedClients(prev =>
+            prev.includes(clientId)
+                ? prev.filter(id => id !== clientId)
+                : [...prev, clientId]
+        );
+    };
+
+    const selectAllClients = () => {
+        setSelectedClients(availableClients.map(c => c!.id));
+    };
+
+    const deselectAllClients = () => {
+        setSelectedClients([]);
+    };
 
     const filteredPostos = vacantPostos.filter(posto => {
         const matchesSearch = posto.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -49,10 +79,7 @@ export function VacantPostosDialog({ vagoDaysCount, glosaProjetada, vacantPostos
             }
         }
 
-        let matchesClient = true;
-        if (clientFilter !== "all") {
-            matchesClient = posto.client.id === clientFilter;
-        }
+        const matchesClient = selectedClients.includes(posto.client.id);
 
         return matchesSearch && matchesCompany && matchesClient;
     });
@@ -83,13 +110,6 @@ export function VacantPostosDialog({ vagoDaysCount, glosaProjetada, vacantPostos
         const fileName = `Postos_Vagos_${format(new Date(), 'dd-MM-yyyy')}.xlsx`;
         XLSX.writeFile(wb, fileName);
     };
-
-    // Extract unique clients from current filtered set or all? 
-    // Usually better to show valid options. For simplicity, all clients involved in vacant postos.
-    const availableClients = Array.from(new Set(vacantPostos.map(p => p.client.id)))
-        .map(id => vacantPostos.find(p => p.client.id === id)?.client)
-        .filter(Boolean)
-        .sort((a, b) => a!.name.localeCompare(b!.name));
 
 
     return (
@@ -144,19 +164,68 @@ export function VacantPostosDialog({ vagoDaysCount, glosaProjetada, vacantPostos
                             </select>
                         </div>
 
-                        <div className="relative w-full md:w-auto">
-                            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
-                            <select
-                                className="h-9 pl-8 pr-4 w-full md:w-[200px] rounded-md border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none cursor-pointer"
-                                value={clientFilter}
-                                onChange={(e) => setClientFilter(e.target.value)}
-                            >
-                                <option value="all">Todos os Clientes</option>
-                                {availableClients.map(c => (
-                                    <option key={c!.id} value={c!.id}>{c!.name}</option>
-                                ))}
-                            </select>
-                        </div>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-9 px-3 w-full md:w-[230px] justify-between text-xs font-medium border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-2 truncate">
+                                        <Filter className="w-3 h-3 text-slate-400 shrink-0" />
+                                        <span className="truncate">
+                                            {selectedClients.length === availableClients.length
+                                                ? "Todos os Clientes"
+                                                : selectedClients.length === 0
+                                                ? "Nenhum Cliente"
+                                                : `${selectedClients.length} Clientes Selecionados`
+                                            }
+                                        </span>
+                                    </div>
+                                    <ChevronDown className="w-3.5 h-3.5 ml-1 text-slate-400 shrink-0" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[250px] p-2 text-xs" align="start">
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+                                    <span className="font-bold text-slate-700">Filtrar Clientes</span>
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={selectAllClients}
+                                            className="text-[10px] text-blue-600 hover:underline font-semibold cursor-pointer"
+                                        >
+                                            Marcar Todos
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={deselectAllClients}
+                                            className="text-[10px] text-red-600 hover:underline font-semibold cursor-pointer"
+                                        >
+                                            Desmarcar Todos
+                                        </button>
+                                    </div>
+                                </div>
+                                <ScrollArea className="h-[200px] pr-2">
+                                    <div className="space-y-2">
+                                        {availableClients.map(client => {
+                                            const isChecked = selectedClients.includes(client!.id);
+                                            return (
+                                                <label
+                                                    key={client!.id}
+                                                    className="flex items-center gap-2 p-1 hover:bg-slate-50 rounded cursor-pointer select-none"
+                                                >
+                                                    <Checkbox
+                                                        checked={isChecked}
+                                                        onCheckedChange={() => toggleClient(client!.id)}
+                                                    />
+                                                    <span className="font-medium text-slate-600 truncate">{client!.name}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </ScrollArea>
+                            </PopoverContent>
+                        </Popover>
 
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
