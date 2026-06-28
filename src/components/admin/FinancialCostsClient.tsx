@@ -467,9 +467,9 @@ export function FinancialCostsClient({
                         </Card>
                     </div>
 
-                    {/* TABELA DE FÉRIAS */}
                     <Card className="border-none shadow-premium bg-white overflow-hidden">
-                                      {viewMode === "contrato" ? (
+                        <div className="w-full overflow-x-auto">
+                            {viewMode === "contrato" ? (
                                 <Table>
                                     <TableHeader className="bg-slate-50">
                                         <TableRow>
@@ -707,8 +707,9 @@ export function FinancialCostsClient({
                         </div>
                     </div>
 
-                    {/* TABELA DE 13º SALÁRIO */}
-                    <Card className="border-none shadow-premium bg-white o                            {viewMode === "contrato" ? (
+                    <Card className="border-none shadow-premium bg-white overflow-hidden">
+                        <div className="w-full overflow-x-auto">
+                            {viewMode === "contrato" ? (
                                 <Table>
                                     <TableHeader className="bg-slate-50">
                                         <TableRow>
