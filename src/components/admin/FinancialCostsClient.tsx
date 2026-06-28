@@ -314,10 +314,10 @@ export function FinancialCostsClient({
             const remuneracaoTotal = salary + totalAdicionais;
             const encargos = remuneracaoTotal * (taxRate / 100);
 
-            const vtDiario = emp.valeTransporte > 0 ? emp.valeTransporte : 12;
+            const vtDiario = (emp.valeTransporte !== undefined && emp.valeTransporte !== null && emp.valeTransporte > 0) ? emp.valeTransporte : 12;
             const vtMensal = vtDiario * 22;
 
-            const vaDiario = emp.valeAlimentacao || 0;
+            const vaDiario = emp.valeAlimentacao !== undefined && emp.valeAlimentacao !== null ? emp.valeAlimentacao : 0;
             const vaMensal = vaDiario * 22;
 
             const totalCustoMensal = remuneracaoTotal + encargos + vtMensal + vaMensal;
