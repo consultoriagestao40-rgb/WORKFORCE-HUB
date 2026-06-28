@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -84,7 +84,19 @@ export function FinancialCostsClient({
 }: FinancialCostsClientProps) {
     const [activeTab, setActiveTab] = useState("ferias");
     const [searchTerm, setSearchTerm] = useState("");
-    const [taxRate, setTaxRate] = useState<number>(27.8); // 8% FGTS + 19.8% Outros Encargos Sociais por padrão
+    const [taxRate, setTaxRate] = useState<number>(27.8);
+
+    useEffect(() => {
+        const saved = localStorage.getItem("workforce_hub_tax_rate");
+        if (saved) {
+            setTaxRate(Number(saved));
+        }
+    }, []);
+
+    const handleTaxRateChange = (newRate: number) => {
+        setTaxRate(newRate);
+        localStorage.setItem("workforce_hub_tax_rate", String(newRate));
+    };
 
     const today = useMemo(() => new Date(), []);
     const currentYear = today.getFullYear();
@@ -251,7 +263,7 @@ export function FinancialCostsClient({
                             <Input
                                 type="number"
                                 value={taxRate}
-                                onChange={(e) => setTaxRate(Number(e.target.value))}
+                                onChange={(e) => handleTaxRateChange(Number(e.target.value))}
                                 className="w-16 h-8 text-center font-bold text-slate-800 text-xs px-1"
                             />
                             <span className="font-bold text-slate-700">%</span>
@@ -394,33 +406,63 @@ export function FinancialCostsClient({
                 {/* TAB CONTENT: 13º SALÁRIO */}
                 <TabsContent value="decimo" className="space-y-6 pt-4">
                     {/* CARDS TOTALIZADORES 13º */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                         <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
                             <CardHeader className="pb-2">
                                 <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Colaboradores Ativos</CardDescription>
-                                <CardTitle className="text-3xl font-black text-slate-900 flex items-center justify-between">
+                                <CardTitle className="text-2xl font-black text-slate-900 flex items-center justify-between">
                                     <span>{decimoTerceiroData.length} ativos</span>
-                                    <Users className="w-6 h-6 text-indigo-500" />
+                                    <Users className="w-5 h-5 text-indigo-500" />
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                    Sem demitidos ou afastados
+                                    Sem demitidos/afastados
                                 </p>
                             </CardContent>
                         </Card>
 
                         <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
                             <CardHeader className="pb-2">
-                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estimativa 1ª Parcela (50% - Bruto)</CardDescription>
-                                <CardTitle className="text-3xl font-black text-blue-600 flex items-center justify-between">
-                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalPrimeira)}</span>
-                                    <DollarSign className="w-6 h-6" />
+                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">13º Líquido Acumulado</CardDescription>
+                                <CardTitle className="text-2xl font-black text-slate-900 flex items-center justify-between">
+                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalAcumuladoLiquido)}</span>
+                                    <Calendar className="w-5 h-5 text-blue-500" />
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                    Pago entre Fev-Nov sem descontos
+                                    Líquido acumulado até hoje
+                                </p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                            <CardHeader className="pb-2">
+                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Encargos s/ Acumulado ({taxRate}%)</CardDescription>
+                                <CardTitle className="text-2xl font-black text-slate-900 flex items-center justify-between">
+                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalEncargosAcumulado)}</span>
+                                    <DollarSign className="w-5 h-5 text-slate-400" />
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                    FGTS + Encargos até hoje
+                                </p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                            <CardHeader className="pb-2">
+                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estimativa 1ª Parcela (Bruto)</CardDescription>
+                                <CardTitle className="text-2xl font-black text-blue-600 flex items-center justify-between">
+                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalPrimeira)}</span>
+                                    <DollarSign className="w-5 h-5" />
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                    Pago sem descontos legais
                                 </p>
                             </CardContent>
                         </Card>
@@ -428,29 +470,29 @@ export function FinancialCostsClient({
                         <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
                             <CardHeader className="pb-2">
                                 <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estimativa 2ª Parcela (Líquido)</CardDescription>
-                                <CardTitle className="text-3xl font-black text-slate-900 flex items-center justify-between">
+                                <CardTitle className="text-2xl font-black text-slate-900 flex items-center justify-between">
                                     <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalSegunda)}</span>
-                                    <TrendingDown className="w-6 h-6 text-red-500" />
+                                    <TrendingDown className="w-5 h-5 text-red-500" />
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                    Dedução de INSS & IRRF na fonte
+                                    Deduções de INSS/IRRF retidos
                                 </p>
                             </CardContent>
                         </Card>
 
                         <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
                             <CardHeader className="pb-2">
-                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Encargos sobre 13º ({taxRate}%)</CardDescription>
-                                <CardTitle className="text-3xl font-black text-emerald-600 flex items-center justify-between">
-                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalEncargos)}</span>
-                                    <DollarSign className="w-6 h-6" />
+                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Custo Total Previsto (Ano)</CardDescription>
+                                <CardTitle className="text-2xl font-black text-emerald-600 flex items-center justify-between">
+                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalPrimeira + decimoTerceiroTotals.totalSegunda + decimoTerceiroTotals.totalEncargos)}</span>
+                                    <DollarSign className="w-5 h-5" />
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                    FGTS + Outros Encargos Sociais
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic text-emerald-600">
+                                    Parcela 1 + Parcela 2 + Encargos
                                 </p>
                             </CardContent>
                         </Card>
