@@ -89,6 +89,7 @@ export function FinancialCostsClient({
     const [activeTab, setActiveTab] = useState("ferias");
     const [searchTerm, setSearchTerm] = useState("");
     const [contractType, setContractType] = useState<string>("ALL");
+    const [viewMode, setViewMode] = useState<"colaborador" | "contrato">("colaborador");
     const [taxRate, setTaxRate] = useState<number>(27.8);
     const [taxRateInput, setTaxRateInput] = useState<string>("27.8");
 
@@ -255,6 +256,78 @@ export function FinancialCostsClient({
         );
     }, [decimoTerceiroData, taxRate]);
 
+    // Agrupamento por Contrato - Férias
+    const feriasGroupedByContract = useMemo(() => {
+        const groups: Record<string, {
+            type: string;
+            count: number;
+            totalDays: number;
+            proporcionalVal: number;
+            thirdConstitucional: number;
+            incidentesLegais: number;
+            totalVal: number;
+        }> = {};
+
+        feriasData.forEach(item => {
+            const contractKey = item.type || "Reserva Técnica";
+            if (!groups[contractKey]) {
+                groups[contractKey] = {
+                    type: contractKey,
+                    count: 0,
+                    totalDays: 0,
+                    proporcionalVal: 0,
+                    thirdConstitucional: 0,
+                    incidentesLegais: 0,
+                    totalVal: 0
+                };
+            }
+            groups[contractKey].count += 1;
+            groups[contractKey].totalDays += item.daysAccrued;
+            groups[contractKey].proporcionalVal += item.proporcionalVal;
+            groups[contractKey].thirdConstitucional += item.thirdConstitucional;
+            groups[contractKey].incidentesLegais += item.incidentesLegais;
+            groups[contractKey].totalVal += item.totalVal;
+        });
+
+        return Object.values(groups);
+    }, [feriasData]);
+
+    // Agrupamento por Contrato - 13º
+    const decimoGroupedByContract = useMemo(() => {
+        const groups: Record<string, {
+            type: string;
+            count: number;
+            totalAcumuladoLiquido: number;
+            totalEncargos: number;
+            totalEncargosAcumulado: number;
+            totalPrimeira: number;
+            totalSegunda: number;
+        }> = {};
+
+        decimoTerceiroData.forEach(item => {
+            const contractKey = item.type || "Reserva Técnica";
+            if (!groups[contractKey]) {
+                groups[contractKey] = {
+                    type: contractKey,
+                    count: 0,
+                    totalAcumuladoLiquido: 0,
+                    totalEncargos: 0,
+                    totalEncargosAcumulado: 0,
+                    totalPrimeira: 0,
+                    totalSegunda: 0
+                };
+            }
+            groups[contractKey].count += 1;
+            groups[contractKey].totalAcumuladoLiquido += item.valorAcumuladoLiquido;
+            groups[contractKey].totalEncargos += item.totalAnualBruto * (taxRate / 100);
+            groups[contractKey].totalEncargosAcumulado += item.valorAcumulado * (taxRate / 100);
+            groups[contractKey].totalPrimeira += item.primeiraParcela;
+            groups[contractKey].totalSegunda += item.segundaParcela;
+        });
+
+        return Object.values(groups);
+    }, [decimoTerceiroData, taxRate]);
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
@@ -264,6 +337,16 @@ export function FinancialCostsClient({
                 </div>
 
                 <div className="flex items-center gap-3">
+                    <Select value={viewMode} onValueChange={(val) => setViewMode(val as any)}>
+                        <SelectTrigger className="w-[180px] h-10 text-xs font-semibold bg-white border-slate-200 text-slate-700">
+                            <SelectValue placeholder="Visualização" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="colaborador">Por Colaborador</SelectItem>
+                            <SelectItem value="contrato">Por Tipo de Contrato</SelectItem>
+                        </SelectContent>
+                    </Select>
+
                     <Select value={contractType} onValueChange={setContractType}>
                         <SelectTrigger className="w-[180px] h-10 text-xs font-semibold bg-white border-slate-200 text-slate-700">
                             <SelectValue placeholder="Tipo de Contrato" />
@@ -386,67 +469,138 @@ export function FinancialCostsClient({
 
                     {/* TABELA DE FÉRIAS */}
                     <Card className="border-none shadow-premium bg-white overflow-hidden">
-                        <div className="w-full overflow-x-auto">
-                            <Table>
-                                <TableHeader className="bg-slate-50">
-                                    <TableRow>
-                                        <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
-                                        <TableHead className="font-bold text-slate-800">Admissão</TableHead>
-                                        <TableHead className="font-bold text-slate-800">Início Período Aquis.</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-center">Meses Acum.</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-center">Dias Devidos</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-right">Férias Prop.</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-right">1/3 Const.</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-right">Total Acumulado</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {feriasData.map((item) => (
-                                        <TableRow key={item.id} className="hover:bg-slate-50/50">
-                                            <TableCell>
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-slate-900">{item.name}</span>
-                                                    <span className="text-[10px] text-slate-400">{item.role}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-slate-600 text-xs">
-                                                {item.admissionDate.toLocaleDateString("pt-BR")}
-                                            </TableCell>
-                                            <TableCell className="text-slate-600 text-xs">
-                                                {item.startOfPeriod.toLocaleDateString("pt-BR")}
-                                            </TableCell>
-                                            <TableCell className="text-center font-semibold text-slate-800 text-xs">
-                                                {item.monthsAcrued} {item.monthsAcrued === 1 ? 'mês' : 'meses'}
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                <span className="inline-block bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold text-xs">
-                                                    {item.daysAccrued.toFixed(1)}
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="text-right text-xs text-slate-700">
-                                                R$ {item.proporcionalVal.toFixed(2)}
-                                            </TableCell>
-                                            <TableCell className="text-right text-xs text-slate-700">
-                                                R$ {item.thirdConstitucional.toFixed(2)}
-                                            </TableCell>
-                                            <TableCell className="text-right text-xs text-slate-600 italic">
-                                                R$ {item.incidentesLegais.toFixed(2)}
-                                            </TableCell>
-                                            <TableCell className="text-right font-extrabold text-slate-900 text-xs">
-                                                R$ {item.totalVal.toFixed(2)}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                    {feriasData.length === 0 && (
+                                      {viewMode === "contrato" ? (
+                                <Table>
+                                    <TableHeader className="bg-slate-50">
                                         <TableRow>
-                                            <TableCell colSpan={9} className="text-center text-slate-500 py-10 font-semibold">
-                                                Nenhum colaborador encontrado.
-                                            </TableCell>
+                                            <TableHead className="font-bold text-slate-800">Tipo de Contrato</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Colaboradores Ativos</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Total Dias Acum.</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Férias Prop. (Total)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">1/3 Const. (Total)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Total Provisionado</TableHead>
                                         </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {feriasGroupedByContract.map((group) => (
+                                            <TableRow key={group.type} className="hover:bg-slate-50/50 font-medium">
+                                                <TableCell className="font-bold text-slate-900 text-sm">
+                                                    {group.type}
+                                                </TableCell>
+                                                <TableCell className="text-center text-xs text-slate-800">
+                                                    {group.count} colaboradores
+                                                </TableCell>
+                                                <TableCell className="text-center text-xs">
+                                                    <span className="inline-block bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold">
+                                                        {group.totalDays.toFixed(1)} dias
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    R$ {group.proporcionalVal.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    R$ {group.thirdConstitucional.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-600 italic">
+                                                    R$ {group.incidentesLegais.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right font-extrabold text-slate-900 text-sm">
+                                                    R$ {group.totalVal.toFixed(2)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {feriasGroupedByContract.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={7} className="text-center text-slate-500 py-10 font-semibold">
+                                                    Nenhum contrato encontrado.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                        {/* Grouped Totals Row */}
+                                        {feriasGroupedByContract.length > 0 && (
+                                            <TableRow className="bg-slate-100 font-black border-t-2 border-slate-200">
+                                                <TableCell>Total Geral</TableCell>
+                                                <TableCell className="text-center">{feriasData.length} colaboradores</TableCell>
+                                                <TableCell className="text-center">{feriasTotals.totalDays.toFixed(1)} dias</TableCell>
+                                                <TableCell className="text-right">
+                                                    R$ {feriasGroupedByContract.reduce((s, g) => s + g.proporcionalVal, 0).toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    R$ {feriasGroupedByContract.reduce((s, g) => s + g.thirdConstitucional, 0).toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right italic">
+                                                    R$ {feriasGroupedByContract.reduce((s, g) => s + g.incidentesLegais, 0).toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-emerald-700">
+                                                    R$ {feriasTotals.totalValue.toFixed(2)}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            ) : (
+                                <Table>
+                                    <TableHeader className="bg-slate-50">
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
+                                            <TableHead className="font-bold text-slate-800">Admissão</TableHead>
+                                            <TableHead className="font-bold text-slate-800">Início Período Aquis.</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Meses Acum.</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Dias Devidos</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Férias Prop.</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">1/3 Const.</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Total Acumulado</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {feriasData.map((item) => (
+                                            <TableRow key={item.id} className="hover:bg-slate-50/50">
+                                                <TableCell>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold text-slate-900">{item.name}</span>
+                                                        <span className="text-[10px] text-slate-400">{item.role}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-slate-600 text-xs">
+                                                    {item.admissionDate.toLocaleDateString("pt-BR")}
+                                                </TableCell>
+                                                <TableCell className="text-slate-600 text-xs">
+                                                    {item.startOfPeriod.toLocaleDateString("pt-BR")}
+                                                </TableCell>
+                                                <TableCell className="text-center font-semibold text-slate-800 text-xs">
+                                                    {item.monthsAcrued} {item.monthsAcrued === 1 ? 'mês' : 'meses'}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <span className="inline-block bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold text-xs">
+                                                        {item.daysAccrued.toFixed(1)}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    R$ {item.proporcionalVal.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    R$ {item.thirdConstitucional.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-600 italic">
+                                                    R$ {item.incidentesLegais.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right font-extrabold text-slate-900 text-xs">
+                                                    R$ {item.totalVal.toFixed(2)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {feriasData.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={9} className="text-center text-slate-500 py-10 font-semibold">
+                                                    Nenhum colaborador encontrado.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            )}
                         </div>
                     </Card>
                 </TabsContent>
@@ -554,96 +708,166 @@ export function FinancialCostsClient({
                     </div>
 
                     {/* TABELA DE 13º SALÁRIO */}
-                    <Card className="border-none shadow-premium bg-white overflow-hidden">
-                        <div className="w-full overflow-x-auto">
-                            <Table>
-                                <TableHeader className="bg-slate-50">
-                                    <TableRow>
-                                        <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
-                                        <TableHead className="font-bold text-slate-800">Admissão</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-center">Meses Trabalhados</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-right">13º Líquido Acum.</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-right">Encargos s/ 13º ({taxRate}%)</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-right">1ª Parcela (50% Bruto)</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-right">2ª Parcela (Est. Líquida)</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-center">Risco Demissional / Turnover</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {decimoTerceiroData.map((item) => {
-                                        let badgeColor = "bg-green-50 text-green-700 border-green-100";
-                                        if (item.riskStatus === "Crítico") {
-                                            badgeColor = "bg-red-50 text-red-700 border-red-100 font-bold";
-                                        } else if (item.riskStatus === "Alerta") {
-                                            badgeColor = "bg-amber-50 text-amber-700 border-amber-100 font-semibold";
-                                        }
-
-                                        return (
-                                            <TableRow key={item.id} className="hover:bg-slate-50/50">
-                                                <TableCell>
-                                                    <div className="flex flex-col">
-                                                        <span className="font-bold text-slate-900">{item.name}</span>
-                                                        <span className="text-[10px] text-slate-400">{item.role}</span>
-                                                    </div>
+                    <Card className="border-none shadow-premium bg-white o                            {viewMode === "contrato" ? (
+                                <Table>
+                                    <TableHeader className="bg-slate-50">
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800">Tipo de Contrato</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Colaboradores Ativos</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">13º Líquido Acum.</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Encargos s/ 13º ({taxRate}%)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">1ª Parcela (50% Bruto)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">2ª Parcela (Est. Líquida)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Custo Total Previsto</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {decimoGroupedByContract.map((group) => (
+                                            <TableRow key={group.type} className="hover:bg-slate-50/50 font-medium">
+                                                <TableCell className="font-bold text-slate-900 text-sm">
+                                                    {group.type}
                                                 </TableCell>
-                                                <TableCell className="text-slate-600 text-xs">
-                                                    {item.admissionDate.toLocaleDateString("pt-BR")}
+                                                <TableCell className="text-center text-xs text-slate-800">
+                                                    {group.count} colaboradores
                                                 </TableCell>
-                                                <TableCell className="text-center font-semibold text-slate-800 text-xs">
-                                                    {item.monthsInYear} / 12
-                                                </TableCell>
-                                                <TableCell className="text-right text-xs font-semibold text-slate-700">
-                                                    R$ {item.valorAcumuladoLiquido.toFixed(2)}
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    R$ {group.totalAcumuladoLiquido.toFixed(2)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-slate-600 italic">
-                                                    R$ {(item.totalAnualBruto * (taxRate / 100)).toFixed(2)}
+                                                    R$ {group.totalEncargos.toFixed(2)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-blue-600 font-bold">
-                                                    R$ {item.primeiraParcela.toFixed(2)}
+                                                    R$ {group.totalPrimeira.toFixed(2)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-slate-800 font-bold">
-                                                    R$ {item.segundaParcela.toFixed(2)}
+                                                    R$ {group.totalSegunda.toFixed(2)}
                                                 </TableCell>
-                                                <TableCell className="text-center">
-                                                    <div className="flex items-center justify-center gap-1.5">
-                                                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] border ${badgeColor}`}>
-                                                            {item.riskStatus === "Crítico" ? `Excede TMP (${item.monthsOfService.toFixed(0)}m)` : item.riskStatus}
-                                                        </span>
-                                                        <span className="text-[10px] text-slate-400 font-medium">({item.riskPercentage}% risco)</span>
-                                                    </div>
+                                                <TableCell className="text-right font-extrabold text-emerald-700 text-sm">
+                                                    R$ {(group.totalPrimeira + group.totalSegunda + group.totalEncargos).toFixed(2)}
                                                 </TableCell>
                                             </TableRow>
-                                        );
-                                    })}
-                                    {decimoTerceiroData.length === 0 && (
+                                        ))}
+                                        {decimoGroupedByContract.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={7} className="text-center text-slate-500 py-10 font-semibold">
+                                                    Nenhum contrato encontrado.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                        {/* Grouped Totals Row */}
+                                        {decimoGroupedByContract.length > 0 && (
+                                            <TableRow className="bg-slate-100 font-black border-t-2 border-slate-200">
+                                                <TableCell>Total Geral</TableCell>
+                                                <TableCell className="text-center">{decimoTerceiroData.length} colaboradores</TableCell>
+                                                <TableCell className="text-right">
+                                                    R$ {decimoTerceiroTotals.totalAcumuladoLiquido.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right italic">
+                                                    R$ {decimoTerceiroTotals.totalEncargos.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-blue-600">
+                                                    R$ {decimoTerceiroTotals.totalPrimeira.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-slate-950">
+                                                    R$ {decimoTerceiroTotals.totalSegunda.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-emerald-700">
+                                                    R$ {(decimoTerceiroTotals.totalPrimeira + decimoTerceiroTotals.totalSegunda + decimoTerceiroTotals.totalEncargos).toFixed(2)}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            ) : (
+                                <Table>
+                                    <TableHeader className="bg-slate-50">
                                         <TableRow>
-                                            <TableCell colSpan={8} className="text-center text-slate-500 py-10 font-semibold">
-                                                Nenhum colaborador encontrado.
-                                            </TableCell>
+                                            <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
+                                            <TableHead className="font-bold text-slate-800">Admissão</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Meses Trabalhados</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">13º Líquido Acum.</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Encargos s/ 13º ({taxRate}%)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">1ª Parcela (50% Bruto)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">2ª Parcela (Est. Líquida)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Risco Demissional / Turnover</TableHead>
                                         </TableRow>
-                                    )}
-                                    {/* Summary Row */}
-                                    {decimoTerceiroData.length > 0 && (
-                                        <TableRow className="bg-slate-50 font-bold hover:bg-slate-50 border-t-2 border-slate-200">
-                                            <TableCell colSpan={2} className="text-slate-900">Total</TableCell>
-                                            <TableCell className="text-center"></TableCell>
-                                            <TableCell className="text-right text-slate-950">
-                                                R$ {decimoTerceiroTotals.totalAcumuladoLiquido.toFixed(2)}
-                                            </TableCell>
-                                            <TableCell className="text-right text-slate-600 italic">
-                                                R$ {decimoTerceiroTotals.totalEncargos.toFixed(2)}
-                                            </TableCell>
-                                            <TableCell className="text-right text-blue-600">
-                                                R$ {decimoTerceiroTotals.totalPrimeira.toFixed(2)}
-                                            </TableCell>
-                                            <TableCell className="text-right text-slate-950">
-                                                R$ {decimoTerceiroTotals.totalSegunda.toFixed(2)}
-                                            </TableCell>
-                                            <TableCell></TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {decimoTerceiroData.map((item) => {
+                                            let badgeColor = "bg-green-50 text-green-700 border-green-100";
+                                            if (item.riskStatus === "Crítico") {
+                                                badgeColor = "bg-red-50 text-red-700 border-red-100 font-bold";
+                                            } else if (item.riskStatus === "Alerta") {
+                                                badgeColor = "bg-amber-50 text-amber-700 border-amber-100 font-semibold";
+                                            }
+
+                                            return (
+                                                <TableRow key={item.id} className="hover:bg-slate-50/50">
+                                                    <TableCell>
+                                                        <div className="flex flex-col">
+                                                            <span className="font-bold text-slate-900">{item.name}</span>
+                                                            <span className="text-[10px] text-slate-400">{item.role}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-slate-600 text-xs">
+                                                        {item.admissionDate.toLocaleDateString("pt-BR")}
+                                                    </TableCell>
+                                                    <TableCell className="text-center font-semibold text-slate-800 text-xs">
+                                                        {item.monthsInYear} / 12
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-xs font-semibold text-slate-700">
+                                                        R$ {item.valorAcumuladoLiquido.toFixed(2)}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-xs text-slate-600 italic">
+                                                        R$ {(item.totalAnualBruto * (taxRate / 100)).toFixed(2)}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-xs text-blue-600 font-bold">
+                                                        R$ {item.primeiraParcela.toFixed(2)}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-xs text-slate-800 font-bold">
+                                                        R$ {item.segundaParcela.toFixed(2)}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <div className="flex items-center justify-center gap-1.5">
+                                                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] border ${badgeColor}`}>
+                                                                {item.riskStatus === "Crítico" ? `Excede TMP (${item.monthsOfService.toFixed(0)}m)` : item.riskStatus}
+                                                            </span>
+                                                            <span className="text-[10px] text-slate-400 font-medium">({item.riskPercentage}% risco)</span>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                        {decimoTerceiroData.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={8} className="text-center text-slate-500 py-10 font-semibold">
+                                                    Nenhum colaborador encontrado.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                        {/* Summary Row */}
+                                        {decimoTerceiroData.length > 0 && (
+                                            <TableRow className="bg-slate-50 font-bold hover:bg-slate-50 border-t-2 border-slate-200">
+                                                <TableCell colSpan={2} className="text-slate-900">Total</TableCell>
+                                                <TableCell className="text-center"></TableCell>
+                                                <TableCell className="text-right text-slate-950">
+                                                    R$ {decimoTerceiroTotals.totalAcumuladoLiquido.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-slate-600 italic">
+                                                    R$ {decimoTerceiroTotals.totalEncargos.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-blue-600">
+                                                    R$ {decimoTerceiroTotals.totalPrimeira.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-slate-950">
+                                                    R$ {decimoTerceiroTotals.totalSegunda.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell></TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            )}
                         </div>
                     </Card>
                 </TabsContent>
