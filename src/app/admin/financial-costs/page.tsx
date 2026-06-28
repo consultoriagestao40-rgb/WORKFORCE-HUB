@@ -11,6 +11,7 @@ async function getFinancialCostsData() {
         include: {
             role: true,
             situation: true,
+            company: true,
             vacations: {
                 orderBy: { endDate: 'desc' },
                 take: 1

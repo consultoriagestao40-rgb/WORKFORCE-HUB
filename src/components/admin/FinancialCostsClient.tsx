@@ -21,6 +21,7 @@ interface Employee {
     situation: { name: string } | null;
     type: string;
     vacations: { id: string; startDate: string | Date; endDate: string | Date }[];
+    company?: { id: string; name: string } | null;
     assignments?: {
         id: string;
         posto: {
@@ -99,7 +100,7 @@ export function FinancialCostsClient({
     const [activeTab, setActiveTab] = useState("ferias");
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedContract, setSelectedContract] = useState<string>("ALL");
-    const [viewMode, setViewMode] = useState<"colaborador" | "contrato">("colaborador");
+    const [viewMode, setViewMode] = useState<"colaborador" | "contrato" | "empresa">("colaborador");
     
     const contractOptions = useMemo(() => {
         const contracts = new Set<string>();
@@ -166,6 +167,8 @@ export function FinancialCostsClient({
 
             const clientName = emp.assignments?.[0]?.posto?.client?.name || "Reserva Técnica";
 
+            const companyName = emp.company?.name || "Sem Empresa";
+
             return {
                 id: emp.id,
                 name: emp.name,
@@ -180,7 +183,8 @@ export function FinancialCostsClient({
                 totalVal,
                 salary: emp.salary,
                 type: emp.type,
-                contractName: clientName
+                contractName: clientName,
+                companyName
             };
         }).filter(item => {
             const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase());
@@ -242,6 +246,8 @@ export function FinancialCostsClient({
 
             const clientName = emp.assignments?.[0]?.posto?.client?.name || "Reserva Técnica";
 
+            const companyName = emp.company?.name || "Sem Empresa";
+
             return {
                 id: emp.id,
                 name: emp.name,
@@ -257,7 +263,8 @@ export function FinancialCostsClient({
                 riskStatus,
                 riskPercentage,
                 type: emp.type,
-                contractName: clientName
+                contractName: clientName,
+                companyName
             };
         }).filter(item => {
             const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase());
@@ -360,6 +367,78 @@ export function FinancialCostsClient({
         return Object.values(groups).sort((a, b) => a.type.localeCompare(b.type));
     }, [decimoTerceiroData, taxRate]);
 
+    // Agrupamento por Empresa - Férias
+    const feriasGroupedByCompany = useMemo(() => {
+        const groups: Record<string, {
+            type: string;
+            count: number;
+            totalDays: number;
+            proporcionalVal: number;
+            thirdConstitucional: number;
+            incidentesLegais: number;
+            totalVal: number;
+        }> = {};
+
+        feriasData.forEach(item => {
+            const companyKey = item.companyName || "Sem Empresa";
+            if (!groups[companyKey]) {
+                groups[companyKey] = {
+                    type: companyKey,
+                    count: 0,
+                    totalDays: 0,
+                    proporcionalVal: 0,
+                    thirdConstitucional: 0,
+                    incidentesLegais: 0,
+                    totalVal: 0
+                };
+            }
+            groups[companyKey].count += 1;
+            groups[companyKey].totalDays += item.daysAccrued;
+            groups[companyKey].proporcionalVal += item.proporcionalVal;
+            groups[companyKey].thirdConstitucional += item.thirdConstitucional;
+            groups[companyKey].incidentesLegais += item.incidentesLegais;
+            groups[companyKey].totalVal += item.totalVal;
+        });
+
+        return Object.values(groups).sort((a, b) => a.type.localeCompare(b.type));
+    }, [feriasData]);
+
+    // Agrupamento por Empresa - 13º
+    const decimoGroupedByCompany = useMemo(() => {
+        const groups: Record<string, {
+            type: string;
+            count: number;
+            totalAcumuladoLiquido: number;
+            totalEncargos: number;
+            totalEncargosAcumulado: number;
+            totalPrimeira: number;
+            totalSegunda: number;
+        }> = {};
+
+        decimoTerceiroData.forEach(item => {
+            const companyKey = item.companyName || "Sem Empresa";
+            if (!groups[companyKey]) {
+                groups[companyKey] = {
+                    type: companyKey,
+                    count: 0,
+                    totalAcumuladoLiquido: 0,
+                    totalEncargos: 0,
+                    totalEncargosAcumulado: 0,
+                    totalPrimeira: 0,
+                    totalSegunda: 0
+                };
+            }
+            groups[companyKey].count += 1;
+            groups[companyKey].totalAcumuladoLiquido += item.valorAcumuladoLiquido;
+            groups[companyKey].totalEncargos += item.totalAnualBruto * (taxRate / 100);
+            groups[companyKey].totalEncargosAcumulado += item.valorAcumulado * (taxRate / 100);
+            groups[companyKey].totalPrimeira += item.primeiraParcela;
+            groups[companyKey].totalSegunda += item.segundaParcela;
+        });
+
+        return Object.values(groups).sort((a, b) => a.type.localeCompare(b.type));
+    }, [decimoTerceiroData, taxRate]);
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
@@ -376,6 +455,7 @@ export function FinancialCostsClient({
                         <SelectContent>
                             <SelectItem value="colaborador">Por Colaborador</SelectItem>
                             <SelectItem value="contrato">Por Cliente / Contrato</SelectItem>
+                            <SelectItem value="empresa">Por Empresa (Minhas Empresas)</SelectItem>
                         </SelectContent>
                     </Select>
 
@@ -502,7 +582,7 @@ export function FinancialCostsClient({
 
                     <Card className="border-none shadow-premium bg-white overflow-hidden">
                         <div className="w-full overflow-x-auto">
-                            {viewMode === "contrato" ? (
+                            {viewMode === "contrato" && (
                                 <Table>
                                     <TableHeader className="bg-slate-50">
                                         <TableRow>
@@ -572,7 +652,81 @@ export function FinancialCostsClient({
                                         )}
                                     </TableBody>
                                 </Table>
-                            ) : (
+                            )}
+
+                            {viewMode === "empresa" && (
+                                <Table>
+                                    <TableHeader className="bg-slate-50">
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800">Empresa</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Colaboradores Ativos</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Total Dias Acum.</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Férias Prop. (Total)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">1/3 Const. (Total)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Total Provisionado</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {feriasGroupedByCompany.map((group) => (
+                                            <TableRow key={group.type} className="hover:bg-slate-50/50 font-medium">
+                                                <TableCell className="font-bold text-slate-900 text-sm">
+                                                    {group.type}
+                                                </TableCell>
+                                                <TableCell className="text-center text-xs text-slate-800">
+                                                    {group.count} colaboradores
+                                                </TableCell>
+                                                <TableCell className="text-center text-xs">
+                                                    <span className="inline-block bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold">
+                                                        {group.totalDays.toFixed(1)} dias
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    {formatCurrency(group.proporcionalVal)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    {formatCurrency(group.thirdConstitucional)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-600 italic">
+                                                    {formatCurrency(group.incidentesLegais)}
+                                                </TableCell>
+                                                <TableCell className="text-right font-extrabold text-slate-900 text-sm">
+                                                    {formatCurrency(group.totalVal)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {feriasGroupedByCompany.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={7} className="text-center text-slate-500 py-10 font-semibold">
+                                                    Nenhuma empresa encontrada.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                        {/* Grouped Totals Row */}
+                                        {feriasGroupedByCompany.length > 0 && (
+                                            <TableRow className="bg-slate-100 font-black border-t-2 border-slate-200">
+                                                <TableCell>Total Geral</TableCell>
+                                                <TableCell className="text-center">{feriasData.length} colaboradores</TableCell>
+                                                <TableCell className="text-center">{feriasTotals.totalDays.toFixed(1)} dias</TableCell>
+                                                <TableCell className="text-right">
+                                                    {formatCurrency(feriasGroupedByCompany.reduce((s, g) => s + g.proporcionalVal, 0))}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    {formatCurrency(feriasGroupedByCompany.reduce((s, g) => s + g.thirdConstitucional, 0))}
+                                                </TableCell>
+                                                <TableCell className="text-right italic">
+                                                    {formatCurrency(feriasGroupedByCompany.reduce((s, g) => s + g.incidentesLegais, 0))}
+                                                </TableCell>
+                                                <TableCell className="text-right text-emerald-700">
+                                                    {formatCurrency(feriasTotals.totalValue)}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            )}
+
+                            {viewMode === "colaborador" && (
                                 <Table>
                                     <TableHeader className="bg-slate-50">
                                         <TableRow>
@@ -742,7 +896,7 @@ export function FinancialCostsClient({
 
                     <Card className="border-none shadow-premium bg-white overflow-hidden">
                         <div className="w-full overflow-x-auto">
-                            {viewMode === "contrato" ? (
+                            {viewMode === "contrato" && (
                                 <Table>
                                     <TableHeader className="bg-slate-50">
                                         <TableRow>
@@ -812,7 +966,81 @@ export function FinancialCostsClient({
                                         )}
                                     </TableBody>
                                 </Table>
-                            ) : (
+                            )}
+
+                            {viewMode === "empresa" && (
+                                <Table>
+                                    <TableHeader className="bg-slate-50">
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800">Empresa</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Colaboradores Ativos</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">13º Líquido Acum.</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Encargos s/ 13º ({taxRate}%)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">1ª Parcela (50% Bruto)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">2ª Parcela (Est. Líquida)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-right">Custo Total Previsto</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {decimoGroupedByCompany.map((group) => (
+                                            <TableRow key={group.type} className="hover:bg-slate-50/50 font-medium">
+                                                <TableCell className="font-bold text-slate-900 text-sm">
+                                                    {group.type}
+                                                </TableCell>
+                                                <TableCell className="text-center text-xs text-slate-800">
+                                                    {group.count} colaboradores
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    {formatCurrency(group.totalAcumuladoLiquido)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-600 italic">
+                                                    {formatCurrency(group.totalEncargos)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-blue-600 font-bold">
+                                                    {formatCurrency(group.totalPrimeira)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-800 font-bold">
+                                                    {formatCurrency(group.totalSegunda)}
+                                                </TableCell>
+                                                <TableCell className="text-right font-extrabold text-emerald-700 text-sm">
+                                                    {formatCurrency(group.totalPrimeira + group.totalSegunda + group.totalEncargos)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {decimoGroupedByCompany.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={7} className="text-center text-slate-500 py-10 font-semibold">
+                                                    Nenhuma empresa encontrada.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                        {/* Grouped Totals Row */}
+                                        {decimoGroupedByCompany.length > 0 && (
+                                            <TableRow className="bg-slate-100 font-black border-t-2 border-slate-200">
+                                                <TableCell>Total Geral</TableCell>
+                                                <TableCell className="text-center">{decimoTerceiroData.length} colaboradores</TableCell>
+                                                <TableCell className="text-right">
+                                                    {formatCurrency(decimoTerceiroTotals.totalAcumuladoLiquido)}
+                                                </TableCell>
+                                                <TableCell className="text-right italic">
+                                                    {formatCurrency(decimoTerceiroTotals.totalEncargos)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-blue-600">
+                                                    {formatCurrency(decimoTerceiroTotals.totalPrimeira)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-slate-950">
+                                                    {formatCurrency(decimoTerceiroTotals.totalSegunda)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-emerald-700">
+                                                    {formatCurrency(decimoTerceiroTotals.totalPrimeira + decimoTerceiroTotals.totalSegunda + decimoTerceiroTotals.totalEncargos)}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            )}
+
+                            {viewMode === "colaborador" && (
                                 <Table>
                                     <TableHeader className="bg-slate-50">
                                         <TableRow>
