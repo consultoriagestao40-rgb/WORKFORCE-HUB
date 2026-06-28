@@ -21,7 +21,6 @@ interface Employee {
 
 interface FinancialCostsClientProps {
     employees: Employee[];
-    turnoverRate: number;
     averageStayMonths: number;
     userRole: string;
 }
@@ -80,7 +79,6 @@ function calculateIRRF(salary: number, inss: number): number {
 
 export function FinancialCostsClient({
     employees,
-    turnoverRate,
     averageStayMonths,
     userRole
 }: FinancialCostsClientProps) {
@@ -291,15 +289,15 @@ export function FinancialCostsClient({
 
                         <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
                             <CardHeader className="pb-2">
-                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Turnover & Desgaste de Equipe</CardDescription>
+                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tempo Médio de Casa (TMP)</CardDescription>
                                 <CardTitle className="text-3xl font-black text-slate-900 flex items-center justify-between">
-                                    <span>{turnoverRate.toFixed(1)}%</span>
-                                    <TrendingUp className="w-6 h-6 text-amber-500" />
+                                    <span>{averageStayMonths.toFixed(1)} meses</span>
+                                    <TrendingUp className="w-6 h-6 text-emerald-500" />
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                    Tempo Médio de Casa (TMP): {averageStayMonths.toFixed(1)} meses
+                                    Considerando apenas colaboradores ativos
                                 </p>
                             </CardContent>
                         </Card>

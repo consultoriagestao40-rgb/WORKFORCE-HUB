@@ -5,65 +5,35 @@ import { FinancialCostsClient } from "@/components/admin/FinancialCostsClient";
 
 async function getFinancialCostsData() {
     const today = new Date();
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(today.getFullYear() - 1);
 
-    const [activeEmployees, dismissedEmployees] = await Promise.all([
-        prisma.employee.findMany({
-            where: { status: 'Ativo' },
-            include: {
-                role: true,
-                situation: true,
-                vacations: {
-                    orderBy: { endDate: 'desc' },
-                    take: 1
-                }
-            },
-            orderBy: { name: 'asc' }
-        }),
-        prisma.employee.findMany({
-            where: {
-                OR: [
-                    { status: 'Demitido' },
-                    { status: { not: 'Ativo' } },
-                    { dismissalReason: { not: null } }
-                ]
-            },
-            select: {
-                admissionDate: true,
-                updatedAt: true
+    const activeEmployees = await prisma.employee.findMany({
+        where: { status: 'Ativo' },
+        include: {
+            role: true,
+            situation: true,
+            vacations: {
+                orderBy: { endDate: 'desc' },
+                take: 1
             }
-        })
-    ]);
-
-    // Calcular Tempo Médio de Permanência (TMP) em meses
-    let totalStayMonths = 0;
-    let dismissedInLastYear = 0;
-    const dismissedCount = dismissedEmployees.length;
-
-    dismissedEmployees.forEach(emp => {
-        const admission = new Date(emp.admissionDate);
-        const dismissal = new Date(emp.updatedAt);
-        
-        // Diferença em meses
-        const diffTime = Math.abs(dismissal.getTime() - admission.getTime());
-        const diffMonths = diffTime / (1000 * 60 * 60 * 24 * 30.4375); // Média de dias por mês
-        totalStayMonths += diffMonths;
-
-        if (dismissal >= oneYearAgo) {
-            dismissedInLastYear++;
-        }
+        },
+        orderBy: { name: 'asc' }
     });
 
-    const averageStayMonths = dismissedCount > 0 ? totalStayMonths / dismissedCount : 18; // Default 18 meses
-    
-    // Turnover anual simplificado: (Demitidos no último ano / Ativos atuais) * 100
+    // Calcular Tempo Médio de Permanência (TMP) dos funcionários ativos
+    let totalStayMonths = 0;
     const activeCount = activeEmployees.length;
-    const turnoverRate = activeCount > 0 ? (dismissedInLastYear / activeCount) * 100 : 0;
+
+    activeEmployees.forEach(emp => {
+        const admission = new Date(emp.admissionDate);
+        const diffTime = Math.abs(today.getTime() - admission.getTime());
+        const diffMonths = diffTime / (1000 * 60 * 60 * 24 * 30.4375); // Média de dias por mês
+        totalStayMonths += diffMonths;
+    });
+
+    const averageStayMonths = activeCount > 0 ? totalStayMonths / activeCount : 18;
 
     return {
         activeEmployees,
-        turnoverRate,
         averageStayMonths,
         activeCount
     };
@@ -82,7 +52,6 @@ export default async function FinancialCostsPage() {
     return (
         <FinancialCostsClient
             employees={data.activeEmployees}
-            turnoverRate={data.turnoverRate}
             averageStayMonths={data.averageStayMonths}
             userRole={userRole || ""}
         />
