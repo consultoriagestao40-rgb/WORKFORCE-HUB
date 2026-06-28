@@ -304,67 +304,69 @@ export function FinancialCostsClient({
                     </div>
 
                     {/* TABELA DE FÉRIAS */}
-                    <Card className="border-none shadow-premium bg-white">
-                        <Table>
-                            <TableHeader className="bg-slate-50">
-                                <TableRow>
-                                    <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
-                                    <TableHead className="font-bold text-slate-800">Admissão</TableHead>
-                                    <TableHead className="font-bold text-slate-800">Início Período Aquis.</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-center">Meses Acum.</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-center">Dias Devidos</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-right">Férias Prop.</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-right">1/3 Const.</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-right">Total Acumulado</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {feriasData.map((item) => (
-                                    <TableRow key={item.id} className="hover:bg-slate-50/50">
-                                        <TableCell>
-                                            <div className="flex flex-col">
-                                                <span className="font-bold text-slate-900">{item.name}</span>
-                                                <span className="text-[10px] text-slate-400">{item.role}</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-slate-600 text-xs">
-                                            {item.admissionDate.toLocaleDateString("pt-BR")}
-                                        </TableCell>
-                                        <TableCell className="text-slate-600 text-xs">
-                                            {item.startOfPeriod.toLocaleDateString("pt-BR")}
-                                        </TableCell>
-                                        <TableCell className="text-center font-semibold text-slate-800 text-xs">
-                                            {item.monthsAcrued} {item.monthsAcrued === 1 ? 'mês' : 'meses'}
-                                        </TableCell>
-                                        <TableCell className="text-center">
-                                            <span className="inline-block bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold text-xs">
-                                                {item.daysAccrued.toFixed(1)}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell className="text-right text-xs text-slate-700">
-                                            R$ {item.proporcionalVal.toFixed(2)}
-                                        </TableCell>
-                                        <TableCell className="text-right text-xs text-slate-700">
-                                            R$ {item.thirdConstitucional.toFixed(2)}
-                                        </TableCell>
-                                        <TableCell className="text-right text-xs text-slate-600 italic">
-                                            R$ {item.incidentesLegais.toFixed(2)}
-                                        </TableCell>
-                                        <TableCell className="text-right font-extrabold text-slate-900 text-xs">
-                                            R$ {item.totalVal.toFixed(2)}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                                {feriasData.length === 0 && (
+                    <Card className="border-none shadow-premium bg-white overflow-hidden">
+                        <div className="w-full overflow-x-auto">
+                            <Table>
+                                <TableHeader className="bg-slate-50">
                                     <TableRow>
-                                        <TableCell colSpan={9} className="text-center text-slate-500 py-10 font-semibold">
-                                            Nenhum colaborador encontrado.
-                                        </TableCell>
+                                        <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
+                                        <TableHead className="font-bold text-slate-800">Admissão</TableHead>
+                                        <TableHead className="font-bold text-slate-800">Início Período Aquis.</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-center">Meses Acum.</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-center">Dias Devidos</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-right">Férias Prop.</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-right">1/3 Const.</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-right">Total Acumulado</TableHead>
                                     </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {feriasData.map((item) => (
+                                        <TableRow key={item.id} className="hover:bg-slate-50/50">
+                                            <TableCell>
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-slate-900">{item.name}</span>
+                                                    <span className="text-[10px] text-slate-400">{item.role}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-slate-600 text-xs">
+                                                {item.admissionDate.toLocaleDateString("pt-BR")}
+                                            </TableCell>
+                                            <TableCell className="text-slate-600 text-xs">
+                                                {item.startOfPeriod.toLocaleDateString("pt-BR")}
+                                            </TableCell>
+                                            <TableCell className="text-center font-semibold text-slate-800 text-xs">
+                                                {item.monthsAcrued} {item.monthsAcrued === 1 ? 'mês' : 'meses'}
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                <span className="inline-block bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold text-xs">
+                                                    {item.daysAccrued.toFixed(1)}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-right text-xs text-slate-700">
+                                                R$ {item.proporcionalVal.toFixed(2)}
+                                            </TableCell>
+                                            <TableCell className="text-right text-xs text-slate-700">
+                                                R$ {item.thirdConstitucional.toFixed(2)}
+                                            </TableCell>
+                                            <TableCell className="text-right text-xs text-slate-600 italic">
+                                                R$ {item.incidentesLegais.toFixed(2)}
+                                            </TableCell>
+                                            <TableCell className="text-right font-extrabold text-slate-900 text-xs">
+                                                R$ {item.totalVal.toFixed(2)}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {feriasData.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={9} className="text-center text-slate-500 py-10 font-semibold">
+                                                Nenhum colaborador encontrado.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
                     </Card>
                 </TabsContent>
 
@@ -419,71 +421,73 @@ export function FinancialCostsClient({
                     </div>
 
                     {/* TABELA DE 13º SALÁRIO */}
-                    <Card className="border-none shadow-premium bg-white">
-                        <Table>
-                            <TableHeader className="bg-slate-50">
-                                <TableRow>
-                                    <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
-                                    <TableHead className="font-bold text-slate-800">Admissão</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-center">Meses Trabalhados</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-right">13º Acumulado (Até Agora)</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-right">1ª Parcela (50% Bruto)</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-right">2ª Parcela (Est. Líquida)</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-center">Risco Demissional / Turnover</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {decimoTerceiroData.map((item) => {
-                                    let badgeColor = "bg-green-50 text-green-700 border-green-100";
-                                    if (item.riskStatus === "Crítico") {
-                                        badgeColor = "bg-red-50 text-red-700 border-red-100 font-bold";
-                                    } else if (item.riskStatus === "Alerta") {
-                                        badgeColor = "bg-amber-50 text-amber-700 border-amber-100 font-semibold";
-                                    }
+                    <Card className="border-none shadow-premium bg-white overflow-hidden">
+                        <div className="w-full overflow-x-auto">
+                            <Table>
+                                <TableHeader className="bg-slate-50">
+                                    <TableRow>
+                                        <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
+                                        <TableHead className="font-bold text-slate-800">Admissão</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-center">Meses Trabalhados</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-right">13º Acumulado (Até Agora)</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-right">1ª Parcela (50% Bruto)</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-right">2ª Parcela (Est. Líquida)</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-center">Risco Demissional / Turnover</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {decimoTerceiroData.map((item) => {
+                                        let badgeColor = "bg-green-50 text-green-700 border-green-100";
+                                        if (item.riskStatus === "Crítico") {
+                                            badgeColor = "bg-red-50 text-red-700 border-red-100 font-bold";
+                                        } else if (item.riskStatus === "Alerta") {
+                                            badgeColor = "bg-amber-50 text-amber-700 border-amber-100 font-semibold";
+                                        }
 
-                                    return (
-                                        <TableRow key={item.id} className="hover:bg-slate-50/50">
-                                            <TableCell>
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-slate-900">{item.name}</span>
-                                                    <span className="text-[10px] text-slate-400">{item.role}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-slate-600 text-xs">
-                                                {item.admissionDate.toLocaleDateString("pt-BR")}
-                                            </TableCell>
-                                            <TableCell className="text-center font-semibold text-slate-800 text-xs">
-                                                {item.monthsInYear} / 12
-                                            </TableCell>
-                                            <TableCell className="text-right text-xs text-slate-700">
-                                                R$ {item.valorAcumulado.toFixed(2)}
-                                            </TableCell>
-                                            <TableCell className="text-right text-xs text-blue-600 font-bold">
-                                                R$ {item.primeiraParcela.toFixed(2)}
-                                            </TableCell>
-                                            <TableCell className="text-right text-xs text-slate-800 font-bold">
-                                                R$ {item.segundaParcela.toFixed(2)}
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                <div className="flex items-center justify-center gap-1.5">
-                                                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] border ${badgeColor}`}>
-                                                        {item.riskStatus === "Crítico" ? `Excede TMP (${item.monthsOfService.toFixed(0)}m)` : item.riskStatus}
-                                                    </span>
-                                                    <span className="text-[10px] text-slate-400 font-medium">({item.riskPercentage}% risco)</span>
-                                                </div>
+                                        return (
+                                            <TableRow key={item.id} className="hover:bg-slate-50/50">
+                                                <TableCell>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold text-slate-900">{item.name}</span>
+                                                        <span className="text-[10px] text-slate-400">{item.role}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-slate-600 text-xs">
+                                                    {item.admissionDate.toLocaleDateString("pt-BR")}
+                                                </TableCell>
+                                                <TableCell className="text-center font-semibold text-slate-800 text-xs">
+                                                    {item.monthsInYear} / 12
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700">
+                                                    R$ {item.valorAcumulado.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-blue-600 font-bold">
+                                                    R$ {item.primeiraParcela.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-800 font-bold">
+                                                    R$ {item.segundaParcela.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <div className="flex items-center justify-center gap-1.5">
+                                                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] border ${badgeColor}`}>
+                                                            {item.riskStatus === "Crítico" ? `Excede TMP (${item.monthsOfService.toFixed(0)}m)` : item.riskStatus}
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-400 font-medium">({item.riskPercentage}% risco)</span>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                    {decimoTerceiroData.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={7} className="text-center text-slate-500 py-10 font-semibold">
+                                                Nenhum colaborador encontrado.
                                             </TableCell>
                                         </TableRow>
-                                    );
-                                })}
-                                {decimoTerceiroData.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={7} className="text-center text-slate-500 py-10 font-semibold">
-                                            Nenhum colaborador encontrado.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
                     </Card>
                 </TabsContent>
             </Tabs>

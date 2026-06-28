@@ -67,7 +67,7 @@ export function AdminLayoutWrapper({ children, user }: AdminLayoutWrapperProps) 
 
             {/* Main Content */}
             <main className={cn(
-                "flex-1 p-10 transition-all duration-300 ease-in-out",
+                "flex-1 min-w-0 p-4 sm:p-6 md:p-10 transition-all duration-300 ease-in-out",
                 isCollapsed ? "md:ml-28" : "md:ml-80"
             )}>
                 {children}
