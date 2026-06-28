@@ -138,9 +138,7 @@ export function FinancialCostsClient({
             },
             { totalDays: 0, totalValue: 0 }
         );
-    }, [feriasData]);
-
-    // Lógica e Cálculos de 13º Salário
+      // Lógica e Cálculos de 13º Salário
     const decimoTerceiroData = useMemo(() => {
         return employees.map(emp => {
             const admission = new Date(emp.admissionDate);
@@ -151,6 +149,11 @@ export function FinancialCostsClient({
             const fullMonthsInYear = calculateMonthsBetween(startFor13, new Date(currentYear, 11, 31)); // Meses totais que trabalhará no ano
 
             const valorAcumulado = (emp.salary / 12) * monthsInYear;
+
+            // Descontos Progressivos sobre o Acumulado (Para obter o Líquido Acumulado)
+            const inssAcumulado = calculateINSS(valorAcumulado);
+            const irrfAcumulado = calculateIRRF(valorAcumulado, inssAcumulado);
+            const valorAcumuladoLiquido = Math.max(0, valorAcumulado - inssAcumulado - irrfAcumulado);
             
             // Provisões Finais do Ano (Primeira e Segunda Parcela)
             const totalAnualBruto = (emp.salary / 12) * fullMonthsInYear;
@@ -182,6 +185,7 @@ export function FinancialCostsClient({
                 admissionDate: admission,
                 monthsInYear,
                 valorAcumulado,
+                valorAcumuladoLiquido,
                 primeiraParcela,
                 segundaParcela,
                 totalAnualBruto,
@@ -196,13 +200,15 @@ export function FinancialCostsClient({
         return decimoTerceiroData.reduce(
             (acc, item) => {
                 acc.totalAcumulado += item.valorAcumulado;
+                acc.totalAcumuladoLiquido += item.valorAcumuladoLiquido;
                 acc.totalPrimeira += item.primeiraParcela;
                 acc.totalSegunda += item.segundaParcela;
+                acc.totalEncargos += item.valorAcumulado * (taxRate / 100);
                 return acc;
             },
-            { totalAcumulado: 0, totalPrimeira: 0, totalSegunda: 0 }
+            { totalAcumulado: 0, totalAcumuladoLiquido: 0, totalPrimeira: 0, totalSegunda: 0, totalEncargos: 0 }
         );
-    }, [decimoTerceiroData]);
+    }, [decimoTerceiroData, taxRate]);
 
     return (
         <div className="space-y-6">
@@ -237,20 +243,18 @@ export function FinancialCostsClient({
                         </TabsTrigger>
                     </TabsList>
 
-                    {activeTab === "ferias" && (
-                        <div className="flex items-center gap-2 text-xs">
-                            <span className="font-semibold text-slate-500">Incidentes Legais (FGTS + Impostos):</span>
-                            <div className="flex items-center gap-1">
-                                <Input
-                                    type="number"
-                                    value={taxRate}
-                                    onChange={(e) => setTaxRate(Number(e.target.value))}
-                                    className="w-16 h-8 text-center font-bold text-slate-800 text-xs px-1"
-                                />
-                                <span className="font-bold text-slate-700">%</span>
-                            </div>
+                    <div className="flex items-center gap-2 text-xs">
+                        <span className="font-semibold text-slate-500">Incidentes Legais (FGTS + Impostos):</span>
+                        <div className="flex items-center gap-1">
+                            <Input
+                                type="number"
+                                value={taxRate}
+                                onChange={(e) => setTaxRate(Number(e.target.value))}
+                                className="w-16 h-8 text-center font-bold text-slate-800 text-xs px-1"
+                            />
+                            <span className="font-bold text-slate-700">%</span>
                         </div>
-                    )}
+                    </div>
                 </div>
 
                 {/* TAB CONTENT: FÉRIAS */}
@@ -388,18 +392,18 @@ export function FinancialCostsClient({
                 {/* TAB CONTENT: 13º SALÁRIO */}
                 <TabsContent value="decimo" className="space-y-6 pt-4">
                     {/* CARDS TOTALIZADORES 13º */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
                             <CardHeader className="pb-2">
-                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Proporcional Acumulado</CardDescription>
+                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Colaboradores Ativos</CardDescription>
                                 <CardTitle className="text-3xl font-black text-slate-900 flex items-center justify-between">
-                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalAcumulado)}</span>
-                                    <Calendar className="w-6 h-6 text-blue-500" />
+                                    <span>{decimoTerceiroData.length} ativos</span>
+                                    <Users className="w-6 h-6 text-indigo-500" />
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                    Provisão até o mês corrente
+                                    Sem demitidos ou afastados
                                 </p>
                             </CardContent>
                         </Card>
@@ -433,6 +437,21 @@ export function FinancialCostsClient({
                                 </p>
                             </CardContent>
                         </Card>
+
+                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                            <CardHeader className="pb-2">
+                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Encargos sobre 13º ({taxRate}%)</CardDescription>
+                                <CardTitle className="text-3xl font-black text-emerald-600 flex items-center justify-between">
+                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalEncargos)}</span>
+                                    <DollarSign className="w-6 h-6" />
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                    FGTS + Outros Encargos Sociais
+                                </p>
+                            </CardContent>
+                        </Card>
                     </div>
 
                     {/* TABELA DE 13º SALÁRIO */}
@@ -444,7 +463,8 @@ export function FinancialCostsClient({
                                         <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
                                         <TableHead className="font-bold text-slate-800">Admissão</TableHead>
                                         <TableHead className="font-bold text-slate-800 text-center">Meses Trabalhados</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-right">13º Acumulado (Até Agora)</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-right">13º Líquido Acum.</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
                                         <TableHead className="font-bold text-slate-800 text-right">1ª Parcela (50% Bruto)</TableHead>
                                         <TableHead className="font-bold text-slate-800 text-right">2ª Parcela (Est. Líquida)</TableHead>
                                         <TableHead className="font-bold text-slate-800 text-center">Risco Demissional / Turnover</TableHead>
@@ -473,8 +493,11 @@ export function FinancialCostsClient({
                                                 <TableCell className="text-center font-semibold text-slate-800 text-xs">
                                                     {item.monthsInYear} / 12
                                                 </TableCell>
-                                                <TableCell className="text-right text-xs text-slate-700">
-                                                    R$ {item.valorAcumulado.toFixed(2)}
+                                                <TableCell className="text-right text-xs font-semibold text-slate-700">
+                                                    R$ {item.valorAcumuladoLiquido.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-600 italic">
+                                                    R$ {(item.valorAcumulado * (taxRate / 100)).toFixed(2)}
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-blue-600 font-bold">
                                                     R$ {item.primeiraParcela.toFixed(2)}
@@ -495,9 +518,29 @@ export function FinancialCostsClient({
                                     })}
                                     {decimoTerceiroData.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={7} className="text-center text-slate-500 py-10 font-semibold">
+                                            <TableCell colSpan={8} className="text-center text-slate-500 py-10 font-semibold">
                                                 Nenhum colaborador encontrado.
                                             </TableCell>
+                                        </TableRow>
+                                    )}
+                                    {/* Summary Row */}
+                                    {decimoTerceiroData.length > 0 && (
+                                        <TableRow className="bg-slate-50 font-bold hover:bg-slate-50 border-t-2 border-slate-200">
+                                            <TableCell colSpan={2} className="text-slate-900">Total</TableCell>
+                                            <TableCell className="text-center"></TableCell>
+                                            <TableCell className="text-right text-slate-950">
+                                                R$ {decimoTerceiroTotals.totalAcumuladoLiquido.toFixed(2)}
+                                            </TableCell>
+                                            <TableCell className="text-right text-slate-600 italic">
+                                                R$ {decimoTerceiroTotals.totalEncargos.toFixed(2)}
+                                            </TableCell>
+                                            <TableCell className="text-right text-blue-600">
+                                                R$ {decimoTerceiroTotals.totalPrimeira.toFixed(2)}
+                                            </TableCell>
+                                            <TableCell className="text-right text-slate-950">
+                                                R$ {decimoTerceiroTotals.totalSegunda.toFixed(2)}
+                                            </TableCell>
+                                            <TableCell></TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
