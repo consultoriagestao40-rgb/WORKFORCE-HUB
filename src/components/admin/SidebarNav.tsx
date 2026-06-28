@@ -88,6 +88,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
                 <NavLink href="/admin/recrutamento" icon={UserPlus} label="Recrutamento" colorClass="text-pink-500" />
                 <NavLink href="/admin/probation-monitor" icon={Clock} label="Monitor de Experiência" colorClass="text-amber-500" />
                 <NavLink href="/admin/vacation-monitor" icon={Calendar} label="Monitor de Férias" colorClass="text-emerald-400" />
+                <NavLink href="/admin/financial-costs" icon={DollarSign} label="Gestão de Custos" colorClass="text-emerald-500" />
 
                 {!isCollapsed && <div className="h-px bg-white/5 my-6 mx-3" />}
 

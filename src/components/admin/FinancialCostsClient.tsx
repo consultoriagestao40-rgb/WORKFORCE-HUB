@@ -1,0 +1,494 @@
+"use client";
+
+import React, { useState, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar, DollarSign, Users, AlertTriangle, TrendingUp, TrendingDown, Info, Search, ShieldAlert, Award } from "lucide-react";
+
+interface Employee {
+    id: string;
+    name: string;
+    salary: number;
+    admissionDate: string | Date;
+    lastVacationStart: string | Date | null;
+    lastVacationEnd: string | Date | null;
+    role: { name: string } | null;
+    situation: { name: string } | null;
+    vacations: { id: string; startDate: string | Date; endDate: string | Date }[];
+}
+
+interface FinancialCostsClientProps {
+    employees: Employee[];
+    turnoverRate: number;
+    averageStayMonths: number;
+    userRole: string;
+}
+
+// Funções de Cálculo Auxiliares (Padrão CLT Brasil)
+function calculateMonthsBetween(start: Date, end: Date): number {
+    let months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    if (end.getDate() < start.getDate()) {
+        months--;
+    }
+    
+    // Fração de mês: 15 dias ou mais conta como mês cheio
+    const tempStart = new Date(start);
+    tempStart.setMonth(tempStart.getMonth() + months);
+    const diffTime = Math.abs(end.getTime() - tempStart.getTime());
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays >= 15) {
+        months++;
+    }
+    return Math.max(0, months);
+}
+
+// INSS Progressivo 2026/CLT
+function calculateINSS(salary: number): number {
+    const limits = [1412.00, 2666.68, 4000.03, 7786.02];
+    const rates = [0.075, 0.09, 0.12, 0.14];
+    let inss = 0;
+    let base = salary;
+    
+    if (base > 7786.02) {
+        base = 7786.02; // Teto do INSS
+    }
+    
+    let previousLimit = 0;
+    for (let i = 0; i < limits.length; i++) {
+        if (base > limits[i]) {
+            inss += (limits[i] - previousLimit) * rates[i];
+            previousLimit = limits[i];
+        } else {
+            inss += (base - previousLimit) * rates[i];
+            break;
+        }
+    }
+    return inss;
+}
+
+// IRRF Progressivo 2026/CLT (Sem dependentes para simplificação)
+function calculateIRRF(salary: number, inss: number): number {
+    const base = salary - inss;
+    if (base <= 2259.20) return 0;
+    if (base <= 2826.65) return (base * 0.075) - 169.44;
+    if (base <= 3751.05) return (base * 0.15) - 381.44;
+    if (base <= 4664.68) return (base * 0.225) - 662.77;
+    return (base * 0.275) - 896.00;
+}
+
+export function FinancialCostsClient({
+    employees,
+    turnoverRate,
+    averageStayMonths,
+    userRole
+}: FinancialCostsClientProps) {
+    const [activeTab, setActiveTab] = useState("ferias");
+    const [searchTerm, setSearchTerm] = useState("");
+    const [taxRate, setTaxRate] = useState<number>(27.8); // 8% FGTS + 19.8% Outros Encargos Sociais por padrão
+
+    const today = useMemo(() => new Date(), []);
+    const currentYear = today.getFullYear();
+    const firstDayOfCurrentYear = useMemo(() => new Date(currentYear, 0, 1), [currentYear]);
+
+    // Lógica e Cálculos de Férias
+    const feriasData = useMemo(() => {
+        return employees.map(emp => {
+            const admission = new Date(emp.admissionDate);
+            
+            // Início do Período Aquisitivo Atual
+            // Se já tirou férias, conta do fim da última. Se não, da admissão.
+            let startOfPeriod = admission;
+            if (emp.vacations && emp.vacations.length > 0) {
+                startOfPeriod = new Date(emp.vacations[0].endDate);
+            } else if (emp.lastVacationEnd) {
+                startOfPeriod = new Date(emp.lastVacationEnd);
+            }
+
+            const monthsAcrued = calculateMonthsBetween(startOfPeriod, today);
+            const daysAccrued = monthsAcrued * 2.5;
+
+            const proporcionalVal = (emp.salary / 12) * monthsAcrued;
+            const thirdConstitucional = proporcionalVal / 3;
+            const incidentesLegais = (proporcionalVal + thirdConstitucional) * (taxRate / 100);
+            const totalVal = proporcionalVal + thirdConstitucional + incidentesLegais;
+
+            return {
+                id: emp.id,
+                name: emp.name,
+                role: emp.role?.name || "-",
+                admissionDate: admission,
+                startOfPeriod,
+                monthsAcrued,
+                daysAccrued,
+                proporcionalVal,
+                thirdConstitucional,
+                incidentesLegais,
+                totalVal,
+                salary: emp.salary
+            };
+        }).filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase()));
+    }, [employees, taxRate, today, searchTerm]);
+
+    const feriasTotals = useMemo(() => {
+        return feriasData.reduce(
+            (acc, item) => {
+                acc.totalDays += item.daysAccrued;
+                acc.totalValue += item.totalVal;
+                return acc;
+            },
+            { totalDays: 0, totalValue: 0 }
+        );
+    }, [feriasData]);
+
+    // Lógica e Cálculos de 13º Salário
+    const decimoTerceiroData = useMemo(() => {
+        return employees.map(emp => {
+            const admission = new Date(emp.admissionDate);
+            
+            // Meses trabalhados no ano corrente
+            const startFor13 = admission < firstDayOfCurrentYear ? firstDayOfCurrentYear : admission;
+            const monthsInYear = calculateMonthsBetween(startFor13, today);
+            const fullMonthsInYear = calculateMonthsBetween(startFor13, new Date(currentYear, 11, 31)); // Meses totais que trabalhará no ano
+
+            const valorAcumulado = (emp.salary / 12) * monthsInYear;
+            
+            // Provisões Finais do Ano (Primeira e Segunda Parcela)
+            const totalAnualBruto = (emp.salary / 12) * fullMonthsInYear;
+            const primeiraParcela = totalAnualBruto * 0.5;
+
+            const inss = calculateINSS(totalAnualBruto);
+            const irrf = calculateIRRF(totalAnualBruto, inss);
+            
+            // Segunda Parcela = Total Anual - Deduções - Primeira Parcela
+            const segundaParcela = Math.max(0, totalAnualBruto - inss - irrf - primeiraParcela);
+
+            // Fator Turnover / Risco de Desligamento com base no TMP
+            const monthsOfService = calculateMonthsBetween(admission, today);
+            let riskStatus: "Estável" | "Alerta" | "Crítico" = "Estável";
+            let riskPercentage = 10; // Probabilidade padrão de desligamento (turnover baixo)
+
+            if (monthsOfService > averageStayMonths) {
+                riskStatus = "Crítico";
+                riskPercentage = Math.min(90, Math.round((monthsOfService / averageStayMonths) * 50));
+            } else if (monthsOfService >= averageStayMonths * 0.8) {
+                riskStatus = "Alerta";
+                riskPercentage = 45;
+            }
+
+            return {
+                id: emp.id,
+                name: emp.name,
+                role: emp.role?.name || "-",
+                admissionDate: admission,
+                monthsInYear,
+                valorAcumulado,
+                primeiraParcela,
+                segundaParcela,
+                totalAnualBruto,
+                monthsOfService,
+                riskStatus,
+                riskPercentage
+            };
+        }).filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase()));
+    }, [employees, firstDayOfCurrentYear, today, currentYear, averageStayMonths, searchTerm]);
+
+    const decimoTerceiroTotals = useMemo(() => {
+        return decimoTerceiroData.reduce(
+            (acc, item) => {
+                acc.totalAcumulado += item.valorAcumulado;
+                acc.totalPrimeira += item.primeiraParcela;
+                acc.totalSegunda += item.segundaParcela;
+                return acc;
+            },
+            { totalAcumulado: 0, totalPrimeira: 0, totalSegunda: 0 }
+        );
+    }, [decimoTerceiroData]);
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                <div>
+                    <h1 className="text-3xl font-black text-slate-800 tracking-tight">Custos de Férias & 13º</h1>
+                    <p className="text-sm text-slate-500 font-medium">Provisionamento de passivos trabalhistas dos colaboradores ativos</p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <Input
+                            placeholder="Buscar colaborador..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-9 w-[240px] h-10 text-xs"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* TAB PRINCIPAL */}
+            <Tabs defaultValue="ferias" className="w-full" onValueChange={setActiveTab}>
+                <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <TabsList className="bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                        <TabsTrigger value="ferias" className="px-4 py-2 text-xs font-bold rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                            Férias Proporcionais
+                        </TabsTrigger>
+                        <TabsTrigger value="decimo" className="px-4 py-2 text-xs font-bold rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                            13º Salário Proporcional
+                        </TabsTrigger>
+                    </TabsList>
+
+                    {activeTab === "ferias" && (
+                        <div className="flex items-center gap-2 text-xs">
+                            <span className="font-semibold text-slate-500">Incidentes Legais (FGTS + Impostos):</span>
+                            <div className="flex items-center gap-1">
+                                <Input
+                                    type="number"
+                                    value={taxRate}
+                                    onChange={(e) => setTaxRate(Number(e.target.value))}
+                                    className="w-16 h-8 text-center font-bold text-slate-800 text-xs px-1"
+                                />
+                                <span className="font-bold text-slate-700">%</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* TAB CONTENT: FÉRIAS */}
+                <TabsContent value="ferias" className="space-y-6 pt-4">
+                    {/* CARDS TOTALIZADORES */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                            <CardHeader className="pb-2">
+                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total de Dias Acumulados</CardDescription>
+                                <CardTitle className="text-3xl font-black text-slate-900 flex items-center justify-between">
+                                    <span>{feriasTotals.totalDays.toFixed(0)} dias</span>
+                                    <Calendar className="w-6 h-6 text-emerald-500" />
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                    Média por colaborador: {(feriasTotals.totalDays / (employees.length || 1)).toFixed(1)} dias
+                                </p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                            <CardHeader className="pb-2">
+                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Provisionado em Valores</CardDescription>
+                                <CardTitle className="text-3xl font-black text-emerald-600 flex items-center justify-between">
+                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(feriasTotals.totalValue)}</span>
+                                    <DollarSign className="w-6 h-6" />
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                    Férias Proporcional + 1/3 + {taxRate}% Encargos
+                                </p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                            <CardHeader className="pb-2">
+                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Turnover & Desgaste de Equipe</CardDescription>
+                                <CardTitle className="text-3xl font-black text-slate-900 flex items-center justify-between">
+                                    <span>{turnoverRate.toFixed(1)}%</span>
+                                    <TrendingUp className="w-6 h-6 text-amber-500" />
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                    Tempo Médio de Casa (TMP): {averageStayMonths.toFixed(1)} meses
+                                </p>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* TABELA DE FÉRIAS */}
+                    <Card className="border-none shadow-premium bg-white">
+                        <Table>
+                            <TableHeader className="bg-slate-50">
+                                <TableRow>
+                                    <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
+                                    <TableHead className="font-bold text-slate-800">Admissão</TableHead>
+                                    <TableHead className="font-bold text-slate-800">Início Período Aquis.</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-center">Meses Acum.</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-center">Dias Devidos</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-right">Férias Prop.</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-right">1/3 Const.</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-right">Total Acumulado</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {feriasData.map((item) => (
+                                    <TableRow key={item.id} className="hover:bg-slate-50/50">
+                                        <TableCell>
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-slate-900">{item.name}</span>
+                                                <span className="text-[10px] text-slate-400">{item.role}</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-slate-600 text-xs">
+                                            {item.admissionDate.toLocaleDateString("pt-BR")}
+                                        </TableCell>
+                                        <TableCell className="text-slate-600 text-xs">
+                                            {item.startOfPeriod.toLocaleDateString("pt-BR")}
+                                        </TableCell>
+                                        <TableCell className="text-center font-semibold text-slate-800 text-xs">
+                                            {item.monthsAcrued} {item.monthsAcrued === 1 ? 'mês' : 'meses'}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            <span className="inline-block bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold text-xs">
+                                                {item.daysAccrued.toFixed(1)}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="text-right text-xs text-slate-700">
+                                            R$ {item.proporcionalVal.toFixed(2)}
+                                        </TableCell>
+                                        <TableCell className="text-right text-xs text-slate-700">
+                                            R$ {item.thirdConstitucional.toFixed(2)}
+                                        </TableCell>
+                                        <TableCell className="text-right text-xs text-slate-600 italic">
+                                            R$ {item.incidentesLegais.toFixed(2)}
+                                        </TableCell>
+                                        <TableCell className="text-right font-extrabold text-slate-900 text-xs">
+                                            R$ {item.totalVal.toFixed(2)}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                                {feriasData.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={9} className="text-center text-slate-500 py-10 font-semibold">
+                                            Nenhum colaborador encontrado.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </Card>
+                </TabsContent>
+
+                {/* TAB CONTENT: 13º SALÁRIO */}
+                <TabsContent value="decimo" className="space-y-6 pt-4">
+                    {/* CARDS TOTALIZADORES 13º */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                            <CardHeader className="pb-2">
+                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Proporcional Acumulado</CardDescription>
+                                <CardTitle className="text-3xl font-black text-slate-900 flex items-center justify-between">
+                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalAcumulado)}</span>
+                                    <Calendar className="w-6 h-6 text-blue-500" />
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                    Provisão até o mês corrente
+                                </p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                            <CardHeader className="pb-2">
+                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estimativa 1ª Parcela (50% - Bruto)</CardDescription>
+                                <CardTitle className="text-3xl font-black text-blue-600 flex items-center justify-between">
+                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalPrimeira)}</span>
+                                    <DollarSign className="w-6 h-6" />
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                    Pago entre Fev-Nov sem descontos
+                                </p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                            <CardHeader className="pb-2">
+                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estimativa 2ª Parcela (Líquido)</CardDescription>
+                                <CardTitle className="text-3xl font-black text-slate-900 flex items-center justify-between">
+                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(decimoTerceiroTotals.totalSegunda)}</span>
+                                    <TrendingDown className="w-6 h-6 text-red-500" />
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                    Dedução de INSS & IRRF na fonte
+                                </p>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* TABELA DE 13º SALÁRIO */}
+                    <Card className="border-none shadow-premium bg-white">
+                        <Table>
+                            <TableHeader className="bg-slate-50">
+                                <TableRow>
+                                    <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
+                                    <TableHead className="font-bold text-slate-800">Admissão</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-center">Meses Trabalhados</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-right">13º Acumulado (Até Agora)</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-right">1ª Parcela (50% Bruto)</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-right">2ª Parcela (Est. Líquida)</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-center">Risco Demissional / Turnover</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {decimoTerceiroData.map((item) => {
+                                    let badgeColor = "bg-green-50 text-green-700 border-green-100";
+                                    if (item.riskStatus === "Crítico") {
+                                        badgeColor = "bg-red-50 text-red-700 border-red-100 font-bold";
+                                    } else if (item.riskStatus === "Alerta") {
+                                        badgeColor = "bg-amber-50 text-amber-700 border-amber-100 font-semibold";
+                                    }
+
+                                    return (
+                                        <TableRow key={item.id} className="hover:bg-slate-50/50">
+                                            <TableCell>
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-slate-900">{item.name}</span>
+                                                    <span className="text-[10px] text-slate-400">{item.role}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-slate-600 text-xs">
+                                                {item.admissionDate.toLocaleDateString("pt-BR")}
+                                            </TableCell>
+                                            <TableCell className="text-center font-semibold text-slate-800 text-xs">
+                                                {item.monthsInYear} / 12
+                                            </TableCell>
+                                            <TableCell className="text-right text-xs text-slate-700">
+                                                R$ {item.valorAcumulado.toFixed(2)}
+                                            </TableCell>
+                                            <TableCell className="text-right text-xs text-blue-600 font-bold">
+                                                R$ {item.primeiraParcela.toFixed(2)}
+                                            </TableCell>
+                                            <TableCell className="text-right text-xs text-slate-800 font-bold">
+                                                R$ {item.segundaParcela.toFixed(2)}
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] border ${badgeColor}`}>
+                                                        {item.riskStatus === "Crítico" ? `Excede TMP (${item.monthsOfService.toFixed(0)}m)` : item.riskStatus}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400 font-medium">({item.riskPercentage}% risco)</span>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                                {decimoTerceiroData.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={7} className="text-center text-slate-500 py-10 font-semibold">
+                                            Nenhum colaborador encontrado.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </Card>
+                </TabsContent>
+            </Tabs>
+        </div>
+    );
+}
