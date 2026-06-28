@@ -14,6 +14,21 @@ async function getFinancialCostsData() {
             vacations: {
                 orderBy: { endDate: 'desc' },
                 take: 1
+            },
+            assignments: {
+                where: {
+                    OR: [
+                        { endDate: null },
+                        { endDate: { gte: today } }
+                    ]
+                },
+                include: {
+                    posto: {
+                        include: {
+                            client: true
+                        }
+                    }
+                }
             }
         },
         orderBy: { name: 'asc' }

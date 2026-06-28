@@ -21,6 +21,16 @@ interface Employee {
     situation: { name: string } | null;
     type: string;
     vacations: { id: string; startDate: string | Date; endDate: string | Date }[];
+    assignments?: {
+        id: string;
+        posto: {
+            id: string;
+            client: {
+                id: string;
+                name: string;
+            } | null;
+        } | null;
+    }[];
 }
 
 interface FinancialCostsClientProps {
@@ -88,8 +98,24 @@ export function FinancialCostsClient({
 }: FinancialCostsClientProps) {
     const [activeTab, setActiveTab] = useState("ferias");
     const [searchTerm, setSearchTerm] = useState("");
-    const [contractType, setContractType] = useState<string>("ALL");
+    const [selectedContract, setSelectedContract] = useState<string>("ALL");
     const [viewMode, setViewMode] = useState<"colaborador" | "contrato">("colaborador");
+    
+    const contractOptions = useMemo(() => {
+        const contracts = new Set<string>();
+        employees.forEach(emp => {
+            const clientName = emp.assignments?.[0]?.posto?.client?.name;
+            if (clientName) {
+                contracts.add(clientName);
+            }
+        });
+        const hasReserva = employees.some(emp => !emp.assignments || emp.assignments.length === 0 || !emp.assignments[0]?.posto?.client);
+        const options = Array.from(contracts).sort();
+        if (hasReserva) {
+            options.push("Reserva Técnica");
+        }
+        return options;
+    }, [employees]);
     const [taxRate, setTaxRate] = useState<number>(27.8);
     const [taxRateInput, setTaxRateInput] = useState<string>("27.8");
 
@@ -138,6 +164,8 @@ export function FinancialCostsClient({
             const incidentesLegais = (proporcionalVal + thirdConstitucional) * (taxRate / 100);
             const totalVal = proporcionalVal + thirdConstitucional + incidentesLegais;
 
+            const clientName = emp.assignments?.[0]?.posto?.client?.name || "Reserva Técnica";
+
             return {
                 id: emp.id,
                 name: emp.name,
@@ -151,14 +179,15 @@ export function FinancialCostsClient({
                 incidentesLegais,
                 totalVal,
                 salary: emp.salary,
-                type: emp.type
+                type: emp.type,
+                contractName: clientName
             };
         }).filter(item => {
             const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesContract = contractType === "ALL" || item.type === contractType;
+            const matchesContract = selectedContract === "ALL" || item.contractName === selectedContract;
             return matchesSearch && matchesContract;
         });
-    }, [employees, taxRate, today, searchTerm, contractType]);
+    }, [employees, taxRate, today, searchTerm, selectedContract]);
 
     const feriasTotals = useMemo(() => {
         return feriasData.reduce(
@@ -211,6 +240,8 @@ export function FinancialCostsClient({
                 riskPercentage = 45;
             }
 
+            const clientName = emp.assignments?.[0]?.posto?.client?.name || "Reserva Técnica";
+
             return {
                 id: emp.id,
                 name: emp.name,
@@ -225,14 +256,15 @@ export function FinancialCostsClient({
                 monthsOfService,
                 riskStatus,
                 riskPercentage,
-                type: emp.type
+                type: emp.type,
+                contractName: clientName
             };
         }).filter(item => {
             const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesContract = contractType === "ALL" || item.type === contractType;
+            const matchesContract = selectedContract === "ALL" || item.contractName === selectedContract;
             return matchesSearch && matchesContract;
         });
-    }, [employees, firstDayOfCurrentYear, today, currentYear, averageStayMonths, searchTerm, contractType]);
+    }, [employees, firstDayOfCurrentYear, today, currentYear, averageStayMonths, searchTerm, selectedContract]);
 
     const decimoTerceiroTotals = useMemo(() => {
         return decimoTerceiroData.reduce(
@@ -269,7 +301,7 @@ export function FinancialCostsClient({
         }> = {};
 
         feriasData.forEach(item => {
-            const contractKey = item.type || "Reserva Técnica";
+            const contractKey = item.contractName || "Reserva Técnica";
             if (!groups[contractKey]) {
                 groups[contractKey] = {
                     type: contractKey,
@@ -289,7 +321,7 @@ export function FinancialCostsClient({
             groups[contractKey].totalVal += item.totalVal;
         });
 
-        return Object.values(groups);
+        return Object.values(groups).sort((a, b) => a.type.localeCompare(b.type));
     }, [feriasData]);
 
     // Agrupamento por Contrato - 13º
@@ -305,7 +337,7 @@ export function FinancialCostsClient({
         }> = {};
 
         decimoTerceiroData.forEach(item => {
-            const contractKey = item.type || "Reserva Técnica";
+            const contractKey = item.contractName || "Reserva Técnica";
             if (!groups[contractKey]) {
                 groups[contractKey] = {
                     type: contractKey,
@@ -325,7 +357,7 @@ export function FinancialCostsClient({
             groups[contractKey].totalSegunda += item.segundaParcela;
         });
 
-        return Object.values(groups);
+        return Object.values(groups).sort((a, b) => a.type.localeCompare(b.type));
     }, [decimoTerceiroData, taxRate]);
 
     return (
@@ -343,18 +375,19 @@ export function FinancialCostsClient({
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="colaborador">Por Colaborador</SelectItem>
-                            <SelectItem value="contrato">Por Tipo de Contrato</SelectItem>
+                            <SelectItem value="contrato">Por Cliente / Contrato</SelectItem>
                         </SelectContent>
                     </Select>
 
-                    <Select value={contractType} onValueChange={setContractType}>
-                        <SelectTrigger className="w-[180px] h-10 text-xs font-semibold bg-white border-slate-200 text-slate-700">
-                            <SelectValue placeholder="Tipo de Contrato" />
+                    <Select value={selectedContract} onValueChange={setSelectedContract}>
+                        <SelectTrigger className="w-[200px] h-10 text-xs font-semibold bg-white border-slate-200 text-slate-700">
+                            <SelectValue placeholder="Filtrar por Contrato" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="ALL">Todos os Contratos</SelectItem>
-                            <SelectItem value="CLT">CLT (Efetivo)</SelectItem>
-                            <SelectItem value="Reserva Técnica">Reserva Técnica</SelectItem>
+                            {contractOptions.map(name => (
+                                <SelectItem key={name} value={name}>{name}</SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
 
@@ -473,7 +506,7 @@ export function FinancialCostsClient({
                                 <Table>
                                     <TableHeader className="bg-slate-50">
                                         <TableRow>
-                                            <TableHead className="font-bold text-slate-800">Tipo de Contrato</TableHead>
+                                            <TableHead className="font-bold text-slate-800">Cliente / Contrato</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-center">Colaboradores Ativos</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-center">Total Dias Acum.</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Férias Prop. (Total)</TableHead>
@@ -713,7 +746,7 @@ export function FinancialCostsClient({
                                 <Table>
                                     <TableHeader className="bg-slate-50">
                                         <TableRow>
-                                            <TableHead className="font-bold text-slate-800">Tipo de Contrato</TableHead>
+                                            <TableHead className="font-bold text-slate-800">Cliente / Contrato</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-center">Colaboradores Ativos</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">13º Líquido Acum.</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Encargos s/ 13º ({taxRate}%)</TableHead>
