@@ -31,6 +31,8 @@ interface VacantPostosDialogProps {
         schedule: string;
         billingValue: number;
         client: { id: string; name: string; company?: { id: string; name: string } | null };
+        createdAt: string | Date;
+        assignments?: any[];
     }[];
     companies?: { id: string; name: string }[];
 }
@@ -84,13 +86,64 @@ export function VacantPostosDialog({ vagoDaysCount, glosaProjetada, vacantPostos
         return matchesSearch && matchesCompany && matchesClient;
     });
 
+    const vacantPostosDetails = useMemo(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+        return filteredPostos.map(posto => {
+            const endedAssignments = (posto.assignments || []).filter((a: any) => a.endDate);
+            let vacantSinceDate: Date;
+            let isNeverOccupied = false;
+
+            if (endedAssignments.length > 0) {
+                const sorted = [...endedAssignments].sort((a: any, b: any) => 
+                    new Date(b.endDate!).getTime() - new Date(a.endDate!).getTime()
+                );
+                vacantSinceDate = new Date(sorted[0].endDate!);
+            } else {
+                vacantSinceDate = new Date(posto.createdAt);
+                isNeverOccupied = true;
+            }
+
+            // Limitar data de início ao primeiro dia do mês atual
+            const calculationStartDate = vacantSinceDate < firstDayOfMonth ? firstDayOfMonth : vacantSinceDate;
+
+            const vacantDateClean = new Date(calculationStartDate);
+            vacantDateClean.setHours(0, 0, 0, 0);
+
+            const diffTime = Math.abs(today.getTime() - vacantDateClean.getTime());
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+            return {
+                ...posto,
+                vacantSinceDate,
+                diffDays,
+                isNeverOccupied
+            };
+        });
+    }, [filteredPostos]);
+
+    const totals = useMemo(() => {
+        return vacantPostosDetails.reduce(
+            (acc, p) => {
+                acc.billingValue += p.billingValue || 0;
+                acc.diffDays += p.diffDays || 0;
+                return acc;
+            },
+            { billingValue: 0, diffDays: 0 }
+        );
+    }, [vacantPostosDetails]);
+
     const handleExport = () => {
-        const dataToExport = filteredPostos.map(posto => ({
+        const dataToExport = vacantPostosDetails.map(posto => ({
             "Empresa": posto.client.company?.name || "-",
             "Cliente": posto.client.name,
             "Cargo/Função": posto.role?.name || "N/A",
             "Escala": posto.schedule,
             "Faturamento (Perda)": posto.billingValue,
+            "Vago Desde": posto.isNeverOccupied ? "Nunca ocupado" : posto.vacantSinceDate.toLocaleDateString("pt-BR"),
+            "Dias Vagos": posto.diffDays,
         }));
 
         const wb = XLSX.utils.book_new();
@@ -103,6 +156,8 @@ export function VacantPostosDialog({ vagoDaysCount, glosaProjetada, vacantPostos
             { wch: 20 }, // Cargo
             { wch: 15 }, // Escala
             { wch: 20 }, // Faturamento
+            { wch: 15 }, // Vago Desde
+            { wch: 12 }, // Dias Vagos
         ];
         ws['!cols'] = wscols;
 
@@ -248,11 +303,13 @@ export function VacantPostosDialog({ vagoDaysCount, glosaProjetada, vacantPostos
                                 <TableHead>Cargo/Função</TableHead>
                                 <TableHead>Escala</TableHead>
                                 <TableHead>Faturamento (Perda)</TableHead>
+                                <TableHead>Vago Desde</TableHead>
+                                <TableHead className="text-right">Dias Vagos</TableHead>
                                 <TableHead className="text-right">Ação</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {filteredPostos.map((posto) => (
+                            {vacantPostosDetails.map((posto) => (
                                 <TableRow key={posto.id}>
                                     <TableCell>
                                         <span className="text-xs font-bold text-blue-600 uppercase">
@@ -271,6 +328,15 @@ export function VacantPostosDialog({ vagoDaysCount, glosaProjetada, vacantPostos
                                     <TableCell className="text-red-500 font-bold">
                                         R$ {posto.billingValue.toFixed(2)}
                                     </TableCell>
+                                    <TableCell className="text-slate-600 text-xs">
+                                        {posto.isNeverOccupied 
+                                            ? "Nunca ocupado" 
+                                            : posto.vacantSinceDate.toLocaleDateString("pt-BR")
+                                        }
+                                    </TableCell>
+                                    <TableCell className="text-right font-bold text-slate-900">
+                                        {posto.diffDays} {posto.diffDays === 1 ? 'dia' : 'dias'}
+                                    </TableCell>
                                     <TableCell className="text-right">
                                         <Link href={`/admin/clients/${posto.client.id}`}>
                                             <div className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-bold uppercase tracking-wider">
@@ -280,11 +346,26 @@ export function VacantPostosDialog({ vagoDaysCount, glosaProjetada, vacantPostos
                                     </TableCell>
                                 </TableRow>
                             ))}
-                            {filteredPostos.length === 0 && (
+                            {vacantPostosDetails.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-8 text-slate-500">
+                                    <TableCell colSpan={8} className="text-center py-8 text-slate-500">
                                         Nenhum posto vago encontrado com os filtros atuais.
                                     </TableCell>
+                                </TableRow>
+                            )}
+                            {/* Summary Row */}
+                            {vacantPostosDetails.length > 0 && (
+                                <TableRow className="bg-slate-50 font-bold hover:bg-slate-50 border-t-2 border-slate-200">
+                                    <TableCell colSpan={2} className="text-slate-900">Total</TableCell>
+                                    <TableCell colSpan={2}></TableCell>
+                                    <TableCell className="text-red-600">
+                                        R$ {totals.billingValue.toFixed(2)}
+                                    </TableCell>
+                                    <TableCell></TableCell> {/* Vago Desde */}
+                                    <TableCell className="text-slate-950 text-right">
+                                        {totals.diffDays} dias
+                                    </TableCell>
+                                    <TableCell></TableCell> {/* Ação */}
                                 </TableRow>
                             )}
                         </TableBody>
