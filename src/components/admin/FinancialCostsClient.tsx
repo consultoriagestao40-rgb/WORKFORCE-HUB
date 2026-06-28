@@ -256,7 +256,22 @@ export function FinancialCostsClient({
                 {/* TAB CONTENT: FÉRIAS */}
                 <TabsContent value="ferias" className="space-y-6 pt-4">
                     {/* CARDS TOTALIZADORES */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                            <CardHeader className="pb-2">
+                                <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Colaboradores Ativos</CardDescription>
+                                <CardTitle className="text-3xl font-black text-slate-900 flex items-center justify-between">
+                                    <span>{feriasData.length} ativos</span>
+                                    <Users className="w-6 h-6 text-indigo-500" />
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                    Sem demitidos ou afastados
+                                </p>
+                            </CardContent>
+                        </Card>
+
                         <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
                             <CardHeader className="pb-2">
                                 <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total de Dias Acumulados</CardDescription>
