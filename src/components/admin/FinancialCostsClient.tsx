@@ -316,9 +316,6 @@ export function FinancialCostsClient({
             let gratificacao = emp.gratificacao || 0;
             let outrosAdicionais = emp.outrosAdicionais || 0;
 
-            const vtDiario = (emp.valeTransporte !== undefined && emp.valeTransporte !== null && emp.valeTransporte > 0) ? emp.valeTransporte : 12;
-            const vaMensalCadastro = (emp.valeAlimentacao !== undefined && emp.valeAlimentacao !== null) ? emp.valeAlimentacao : 0;
-
             // Check if admitted in the current month & year
             const isAdmittedThisMonth = admission.getFullYear() === today.getFullYear() && admission.getMonth() === today.getMonth();
             
@@ -340,9 +337,38 @@ export function FinancialCostsClient({
             const totalAdicionais = insalubridade + periculosidade + gratificacao + outrosAdicionais;
             const remuneracaoTotal = salary + totalAdicionais;
 
-            // Previsão de VT e VA
-            const vtMensal = vtDiario * vtDays;
-            const vaMensal = isAdmittedThisMonth ? (vaMensalCadastro / totalDaysInMonth) * daysWorked : vaMensalCadastro;
+            // VT Intelligent Calculation (Daily vs Monthly detection)
+            let vtDiario = 12;
+            let vtMensal = 264; // Default: 12 * 22
+
+            if (emp.valeTransporte !== undefined && emp.valeTransporte !== null && emp.valeTransporte > 0) {
+                if (emp.valeTransporte <= 100) {
+                    vtDiario = emp.valeTransporte;
+                    vtMensal = vtDiario * vtDays;
+                } else {
+                    // It is already a monthly value registered
+                    vtMensal = isAdmittedThisMonth ? (emp.valeTransporte / totalDaysInMonth) * daysWorked : emp.valeTransporte;
+                    vtDiario = emp.valeTransporte / 22;
+                }
+            } else {
+                // Default R$ 12 per day worked
+                vtMensal = vtDiario * vtDays;
+            }
+
+            // VA Intelligent Calculation (Daily vs Monthly detection)
+            let vaDiario = 0;
+            let vaMensal = 0;
+
+            if (emp.valeAlimentacao !== undefined && emp.valeAlimentacao !== null && emp.valeAlimentacao > 0) {
+                if (emp.valeAlimentacao <= 100) {
+                    vaDiario = emp.valeAlimentacao;
+                    vaMensal = vaDiario * (isAdmittedThisMonth ? vtDays : 22);
+                } else {
+                    // It is a monthly value registered
+                    vaMensal = isAdmittedThisMonth ? (emp.valeAlimentacao / totalDaysInMonth) * daysWorked : emp.valeAlimentacao;
+                    vaDiario = emp.valeAlimentacao / 22;
+                }
+            }
 
             // Custo Total Sem encargos sociais
             const totalCustoMensal = remuneracaoTotal + vtMensal + vaMensal;
@@ -363,7 +389,7 @@ export function FinancialCostsClient({
                 remuneracaoTotal,
                 vtDiario,
                 vtMensal,
-                vaDiario: vaMensalCadastro,
+                vaDiario,
                 vaMensal,
                 totalCustoMensal,
                 contractName: clientName,
