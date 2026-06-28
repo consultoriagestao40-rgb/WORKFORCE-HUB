@@ -32,12 +32,6 @@ async function getAdminStats() {
         prisma.posto.findMany({
             include: {
                 assignments: {
-                    where: {
-                        OR: [
-                            { endDate: null }, // Currently active
-                            { endDate: { gte: firstDayOfMonth } } // Ended this month or later
-                        ]
-                    },
                     include: {
                         employee: {
                             include: { situation: true }
@@ -57,9 +51,7 @@ async function getAdminStats() {
             _sum: { costValue: true },
             where: { type: 'DIARISTA', date: { gte: firstDayOfMonth } }
         }),
-        prisma.coverage.count({
-            where: { type: 'VAGO', date: { gte: firstDayOfMonth } }
-        }),
+        Promise.resolve(0),
         prisma.coverage.aggregate({
             _sum: { costValue: true },
             where: { type: { notIn: ['DIARISTA', 'VAGO'] }, date: { gte: firstDayOfMonth } }
@@ -101,6 +93,9 @@ async function getAdminStats() {
     let totalPayrollGross = 0;
 
     const vacantPostos: any[] = [];
+    let totalVagoDays = 0;
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
 
     // Calculate Occupancy & Payroll (Snapshot based on ACTIVE assignments)
     postos.forEach(p => {
@@ -113,6 +108,23 @@ async function getAdminStats() {
             totalPayrollGross += emp.salary + emp.insalubridade + emp.periculosidade + emp.gratificacao + emp.outrosAdicionais;
         } else {
             vacantPostos.push(p);
+
+            // Calcular dias de vacância
+            const endedAssignments = p.assignments.filter(a => a.endDate);
+            let vacantSinceDate: Date;
+            if (endedAssignments.length > 0) {
+                const sorted = [...endedAssignments].sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
+                vacantSinceDate = new Date(sorted[0].endDate);
+            } else {
+                vacantSinceDate = new Date(p.createdAt);
+            }
+
+            const vacantDateClean = new Date(vacantSinceDate);
+            vacantDateClean.setHours(0, 0, 0, 0);
+
+            const diffTime = Math.abs(todayDate.getTime() - vacantDateClean.getTime());
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            totalVagoDays += diffDays;
         }
     });
 
@@ -206,7 +218,7 @@ async function getAdminStats() {
         }))
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 8);
 
-    return { totalVagas, vacancyIndex, occupiedCount, cashExposure, glosaProjetada, vagoDaysCount, recentActivity, totalBudget, totalRealized, deviation, vacantPostos, vacationEmployees, companies };
+    return { totalVagas, vacancyIndex, occupiedCount, cashExposure, glosaProjetada, vagoDaysCount: totalVagoDays, recentActivity, totalBudget, totalRealized, deviation, vacantPostos, vacationEmployees, companies };
 }
 
 export default async function AdminDashboard() {

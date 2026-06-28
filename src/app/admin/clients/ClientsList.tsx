@@ -2,22 +2,33 @@
 
 import { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Building, Search, Filter } from "lucide-react";
+import { Building, Search, Filter, UserX, TrendingDown } from "lucide-react";
 import Link from "next/link";
 import { NewClientSheet } from "@/components/admin/NewClientSheet";
 import { EditClientSheet } from "@/components/admin/EditClientSheet";
 import { DeleteClientButton } from "@/components/admin/DeleteClientButton";
+import { VacantPostosDialog } from "@/components/admin/VacantPostosDialog";
 
 interface ClientsListProps {
     initialClients: any[];
     companies: any[];
     userRole: string | null;
+    vagoDaysCount: number;
+    glosaProjetada: number;
+    vacantPostos: any[];
 }
 
-export function ClientsList({ initialClients, companies, userRole }: ClientsListProps) {
+export function ClientsList({
+    initialClients,
+    companies,
+    userRole,
+    vagoDaysCount,
+    glosaProjetada,
+    vacantPostos
+}: ClientsListProps) {
     const [searchTerm, setSearchTerm] = useState("");
     const [companyFilter, setCompanyFilter] = useState("all");
     const [clientFilter, setClientFilter] = useState("all");
@@ -48,6 +59,44 @@ export function ClientsList({ initialClients, companies, userRole }: ClientsList
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold text-slate-800">Clientes / Sites</h1>
                 <NewClientSheet companies={companies} />
+            </div>
+
+            {/* TOTALIZERS */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50 overflow-hidden relative">
+                    <CardHeader className="pb-2">
+                        <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total de Clientes</CardDescription>
+                        <CardTitle className="text-2xl font-black text-slate-900">
+                            {initialClients.length}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-xs text-slate-500 font-medium">
+                            {initialClients.filter(c => c.companyId).length} Vinculados a Empresas
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <VacantPostosDialog
+                    vagoDaysCount={vagoDaysCount}
+                    glosaProjetada={glosaProjetada}
+                    vacantPostos={vacantPostos}
+                    companies={companies}
+                />
+
+                <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50 overflow-hidden relative">
+                    <CardHeader className="pb-2">
+                        <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Perda de Receita (Glosa Global)</CardDescription>
+                        <CardTitle className="text-2xl font-black text-amber-600">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(glosaProjetada)}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-xs text-slate-500 font-medium">
+                            Projeção acumulada no mês
+                        </p>
+                    </CardContent>
+                </Card>
             </div>
 
             <Card>
