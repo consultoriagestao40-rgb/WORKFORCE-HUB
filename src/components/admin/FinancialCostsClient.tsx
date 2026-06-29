@@ -221,10 +221,10 @@ export function FinancialCostsClient({
                     : valB.localeCompare(valA);
             }
 
-            if (valA instanceof Date && valB instanceof Date) {
+            if ((valA as any) instanceof Date && (valB as any) instanceof Date) {
                 return sortDirection === "asc"
-                    ? valA.getTime() - valB.getTime()
-                    : valB.getTime() - valA.getTime();
+                    ? (valA as any).getTime() - (valB as any).getTime()
+                    : (valB as any).getTime() - (valA as any).getTime();
             }
 
             return sortDirection === "asc"
@@ -324,10 +324,10 @@ export function FinancialCostsClient({
                     : valB.localeCompare(valA);
             }
 
-            if (valA instanceof Date && valB instanceof Date) {
+            if ((valA as any) instanceof Date && (valB as any) instanceof Date) {
                 return sortDirection === "asc"
-                    ? valA.getTime() - valB.getTime()
-                    : valB.getTime() - valA.getTime();
+                    ? (valA as any).getTime() - (valB as any).getTime()
+                    : (valB as any).getTime() - (valA as any).getTime();
             }
 
             return sortDirection === "asc"
@@ -471,10 +471,10 @@ export function FinancialCostsClient({
                     : valB.localeCompare(valA);
             }
 
-            if (valA instanceof Date && valB instanceof Date) {
+            if ((valA as any) instanceof Date && (valB as any) instanceof Date) {
                 return sortDirection === "asc"
-                    ? valA.getTime() - valB.getTime()
-                    : valB.getTime() - valA.getTime();
+                    ? (valA as any).getTime() - (valB as any).getTime()
+                    : (valB as any).getTime() - (valA as any).getTime();
             }
 
             return sortDirection === "asc"
