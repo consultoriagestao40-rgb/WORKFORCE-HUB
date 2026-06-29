@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, DollarSign, Users, AlertTriangle, TrendingUp, TrendingDown, Info, Search, ShieldAlert, Award, ExternalLink } from "lucide-react";
+import { Calendar, DollarSign, Users, AlertTriangle, TrendingUp, TrendingDown, Info, Search, ShieldAlert, Award, ExternalLink, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -108,6 +108,17 @@ export function FinancialCostsClient({
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedContract, setSelectedContract] = useState<string>("ALL");
     const [viewMode, setViewMode] = useState<"colaborador" | "contrato" | "empresa">("colaborador");
+    const [sortField, setSortField] = useState<string>("name");
+    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+    const handleSort = (field: string) => {
+        if (sortField === field) {
+            setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+        } else {
+            setSortField(field);
+            setSortDirection("asc");
+        }
+    };
     
     const contractOptions = useMemo(() => {
         const contracts = new Set<string>();
@@ -197,8 +208,30 @@ export function FinancialCostsClient({
             const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesContract = selectedContract === "ALL" || item.contractName === selectedContract;
             return matchesSearch && matchesContract;
+        }).sort((a, b) => {
+            let valA = a[sortField as keyof typeof a];
+            let valB = b[sortField as keyof typeof b];
+
+            if (valA === undefined || valA === null) valA = "" as any;
+            if (valB === undefined || valB === null) valB = "" as any;
+
+            if (typeof valA === "string" && typeof valB === "string") {
+                return sortDirection === "asc" 
+                    ? valA.localeCompare(valB) 
+                    : valB.localeCompare(valA);
+            }
+
+            if (valA instanceof Date && valB instanceof Date) {
+                return sortDirection === "asc"
+                    ? valA.getTime() - valB.getTime()
+                    : valB.getTime() - valA.getTime();
+            }
+
+            return sortDirection === "asc"
+                ? (valA as number) - (valB as number)
+                : (valB as number) - (valA as number);
         });
-    }, [employees, taxRate, today, searchTerm, selectedContract]);
+    }, [employees, taxRate, today, searchTerm, selectedContract, sortField, sortDirection]);
 
     const feriasTotals = useMemo(() => {
         return feriasData.reduce(
@@ -271,18 +304,42 @@ export function FinancialCostsClient({
                 riskPercentage,
                 type: emp.type,
                 contractName: clientName,
-                companyName
+                companyName,
+                salary: emp.salary
             };
         }).filter(item => {
             const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesContract = selectedContract === "ALL" || item.contractName === selectedContract;
             return matchesSearch && matchesContract;
+        }).sort((a, b) => {
+            let valA = a[sortField as keyof typeof a];
+            let valB = b[sortField as keyof typeof b];
+
+            if (valA === undefined || valA === null) valA = "" as any;
+            if (valB === undefined || valB === null) valB = "" as any;
+
+            if (typeof valA === "string" && typeof valB === "string") {
+                return sortDirection === "asc" 
+                    ? valA.localeCompare(valB) 
+                    : valB.localeCompare(valA);
+            }
+
+            if (valA instanceof Date && valB instanceof Date) {
+                return sortDirection === "asc"
+                    ? valA.getTime() - valB.getTime()
+                    : valB.getTime() - valA.getTime();
+            }
+
+            return sortDirection === "asc"
+                ? (valA as number) - (valB as number)
+                : (valB as number) - (valA as number);
         });
-    }, [employees, firstDayOfCurrentYear, today, currentYear, averageStayMonths, searchTerm, selectedContract]);
+    }, [employees, firstDayOfCurrentYear, today, currentYear, averageStayMonths, searchTerm, selectedContract, sortField, sortDirection]);
 
     const decimoTerceiroTotals = useMemo(() => {
         return decimoTerceiroData.reduce(
             (acc, item) => {
+                acc.totalSalary += item.salary;
                 acc.totalAcumulado += item.valorAcumulado;
                 acc.totalAcumuladoLiquido += item.valorAcumuladoLiquido;
                 acc.totalPrimeira += item.primeiraParcela;
@@ -292,6 +349,7 @@ export function FinancialCostsClient({
                 return acc;
             },
             { 
+                totalSalary: 0,
                 totalAcumulado: 0, 
                 totalAcumuladoLiquido: 0, 
                 totalPrimeira: 0, 
@@ -400,8 +458,30 @@ export function FinancialCostsClient({
             const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesContract = selectedContract === "ALL" || item.contractName === selectedContract;
             return matchesSearch && matchesContract;
+        }).sort((a, b) => {
+            let valA = a[sortField as keyof typeof a];
+            let valB = b[sortField as keyof typeof b];
+
+            if (valA === undefined || valA === null) valA = "" as any;
+            if (valB === undefined || valB === null) valB = "" as any;
+
+            if (typeof valA === "string" && typeof valB === "string") {
+                return sortDirection === "asc" 
+                    ? valA.localeCompare(valB) 
+                    : valB.localeCompare(valA);
+            }
+
+            if (valA instanceof Date && valB instanceof Date) {
+                return sortDirection === "asc"
+                    ? valA.getTime() - valB.getTime()
+                    : valB.getTime() - valA.getTime();
+            }
+
+            return sortDirection === "asc"
+                ? (valA as number) - (valB as number)
+                : (valB as number) - (valA as number);
         });
-    }, [employees, searchTerm, selectedContract]);
+    }, [employees, searchTerm, selectedContract, sortField, sortDirection]);
 
     const folhaTotals = useMemo(() => {
         return folhaData.reduce(
@@ -941,15 +1021,46 @@ export function FinancialCostsClient({
                                 <Table>
                                     <TableHeader className="bg-slate-50">
                                         <TableRow>
-                                            <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
+                                            <TableHead 
+                                                className="font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                                                onClick={() => handleSort("name")}
+                                            >
+                                                <div className="flex items-center gap-1">
+                                                    Colaborador
+                                                    {sortField === "name" && (
+                                                        sortDirection === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                                    )}
+                                                </div>
+                                            </TableHead>
                                             <TableHead className="font-bold text-slate-800">Admissão</TableHead>
+                                            <TableHead 
+                                                className="font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-colors select-none text-right"
+                                                onClick={() => handleSort("salary")}
+                                            >
+                                                <div className="flex items-center justify-end gap-1">
+                                                    Salário Base
+                                                    {sortField === "salary" && (
+                                                        sortDirection === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                                    )}
+                                                </div>
+                                            </TableHead>
                                             <TableHead className="font-bold text-slate-800">Início Período Aquis.</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-center">Meses Acum.</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-center">Dias Devidos</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Férias Prop.</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">1/3 Const.</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Encargos ({taxRate}%)</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-right">Total Acumulado</TableHead>
+                                            <TableHead 
+                                                className="font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-colors select-none text-right"
+                                                onClick={() => handleSort("totalVal")}
+                                            >
+                                                <div className="flex items-center justify-end gap-1">
+                                                    Total Acumulado
+                                                    {sortField === "totalVal" && (
+                                                        sortDirection === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                                    )}
+                                                </div>
+                                            </TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -966,6 +1077,9 @@ export function FinancialCostsClient({
                                                 </TableCell>
                                                 <TableCell className="text-slate-600 text-xs">
                                                     {item.admissionDate.toLocaleDateString("pt-BR")}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs text-slate-700 font-semibold">
+                                                    {formatCurrency(item.salary)}
                                                 </TableCell>
                                                 <TableCell className="text-slate-600 text-xs">
                                                     {item.startOfPeriod.toLocaleDateString("pt-BR")}
@@ -994,7 +1108,7 @@ export function FinancialCostsClient({
                                         ))}
                                         {feriasData.length === 0 && (
                                             <TableRow>
-                                                <TableCell colSpan={9} className="text-center text-slate-500 py-10 font-semibold">
+                                                <TableCell colSpan={10} className="text-center text-slate-500 py-10 font-semibold">
                                                     Nenhum colaborador encontrado.
                                                 </TableCell>
                                             </TableRow>
@@ -1258,10 +1372,41 @@ export function FinancialCostsClient({
                                 <Table>
                                     <TableHeader className="bg-slate-50">
                                         <TableRow>
-                                            <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
+                                            <TableHead 
+                                                className="font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                                                onClick={() => handleSort("name")}
+                                            >
+                                                <div className="flex items-center gap-1">
+                                                    Colaborador
+                                                    {sortField === "name" && (
+                                                        sortDirection === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                                    )}
+                                                </div>
+                                            </TableHead>
                                             <TableHead className="font-bold text-slate-800">Admissão</TableHead>
+                                            <TableHead 
+                                                className="font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-colors select-none text-right"
+                                                onClick={() => handleSort("salary")}
+                                            >
+                                                <div className="flex items-center justify-end gap-1">
+                                                    Salário Base
+                                                    {sortField === "salary" && (
+                                                        sortDirection === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                                    )}
+                                                </div>
+                                            </TableHead>
                                             <TableHead className="font-bold text-slate-800 text-center">Meses Trabalhados</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-right">13º Líquido Acum.</TableHead>
+                                            <TableHead 
+                                                className="font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-colors select-none text-right"
+                                                onClick={() => handleSort("valorAcumuladoLiquido")}
+                                            >
+                                                <div className="flex items-center justify-end gap-1">
+                                                    13º Líquido Acum.
+                                                    {sortField === "valorAcumuladoLiquido" && (
+                                                        sortDirection === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                                    )}
+                                                </div>
+                                            </TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Encargos s/ 13º ({taxRate}%)</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">1ª Parcela (50% Bruto)</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">2ª Parcela (Est. Líquida)</TableHead>
@@ -1291,6 +1436,9 @@ export function FinancialCostsClient({
                                                     <TableCell className="text-slate-600 text-xs">
                                                         {item.admissionDate.toLocaleDateString("pt-BR")}
                                                     </TableCell>
+                                                    <TableCell className="text-right text-xs text-slate-700 font-semibold">
+                                                        {formatCurrency(item.salary)}
+                                                    </TableCell>
                                                     <TableCell className="text-center font-semibold text-slate-800 text-xs">
                                                         {item.monthsInYear} / 12
                                                     </TableCell>
@@ -1319,7 +1467,7 @@ export function FinancialCostsClient({
                                         })}
                                         {decimoTerceiroData.length === 0 && (
                                             <TableRow>
-                                                <TableCell colSpan={8} className="text-center text-slate-500 py-10 font-semibold">
+                                                <TableCell colSpan={9} className="text-center text-slate-500 py-10 font-semibold">
                                                     Nenhum colaborador encontrado.
                                                 </TableCell>
                                             </TableRow>
@@ -1328,6 +1476,7 @@ export function FinancialCostsClient({
                                         {decimoTerceiroData.length > 0 && (
                                             <TableRow className="bg-slate-50 font-bold hover:bg-slate-50 border-t-2 border-slate-200">
                                                 <TableCell colSpan={2} className="text-slate-900">Total</TableCell>
+                                                <TableCell className="text-right text-slate-950">{formatCurrency(decimoTerceiroTotals.totalSalary)}</TableCell>
                                                 <TableCell className="text-center"></TableCell>
                                                 <TableCell className="text-right text-slate-950">
                                                     {formatCurrency(decimoTerceiroTotals.totalAcumuladoLiquido)}
@@ -1372,22 +1521,22 @@ export function FinancialCostsClient({
 
                             <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
                                 <CardHeader className="pb-2">
-                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Média por Colaborador</CardDescription>
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Colaboradores Ativos</CardDescription>
                                     <CardTitle className="text-3xl font-black text-slate-900 flex items-center justify-between">
-                                        <span>{formatCurrency(folhaTotals.totalCusto / (folhaData.length || 1))}</span>
+                                        <span>{folhaData.length} ativos</span>
                                         <Users className="w-6 h-6 text-indigo-500" />
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                        Base de cálculo: {folhaData.length} colaboradores ativos
+                                        Base de cálculo da folha
                                     </p>
                                 </CardContent>
                             </Card>
                         </div>
 
                         {/* Linha 2: Detalhamento por categoria */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                             <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
                                 <CardHeader className="pb-2">
                                     <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Massa Salarial Base</CardDescription>
@@ -1444,6 +1593,21 @@ export function FinancialCostsClient({
                                 <CardContent>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
                                         VA real cadastrado nos colaboradores
+                                    </p>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="border-none shadow-premium bg-gradient-to-br from-white to-slate-50/50">
+                                <CardHeader className="pb-2">
+                                    <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Média por Colaborador</CardDescription>
+                                    <CardTitle className="text-xl font-extrabold text-slate-900 flex items-center justify-between">
+                                        <span>{formatCurrency(folhaTotals.totalCusto / (folhaData.length || 1))}</span>
+                                        <Users className="w-5 h-5 text-indigo-500" />
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
+                                        Custo médio mensal por cabeça
                                     </p>
                                 </CardContent>
                             </Card>
@@ -1588,13 +1752,63 @@ export function FinancialCostsClient({
                                 <Table>
                                     <TableHeader className="bg-slate-50">
                                         <TableRow>
-                                            <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-right">Salário Base</TableHead>
+                                            <TableHead 
+                                                className="font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                                                onClick={() => handleSort("name")}
+                                            >
+                                                <div className="flex items-center gap-1">
+                                                    Colaborador
+                                                    {sortField === "name" && (
+                                                        sortDirection === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                                    )}
+                                                </div>
+                                            </TableHead>
+                                            <TableHead 
+                                                className="font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-colors select-none text-right"
+                                                onClick={() => handleSort("salary")}
+                                            >
+                                                <div className="flex items-center justify-end gap-1">
+                                                    Salário Base
+                                                    {sortField === "salary" && (
+                                                        sortDirection === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                                    )}
+                                                </div>
+                                            </TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Adicionais</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-right">Remuneração Total</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-center">Vale Transporte (VT)</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-center">Vale Alimentação (VA)</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-right">Custo Mensal</TableHead>
+                                            <TableHead 
+                                                className="font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-colors select-none text-center"
+                                                onClick={() => handleSort("vtMensal")}
+                                            >
+                                                <div className="flex items-center justify-center gap-1">
+                                                    Vale Transporte (VT)
+                                                    {sortField === "vtMensal" && (
+                                                        sortDirection === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                                    )}
+                                                </div>
+                                            </TableHead>
+                                            <TableHead 
+                                                className="font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-colors select-none text-center"
+                                                onClick={() => handleSort("vaMensal")}
+                                            >
+                                                <div className="flex items-center justify-center gap-1">
+                                                    Vale Alimentação (VA)
+                                                    {sortField === "vaMensal" && (
+                                                        sortDirection === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                                    )}
+                                                </div>
+                                            </TableHead>
+                                            <TableHead 
+                                                className="font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-colors select-none text-right"
+                                                onClick={() => handleSort("totalCustoMensal")}
+                                            >
+                                                <div className="flex items-center justify-end gap-1">
+                                                    Custo Mensal
+                                                    {sortField === "totalCustoMensal" && (
+                                                        sortDirection === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                                    )}
+                                                </div>
+                                            </TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
