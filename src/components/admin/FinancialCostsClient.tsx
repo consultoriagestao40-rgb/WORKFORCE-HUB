@@ -6,8 +6,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, DollarSign, Users, AlertTriangle, TrendingUp, TrendingDown, Info, Search, ShieldAlert, Award } from "lucide-react";
+import { Calendar, DollarSign, Users, AlertTriangle, TrendingUp, TrendingDown, Info, Search, ShieldAlert, Award, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { toast } from "sonner";
 
 interface Employee {
@@ -956,7 +957,10 @@ export function FinancialCostsClient({
                                             <TableRow key={item.id} className="hover:bg-slate-50/50">
                                                 <TableCell>
                                                     <div className="flex flex-col">
-                                                        <span className="font-bold text-slate-900">{item.name}</span>
+                                                        <Link href={`/admin/employees/${item.id}?backTo=/admin/financial-costs`} className="hover:text-primary transition-colors flex items-center gap-1.5 group w-fit">
+                                                            <span className="font-bold text-slate-900 group-hover:text-primary transition-colors">{item.name}</span>
+                                                            <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-primary transition-colors shrink-0" />
+                                                        </Link>
                                                         <span className="text-[10px] text-slate-400">{item.role}</span>
                                                     </div>
                                                 </TableCell>
@@ -1277,7 +1281,10 @@ export function FinancialCostsClient({
                                                 <TableRow key={item.id} className="hover:bg-slate-50/50">
                                                     <TableCell>
                                                         <div className="flex flex-col">
-                                                            <span className="font-bold text-slate-900">{item.name}</span>
+                                                            <Link href={`/admin/employees/${item.id}?backTo=/admin/financial-costs`} className="hover:text-primary transition-colors flex items-center gap-1.5 group w-fit">
+                                                                <span className="font-bold text-slate-900 group-hover:text-primary transition-colors">{item.name}</span>
+                                                                <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-primary transition-colors shrink-0" />
+                                                            </Link>
                                                             <span className="text-[10px] text-slate-400">{item.role}</span>
                                                         </div>
                                                     </TableCell>
@@ -1595,7 +1602,10 @@ export function FinancialCostsClient({
                                             <TableRow key={item.id} className="hover:bg-slate-50/50">
                                                 <TableCell>
                                                     <div className="flex flex-col">
-                                                        <span className="font-bold text-slate-900">{item.name}</span>
+                                                         <Link href={`/admin/employees/${item.id}?backTo=/admin/financial-costs`} className="hover:text-primary transition-colors flex items-center gap-1.5 group w-fit">
+                                                             <span className="font-bold text-slate-900 group-hover:text-primary transition-colors">{item.name}</span>
+                                                             <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-primary transition-colors shrink-0" />
+                                                         </Link>
                                                         <span className="text-[10px] text-slate-400">{item.role}</span>
                                                     </div>
                                                 </TableCell>

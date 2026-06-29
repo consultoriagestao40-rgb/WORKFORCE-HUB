@@ -59,8 +59,13 @@ async function getEmployeeDetails(id: string) {
     return { employee, situations, roles, companies };
 }
 
-export default async function EmployeeProfilePage(props: { params: Promise<{ id: string }> }) {
+export default async function EmployeeProfilePage(props: { 
+    params: Promise<{ id: string }>,
+    searchParams?: Promise<{ backTo?: string }>
+}) {
     const params = await props.params;
+    const resolvedSearchParams = props.searchParams ? await props.searchParams : {};
+    const backTo = resolvedSearchParams.backTo || "/admin/employees";
     const { employee, situations, roles, companies } = await getEmployeeDetails(params.id);
     const timelineEvents = employee ? await getEmployeeTimeline(employee.id) : [];
 
@@ -106,9 +111,9 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
             {/* Action Bar */}
             <div className="flex items-center justify-between">
-                <Link href="/admin/employees">
+                <Link href={backTo}>
                     <Button variant="ghost" className="gap-2 text-slate-500 font-black text-xs uppercase tracking-widest hover:text-primary transition-colors">
-                        <ArrowLeft className="w-4 h-4" /> Voltar para Equipe
+                        <ArrowLeft className="w-4 h-4" /> {backTo.includes('financial-costs') ? 'Voltar para Custos' : 'Voltar para Equipe'}
                     </Button>
                 </Link>
                 <div className="flex gap-3">
