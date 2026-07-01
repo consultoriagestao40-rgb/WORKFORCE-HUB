@@ -27,7 +27,7 @@ async function getAdminStats() {
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const [postos, budgetAgg, cashExposureAgg, vagoDaysCount, extraCostsAgg, recentCoverages, recentAssignments, vacationEmployees, monthlyCoverages, companies] = await Promise.all([
+    const [postos, budgetAgg, cashExposureAgg, vagoDaysCount, extraCostsAgg, recentCoverages, recentAssignments, vacationEmployees, monthlyCoverages, companies, activeEmployeesList] = await Promise.all([
         // 1. Postos & Assignments (fetch ALL assignments touching this month)
         prisma.posto.findMany({
             include: {
@@ -84,6 +84,11 @@ async function getAdminStats() {
         prisma.company.findMany({
             orderBy: { name: 'asc' },
             select: { id: true, name: true }
+        }),
+        // 10. Fetch Active Employees list for exact count matching Costs page
+        prisma.employee.findMany({
+            where: { status: 'Ativo' },
+            include: { situation: true }
         })
     ]);
 
@@ -119,10 +124,8 @@ async function getAdminStats() {
                 vacantSinceDate = p.createdAt;
             }
 
-            // Se o posto ficou vago antes do início do mês, conta apenas a partir do dia 1 do mês atual
-            const calculationStartDate = vacantSinceDate < firstDayOfMonth ? firstDayOfMonth : vacantSinceDate;
-
-            const vacantDateClean = new Date(calculationStartDate);
+            // Dias de vacância calculados a partir da data real de vacância (sem limitar ao início do mês)
+            const vacantDateClean = new Date(vacantSinceDate);
             vacantDateClean.setHours(0, 0, 0, 0);
 
             const diffTime = Math.abs(todayDate.getTime() - vacantDateClean.getTime());
@@ -221,7 +224,21 @@ async function getAdminStats() {
         }))
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 8);
 
-    return { totalVagas, vacancyIndex, occupiedCount, cashExposure, glosaProjetada, vagoDaysCount: totalVagoDays, recentActivity, totalBudget, totalRealized, deviation, vacantPostos, vacationEmployees, companies };
+    const totalActiveEmployees = activeEmployeesList.filter(emp => {
+        if (emp.situation) {
+            const sitName = emp.situation.name.toLowerCase();
+            if (sitName.includes('afastado') || 
+                sitName.includes('afastamento') || 
+                sitName.includes('demitido') || 
+                sitName.includes('desligado') || 
+                sitName.includes('inativo')) {
+                return false;
+            }
+        }
+        return true;
+    }).length;
+
+    return { totalVagas, vacancyIndex, occupiedCount, cashExposure, glosaProjetada, vagoDaysCount: totalVagoDays, recentActivity, totalBudget, totalRealized, deviation, vacantPostos, vacationEmployees, companies, totalActiveEmployees };
 }
 
 export default async function AdminDashboard() {
@@ -309,14 +326,14 @@ export default async function AdminDashboard() {
                     <CardHeader className="pb-2 space-y-0">
                         <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-500">Força de Trabalho</CardDescription>
                         <CardTitle className="text-3xl font-black text-white flex items-center gap-3">
-                            {data.occupiedCount}
+                            {data.totalActiveEmployees}
                             <Users className="w-6 h-6 text-primary" />
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center gap-2 text-[10px]">
-                            <span className="text-emerald-400 font-black">● {data.occupiedCount} ATIVOS</span>
-                            <span className="text-slate-500 font-bold">/ {data.totalVagas} SLOTS</span>
+                            <span className="text-emerald-400 font-black">● {data.occupiedCount} ALOCADOS</span>
+                            <span className="text-slate-500 font-bold">/ {data.totalVagas} POSTOS (SLOTS)</span>
                         </div>
                     </CardContent>
                 </Card>

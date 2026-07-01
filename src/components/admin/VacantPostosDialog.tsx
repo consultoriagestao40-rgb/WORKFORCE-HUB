@@ -106,10 +106,8 @@ export function VacantPostosDialog({ vagoDaysCount, glosaProjetada, vacantPostos
                 isNeverOccupied = true;
             }
 
-            // Limitar data de início ao primeiro dia do mês atual
-            const calculationStartDate = vacantSinceDate < firstDayOfMonth ? firstDayOfMonth : vacantSinceDate;
-
-            const vacantDateClean = new Date(calculationStartDate);
+            // Dias de vacância calculados a partir da data real de vacância (sem limitar ao início do mês)
+            const vacantDateClean = new Date(vacantSinceDate);
             vacantDateClean.setHours(0, 0, 0, 0);
 
             const diffTime = Math.abs(today.getTime() - vacantDateClean.getTime());
