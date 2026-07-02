@@ -16,6 +16,7 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Combobox } from "@/components/ui/combobox";
 import {
     Calendar, ChevronLeft, ChevronRight, Search, UserCheck, UserX, 
     AlertTriangle, Clock, Coins, Download, RefreshCw, Eye, Edit
@@ -370,6 +371,14 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
         return clients.filter(c => c.companyId === companyFilter);
     }, [companyFilter, clients]);
 
+    const clientOptions = React.useMemo(() => {
+        const list = filteredClients.map(c => ({
+            value: c.id,
+            label: c.name
+        }));
+        return [{ value: "all", label: "Todos os Clientes / Contratos" }, ...list];
+    }, [filteredClients]);
+
     return (
         <div className="space-y-6">
             {/* Header Control */}
@@ -511,16 +520,14 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                         ))}
                     </select>
 
-                    <select
+                    <Combobox
+                        options={clientOptions}
                         value={clientFilter}
-                        onChange={(e) => setClientFilter(e.target.value)}
-                        className="h-10 rounded-md border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer"
-                    >
-                        <option value="all">Todos os Clientes / Contratos</option>
-                        {filteredClients.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                    </select>
+                        onChange={(val) => setClientFilter(val)}
+                        placeholder="Todos os Clientes / Contratos"
+                        searchPlaceholder="Buscar cliente..."
+                        emptyMessage="Nenhum cliente encontrado."
+                    />
 
                     <div className="flex items-center justify-end text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                         Atualizado às: {format(new Date(), "HH:mm:ss")}

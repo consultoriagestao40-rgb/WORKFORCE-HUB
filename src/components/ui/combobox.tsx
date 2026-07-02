@@ -18,6 +18,7 @@ interface ComboboxProps {
     placeholder?: string
     searchPlaceholder?: string
     emptyMessage?: string
+    className?: string
 }
 
 export function Combobox({
@@ -27,6 +28,7 @@ export function Combobox({
     placeholder = "Select option...",
     searchPlaceholder = "Search...",
     emptyMessage = "No results found.",
+    className
 }: ComboboxProps) {
     const [open, setOpen] = React.useState(false)
     const [search, setSearch] = React.useState("")
@@ -43,7 +45,7 @@ export function Combobox({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="w-full justify-between font-normal"
+                    className={cn("w-full justify-between font-semibold h-10 border-slate-200 bg-white text-xs text-slate-700", className)}
                 >
                     {value
                         ? options.find((option) => option.value === value)?.label
