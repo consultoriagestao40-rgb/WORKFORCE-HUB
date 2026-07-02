@@ -120,7 +120,13 @@ export async function GET(request: Request) {
         const sortedItems = [...items].sort((a, b) => {
             const getPriority = (item: typeof a) => {
                 const att = item.attendance;
-                if (att.status === "FALTA" && !att.coveredByName) return 1;
+                const isTreated = att.status === "PRESENTE_PONTO" || 
+                                  att.status === "PRESENTE_MANUAL" || 
+                                  att.coveredByName !== null || 
+                                  att.coverageType === "DIARISTA" || 
+                                  att.coverageType === "VAGO";
+
+                if (att.status === "FALTA" && !isTreated) return 1;
                 if (att.status === "AGUARDANDO" && att.isLate) return 2;
                 if (att.status === "AGUARDANDO") return 3;
                 return 4;

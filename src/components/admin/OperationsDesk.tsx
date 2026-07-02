@@ -229,7 +229,8 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
             } else if (coverageType === "DIARISTA") {
                 payload.diaristaCost = parseFloat(diaristaCost) || 0;
             } else if (coverageType === "VAGO") {
-                payload.action = "FALTA"; // Trata como falta não coberta (Glosa)
+                payload.action = "COBERTURA";
+                payload.coverageType = "VAGO";
             }
 
             const res = await fetch("/api/admin/operations/attendance", {
@@ -519,11 +520,17 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                                     ● Coberto por Diarista
                                                 </Badge>
                                             );
+                                        } else if (att.coverageType === "VAGO") {
+                                            statusBadge = (
+                                                <Badge className="bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-100 font-bold">
+                                                    ● Posto Vago (Glosa Confirmada)
+                                                </Badge>
+                                            );
                                         } else {
                                             rowBgClass = "bg-red-50/20";
                                             statusBadge = (
                                                 <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-50 font-black animate-pulse">
-                                                    ▲ Posto Vago (Glosa)
+                                                    ▲ Falta Não Tratada
                                                 </Badge>
                                             );
                                         }
