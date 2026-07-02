@@ -570,9 +570,29 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-slate-800 text-xs font-medium">
-                                                {item.employee?.name || (
-                                                    <span className="text-red-500 italic font-bold">Vaga Sem Titular</span>
-                                                )}
+                                                <div className="flex flex-col">
+                                                    {item.employee?.name ? (
+                                                        <span className="text-slate-800">{item.employee.name}</span>
+                                                    ) : (
+                                                        <span className="text-red-500 italic font-bold">Vaga Sem Titular</span>
+                                                    )}
+                                                    
+                                                    {att.coveredBy && (
+                                                        <span className="text-[10px] text-blue-600 font-bold mt-0.5">
+                                                            ↳ Coberto por: {att.coveredBy.name}
+                                                        </span>
+                                                    )}
+                                                    {att.coverageType === "DIARISTA" && (
+                                                        <span className="text-[10px] text-orange-600 font-bold mt-0.5">
+                                                            ↳ Diarista: {att.notes || "Não especificado"}
+                                                        </span>
+                                                    )}
+                                                    {att.coverageType === "VAGO" && (
+                                                        <span className="text-[10px] text-slate-500 font-bold mt-0.5">
+                                                            ↳ Glosa: {att.notes || "Sem observações"}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </TableCell>
                                             <TableCell className="text-right text-xs font-mono font-bold text-slate-700">
                                                 {(item.billingValue / 30).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
