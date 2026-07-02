@@ -457,7 +457,7 @@ enum RequestStatus {
 model Attendance {
   id               String    @id @default(uuid())
   postoId          String
-  employeeId       String
+  employeeId       String?
   date             DateTime  // Data do dia (sem horas, ex: 2026-07-02 00:00:00)
   status           String    // 'PRESENTE_PONTO', 'PRESENTE_MANUAL', 'AGUARDANDO', 'FALTA'
   clockInTime      DateTime? // Timestamp do ponto do Nexus
@@ -468,7 +468,7 @@ model Attendance {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  employee         Employee  @relation("EmployeeAttendance", fields: [employeeId], references: [id])
+  employee         Employee? @relation("EmployeeAttendance", fields: [employeeId], references: [id])
   posto            Posto     @relation(fields: [postoId], references: [id])
   coveredBy        Employee? @relation("AttendanceCoveredBy", fields: [coveredById], references: [id])
   verifiedBy       User?     @relation("AttendanceVerifier", fields: [verifiedByUserId], references: [id])

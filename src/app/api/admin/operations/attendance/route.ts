@@ -208,11 +208,7 @@ export async function POST(request: Request) {
                     startDate: { lte: targetDate }
                 }
             });
-            finalEmployeeId = activeAssignment?.employeeId;
-        }
-
-        if (!finalEmployeeId) {
-            return NextResponse.json({ error: "Nenhum colaborador alocado nesse posto nesta data." }, { status: 400 });
+            finalEmployeeId = activeAssignment?.employeeId || null;
         }
 
         if (action === "PRESENTE_MANUAL") {
