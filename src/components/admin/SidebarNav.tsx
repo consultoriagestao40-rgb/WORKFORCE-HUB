@@ -81,6 +81,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
 
                 <SectionHeader title="Operação" />
 
+                <NavLink href="/admin/operations" icon={Clock} label="Mesa de Operações" colorClass="text-indigo-400" />
                 <NavLink href="/admin/requests" icon={Inbox} label="Central de Solicitações" colorClass="text-orange-400" />
                 <NavLink href="/admin/occurrences" icon={AlertCircle} label="Livro de Ocorrências" colorClass="text-red-400" />
                 <NavLink href="/admin/roster" icon={Calendar} label="Escalas" />

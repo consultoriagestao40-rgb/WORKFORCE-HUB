@@ -1093,7 +1093,8 @@ export async function login(formData: FormData) {
     const sessionData = JSON.stringify({
         id: user.id,
         role: user.role,
-        name: user.name
+        name: user.name,
+        clientIds: user.clientIds
     });
 
     // In a real app, sign this!
@@ -1108,6 +1109,8 @@ export async function login(formData: FormData) {
 
     if (user.role === "SUPERVISOR") {
         redirect("/mobile");
+    } else if (user.role === "CLIENTE") {
+        redirect("/client/dashboard");
     } else {
         redirect("/admin");
     }
@@ -1370,6 +1373,7 @@ export async function createUser(formData: FormData) {
     const username = formData.get("username") as string;
     const password = formData.get("password") as string;
     const role = formData.get("role") as any;
+    const clientIds = formData.getAll("clientIds") as string[];
 
     const hashedPassword = await hashPassword(password);
 
@@ -1380,7 +1384,8 @@ export async function createUser(formData: FormData) {
             username,
             password: hashedPassword,
             role,
-            isActive: true
+            isActive: true,
+            clientIds
         }
     });
 
@@ -1397,12 +1402,14 @@ export async function updateUser(formData: FormData) {
     const role = formData.get("role") as any;
     const isActive = formData.get("isActive") === "true";
     const password = formData.get("password") as string;
+    const clientIds = formData.getAll("clientIds") as string[];
 
     const updateData: any = {
         name,
         email,
         role,
-        isActive
+        isActive,
+        clientIds
     };
 
     if (password && password.length > 0) {

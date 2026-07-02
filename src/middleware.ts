@@ -13,7 +13,17 @@ export function middleware(request: NextRequest) {
         pathname === "/login"
     ) {
         if (pathname === "/login" && sessionCookie) {
-            return NextResponse.redirect(new URL("/admin", request.url));
+            try {
+                const sessionData = JSON.parse(atob(sessionCookie.value));
+                if (sessionData.role === "SUPERVISOR") {
+                    return NextResponse.redirect(new URL("/mobile", request.url));
+                } else if (sessionData.role === "CLIENTE") {
+                    return NextResponse.redirect(new URL("/client/dashboard", request.url));
+                }
+                return NextResponse.redirect(new URL("/admin", request.url));
+            } catch {
+                return NextResponse.next();
+            }
         }
         return NextResponse.next();
     }
@@ -26,22 +36,25 @@ export function middleware(request: NextRequest) {
     // Role-Based Access Control
     try {
         const value = sessionCookie.value;
-        // Decode base64 
-        // Note: Buffer is not always available in Edge middleware depending on Next.js version.
-        // using atob for compatibility.
         const jsonStr = atob(value);
         const sessionData = JSON.parse(jsonStr);
         const role = sessionData.role;
 
         // Supervisor Restriction
         if (role === "SUPERVISOR") {
-            if (pathname.startsWith("/admin")) {
+            if (pathname.startsWith("/admin") || pathname.startsWith("/client")) {
                 return NextResponse.redirect(new URL("/mobile", request.url));
             }
-            // Allow access to /mobile and root
         }
 
-        // Admin/RH can access everything.
+        // Client Restriction
+        if (role === "CLIENTE") {
+            if (!pathname.startsWith("/client")) {
+                return NextResponse.redirect(new URL("/client/dashboard", request.url));
+            }
+        }
+
+        // Admin/RH cannot access mobile or client? No, admins can access client or mobile for testing if they want, but let's restrict clients/supervisors.
 
     } catch (e) {
         return NextResponse.redirect(new URL("/login", request.url));

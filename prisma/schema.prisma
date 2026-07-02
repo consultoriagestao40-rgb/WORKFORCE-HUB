@@ -28,6 +28,8 @@ model User {
   vacancies                  Vacancy[]
   participatingVacancies     Vacancy[]             @relation("VacancyParticipants")
   requestStageConfigurations RequestStageConfiguration[]
+  clientIds                  String[]              @default([])
+  verifiedAttendances        Attendance[]          @relation("AttendanceVerifier")
 }
 
 model Log {
@@ -100,6 +102,7 @@ model Posto {
   assignments       Assignment[]
   coverages         Coverage[]
   occurrences       Occurrence[]
+  attendances       Attendance[]
   client            Client       @relation(fields: [clientId], references: [id])
   role              Role         @relation(fields: [roleId], references: [id])
   vacancies         Vacancy[]
@@ -183,6 +186,8 @@ model Employee {
   occurrences            Occurrence[]
   requests               Request[]
   vacations              Vacation[]
+  attendances            Attendance[]        @relation("EmployeeAttendance")
+  coveredAttendances     Attendance[]        @relation("AttendanceCoveredBy")
 }
 
 model Vacancy {
@@ -406,6 +411,7 @@ enum SystemRole {
   COORD_RH
   ASSIST_RH
   SUPERVISOR
+  CLIENTE
 }
 
 enum VacancyStatus {
@@ -446,4 +452,29 @@ enum RequestStatus {
   CONCLUIDO
   REJEITADO
   CANCELADO
+}
+
+model Attendance {
+  id               String    @id @default(uuid())
+  postoId          String
+  employeeId       String
+  date             DateTime  // Data do dia (sem horas, ex: 2026-07-02 00:00:00)
+  status           String    // 'PRESENTE_PONTO', 'PRESENTE_MANUAL', 'AGUARDANDO', 'FALTA'
+  clockInTime      DateTime? // Timestamp do ponto do Nexus
+  verifiedByUserId String?
+  coveredById      String?
+  coverageType     String?   // 'RESERVA_TECNICA', 'DIARISTA'
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  employee         Employee  @relation("EmployeeAttendance", fields: [employeeId], references: [id])
+  posto            Posto     @relation(fields: [postoId], references: [id])
+  coveredBy        Employee? @relation("AttendanceCoveredBy", fields: [coveredById], references: [id])
+  verifiedBy       User?     @relation("AttendanceVerifier", fields: [verifiedByUserId], references: [id])
+
+  @@unique([postoId, date])
+  @@index([postoId])
+  @@index([employeeId])
+  @@index([date])
 }

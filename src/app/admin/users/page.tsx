@@ -9,12 +9,17 @@ import { Edit2, Search, Trash2, Shield, UserCog } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { getCurrentUserRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/db";
 
 export default async function UsersPage() {
     const role = await getCurrentUserRole();
     if (role !== 'ADMIN') redirect('/admin');
 
     const users = await getUsers();
+    const clientsList = await prisma.client.findMany({
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true }
+    });
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -23,7 +28,7 @@ export default async function UsersPage() {
                     <h1 className="text-3xl font-black text-slate-800 tracking-tight">Gestão de Acessos</h1>
                     <p className="text-slate-500 font-medium mt-1">Gerencie usuários e permissões do sistema</p>
                 </div>
-                <UserDialog />
+                <UserDialog clients={clientsList} />
             </div>
 
             <Card className="border-none shadow-xl bg-white/50 backdrop-blur-xl">
@@ -84,6 +89,7 @@ export default async function UsersPage() {
                                         <div className="flex items-center justify-end gap-2">
                                             <UserDialog
                                                 user={user}
+                                                clients={clientsList}
                                                 trigger={
                                                     <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50">
                                                         <Edit2 className="w-4 h-4" />
