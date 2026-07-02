@@ -506,8 +506,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                         <Table>
                             <TableHeader className="bg-slate-50">
                                 <TableRow>
-                                    <TableHead className="font-bold text-slate-800">Contrato / Cliente</TableHead>
-                                    <TableHead className="font-bold text-slate-800">Cargo</TableHead>
+                                    <TableHead className="font-bold text-slate-800">Cargo / Cliente</TableHead>
                                     <TableHead className="font-bold text-slate-800 text-center">Horário</TableHead>
                                     <TableHead className="font-bold text-slate-800">Titular do Posto</TableHead>
                                     <TableHead className="font-bold text-slate-800 text-right">Faturamento Diário</TableHead>
@@ -580,14 +579,11 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
 
                                     return (
                                         <TableRow key={item.id} className={`hover:bg-slate-50/50 transition-colors ${rowBgClass}`}>
-                                            <TableCell className="font-bold text-slate-900 text-sm">
+                                            <TableCell className="text-slate-850 text-sm">
                                                 <div className="flex flex-col">
-                                                    <span>{item.clientName}</span>
-                                                    <span className="text-[10px] text-slate-400 font-medium">{item.companyName}</span>
+                                                    <span className="font-bold text-slate-900">{item.role}</span>
+                                                    <span className="text-[10px] text-slate-400 font-medium">{item.clientName} • <span className="text-[9px]">{item.companyName}</span></span>
                                                 </div>
-                                            </TableCell>
-                                            <TableCell className="text-slate-700 text-xs font-semibold">
-                                                {item.role}
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <div className="flex flex-col items-center">
