@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { 
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
     Calendar, ChevronLeft, ChevronRight, Search, UserCheck, UserX, 
     AlertTriangle, Clock, Coins, Download, RefreshCw, Eye, Edit
@@ -87,6 +88,39 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
     const [diaristaCost, setDiaristaCost] = useState<string>("");
     const [notes, setNotes] = useState<string>("");
     const [actionLoading, setActionLoading] = useState<boolean>(false);
+
+    // Dialog state for viewing active metrics cards details
+    const [openDetailsDialog, setOpenDetailsDialog] = useState<boolean>(false);
+    const [detailsTitle, setDetailsTitle] = useState<string>("");
+    const [detailsItems, setDetailsItems] = useState<AttendanceItem[]>([]);
+
+    const handleOpenDetails = (type: "ATRASADOS" | "COBERTURAS" | "GLOSAS") => {
+        let title = "";
+        let filtered: AttendanceItem[] = [];
+
+        if (type === "ATRASADOS") {
+            title = "Postos Atrasados / Pendentes";
+            filtered = items.filter(item => item.attendance.status === "AGUARDANDO" && item.attendance.isLate);
+        } else if (type === "COBERTURAS") {
+            title = "Postos com Cobertura Ativa";
+            filtered = items.filter(item => 
+                item.attendance.status === "FALTA" && 
+                (item.attendance.coveredBy || item.attendance.coverageType === "DIARISTA" || item.attendance.coverageType === "RESERVA_TECNICA")
+            );
+        } else if (type === "GLOSAS") {
+            title = "Faltas Sem Cobertura (Glosas)";
+            filtered = items.filter(item => 
+                item.attendance.status === "FALTA" && 
+                !item.attendance.coveredBy && 
+                item.attendance.coverageType !== "DIARISTA" && 
+                item.attendance.coverageType !== "RESERVA_TECNICA"
+            );
+        }
+
+        setDetailsTitle(title);
+        setDetailsItems(filtered);
+        setOpenDetailsDialog(true);
+    };
 
     // Fetch daily operations data
     const fetchData = useCallback(async () => {
@@ -406,7 +440,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                     </CardContent>
                 </Card>
 
-                <Card className="border-none shadow-premium bg-white">
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors select-none" onClick={() => handleOpenDetails("ATRASADOS")}>
                     <CardHeader className="pb-1 p-4">
                         <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Postos Atrasados</CardDescription>
                         <CardTitle className="text-3xl font-black text-amber-600 flex items-center justify-between">
@@ -419,7 +453,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                     </CardContent>
                 </Card>
 
-                <Card className="border-none shadow-premium bg-white">
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors select-none" onClick={() => handleOpenDetails("COBERTURAS")}>
                     <CardHeader className="pb-1 p-4">
                         <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Postos com Cobertura</CardDescription>
                         <CardTitle className="text-3xl font-black text-blue-600 flex items-center justify-between">
@@ -432,7 +466,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                     </CardContent>
                 </Card>
 
-                <Card className="border-none shadow-premium bg-white">
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors select-none" onClick={() => handleOpenDetails("GLOSAS")}>
                     <CardHeader className="pb-1 p-4">
                         <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Faltas Sem Cobertura (Glosa)</CardDescription>
                         <CardTitle className="text-3xl font-black text-red-600 flex items-center justify-between">
@@ -755,6 +789,71 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                             className="bg-primary hover:bg-primary/95 text-white text-xs h-10 px-5"
                         >
                             {actionLoading ? "Salvando..." : "Confirmar Cobertura"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal for Details Lists */}
+            <Dialog open={openDetailsDialog} onOpenChange={setOpenDetailsDialog}>
+                <DialogContent className="sm:max-w-[650px] max-h-[85vh] flex flex-col p-0 overflow-hidden">
+                    <DialogHeader className="p-6 pb-2">
+                        <DialogTitle className="text-xl font-black text-slate-900 tracking-tight">{detailsTitle}</DialogTitle>
+                        <DialogDescription className="text-slate-500 text-xs font-semibold">
+                            Total de {detailsItems.length} postos encontrados para o dia {format(new Date(date + "T12:00:00"), "dd/MM/yyyy")}.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <ScrollArea className="flex-1 px-6 pb-6 overflow-y-auto max-h-[60vh] border-t border-slate-100">
+                        <div className="space-y-4 pt-4">
+                            {detailsItems.map((item) => {
+                                const att = item.attendance;
+                                let coverageDetails = "";
+                                if (att.coveredBy) {
+                                    coverageDetails = `Cobertura por Reserva Técnica: ${att.coveredBy.name}`;
+                                } else if (att.coverageType === "DIARISTA") {
+                                    coverageDetails = `Diarista: ${att.notes || "Não especificado"}`;
+                                } else if (att.coverageType === "VAGO") {
+                                    coverageDetails = `Posto Vago (Glosa Confirmada)`;
+                                }
+
+                                return (
+                                    <div key={item.id} className="p-4 border border-slate-100 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                        <div className="space-y-1">
+                                            <p className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">{item.clientName}</p>
+                                            <p className="text-sm font-bold text-slate-800">{item.role}</p>
+                                            <div className="flex flex-wrap gap-2 pt-0.5">
+                                                <Badge variant="secondary" className="text-[10px] font-bold bg-slate-200/50 border-none text-slate-700">
+                                                    {item.startTime} - {item.endTime} ({item.schedule})
+                                                </Badge>
+                                                {coverageDetails && (
+                                                    <Badge className="text-[10px] font-bold bg-indigo-50 border-indigo-100 text-indigo-700">
+                                                        {coverageDetails}
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="text-left md:text-right shrink-0">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Titular</p>
+                                            <p className="text-xs font-semibold text-slate-700">{item.employee?.name || "Vaga Sem Titular"}</p>
+                                            {att.notes && !coverageDetails && (
+                                                <p className="text-[10px] text-red-500 italic font-medium mt-0.5">Obs: {att.notes}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {detailsItems.length === 0 && (
+                                <div className="text-center text-xs text-slate-500 font-semibold py-12">
+                                    Nenhum posto com este status encontrado.
+                                </div>
+                            )}
+                        </div>
+                    </ScrollArea>
+                    
+                    <DialogFooter className="p-4 bg-slate-50 border-t border-slate-100">
+                        <Button variant="outline" onClick={() => setOpenDetailsDialog(false)} className="text-xs h-10 border border-slate-200">
+                            Fechar
                         </Button>
                     </DialogFooter>
                 </DialogContent>
