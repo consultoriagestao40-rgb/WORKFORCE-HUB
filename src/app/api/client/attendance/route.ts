@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { startOfDay, addMinutes } from "date-fns";
+import { generateRoster } from "@/lib/scheduling";
 
 export async function GET(request: Request) {
     try {
@@ -59,10 +60,44 @@ export async function GET(request: Request) {
             }
         });
 
+        // Buscar overrides de escala para a data alvo
+        const overrides = await prisma.scheduleOverride.findMany({
+            where: {
+                date: {
+                    gte: targetDate,
+                    lt: new Date(targetDate.getTime() + 24 * 60 * 60 * 1000)
+                }
+            }
+        });
+
+        // Filtrar apenas postos que devem trabalhar hoje
+        const activePostos = postos.filter((posto: any) => {
+            const assignment = posto.assignments[0];
+            const override = overrides.find(o => o.postoId === posto.id);
+            if (override) {
+                return !override.isDayOff;
+            }
+
+            if (!assignment) {
+                const dayOfWeek = targetDate.getDay();
+                const normSchedule = posto.schedule.replace(/\s+/g, '').toLowerCase();
+                if (normSchedule.includes('segasex') || normSchedule.includes('mondaytofriday')) {
+                    if (dayOfWeek === 0 || dayOfWeek === 6) return false;
+                }
+                if (normSchedule.includes('segasab') || normSchedule.includes('mondaytosaturday')) {
+                    if (dayOfWeek === 0) return false;
+                }
+                return true;
+            }
+
+            const roster = generateRoster(posto.schedule, new Date(assignment.startDate), [targetDate]);
+            return roster[0]?.status === 'Trabalho';
+        });
+
         const now = new Date();
         const isToday = targetDate.toDateString() === now.toDateString();
 
-        const items = postos.map((posto: any) => {
+        const items = activePostos.map((posto: any) => {
             const assignment = posto.assignments[0];
             const attendance = posto.attendances[0];
             const employee = assignment?.employee || null;
