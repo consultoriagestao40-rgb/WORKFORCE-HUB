@@ -423,72 +423,62 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
             </div>
 
             {/* Metrics Dashboard Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <Card className="border-none shadow-premium bg-gradient-to-br from-indigo-900 to-slate-950 text-white">
-                    <CardHeader className="pb-1 p-4">
-                        <CardDescription className="text-[10px] font-black uppercase tracking-widest text-indigo-200/70">Total de Postos Ativos</CardDescription>
-                        <CardTitle className="text-3xl font-black">{metrics.total}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4 pt-1">
-                        <p className="text-[9px] text-indigo-200 font-bold uppercase tracking-wider">Escala linear diária completa</p>
-                    </CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                <Card className="border-none shadow-premium bg-gradient-to-br from-indigo-900 to-slate-950 text-white p-3.5 flex flex-col justify-between h-[96px] select-none">
+                    <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-200/70">Total de Postos Ativos</p>
+                        <p className="text-2xl font-black mt-0.5">{metrics.total}</p>
+                    </div>
+                    <p className="text-[8px] text-indigo-200/80 font-bold uppercase tracking-wider">Escala linear diária completa</p>
                 </Card>
 
-                <Card className="border-none shadow-premium bg-white">
-                    <CardHeader className="pb-1 p-4">
-                        <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Presença Confirmada</CardDescription>
-                        <CardTitle className="text-3xl font-black text-emerald-600 flex items-center justify-between">
-                            <span>{metrics.confirmed}</span>
-                            <UserCheck className="w-6 h-6 text-emerald-100 bg-emerald-50 p-1 rounded-lg" />
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4 pt-1">
-                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
-                            {metrics.total > 0 ? ((metrics.confirmed / metrics.total) * 100).toFixed(0) : 0}% de presença confirmada
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors select-none" onClick={() => handleOpenDetails("ATRASADOS")}>
-                    <CardHeader className="pb-1 p-4">
-                        <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Postos Atrasados</CardDescription>
-                        <CardTitle className="text-3xl font-black text-amber-600 flex items-center justify-between">
-                            <span>{metrics.lates}</span>
-                            <Clock className="w-6 h-6 text-amber-100 bg-amber-50 p-1 rounded-lg" />
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4 pt-1">
-                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Turno iniciado sem ponto batido</p>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors select-none" onClick={() => handleOpenDetails("COBERTURAS")}>
-                    <CardHeader className="pb-1 p-4">
-                        <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Postos com Cobertura</CardDescription>
-                        <CardTitle className="text-3xl font-black text-blue-600 flex items-center justify-between">
-                            <span>{metrics.coverages}</span>
-                            <RefreshCw className="w-6 h-6 text-blue-100 bg-blue-50 p-1 rounded-lg" />
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4 pt-1">
-                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Coberto por Reserva ou Diarista</p>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors select-none" onClick={() => handleOpenDetails("GLOSAS")}>
-                    <CardHeader className="pb-1 p-4">
-                        <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Faltas Sem Cobertura (Glosa)</CardDescription>
-                        <CardTitle className="text-3xl font-black text-red-600 flex items-center justify-between">
-                            <span>{metrics.absences}</span>
-                            <UserX className="w-6 h-6 text-red-100 bg-red-50 p-1 rounded-lg" />
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4 pt-1">
-                        <div className="flex items-center justify-between text-[9px] text-red-500 font-extrabold uppercase tracking-wider">
-                            <span>Perda de Fat.:</span>
-                            <span>{metrics.glosasValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                <Card className="border-none shadow-premium bg-white p-3.5 flex flex-col justify-between h-[96px] select-none">
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Presença Confirmada</p>
+                            <p className="text-2xl font-black mt-0.5 text-emerald-600">{metrics.confirmed}</p>
                         </div>
-                    </CardContent>
+                        <UserCheck className="w-5 h-5 text-emerald-500 bg-emerald-50 p-0.5 rounded" />
+                    </div>
+                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                        {metrics.total > 0 ? ((metrics.confirmed / metrics.total) * 100).toFixed(0) : 0}% de presença confirmada
+                    </p>
+                </Card>
+
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[96px] select-none" onClick={() => handleOpenDetails("ATRASADOS")}>
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Postos Atrasados</p>
+                            <p className="text-2xl font-black mt-0.5 text-amber-600">{metrics.lates}</p>
+                        </div>
+                        <Clock className="w-5 h-5 text-amber-500 bg-amber-50 p-0.5 rounded" />
+                    </div>
+                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Turno iniciado sem ponto batido</p>
+                </Card>
+
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[96px] select-none" onClick={() => handleOpenDetails("COBERTURAS")}>
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Postos com Cobertura</p>
+                            <p className="text-2xl font-black mt-0.5 text-blue-600">{metrics.coverages}</p>
+                        </div>
+                        <RefreshCw className="w-5 h-5 text-blue-500 bg-blue-50 p-0.5 rounded" />
+                    </div>
+                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Coberto por Reserva ou Diarista</p>
+                </Card>
+
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[96px] select-none" onClick={() => handleOpenDetails("GLOSAS")}>
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Faltas Sem Cobertura (Glosa)</p>
+                            <p className="text-2xl font-black mt-0.5 text-red-600">{metrics.absences}</p>
+                        </div>
+                        <UserX className="w-5 h-5 text-red-500 bg-red-50 p-0.5 rounded" />
+                    </div>
+                    <div className="flex items-center justify-between text-[8px] text-red-500 font-extrabold uppercase tracking-wider">
+                        <span>Perda de Fat.:</span>
+                        <span>{metrics.glosasValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                    </div>
                 </Card>
             </div>
 
