@@ -194,6 +194,32 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
         }
     };
 
+    // Handle Manual Lack (Falta)
+    const handleMarkAbsence = async (item: AttendanceItem) => {
+        try {
+            const res = await fetch("/api/admin/operations/attendance", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "FALTA",
+                    postoId: item.postoId,
+                    date,
+                    employeeId: item.employee?.id,
+                    notes: "Marcado falta pela mesa de operações"
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success("Falta registrada para o posto.");
+                fetchData();
+            } else {
+                toast.error(data.error || "Erro ao registrar falta");
+            }
+        } catch (e) {
+            toast.error("Erro ao registrar falta.");
+        }
+    };
+
     // Open Dialog to Treat Lack
     const handleOpenTreatDialog = (item: AttendanceItem) => {
         setSelectedItem(item);
@@ -606,7 +632,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                                         <Button 
                                                             variant="outline" 
                                                             size="sm" 
-                                                            onClick={() => handleConfirmManual({ ...item, attendance: { ...att, status: "FALTA" } })} 
+                                                            onClick={() => handleMarkAbsence(item)} 
                                                             className="h-8 text-[10px] text-red-600 border-red-100 hover:bg-red-50"
                                                         >
                                                             Marcar Falta
