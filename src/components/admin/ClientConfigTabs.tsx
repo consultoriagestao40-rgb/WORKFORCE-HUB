@@ -82,10 +82,6 @@ export function ClientConfigTabs({
     });
 
     const handleAddNpsQuestion = () => {
-        if (npsQuestions.length >= 5) {
-            toast.error("O NPS é limitado a no máximo 5 perguntas.");
-            return;
-        }
         setNpsQuestions([
             ...npsQuestions,
             { id: `new-${Date.now()}`, text: "", weight: 1.0 }
@@ -460,7 +456,7 @@ export function ClientConfigTabs({
                     <CardHeader>
                         <CardTitle>Configuração de Perguntas do NPS</CardTitle>
                         <CardDescription>
-                            Configure até 5 perguntas do NPS com pesos individuais para medir a satisfação do cliente de forma detalhada.
+                            Configure as perguntas do NPS com pesos individuais para medir a satisfação do cliente de forma detalhada.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -510,7 +506,7 @@ export function ClientConfigTabs({
                         </div>
 
                         <div className="flex justify-between items-center pt-2">
-                            <Button variant="outline" size="sm" onClick={handleAddNpsQuestion} disabled={npsQuestions.length >= 5} className="gap-1.5 border-dashed">
+                            <Button variant="outline" size="sm" onClick={handleAddNpsQuestion} className="gap-1.5 border-dashed">
                                 <Plus className="w-4 h-4" /> Adicionar Pergunta
                             </Button>
                             <Button size="sm" onClick={handleSaveNpsQuestions} disabled={savingNps} className="gap-1.5 bg-primary text-slate-900 hover:bg-primary/90 font-bold">
