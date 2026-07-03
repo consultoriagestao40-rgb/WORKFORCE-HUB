@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import {
     Calendar, ChevronLeft, ChevronRight, Clock, UserCheck, UserX, 
     RefreshCw, LogOut, ShieldAlert, Award, FileText, Download,
-    DollarSign, Inbox, Plus, Search, Menu, X, Smile, BarChart2
+    DollarSign, Inbox, Plus, Search, Menu, X, Smile, BarChart2, ClipboardList
 } from "lucide-react";
 import { logout } from "@/app/actions";
 import { 
@@ -24,7 +24,8 @@ import {
     getClientEmployees, 
     getClientMonthlyReport,
     submitClientNps,
-    getClientKpis
+    getClientKpis,
+    getPostoRoutines
 } from "@/app/admin/requests/actions";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -70,7 +71,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     const [loading, setLoading] = useState<boolean>(true);
     const [isPending, startTransition] = useTransition();
 
-    const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report" | "nps" | "sla">("presence");
+    const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report" | "nps" | "kpis" | "sla" | "service_plan">("presence");
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
     // Requests Tab States
@@ -100,10 +101,15 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     const [npsFeedback, setNpsFeedback] = useState<string>("");
     const [submittingNps, setSubmittingNps] = useState(false);
 
-    // SLA Tab States
+    // SLA & KPIs Tab States
     const [slaYear, setSlaYear] = useState(new Date().getFullYear());
     const [slaData, setSlaData] = useState<any>(null);
     const [loadingSla, setLoadingSla] = useState(false);
+
+    // Service Plan Tab States
+    const [selectedServicePlanPostoId, setSelectedServicePlanPostoId] = useState<string>("");
+    const [servicePlanRoutines, setServicePlanRoutines] = useState<any[]>([]);
+    const [loadingServicePlan, setLoadingServicePlan] = useState(false);
 
     const fetchRequests = useCallback(async () => {
         setLoadingRequests(true);
@@ -169,6 +175,23 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
         }
     }, []);
 
+    const fetchServicePlanRoutines = useCallback(async (postoId: string) => {
+        if (!postoId) return;
+        setLoadingServicePlan(true);
+        try {
+            const res = await getPostoRoutines(postoId);
+            if (res.success && res.routines) {
+                setServicePlanRoutines(res.routines);
+            } else {
+                toast.error("Erro ao buscar rotinas de trabalho.");
+            }
+        } catch (e) {
+            toast.error("Erro de conexão ao carregar rotinas.");
+        } finally {
+            setLoadingServicePlan(false);
+        }
+    }, []);
+
     useEffect(() => {
         if (activeTab === "requests") {
             fetchRequests();
@@ -177,10 +200,22 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
             fetchBilling(billingYear);
         } else if (activeTab === "monthly_report") {
             fetchReport(reportMonth, reportYear);
-        } else if (activeTab === "sla") {
+        } else if (activeTab === "sla" || activeTab === "kpis") {
             fetchSlaData(slaYear);
         }
     }, [activeTab, billingYear, reportMonth, reportYear, slaYear, fetchRequests, fetchEmployees, fetchBilling, fetchReport, fetchSlaData]);
+
+    useEffect(() => {
+        if (activeTab === "service_plan" && !selectedServicePlanPostoId && contracts.length > 0) {
+            setSelectedServicePlanPostoId(contracts[0].id);
+        }
+    }, [activeTab, contracts, selectedServicePlanPostoId]);
+
+    useEffect(() => {
+        if (activeTab === "service_plan" && selectedServicePlanPostoId) {
+            fetchServicePlanRoutines(selectedServicePlanPostoId);
+        }
+    }, [activeTab, selectedServicePlanPostoId, fetchServicePlanRoutines]);
 
     const handleCreateRequest = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -428,7 +463,9 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
         { id: "billing", label: "Faturamento Mensal", icon: DollarSign },
         { id: "monthly_report", label: "Relatório Mensal", icon: FileText },
         { id: "nps", label: "NPS / Avaliação", icon: Smile },
-        { id: "sla", label: "SLA / Desempenho", icon: Award }
+        { id: "kpis", label: "Indicadores (KPIs)", icon: BarChart2 },
+        { id: "sla", label: "SLA / Desempenho", icon: Award },
+        { id: "service_plan", label: "Plano de Serviços", icon: ClipboardList }
     ];
 
     return (
@@ -1633,6 +1670,220 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                     </Card>
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {activeTab === "kpis" && (
+                        /* TAB 7: KPIS (Indicadores de Performance) */
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
+                                <div className="space-y-1">
+                                    <h3 className="text-md font-bold text-slate-850">Indicadores de Performance (KPIs)</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Acompanhamento dos principais indicadores operacionais do contrato.</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <select
+                                        value={slaYear}
+                                        onChange={(e) => setSlaYear(Number(e.target.value))}
+                                        className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
+                                    >
+                                        <option value={2026}>Ano 2026</option>
+                                        <option value={2025}>Ano 2025</option>
+                                    </select>
+                                    <Button variant="ghost" size="icon" onClick={() => fetchSlaData(slaYear)} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
+                                        <RefreshCw className={`w-4 h-4 text-slate-500 ${loadingSla ? 'animate-spin' : ''}`} />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {loadingSla || !slaData ? (
+                                <div className="flex flex-col items-center justify-center py-20 gap-3">
+                                    <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                                    <span className="text-xs text-slate-500 font-semibold">Carregando indicadores...</span>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                        <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
+                                            <div className="flex items-start justify-between">
+                                                <div className="space-y-1">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Efetividade</span>
+                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.effectiveness.toFixed(1)}%</span>
+                                                </div>
+                                                <UserCheck className="w-8 h-8 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl border border-emerald-100" />
+                                            </div>
+                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Cumprimento de postos titulares e coberturas de faltas.</p>
+                                        </Card>
+
+                                        <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
+                                            <div className="flex items-start justify-between">
+                                                <div className="space-y-1">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Conformidade SLA</span>
+                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.slaCompliance.toFixed(1)}%</span>
+                                                </div>
+                                                <Clock className="w-8 h-8 text-blue-600 bg-blue-50 p-1.5 rounded-xl border border-blue-100" />
+                                            </div>
+                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Chamados resolvidos dentro do prazo previsto em contrato.</p>
+                                        </Card>
+
+                                        <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
+                                            <div className="flex items-start justify-between">
+                                                <div className="space-y-1">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Absenteísmo</span>
+                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.absenteeism.toFixed(1)}%</span>
+                                                </div>
+                                                <UserX className="w-8 h-8 text-red-655 bg-red-50 p-1.5 rounded-xl border border-red-100" />
+                                            </div>
+                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Taxa de faltas e ausências de profissionais titulares.</p>
+                                        </Card>
+
+                                        <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
+                                            <div className="flex items-start justify-between">
+                                                <div className="space-y-1">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Tempo Médio (MTTR)</span>
+                                                    <span className="text-2xl font-black text-slate-850">
+                                                        {slaData.summary.mttrHours ? slaData.summary.mttrHours.toFixed(1) + " h" : "0.0 h"}
+                                                    </span>
+                                                </div>
+                                                <RefreshCw className="w-8 h-8 text-orange-600 bg-orange-50 p-1.5 rounded-xl border border-orange-100" />
+                                            </div>
+                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Tempo médio decorrido até a resolução completa dos chamados.</p>
+                                        </Card>
+                                    </div>
+
+                                    {/* Monthly KPI comparative table */}
+                                    <Card className="border-none shadow-premium bg-white overflow-hidden">
+                                        <div className="w-full overflow-x-auto">
+                                            <Table>
+                                                <TableHeader className="bg-slate-50">
+                                                    <TableRow>
+                                                        <TableHead className="font-bold text-slate-800">Mês</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">Efetividade Operacional</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">Nível de Absenteísmo</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">Conformidade SLA</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">Média NPS</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {slaData.monthlyData.map((m: any) => (
+                                                        <TableRow key={m.monthIndex} className="hover:bg-slate-50/50 transition-colors">
+                                                            <TableCell className="font-bold text-xs text-slate-900">{m.name}</TableCell>
+                                                            <TableCell className="text-center font-semibold text-xs text-slate-800">{m.effectiveness.toFixed(1)}%</TableCell>
+                                                            <TableCell className="text-center font-semibold text-xs text-slate-800">{m.absenteeism.toFixed(1)}%</TableCell>
+                                                            <TableCell className="text-center font-semibold text-xs text-slate-800">{m.slaCompliance.toFixed(1)}%</TableCell>
+                                                            <TableCell className="text-center font-semibold text-xs text-slate-800">
+                                                                {m.avgNpsRating ? m.avgNpsRating.toFixed(1) : "10.0"} / 10
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </Card>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === "service_plan" && (
+                        /* TAB 8: PLANO DE SERVIÇOS (Rotinas de Trabalho) */
+                        <div className="space-y-6">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
+                                <div className="space-y-1">
+                                    <h3 className="text-md font-bold text-slate-850">Plano de Trabalho e Serviços</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Veja o detalhamento diário de atividades e áreas de atuação mapeadas para os colaboradores do posto.</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <select
+                                        value={selectedServicePlanPostoId}
+                                        onChange={(e) => setSelectedServicePlanPostoId(e.target.value)}
+                                        className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
+                                    >
+                                        {contracts.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                    <Button variant="ghost" size="icon" onClick={() => fetchServicePlanRoutines(selectedServicePlanPostoId)} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
+                                        <RefreshCw className={`w-4 h-4 text-slate-500 ${loadingServicePlan ? 'animate-spin' : ''}`} />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Routines Table & Context */}
+                            <Card className="border-none shadow-premium bg-white overflow-hidden p-6 space-y-6">
+                                {/* Sub-header info boxes */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50/50 border border-slate-200/50 text-xs font-bold text-slate-700">
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Cliente / Unidade</span>
+                                        <span className="text-slate-800 font-black truncate block">
+                                            {contracts.find(c => c.id === selectedServicePlanPostoId)?.name || "Instituto da Criança"}
+                                        </span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Cidade</span>
+                                        <span className="text-slate-800 font-black">CURITIBA/PR</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Função</span>
+                                        <span className="text-slate-800 font-black truncate block">AUXILIAR DE SERVIÇOS GERAIS 20%</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Carga Horária</span>
+                                        <span className="text-slate-800 font-black">11h00 - 16h00 - 17h00 - 23h00 12X36</span>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-900 rounded-xl px-4 py-2 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center select-none shadow-premium">
+                                    Rotina de Trabalho - DIÁRIO
+                                </div>
+
+                                {loadingServicePlan ? (
+                                    <div className="flex flex-col items-center justify-center py-20 gap-3">
+                                        <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                                        <span className="text-xs text-slate-500 font-semibold">Carregando rotina de trabalho...</span>
+                                    </div>
+                                ) : (
+                                    <div className="w-full overflow-x-auto border border-slate-200/60 rounded-xl">
+                                        <Table>
+                                            <TableHeader className="bg-slate-800 text-white">
+                                                <TableRow className="hover:bg-slate-800 border-none">
+                                                    <TableHead className="font-bold text-white text-xs py-3 h-10 w-24">Início</TableHead>
+                                                    <TableHead className="font-bold text-white text-xs py-3 h-10 w-24">Tempo</TableHead>
+                                                    <TableHead className="font-bold text-white text-xs py-3 h-10 w-24">Final</TableHead>
+                                                    <TableHead className="font-bold text-white text-xs py-3 h-10 w-40">Local</TableHead>
+                                                    <TableHead className="font-bold text-white text-xs py-3 h-10">Atividade / Descrição do Serviço</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {servicePlanRoutines.map((routine) => (
+                                                    <TableRow key={routine.id} className="hover:bg-slate-50/50 border-slate-100 transition-colors">
+                                                        <TableCell className="font-bold text-xs text-slate-800">{routine.startTime}</TableCell>
+                                                        <TableCell className="text-slate-500 text-xs font-semibold">{routine.duration || "-"}</TableCell>
+                                                        <TableCell className="text-slate-800 text-xs font-bold">{routine.endTime}</TableCell>
+                                                        <TableCell className="text-slate-700 text-xs font-semibold">
+                                                            {routine.location === "Intervalo" ? (
+                                                                <Badge className="bg-amber-50 text-amber-700 border-amber-200 font-bold hover:opacity-100">{routine.location}</Badge>
+                                                            ) : (
+                                                                <Badge className="bg-slate-100 text-slate-700 border-slate-200 font-bold hover:opacity-100">{routine.location}</Badge>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="text-xs text-slate-800 leading-normal font-semibold">
+                                                            {routine.activity || <span className="text-slate-400 italic">Horário livre / Pausa de transição</span>}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                                {servicePlanRoutines.length === 0 && (
+                                                    <TableRow>
+                                                        <TableCell colSpan={5} className="text-center text-slate-500 py-10 font-semibold">
+                                                            Nenhuma atividade cadastrada neste plano de trabalho.
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                )}
+                            </Card>
                         </div>
                     )}
                 </main>

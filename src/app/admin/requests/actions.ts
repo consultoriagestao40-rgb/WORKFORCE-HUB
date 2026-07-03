@@ -440,3 +440,33 @@ export async function getClientKpis(year: number) {
         }
     };
 }
+
+export async function getPostoRoutines(postoId: string) {
+    try {
+        const routines = await prisma.workRoutine.findMany({
+            where: { postoId },
+            orderBy: { startTime: "asc" }
+        });
+
+        if (routines.length > 0) {
+            return { success: true, routines };
+        }
+
+        // Se não houver rotinas registradas, retornamos o plano padrão (mock premium baseado no anexo do cliente)
+        const defaultRoutines = [
+            { id: "mock-1", startTime: "11:00", duration: "00:15", endTime: "11:15", location: "DML", activity: "Organização do material utilizado" },
+            { id: "mock-2", startTime: "11:15", duration: "00:45", endTime: "12:00", location: "6ª Andar", activity: "Limpeza dos banheiros masculino, hall de entrada, fraldário, recepção e 7 consultórios" },
+            { id: "mock-3", startTime: "12:00", duration: "01:00", endTime: "13:00", location: "5ª Andar", activity: "Limpeza de banheiros, fraldário, hall de entrada, recepção e 9 consultórios" },
+            { id: "mock-4", startTime: "13:00", duration: "03:00", endTime: "16:00", location: "4ª Andar", activity: "Limpeza de banheiros, estar médico, expurgo, posto de enfermagem, repai, sala de preparo, utilidades, e 3 salas com limpeza terminal no centro cirúrgico" },
+            { id: "mock-5", startTime: "16:00", duration: "01:00", endTime: "17:00", location: "SUB SOLO", activity: "Limpeza da área limpa, da área suja, rouparia, utilidades, estoque, hall de entrada, banheiros e vestiários masculino e feminino, área de descanso" },
+            { id: "mock-6", startTime: "17:00", duration: "01:00", endTime: "18:00", location: "Intervalo", activity: "Horário de almoço" },
+            { id: "mock-7", startTime: "18:00", duration: "00:45", endTime: "18:45", location: "Copa", activity: "Limpeza e organização de utensílios" },
+            { id: "mock-8", startTime: "18:45", duration: "04:15", endTime: "23:00", location: "DML", activity: "Organização do material utilizado e fechamento" }
+        ];
+
+        return { success: true, routines: defaultRoutines };
+    } catch (error) {
+        console.error("Erro ao buscar rotinas:", error);
+        return { success: false, error: "Erro ao buscar rotinas de trabalho." };
+    }
+}

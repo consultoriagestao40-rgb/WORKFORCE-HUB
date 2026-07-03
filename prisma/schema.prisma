@@ -109,6 +109,7 @@ model Posto {
   role              Role         @relation(fields: [roleId], references: [id])
   vacancies         Vacancy[]
   scheduleOverrides ScheduleOverride[]
+  workRoutines      WorkRoutine[]
 
   @@index([clientId])
 }
@@ -490,4 +491,19 @@ model NpsResponse {
   client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
+}
+
+model WorkRoutine {
+  id        String   @id @default(uuid())
+  postoId   String
+  startTime String
+  duration  String
+  endTime   String
+  location  String
+  activity  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  posto     Posto    @relation(fields: [postoId], references: [id], onDelete: Cascade)
+
+  @@index([postoId])
 }
