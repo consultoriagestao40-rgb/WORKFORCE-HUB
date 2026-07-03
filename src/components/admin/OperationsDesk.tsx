@@ -950,6 +950,15 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                                 tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
                                             />
                                             <Tooltip 
+                                                formatter={(value: any, name: any) => {
+                                                    if (typeof value === 'number') {
+                                                        if (name.includes("%")) {
+                                                            return [`${value.toFixed(1)}%`, name];
+                                                        }
+                                                        return [value.toFixed(0), name];
+                                                    }
+                                                    return [value, name];
+                                                }}
                                                 contentStyle={{ 
                                                     backgroundColor: '#ffffff', 
                                                     borderRadius: '12px', 
