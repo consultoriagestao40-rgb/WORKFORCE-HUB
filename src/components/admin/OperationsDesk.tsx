@@ -306,6 +306,30 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
         }
     };
 
+    // Handle Undo manual occurrence (Presence or Coverage)
+    const handleUndoOccurrence = async (item: AttendanceItem) => {
+        try {
+            const res = await fetch("/api/admin/operations/attendance", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "DESFAZER",
+                    postoId: item.postoId,
+                    date
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success("Ocorrência desfeita com sucesso.");
+                fetchData();
+            } else {
+                toast.error(data.error || "Erro ao desfazer ocorrência");
+            }
+        } catch (e) {
+            toast.error("Erro ao desfazer ocorrência.");
+        }
+    };
+
     // Open Dialog to Treat Lack
     const handleOpenTreatDialog = (item: AttendanceItem) => {
         setSelectedItem(item);
@@ -736,14 +760,26 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                             <TableCell className="text-right pr-6">
                                                 <div className="flex items-center justify-end gap-1.5">
                                                     {att.status === "PRESENTE_PONTO" || att.status === "PRESENTE_MANUAL" ? (
-                                                        <Button 
-                                                            variant="outline" 
-                                                            size="sm" 
-                                                            onClick={() => handleMarkAbsence(item)} 
-                                                            className="h-8 text-[10px] text-red-600 border-red-100 hover:bg-red-50"
-                                                        >
-                                                            Marcar Falta
-                                                        </Button>
+                                                        <>
+                                                            <Button 
+                                                                variant="outline" 
+                                                                size="sm" 
+                                                                onClick={() => handleMarkAbsence(item)} 
+                                                                className="h-8 text-[10px] text-red-600 border-red-100 hover:bg-red-50"
+                                                            >
+                                                                Marcar Falta
+                                                            </Button>
+                                                            {att.status === "PRESENTE_MANUAL" && (
+                                                                <Button 
+                                                                    variant="outline" 
+                                                                    size="sm" 
+                                                                    onClick={() => handleUndoOccurrence(item)} 
+                                                                    className="h-8 text-[10px] text-slate-500 border-slate-200 hover:bg-slate-50"
+                                                                >
+                                                                    Desfazer
+                                                                </Button>
+                                                            )}
+                                                        </>
                                                     ) : (
                                                         <>
                                                             <Button 
@@ -762,6 +798,16 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                                             >
                                                                 Lançar Cobertura
                                                             </Button>
+                                                            {(att.status === "FALTA" || att.coveredBy !== null || att.coverageType !== null) && (
+                                                                <Button 
+                                                                    variant="outline" 
+                                                                    size="sm" 
+                                                                    onClick={() => handleUndoOccurrence(item)} 
+                                                                    className="h-8 text-[10px] text-slate-500 border-slate-200 hover:bg-slate-50"
+                                                                >
+                                                                    Desfazer
+                                                                </Button>
+                                                            )}
                                                         </>
                                                     )}
                                                 </div>

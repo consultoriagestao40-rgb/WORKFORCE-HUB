@@ -392,6 +392,46 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: true, data: attendance });
         }
 
+        if (action === "DESFAZER") {
+            const existing = await prisma.attendance.findUnique({
+                where: {
+                    postoId_date: { postoId, date: targetDate }
+                }
+            });
+
+            if (existing) {
+                if (existing.clockInTime) {
+                    const attendance = await prisma.attendance.update({
+                        where: { id: existing.id },
+                        data: {
+                            status: "PRESENTE_PONTO",
+                            coveredById: null,
+                            coverageType: null,
+                            notes: ""
+                        }
+                    });
+
+                    await prisma.coverage.deleteMany({
+                        where: { postoId, date: targetDate, type: "DIARISTA" }
+                    });
+
+                    return NextResponse.json({ success: true, data: attendance });
+                } else {
+                    await prisma.attendance.delete({
+                        where: { id: existing.id }
+                    });
+
+                    await prisma.coverage.deleteMany({
+                        where: { postoId, date: targetDate, type: "DIARISTA" }
+                    });
+
+                    return NextResponse.json({ success: true, data: null });
+                }
+            }
+
+            return NextResponse.json({ success: true, data: null });
+        }
+
         return NextResponse.json({ error: "Ação inválida" }, { status: 400 });
     } catch (error: any) {
         console.error("Erro ao tratar presença:", error);
