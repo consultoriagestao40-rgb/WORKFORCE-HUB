@@ -150,14 +150,29 @@ export async function GET(request: Request) {
                 notes = attendance.notes || "";
             } else {
                 if (employee) {
-                    const [hour, minute] = posto.startTime.split(":").map(Number);
+                    const [startHour, startMinute] = posto.startTime.split(":").map(Number);
+                    const [endHour, endMinute] = posto.endTime.split(":").map(Number);
+
                     const shiftStart = new Date(targetDate.getTime() + 3 * 60 * 60 * 1000);
-                    shiftStart.setHours(hour, minute, 0, 0);
+                    shiftStart.setHours(startHour, startMinute, 0, 0);
+
+                    const shiftEnd = new Date(targetDate.getTime() + 3 * 60 * 60 * 1000);
+                    shiftEnd.setHours(endHour, endMinute, 0, 0);
+
+                    // Tratar escalas que cruzam a meia-noite (fim no dia seguinte)
+                    if (shiftEnd <= shiftStart) {
+                        shiftEnd.setDate(shiftEnd.getDate() + 1);
+                    }
+
                     const toleranceTime = addMinutes(shiftStart, 15);
 
-                    if (isToday && nowInBrazil > toleranceTime) {
-                        isLate = true;
-                    } else if (!isToday && nowInBrazil > shiftStart) {
+                    if (isToday) {
+                        if (nowInBrazil > shiftEnd) {
+                            status = "FALTA";
+                        } else if (nowInBrazil > toleranceTime) {
+                            isLate = true;
+                        }
+                    } else if (nowInBrazil > shiftStart) {
                         status = "FALTA";
                     }
                 } else {
