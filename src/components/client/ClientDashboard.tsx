@@ -366,6 +366,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
             id: string; 
             name: string; 
             address: string; 
+            companyName: string;
             total: number;
             present: number;
             late: number;
@@ -377,10 +378,14 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
         items.forEach(item => {
             const key = item.clientId;
             if (!map.has(key)) {
+                const matchingContract = contracts.find(c => c.id === key);
+                const companyName = matchingContract?.companyName || "Grupo JVS";
+
                 map.set(key, {
                     id: key,
                     name: item.clientName,
                     address: item.clientAddress || "-",
+                    companyName,
                     total: 0,
                     present: 0,
                     late: 0,
@@ -738,7 +743,10 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                         }}
                                                     >
                                                         <TableCell className="font-bold text-slate-900 text-sm">
-                                                            {contract.name}
+                                                            <div className="flex flex-col gap-0.5">
+                                                                <span className="font-black text-slate-850">{contract.name}</span>
+                                                                <span className="text-[9px] text-primary font-bold uppercase tracking-widest">{contract.companyName}</span>
+                                                            </div>
                                                         </TableCell>
                                                         <TableCell className="text-slate-500 text-xs max-w-[300px] truncate">
                                                             {contract.address}
