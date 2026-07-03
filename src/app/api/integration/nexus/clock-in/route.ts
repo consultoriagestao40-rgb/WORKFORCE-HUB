@@ -24,9 +24,20 @@ export async function POST(request: Request) {
         // Obter data limpa (00:00:00) para chave diária
         const dateStartOfDay = new Date(clockInTime.getFullYear(), clockInTime.getMonth(), clockInTime.getDate());
 
-        // Buscar colaborador
-        const employee = await prisma.employee.findUnique({
-            where: { cpf: cleanCpf },
+        // Função auxiliar para formatar CPF com pontos e traços
+        const formatCpf = (val: string) => {
+            if (val.length !== 11) return val;
+            return `${val.substring(0, 3)}.${val.substring(3, 6)}.${val.substring(6, 9)}-${val.substring(9)}`;
+        };
+
+        // Buscar colaborador (suportando CPF com ou sem formatação)
+        const employee = await prisma.employee.findFirst({
+            where: {
+                OR: [
+                    { cpf: cleanCpf },
+                    { cpf: formatCpf(cleanCpf) }
+                ]
+            },
             include: {
                 assignments: {
                     where: {
