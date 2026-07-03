@@ -11,7 +11,12 @@ export async function GET(request: Request) {
         const clientId = searchParams.get("clientId");
         const search = searchParams.get("search");
 
-        const targetDate = dateStr ? startOfDay(new Date(dateStr)) : startOfDay(new Date());
+        // Data atual convertida para o dia local do Brasil (UTC-3)
+        const nowInBrazil = new Date(new Date().getTime() - 3 * 60 * 60 * 1000);
+        const todayStr = nowInBrazil.toISOString().split("T")[0]; // "2026-07-02"
+
+        const targetDateStr = dateStr || todayStr;
+        const targetDate = new Date(targetDateStr + "T00:00:00Z"); // Pure UTC midnight of target day
 
         // 1. Buscar postos correspondentes com filtros
         const postos = await prisma.posto.findMany({
@@ -123,8 +128,7 @@ export async function GET(request: Request) {
         // Reserva técnica: sem alocações ativas no dia
         const reservasList = activeFilter.filter(emp => emp.assignments.length === 0);
 
-        const now = new Date();
-        const isToday = targetDate.toDateString() === now.toDateString();
+        const isToday = targetDateStr === todayStr;
 
         const items = activePostos.map((posto: any) => {
             const assignment = posto.assignments[0];
@@ -147,13 +151,13 @@ export async function GET(request: Request) {
             } else {
                 if (employee) {
                     const [hour, minute] = posto.startTime.split(":").map(Number);
-                    const shiftStart = new Date(targetDate);
+                    const shiftStart = new Date(targetDate.getTime() + 3 * 60 * 60 * 1000);
                     shiftStart.setHours(hour, minute, 0, 0);
                     const toleranceTime = addMinutes(shiftStart, 15);
 
-                    if (isToday && now > toleranceTime) {
+                    if (isToday && nowInBrazil > toleranceTime) {
                         isLate = true;
-                    } else if (!isToday && now > shiftStart) {
+                    } else if (!isToday && nowInBrazil > shiftStart) {
                         status = "FALTA";
                     }
                 } else {
