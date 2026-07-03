@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { startOfDay, endOfDay, eachDayOfInterval } from "date-fns";
+import { startOfDay, endOfDay, eachDayOfInterval, format } from "date-fns";
 import { generateRoster } from "@/lib/scheduling";
 
 export async function GET(request: Request) {
@@ -75,9 +75,20 @@ export async function GET(request: Request) {
         const vacantDaysByPostoMap = new Map<string, { label: string; role: string; client: string; count: number }>();
         const vacantDaysByRoleMap = new Map<string, { name: string; count: number }>();
 
+        // Série temporal de KPIs diários
+        const dailyTrend: {
+            date: string;
+            absences: number;
+            glosas: number;
+            coverages: number;
+            expected: number;
+            absRate: number;
+        }[] = [];
+
         for (const day of daysInRange) {
             const dayOfWeek = day.getDay();
             const dayStr = day.toDateString();
+            let dayExpected = 0;
 
             for (const posto of postos) {
                 // Encontrar override se houver
@@ -110,6 +121,7 @@ export async function GET(request: Request) {
                 }
 
                 if (isWork) {
+                    dayExpected++;
                     totalExpectedShifts++;
                     if (!activeAssignment) {
                         totalVacantDays++;
@@ -134,6 +146,35 @@ export async function GET(request: Request) {
                     }
                 }
             }
+
+            // Agregações diárias para o gráfico
+            const dayStrString = day.toDateString();
+            const dayAttendance = attendances.filter(a => a.date.toDateString() === dayStrString);
+            const dayAbsenceRecords = dayAttendance.filter(a => a.status === "FALTA");
+            const dayAbsences = dayAbsenceRecords.length;
+
+            const dayCoverages = dayAbsenceRecords.filter(a => 
+                a.coverageType === "RESERVA_TECNICA" || 
+                a.coverageType === "DIARISTA" || 
+                a.coveredById !== null
+            ).length;
+
+            const dayGlosas = dayAbsenceRecords.filter(a => 
+                !a.coveredById && 
+                a.coverageType !== "DIARISTA" && 
+                a.coverageType !== "RESERVA_TECNICA"
+            ).length;
+
+            const formattedDate = format(day, "dd/MM");
+
+            dailyTrend.push({
+                date: formattedDate,
+                absences: dayAbsences,
+                glosas: dayGlosas,
+                coverages: dayCoverages,
+                expected: dayExpected,
+                absRate: dayExpected > 0 ? (dayAbsences / dayExpected) * 100 : 0
+            });
         }
 
         // 5. Agregações das Batidas de Presença
@@ -232,6 +273,7 @@ export async function GET(request: Request) {
         return NextResponse.json({
             success: true,
             kpis: {
+                dailyTrend,
                 absenteismRate,
                 turnoverRate,
                 coverageRate,

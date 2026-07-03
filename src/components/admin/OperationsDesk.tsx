@@ -22,6 +22,7 @@ import {
     AlertTriangle, Clock, Coins, Download, RefreshCw, Eye, Edit
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { toast } from "sonner";
 
 interface Company {
@@ -901,6 +902,85 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                     </p>
                                 </Card>
                             </div>
+
+                            {/* Trend Chart: Faltas Sem Cobertura e Absenteísmo por Dia */}
+                            <Card className="border-none shadow-premium bg-white p-5 space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div>
+                                        <h2 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                                            <UserX className="w-5 h-5 text-red-500" /> Histórico de Faltas Sem Cobertura & Absenteísmo
+                                        </h2>
+                                        <p className="text-xs text-slate-400 font-medium">Evolução diária de glosas e taxa de ausências no período selecionado</p>
+                                    </div>
+                                    <div className="flex items-center gap-4 text-xs font-semibold">
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-3 h-3 rounded bg-red-500" />
+                                            <span className="text-slate-600">Glosas (Faltas Sem Cobertura)</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-3 h-3 rounded bg-indigo-500" />
+                                            <span className="text-slate-600">Taxa de Absenteísmo (%)</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="h-72 w-full pt-4">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={kpisData.dailyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="colorGlosas" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2}/>
+                                                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                                                </linearGradient>
+                                                <linearGradient id="colorAbs" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
+                                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                                            <XAxis 
+                                                dataKey="date" 
+                                                tickLine={false} 
+                                                axisLine={false} 
+                                                tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
+                                            />
+                                            <YAxis 
+                                                tickLine={false} 
+                                                axisLine={false} 
+                                                tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
+                                            />
+                                            <Tooltip 
+                                                contentStyle={{ 
+                                                    backgroundColor: '#ffffff', 
+                                                    borderRadius: '12px', 
+                                                    border: 'none', 
+                                                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05)' 
+                                                }}
+                                                labelStyle={{ fontWeight: 'bold', fontSize: '12px', color: '#1e293b' }}
+                                                itemStyle={{ fontSize: '11px', fontWeight: 600 }}
+                                            />
+                                            <Area 
+                                                name="Faltas Sem Cobertura"
+                                                type="monotone" 
+                                                dataKey="glosas" 
+                                                stroke="#ef4444" 
+                                                strokeWidth={2}
+                                                fillOpacity={1} 
+                                                fill="url(#colorGlosas)" 
+                                            />
+                                            <Area 
+                                                name="Taxa de Absenteísmo (%)"
+                                                type="monotone" 
+                                                dataKey="absRate" 
+                                                stroke="#6366f1" 
+                                                strokeWidth={2}
+                                                fillOpacity={1} 
+                                                fill="url(#colorAbs)" 
+                                            />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </Card>
 
                             {/* Row 1: Charts & Rankings */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
