@@ -18,10 +18,11 @@ export async function GET(request: Request) {
         const targetDateStr = dateStr || todayStr;
         const targetDate = new Date(targetDateStr + "T00:00:00Z"); // Pure UTC midnight of target day
 
-        // 1. Buscar postos correspondentes com filtros
+        // 1. Buscar postos correspondentes com filtros (apenas clientes sob monitoramento ativo)
         const postos = await prisma.posto.findMany({
             where: {
                 client: {
+                    monitorInOperations: true,
                     companyId: companyId && companyId !== "all" ? companyId : undefined,
                     id: clientId && clientId !== "all" ? clientId : undefined
                 },

@@ -15,6 +15,7 @@ interface EditClientSheetProps {
         name: string;
         address: string;
         companyId: string | null;
+        monitorInOperations?: boolean;
     };
     companies: { id: string; name: string }[];
 }
@@ -61,6 +62,19 @@ export function EditClientSheet({ client, companies }: EditClientSheetProps) {
                     <div className="space-y-2">
                         <Label htmlFor="address">Endereço</Label>
                         <Input id="address" name="address" defaultValue={client.address} required />
+                    </div>
+                    <div className="flex items-center gap-2 py-2">
+                        <input 
+                            type="checkbox" 
+                            id="monitorInOperations" 
+                            name="monitorInOperations" 
+                            value="true" 
+                            defaultChecked={client.monitorInOperations !== false}
+                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" 
+                        />
+                        <Label htmlFor="monitorInOperations" className="cursor-pointer font-medium text-slate-700">
+                            Monitorar na Mesa de Operações
+                        </Label>
                     </div>
                     <Button type="submit" className="w-full">Salvar Alterações</Button>
                 </form>

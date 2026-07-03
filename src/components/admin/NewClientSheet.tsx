@@ -53,6 +53,19 @@ export function NewClientSheet({ companies }: NewClientSheetProps) {
                         <Label htmlFor="address">Endereço</Label>
                         <Input id="address" name="address" placeholder="Rua..." required />
                     </div>
+                    <div className="flex items-center gap-2 py-2">
+                        <input 
+                            type="checkbox" 
+                            id="monitorInOperations" 
+                            name="monitorInOperations" 
+                            value="true" 
+                            defaultChecked={true}
+                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" 
+                        />
+                        <Label htmlFor="monitorInOperations" className="cursor-pointer font-medium text-slate-700">
+                            Monitorar na Mesa de Operações
+                        </Label>
+                    </div>
                     <Button type="submit" className="w-full">Salvar</Button>
                 </form>
             </SheetContent>

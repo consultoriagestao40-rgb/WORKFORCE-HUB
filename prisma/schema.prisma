@@ -60,15 +60,16 @@ model Company {
 }
 
 model Client {
-  id              String   @id @default(uuid())
-  companyId       String?
-  name            String
-  address         String
-  paymentTermDays Int      @default(30)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  company         Company? @relation(fields: [companyId], references: [id])
-  postos          Posto[]
+  id                  String   @id @default(uuid())
+  companyId           String?
+  name                String
+  address             String
+  paymentTermDays     Int      @default(30)
+  monitorInOperations Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  company             Company? @relation(fields: [companyId], references: [id])
+  postos              Posto[]
 
   @@index([companyId])
 }

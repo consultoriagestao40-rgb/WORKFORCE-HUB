@@ -37,7 +37,8 @@ export async function GET(request: Request) {
 
         const postos = await prisma.posto.findMany({
             where: {
-                clientId: { in: finalClientIds }
+                clientId: { in: finalClientIds },
+                client: { monitorInOperations: true }
             },
             include: {
                 client: true,

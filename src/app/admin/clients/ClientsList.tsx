@@ -155,6 +155,7 @@ export function ClientsList({
                                 <TableHead>Nome do Site (Cliente)</TableHead>
                                 <TableHead>Endereço</TableHead>
                                 <TableHead>Postos</TableHead>
+                                <TableHead>Monitoramento</TableHead>
                                 <TableHead className="text-right">Ação</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -177,6 +178,17 @@ export function ClientsList({
                                         {client.address}
                                     </TableCell>
                                     <TableCell>{client._count.postos} Postos</TableCell>
+                                    <TableCell>
+                                        {client.monitorInOperations !== false ? (
+                                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                Mesa Ativa
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                                Desativado
+                                            </span>
+                                        )}
+                                    </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex items-center justify-end gap-2">
                                             <Link href={`/admin/clients/${client.id}`}>

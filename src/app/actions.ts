@@ -112,12 +112,14 @@ export async function createClient(formData: FormData) {
     const name = formData.get("name") as string;
     const address = formData.get("address") as string;
     const companyId = formData.get("companyId") as string;
+    const monitorInOperations = formData.get("monitorInOperations") === "true" || formData.get("monitorInOperations") === "on";
 
     await prisma.client.create({
         data: {
             name,
             address,
-            companyId: companyId || undefined
+            companyId: companyId || undefined,
+            monitorInOperations
         }
     });
 
@@ -704,13 +706,15 @@ export async function updateClient(formData: FormData) {
     const name = formData.get("name") as string;
     const address = formData.get("address") as string;
     const companyId = formData.get("companyId") as string;
+    const monitorInOperations = formData.get("monitorInOperations") === "true" || formData.get("monitorInOperations") === "on";
 
     await prisma.client.update({
         where: { id },
         data: {
             name,
             address,
-            companyId: companyId || undefined
+            companyId: companyId || undefined,
+            monitorInOperations
         }
     });
 
