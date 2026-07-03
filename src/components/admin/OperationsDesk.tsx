@@ -1011,12 +1011,18 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                                     paddingAngle={3}
                                                     dataKey="value"
                                                     nameKey="name"
+                                                    label={({ percent }) => percent && percent > 0.02 ? `${(percent * 100).toFixed(0)}%` : ""}
                                                 >
                                                     {kpisData.reasons.map((entry: any, index: number) => (
                                                         <Cell key={`cell-${index}`} fill={["#3b82f6", "#ef4444", "#f59e0b", "#94a3b8"][index % 4]} />
                                                     ))}
                                                 </Pie>
                                                 <Tooltip 
+                                                    formatter={(value: any, name: any) => {
+                                                        const total = kpisData.totalAbsences || 1;
+                                                        const pct = ((Number(value) / total) * 100).toFixed(1);
+                                                        return [`${value} ocorrências (${pct}%)`, name];
+                                                    }}
                                                     contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                                                     itemStyle={{ fontSize: '11px', fontWeight: 600 }}
                                                 />
@@ -1133,12 +1139,18 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                                         paddingAngle={3}
                                                         dataKey="count"
                                                         nameKey="name"
+                                                        label={({ percent }) => percent && percent > 0.02 ? `${(percent * 100).toFixed(0)}%` : ""}
                                                     >
                                                         {kpisData.vacantByRole.map((entry: any, index: number) => (
                                                             <Cell key={`cell-${index}`} fill={["#8b5cf6", "#ec4899", "#3b82f6", "#14b8a6", "#ef4444", "#10b981", "#f59e0b", "#94a3b8"][index % 8]} />
                                                         ))}
                                                     </Pie>
                                                     <Tooltip 
+                                                        formatter={(value: any, name: any) => {
+                                                            const total = kpisData.totalVacantDays || 1;
+                                                            const pct = ((Number(value) / total) * 100).toFixed(1);
+                                                            return [`${value} dias (${pct}%)`, name];
+                                                        }}
                                                         contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                                                         itemStyle={{ fontSize: '11px', fontWeight: 600 }}
                                                     />
