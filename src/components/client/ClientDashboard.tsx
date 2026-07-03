@@ -1501,22 +1501,22 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             {dynamicNpsQuestions.map((q) => {
                                                 const currentAnswer = npsAnswers[q.id];
                                                 return (
-                                                    <div key={q.id} className="space-y-3 p-4 rounded-xl border border-slate-200/50 bg-slate-50/30">
-                                                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                                                    <div key={q.id} className="space-y-3 p-5 rounded-2xl border border-slate-200 bg-slate-50/40 shadow-sm">
+                                                        <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
                                                             {q.text}
                                                         </label>
-                                                        <div className="flex flex-wrap gap-1.5 pt-1">
+                                                        <div className="flex justify-between items-center w-full pt-1 gap-1 flex-wrap md:flex-nowrap">
                                                             {[...Array(11).keys()].map((num) => {
                                                                 const selected = currentAnswer === num;
-                                                                let btnClass = "border-slate-250 hover:bg-slate-100/50";
+                                                                let btnClass = "border-slate-200 hover:bg-slate-100";
                                                                 if (selected) {
-                                                                    if (num <= 6) btnClass = "bg-red-600 text-white border-red-600 shadow-sm";
-                                                                    else if (num <= 8) btnClass = "bg-amber-500 text-white border-amber-500 shadow-sm";
-                                                                    else btnClass = "bg-emerald-600 text-white border-emerald-600 shadow-sm";
+                                                                    if (num <= 6) btnClass = "bg-red-605 text-white border-red-600 shadow-md";
+                                                                    else if (num <= 8) btnClass = "bg-amber-500 text-white border-amber-500 shadow-md";
+                                                                    else btnClass = "bg-emerald-605 text-white border-emerald-600 shadow-md";
                                                                 } else {
-                                                                    if (num <= 6) btnClass = "bg-red-50/20 text-red-700 border-red-100/55 hover:bg-red-50";
-                                                                    else if (num <= 8) btnClass = "bg-amber-50/20 text-amber-700 border-amber-100/55 hover:bg-amber-50";
-                                                                    else btnClass = "bg-emerald-50/20 text-emerald-700 border-emerald-100/55 hover:bg-emerald-50";
+                                                                    if (num <= 6) btnClass = "bg-red-50/20 text-red-700 border-red-100 hover:bg-red-50";
+                                                                    else if (num <= 8) btnClass = "bg-amber-50/20 text-amber-700 border-amber-100 hover:bg-amber-50";
+                                                                    else btnClass = "bg-emerald-50/20 text-emerald-700 border-emerald-100 hover:bg-emerald-50";
                                                                 }
 
                                                                 return (
@@ -1524,7 +1524,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                         key={num}
                                                                         type="button"
                                                                         onClick={() => setNpsAnswers(prev => ({ ...prev, [q.id]: num }))}
-                                                                        className={`w-9 h-9 rounded-full border text-[11px] font-black flex items-center justify-center transition-all ${btnClass}`}
+                                                                        className={`w-9 h-9 md:w-10 md:h-10 rounded-full border text-[11px] md:text-xs font-black flex items-center justify-center transition-all ${btnClass}`}
                                                                     >
                                                                         {num}
                                                                     </button>
@@ -1562,8 +1562,8 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                     <div className="flex items-center justify-end pt-4 border-t border-slate-100">
                                         <Button
                                             type="submit"
-                                            disabled={submittingNps || npsScore === null || !selectedNpsClientId}
-                                            className="h-11 text-xs font-bold uppercase tracking-wider px-6 bg-primary text-slate-900 hover:bg-primary/95 rounded-xl shadow-premium"
+                                            disabled={submittingNps || !selectedNpsClientId || dynamicNpsQuestions.length === 0 || !dynamicNpsQuestions.every(q => npsAnswers[q.id] !== undefined)}
+                                            className="h-11 text-xs font-bold uppercase tracking-wider px-6 bg-primary text-slate-900 hover:bg-primary/95 rounded-xl shadow-premium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             {submittingNps ? "Enviando..." : "Enviar Avaliação"}
                                         </Button>
