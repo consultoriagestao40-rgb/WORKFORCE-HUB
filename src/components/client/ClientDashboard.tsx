@@ -35,7 +35,9 @@ interface ClientAttendanceItem {
     schedule: string;
     startTime: string;
     endTime: string;
+    clientId: string;
     clientName: string;
+    clientAddress: string;
     employeeName: string;
     attendance: {
         status: string;
@@ -50,6 +52,7 @@ interface ClientAttendanceItem {
 export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     const [date, setDate] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
     const [selectedContractId, setSelectedContractId] = useState<string>("all");
+    const [activeContractId, setActiveContractId] = useState<string | null>(null);
     const [items, setItems] = useState<ClientAttendanceItem[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [isPending, startTransition] = useTransition();
@@ -120,6 +123,53 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
         });
 
         return { total, presentCount, lateCount, vacantCount, coveredCount };
+    }, [items]);
+
+    // Group items by client contract for the master list view
+    const groupedContracts = React.useMemo(() => {
+        const map = new Map<string, { 
+            id: string; 
+            name: string; 
+            address: string; 
+            total: number;
+            present: number;
+            late: number;
+            covered: number;
+            vacant: number;
+        }>();
+
+        items.forEach(item => {
+            const key = item.clientId;
+            if (!map.has(key)) {
+                map.set(key, {
+                    id: key,
+                    name: item.clientName,
+                    address: item.clientAddress || "-",
+                    total: 0,
+                    present: 0,
+                    late: 0,
+                    covered: 0,
+                    vacant: 0
+                });
+            }
+            const c = map.get(key)!;
+            c.total++;
+            
+            const att = item.attendance;
+            if (att.status === "PRESENTE_PONTO" || att.status === "PRESENTE_MANUAL") {
+                c.present++;
+            } else if (att.status === "FALTA") {
+                if (att.coveredByName || att.coverageType) {
+                    c.covered++;
+                } else {
+                    c.vacant++;
+                }
+            } else if (att.status === "AGUARDANDO" && att.isLate) {
+                c.late++;
+            }
+        });
+
+        return Array.from(map.values());
     }, [items]);
 
     // Export Client Roster to Excel
@@ -232,7 +282,11 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                         {/* Contract Filter */}
                         <select
                             value={selectedContractId}
-                            onChange={(e) => setSelectedContractId(e.target.value)}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setSelectedContractId(val);
+                                setActiveContractId(val === "all" ? null : val);
+                            }}
                             className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
                         >
                             <option value="all">Todos os Contratos</option>
@@ -252,71 +306,58 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                 </div>
 
                 {/* Metrics Cards Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     <Card className="border-none shadow-premium bg-slate-900 text-white">
-                        <CardHeader className="pb-1 p-4">
-                            <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total de Postos</CardDescription>
-                            <CardTitle className="text-3xl font-black">{metrics.total}</CardTitle>
+                        <CardHeader className="p-3 pb-0">
+                            <CardDescription className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total de Postos</CardDescription>
                         </CardHeader>
-                        <CardContent className="px-4 pb-4 pt-1">
-                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Postos contratados ativos</p>
+                        <CardContent className="p-3 pt-1 flex items-baseline justify-between">
+                            <span className="text-2xl font-black">{metrics.total}</span>
+                            <span className="text-[8px] text-slate-500 font-bold uppercase tracking-wider">Ativos</span>
                         </CardContent>
                     </Card>
 
                     <Card className="border-none shadow-premium bg-white">
-                        <CardHeader className="pb-1 p-4">
-                            <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Presentes no Posto</CardDescription>
-                            <CardTitle className="text-3xl font-black text-emerald-600 flex items-center justify-between">
-                                <span>{metrics.presentCount}</span>
-                                <UserCheck className="w-6 h-6 text-emerald-100 bg-emerald-50 p-1 rounded-lg" />
-                            </CardTitle>
+                        <CardHeader className="p-3 pb-0">
+                            <CardDescription className="text-[9px] font-black uppercase tracking-widest text-slate-400">Presentes</CardDescription>
                         </CardHeader>
-                        <CardContent className="px-4 pb-4 pt-1">
-                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Entradas confirmadas no dia</p>
+                        <CardContent className="p-3 pt-1 flex items-center justify-between">
+                            <span className="text-2xl font-black text-emerald-600">{metrics.presentCount}</span>
+                            <UserCheck className="w-4 h-4 text-emerald-600 bg-emerald-50 p-0.5 rounded" />
                         </CardContent>
                     </Card>
 
                     <Card className="border-none shadow-premium bg-white">
-                        <CardHeader className="pb-1 p-4">
-                            <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Aguardando/Atrasados</CardDescription>
-                            <CardTitle className="text-3xl font-black text-amber-600 flex items-center justify-between">
-                                <span>{metrics.lateCount}</span>
-                                <Clock className="w-6 h-6 text-amber-100 bg-amber-50 p-1 rounded-lg" />
-                            </CardTitle>
+                        <CardHeader className="p-3 pb-0">
+                            <CardDescription className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-semibold">Aguardando/Atrasados</CardDescription>
                         </CardHeader>
-                        <CardContent className="px-4 pb-4 pt-1">
-                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Entrada pendente após tolerância</p>
+                        <CardContent className="p-3 pt-1 flex items-center justify-between">
+                            <span className="text-2xl font-black text-amber-600">{metrics.lateCount}</span>
+                            <Clock className="w-4 h-4 text-amber-600 bg-amber-50 p-0.5 rounded" />
                         </CardContent>
                     </Card>
 
                     <Card className="border-none shadow-premium bg-white">
-                        <CardHeader className="pb-1 p-4">
-                            <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cobertos</CardDescription>
-                            <CardTitle className="text-3xl font-black text-blue-600 flex items-center justify-between">
-                                <span>{metrics.coveredCount}</span>
-                                <RefreshCw className="w-6 h-6 text-blue-100 bg-blue-50 p-1 rounded-lg" />
-                            </CardTitle>
+                        <CardHeader className="p-3 pb-0">
+                            <CardDescription className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-semibold">Cobertos</CardDescription>
                         </CardHeader>
-                        <CardContent className="px-4 pb-4 pt-1">
-                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Falta coberta por reserva/diarista</p>
+                        <CardContent className="p-3 pt-1 flex items-center justify-between">
+                            <span className="text-2xl font-black text-blue-600">{metrics.coveredCount}</span>
+                            <RefreshCw className="w-4 h-4 text-blue-600 bg-blue-50 p-0.5 rounded" />
                         </CardContent>
                     </Card>
 
                     <Card className="border-none shadow-premium bg-white">
-                        <CardHeader className="pb-1 p-4">
-                            <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Postos Vagos (Sem Cobertura)</CardDescription>
-                            <CardTitle className="text-3xl font-black text-red-600 flex items-center justify-between">
-                                <span>{metrics.vacantCount}</span>
-                                <UserX className="w-6 h-6 text-red-100 bg-red-50 p-1 rounded-lg" />
-                            </CardTitle>
+                        <CardHeader className="p-3 pb-0">
+                            <CardDescription className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-semibold">Vagos (Sem Cobertura)</CardDescription>
                         </CardHeader>
-                        <CardContent className="px-4 pb-4 pt-1">
-                            <p className="text-[9px] text-red-500 font-extrabold uppercase tracking-wider">Glosados no dia</p>
+                        <CardContent className="p-3 pt-1 flex items-center justify-between">
+                            <span className="text-2xl font-black text-red-600">{metrics.vacantCount}</span>
+                            <UserX className="w-4 h-4 text-red-600 bg-red-50 p-0.5 rounded" />
                         </CardContent>
                     </Card>
                 </div>
-
-                {/* Table Section */}
+                      {/* Table Section */}
                 <Card className="border-none shadow-premium bg-white overflow-hidden">
                     <div className="w-full overflow-x-auto">
                         {loading ? (
@@ -324,109 +365,200 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                 <RefreshCw className="w-8 h-8 text-primary animate-spin" />
                                 <span className="text-xs text-slate-500 font-semibold">Carregando dados da escala...</span>
                             </div>
-                        ) : (
+                        ) : activeContractId === null ? (
+                            /* Contract Master List View */
                             <Table>
                                 <TableHeader className="bg-slate-50">
                                     <TableRow>
                                         <TableHead className="font-bold text-slate-800">Contrato / Unidade</TableHead>
-                                        <TableHead className="font-bold text-slate-800">Função / Cargo</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-center">Horário</TableHead>
-                                        <TableHead className="font-bold text-slate-800">Titular do Posto</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-center">Status do Posto</TableHead>
-                                        <TableHead className="font-bold text-slate-800">Observações Operacionais</TableHead>
+                                        <TableHead className="font-bold text-slate-800">Endereço</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-center">Total de Postos</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-center">Status de Presença</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-right pr-6">Ação</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {items.map((item) => {
-                                        const att = item.attendance;
-                                        let rowBgClass = "";
-                                        let statusBadge = null;
-
-                                        if (att.status === "PRESENTE_PONTO") {
-                                            statusBadge = (
-                                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50 font-bold">
-                                                    ● Confirmado (Ponto às {att.clockInTime ? format(new Date(att.clockInTime), "HH:mm") : ""})
-                                                </Badge>
-                                            );
-                                        } else if (att.status === "PRESENTE_MANUAL") {
-                                            statusBadge = (
-                                                <Badge className="bg-emerald-50 text-emerald-850 border-emerald-200 hover:bg-emerald-50 font-black">
-                                                    ● Confirmado pela Mesa
-                                                </Badge>
-                                            );
-                                        } else if (att.status === "FALTA") {
-                                            if (att.coveredByName) {
-                                                statusBadge = (
-                                                    <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 font-bold">
-                                                        ● Falta Coberta: {att.coveredByName}
-                                                    </Badge>
-                                                );
-                                            } else if (att.coverageType === "DIARISTA") {
-                                                statusBadge = (
-                                                    <Badge className="bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-50 font-bold">
-                                                        ● Coberto por Diarista
-                                                    </Badge>
-                                                );
-                                            } else {
-                                                rowBgClass = "bg-red-50/20";
-                                                statusBadge = (
-                                                    <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-50 font-black animate-pulse">
-                                                        ▲ Posto Vago (Glosa)
-                                                    </Badge>
-                                                );
-                                            }
-                                        } else {
-                                            if (att.isLate) {
-                                                rowBgClass = "bg-amber-50/20";
-                                                statusBadge = (
-                                                    <Badge className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50 font-black">
-                                                        ▲ Entrada Pendente (Atraso)
-                                                    </Badge>
-                                                );
-                                            } else {
-                                                statusBadge = (
-                                                    <Badge className="bg-slate-100 text-slate-600 border-none hover:bg-slate-100">
-                                                        ○ Aguardando Turno
-                                                    </Badge>
-                                                );
-                                            }
-                                        }
-
-                                        return (
-                                            <TableRow key={item.id} className={`hover:bg-slate-50/50 transition-colors ${rowBgClass}`}>
-                                                <TableCell className="font-bold text-slate-900 text-sm">
-                                                    {item.clientName}
-                                                </TableCell>
-                                                <TableCell className="text-slate-700 text-xs font-semibold">
-                                                    {item.role}
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    <div className="flex flex-col items-center">
-                                                        <span className="text-xs font-bold text-slate-850">{item.startTime} - {item.endTime}</span>
-                                                        <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-500 font-mono mt-0.5">{item.schedule}</span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-slate-800 text-xs font-medium">
-                                                    {item.employeeName}
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    {statusBadge}
-                                                </TableCell>
-                                                <TableCell className="text-xs text-slate-500 font-medium italic">
-                                                    {att.notes || (att.status === "FALTA" && !att.coveredByName ? "Posto desocupado sem aviso de cobertura." : "-")}
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
-                                    {items.length === 0 && (
+                                    {groupedContracts.map((contract) => (
+                                        <TableRow 
+                                            key={contract.id} 
+                                            className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                                            onClick={() => {
+                                                setActiveContractId(contract.id);
+                                                setSelectedContractId(contract.id);
+                                            }}
+                                        >
+                                            <TableCell className="font-bold text-slate-900 text-sm">
+                                                {contract.name}
+                                            </TableCell>
+                                            <TableCell className="text-slate-500 text-xs max-w-[300px] truncate">
+                                                {contract.address}
+                                            </TableCell>
+                                            <TableCell className="text-center text-xs font-semibold text-slate-700">
+                                                {contract.total} Postos
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                <div className="flex justify-center items-center gap-1.5 flex-wrap">
+                                                    {contract.present > 0 && (
+                                                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50 text-[10px] font-bold">
+                                                            {contract.present} Presentes
+                                                        </Badge>
+                                                    )}
+                                                    {contract.late > 0 && (
+                                                        <Badge className="bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-50 text-[10px] font-bold">
+                                                            {contract.late} Atrasados
+                                                        </Badge>
+                                                    )}
+                                                    {contract.covered > 0 && (
+                                                        <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 text-[10px] font-bold">
+                                                            {contract.covered} Cobertos
+                                                        </Badge>
+                                                    )}
+                                                    {contract.vacant > 0 && (
+                                                        <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-50 text-[10px] font-bold">
+                                                            {contract.vacant} Vagos
+                                                        </Badge>
+                                                    )}
+                                                    {contract.present === 0 && contract.late === 0 && contract.covered === 0 && contract.vacant === 0 && (
+                                                        <span className="text-xs text-slate-400 italic">Nenhuma escala ativa</span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right pr-6">
+                                                <Button variant="ghost" size="sm" className="text-xs font-semibold text-primary hover:text-primary/80">
+                                                    Ver Detalhes →
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {groupedContracts.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={6} className="text-center text-slate-500 py-20 font-semibold">
-                                                Nenhum posto ativo sob sua gestão na data selecionada.
+                                            <TableCell colSpan={5} className="text-center text-slate-500 py-20 font-semibold">
+                                                Nenhum contrato ativo sob sua gestão na data selecionada.
                                             </TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
                             </Table>
+                        ) : (
+                            /* Contract Detailed View of Posts (First Column removed) */
+                            <div>
+                                <div className="p-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            onClick={() => {
+                                                setActiveContractId(null);
+                                                setSelectedContractId("all");
+                                            }}
+                                            className="text-xs gap-1.5 h-8 border-slate-200"
+                                        >
+                                            ← Voltar para Contratos
+                                        </Button>
+                                        <span className="text-sm font-bold text-slate-800">
+                                            Detalhamento do Contrato: {items[0]?.clientName || "Contrato"}
+                                        </span>
+                                    </div>
+                                </div>
+                                <Table>
+                                    <TableHeader className="bg-slate-50">
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800">Função / Cargo</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Horário</TableHead>
+                                            <TableHead className="font-bold text-slate-800">Titular do Posto</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Status do Posto</TableHead>
+                                            <TableHead className="font-bold text-slate-800">Observações Operacionais</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {items.map((item) => {
+                                            const att = item.attendance;
+                                            let rowBgClass = "";
+                                            let statusBadge = null;
+
+                                            if (att.status === "PRESENTE_PONTO") {
+                                                statusBadge = (
+                                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50 font-bold">
+                                                        ● Confirmado (Ponto às {att.clockInTime ? format(new Date(att.clockInTime), "HH:mm") : ""})
+                                                    </Badge>
+                                                );
+                                            } else if (att.status === "PRESENTE_MANUAL") {
+                                                statusBadge = (
+                                                    <Badge className="bg-emerald-50 text-emerald-855 hover:bg-emerald-50 font-black">
+                                                        ● Confirmado pela Mesa
+                                                    </Badge>
+                                                );
+                                            } else if (att.status === "FALTA") {
+                                                if (att.coveredByName) {
+                                                    statusBadge = (
+                                                        <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 font-bold">
+                                                            ● Falta Coberta: {att.coveredByName}
+                                                        </Badge>
+                                                    );
+                                                } else if (att.coverageType === "DIARISTA") {
+                                                    statusBadge = (
+                                                        <Badge className="bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-50 font-bold">
+                                                            ● Coberto por Diarista
+                                                        </Badge>
+                                                    );
+                                                } else {
+                                                    rowBgClass = "bg-red-50/20";
+                                                    statusBadge = (
+                                                        <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-50 font-black animate-pulse">
+                                                            ▲ Posto Vago (Glosa)
+                                                        </Badge>
+                                                    );
+                                                }
+                                            } else {
+                                                if (att.isLate) {
+                                                    rowBgClass = "bg-amber-50/20";
+                                                    statusBadge = (
+                                                        <Badge className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50 font-black">
+                                                            ▲ Entrada Pendente (Atraso)
+                                                        </Badge>
+                                                    );
+                                                } else {
+                                                    statusBadge = (
+                                                        <Badge className="bg-slate-100 text-slate-600 border-none hover:bg-slate-100">
+                                                            ○ Aguardando Turno
+                                                        </Badge>
+                                                    );
+                                                }
+                                            }
+
+                                            return (
+                                                <TableRow key={item.id} className={`hover:bg-slate-50/50 transition-colors ${rowBgClass}`}>
+                                                    <TableCell className="text-slate-700 text-xs font-semibold">
+                                                        {item.role}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="text-xs font-bold text-slate-850">{item.startTime} - {item.endTime}</span>
+                                                            <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-500 font-mono mt-0.5">{item.schedule}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-slate-800 text-xs font-medium">
+                                                        {item.employeeName}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        {statusBadge}
+                                                    </TableCell>
+                                                    <TableCell className="text-xs text-slate-500 font-medium italic">
+                                                        {att.notes || (att.status === "FALTA" && !att.coveredByName ? "Posto desocupado sem aviso de cobertura." : "-")}
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                        {items.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={5} className="text-center text-slate-500 py-20 font-semibold">
+                                                    Nenhum posto ativo neste contrato para a data selecionada.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         )}
                     </div>
                 </Card>

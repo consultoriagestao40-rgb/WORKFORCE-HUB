@@ -158,7 +158,9 @@ export async function GET(request: Request) {
                 schedule: posto.schedule,
                 startTime: posto.startTime,
                 endTime: posto.endTime,
+                clientId: posto.client.id,
                 clientName: posto.client.name,
+                clientAddress: posto.client.address,
                 employeeName: employee?.name || "Vaga em Aberto",
                 attendance: {
                     status,
