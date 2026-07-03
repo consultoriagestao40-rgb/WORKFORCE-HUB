@@ -77,35 +77,31 @@ export async function GET(request: Request) {
         });
 
         // Filtrar apenas postos que devem trabalhar hoje
-        const activePostos = postos.filter((posto: any) => {
-            const assignment = posto.assignments[0];
-            const override = overrides.find(o => o.postoId === posto.id);
-            if (override) {
-                return !override.isDayOff;
-            }
-
-            if (!assignment) {
-                const dayOfWeek = targetDate.getDay();
-                const normSchedule = posto.schedule.replace(/\s+/g, '').toLowerCase();
-                if (normSchedule.includes('segasex') || normSchedule.includes('mondaytofriday')) {
-                    if (dayOfWeek === 0 || dayOfWeek === 6) return false;
-                }
-                if (normSchedule.includes('segasab') || normSchedule.includes('mondaytosaturday')) {
-                    if (dayOfWeek === 0) return false;
-                }
-                return true;
-            }
-
-            const roster = generateRoster(posto.schedule, new Date(assignment.startDate), [targetDate]);
-            return roster[0]?.status === 'Trabalho';
-        });
-
         const isToday = targetDateStr === todayStr;
 
-        const items = activePostos.map((posto: any) => {
+        const items = postos.map((posto: any) => {
             const assignment = posto.assignments[0];
             const attendance = posto.attendances[0];
             const employee = assignment?.employee || null;
+
+            // Verificar se o posto trabalha hoje
+            let isWorkingToday = true;
+            const override = overrides.find(o => o.postoId === posto.id);
+            if (override) {
+                isWorkingToday = !override.isDayOff;
+            } else if (!assignment) {
+                const dayOfWeek = targetDate.getDay();
+                const normSchedule = posto.schedule.replace(/\s+/g, '').toLowerCase();
+                if (normSchedule.includes('segasex') || normSchedule.includes('mondaytofriday')) {
+                    if (dayOfWeek === 0 || dayOfWeek === 6) isWorkingToday = false;
+                }
+                if (normSchedule.includes('segasab') || normSchedule.includes('mondaytosaturday')) {
+                    if (dayOfWeek === 0) isWorkingToday = false;
+                }
+            } else {
+                const roster = generateRoster(posto.schedule, new Date(assignment.startDate), [targetDate]);
+                isWorkingToday = roster[0]?.status === 'Trabalho';
+            }
 
             let status = "AGUARDANDO";
             let clockInTime = null;
@@ -120,6 +116,8 @@ export async function GET(request: Request) {
                 coveredByName = attendance.coveredBy?.name || null;
                 coverageType = attendance.coverageType;
                 notes = attendance.notes || "";
+            } else if (!isWorkingToday) {
+                status = "FOLGA";
             } else {
                 if (employee) {
                     const [startHour, startMinute] = posto.startTime.split(":").map(Number);
@@ -165,6 +163,7 @@ export async function GET(request: Request) {
                 clientAddress: posto.client.address,
                 employeeName: employee?.name || "Vaga em Aberto",
                 totalContractPostos: totalPostosInContract,
+                billingValue: posto.billingValue,
                 attendance: {
                     status,
                     clockInTime,
@@ -189,6 +188,7 @@ export async function GET(request: Request) {
                 if (att.status === "FALTA" && !isTreated) return 1;
                 if (att.status === "AGUARDANDO" && att.isLate) return 2;
                 if (att.status === "AGUARDANDO") return 3;
+                if (att.status === "FOLGA") return 5;
                 return 4;
             };
             

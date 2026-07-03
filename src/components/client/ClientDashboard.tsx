@@ -40,6 +40,7 @@ interface ClientAttendanceItem {
     clientAddress: string;
     employeeName: string;
     totalContractPostos: number;
+    billingValue: number;
     attendance: {
         status: string;
         clockInTime: string | null;
@@ -102,7 +103,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
 
     // Calculate Summary Metrics
     const metrics = React.useMemo(() => {
-        const total = items.length;
+        let total = 0;
         let presentCount = 0;
         let lateCount = 0;
         let vacantCount = 0;
@@ -110,6 +111,10 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
 
         items.forEach(item => {
             const att = item.attendance;
+            if (att.status === "FOLGA") return;
+
+            total++;
+
             if (att.status === "PRESENTE_PONTO" || att.status === "PRESENTE_MANUAL") {
                 presentCount++;
             } else if (att.status === "FALTA") {
@@ -163,9 +168,12 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                 });
             }
             const c = map.get(key)!;
+            const att = item.attendance;
+
+            if (att.status === "FOLGA") return;
+
             c.total++;
             
-            const att = item.attendance;
             if (att.status === "PRESENTE_PONTO" || att.status === "PRESENTE_MANUAL") {
                 c.present++;
             } else if (att.status === "FALTA") {
@@ -472,6 +480,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <TableHead className="font-bold text-slate-800">Função / Cargo</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-center">Horário</TableHead>
                                             <TableHead className="font-bold text-slate-800">Titular do Posto</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Valor Diário</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-center">Status do Posto</TableHead>
                                             <TableHead className="font-bold text-slate-800">Observações Operacionais</TableHead>
                                         </TableRow>
@@ -515,6 +524,13 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                         </Badge>
                                                     );
                                                 }
+                                            } else if (att.status === "FOLGA") {
+                                                rowBgClass = "opacity-70 bg-slate-100/40";
+                                                statusBadge = (
+                                                    <Badge className="bg-slate-250 text-slate-500 border-slate-300 hover:bg-slate-200 font-semibold select-none">
+                                                        ○ Folga (Sem Escala)
+                                                    </Badge>
+                                                );
                                             } else {
                                                 if (att.isLate) {
                                                     rowBgClass = "bg-amber-50/20";
@@ -526,7 +542,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                 } else {
                                                     statusBadge = (
                                                         <Badge className="bg-slate-100 text-slate-600 border-none hover:bg-slate-100">
-                                                            ○ Aguardando Turno
+                                                            ○ Em Escala (Aguardando)
                                                         </Badge>
                                                     );
                                                 }
@@ -546,6 +562,9 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                     <TableCell className="text-slate-800 text-xs font-medium">
                                                         {item.employeeName}
                                                     </TableCell>
+                                                    <TableCell className="text-center text-xs font-mono font-bold text-slate-705">
+                                                        {(item.billingValue / 30).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                                    </TableCell>
                                                     <TableCell className="text-center">
                                                         {statusBadge}
                                                     </TableCell>
@@ -557,8 +576,8 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                         })}
                                         {items.length === 0 && (
                                             <TableRow>
-                                                <TableCell colSpan={5} className="text-center text-slate-500 py-20 font-semibold">
-                                                    Nenhum posto ativo neste contrato para a data selecionada.
+                                                <TableCell colSpan={6} className="text-center text-slate-500 py-20 font-semibold">
+                                                    Nenhum posto cadastrado neste contrato.
                                                 </TableCell>
                                             </TableRow>
                                         )}
