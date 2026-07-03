@@ -12,9 +12,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
     Calendar, ChevronLeft, ChevronRight, Clock, UserCheck, UserX, 
-    RefreshCw, LogOut, ShieldAlert, Award, FileText, Download
+    RefreshCw, LogOut, ShieldAlert, Award, FileText, Download,
+    DollarSign, Inbox, Plus, Search, Menu, X
 } from "lucide-react";
 import { logout } from "@/app/actions";
+import { 
+    createClientRequest, 
+    getClientRequests, 
+    getClientEmployees, 
+    getClientMonthlyReport 
+} from "@/app/admin/requests/actions";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 
@@ -58,6 +65,122 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     const [items, setItems] = useState<ClientAttendanceItem[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [isPending, startTransition] = useTransition();
+
+    const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report">("presence");
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    // Requests Tab States
+    const [requests, setRequests] = useState<any[]>([]);
+    const [employees, setEmployees] = useState<{id: string, name: string}[]>([]);
+    const [loadingRequests, setLoadingRequests] = useState(false);
+    const [showNewRequestModal, setShowNewRequestModal] = useState(false);
+    const [newRequestType, setNewRequestType] = useState("MOVIMENTACAO");
+    const [newRequestDescription, setNewRequestDescription] = useState("");
+    const [newRequestEmployeeId, setNewRequestEmployeeId] = useState("");
+    const [submittingRequest, setSubmittingRequest] = useState(false);
+
+    // Billing Tab States
+    const [billingYear, setBillingYear] = useState(new Date().getFullYear());
+    const [billingData, setBillingData] = useState<any[]>([]);
+    const [loadingBilling, setLoadingBilling] = useState(false);
+
+    // Monthly Report Tab States
+    const [reportMonth, setReportMonth] = useState(new Date().getMonth());
+    const [reportYear, setReportYear] = useState(new Date().getFullYear());
+    const [reportData, setReportData] = useState<any[]>([]);
+    const [loadingReport, setLoadingReport] = useState(false);
+
+    const fetchRequests = useCallback(async () => {
+        setLoadingRequests(true);
+        try {
+            const data = await getClientRequests();
+            setRequests(data);
+        } catch (e) {
+            toast.error("Erro ao buscar solicitações.");
+        } finally {
+            setLoadingRequests(false);
+        }
+    }, []);
+
+    const fetchEmployees = useCallback(async () => {
+        try {
+            const data = await getClientEmployees();
+            setEmployees(data);
+        } catch (e) {
+            console.error("Erro ao buscar colaboradores.", e);
+        }
+    }, []);
+
+    const fetchBilling = useCallback(async (year: number) => {
+        setLoadingBilling(true);
+        try {
+            const res = await fetch(`/api/client/billing?year=${year}`);
+            const data = await res.json();
+            if (data.success) {
+                setBillingData(data.months);
+            } else {
+                toast.error("Erro ao calcular faturamento.");
+            }
+        } catch (e) {
+            toast.error("Erro de conexão ao carregar faturamento.");
+        } finally {
+            setLoadingBilling(false);
+        }
+    }, []);
+
+    const fetchReport = useCallback(async (month: number, year: number) => {
+        setLoadingReport(true);
+        try {
+            const data = await getClientMonthlyReport(month, year);
+            setReportData(data);
+        } catch (e) {
+            toast.error("Erro ao carregar relatório mensal.");
+        } finally {
+            setLoadingReport(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (activeTab === "requests") {
+            fetchRequests();
+            fetchEmployees();
+        } else if (activeTab === "billing") {
+            fetchBilling(billingYear);
+        } else if (activeTab === "monthly_report") {
+            fetchReport(reportMonth, reportYear);
+        }
+    }, [activeTab, billingYear, reportMonth, reportYear, fetchRequests, fetchEmployees, fetchBilling, fetchReport]);
+
+    const handleCreateRequest = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newRequestDescription.trim()) {
+            toast.error("Por favor, descreva sua solicitação.");
+            return;
+        }
+
+        setSubmittingRequest(true);
+        try {
+            const res = await createClientRequest({
+                type: newRequestType,
+                description: newRequestDescription,
+                employeeId: newRequestEmployeeId || undefined
+            });
+
+            if (res.success) {
+                toast.success("Solicitação enviada com sucesso!");
+                setShowNewRequestModal(false);
+                setNewRequestDescription("");
+                setNewRequestEmployeeId("");
+                fetchRequests();
+            } else {
+                toast.error("Erro ao enviar solicitação.");
+            }
+        } catch (e) {
+            toast.error("Ocorreu um erro ao processar sua solicitação.");
+        } finally {
+            setSubmittingRequest(false);
+        }
+    };
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -235,367 +358,921 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
         XLSX.writeFile(wb, `Presenca_Contratos_${date}.xlsx`);
     };
 
+    const menuItems = [
+        { id: "presence", label: "Presença Diária", icon: UserCheck },
+        { id: "requests", label: "Solicitações", icon: Inbox },
+        { id: "billing", label: "Faturamento Mensal", icon: DollarSign },
+        { id: "monthly_report", label: "Relatório Mensal", icon: FileText }
+    ];
+
     return (
-        <div className="min-h-screen bg-slate-50 pb-12">
-            {/* Premium Top Bar */}
-            <div className="bg-slate-900 text-white shadow-lg sticky top-0 z-50">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between h-16">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-primary/20 p-2 rounded-xl border border-primary/20">
+        <div className="flex h-screen bg-slate-100 overflow-hidden font-sans">
+            {/* Sidebar Desktop */}
+            <aside className="hidden md:flex flex-col bg-slate-900 text-white w-64 shrink-0 border-r border-slate-800">
+                <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="bg-primary/20 p-2 rounded-xl border border-primary/20 shrink-0">
+                            <Award className="w-6 h-6 text-primary" />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-sm font-black tracking-wider leading-none">WORKFORCE HUB</span>
+                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Portal do Cliente</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* User Info */}
+                <div className="p-4 border-b border-slate-800 bg-slate-955/40">
+                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Acesso Cliente</p>
+                    <p className="text-sm font-bold text-slate-200 mt-0.5 truncate">Olá, {userName}</p>
+                </div>
+
+                {/* Navigation menu */}
+                <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
+                    {menuItems.map((item) => {
+                        const Icon = item.icon;
+                        const active = activeTab === item.id;
+                        return (
+                            <button
+                                key={item.id}
+                                onClick={() => setActiveTab(item.id as any)}
+                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                                    active
+                                        ? "bg-primary text-slate-900 shadow-lg shadow-primary/20 font-black"
+                                        : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
+                                }`}
+                            >
+                                <Icon className="w-5 h-5 shrink-0" />
+                                <span>{item.label}</span>
+                            </button>
+                        );
+                    })}
+                </nav>
+
+                {/* Logout area */}
+                <div className="p-3 border-t border-slate-800">
+                    <button
+                        onClick={() => logout()}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/10 transition-colors"
+                    >
+                        <LogOut className="w-5 h-5 shrink-0" />
+                        <span>Sair</span>
+                    </button>
+                </div>
+            </aside>
+
+            {/* Sidebar Mobile Drawer */}
+            {sidebarOpen && (
+                <div className="md:hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)}>
+                    <aside className="w-64 h-full bg-slate-900 text-white flex flex-col" onClick={(e) => e.stopPropagation()}>
+                        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800">
+                            <div className="flex items-center gap-3">
                                 <Award className="w-6 h-6 text-primary" />
+                                <span className="text-sm font-black tracking-wider leading-none">WORKFORCE HUB</span>
                             </div>
-                            <div>
-                                <h1 className="text-lg font-black tracking-tight">WORKFORCE HUB</h1>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Portal do Cliente</p>
-                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} className="text-slate-400">
+                                <X className="w-5 h-5" />
+                            </Button>
                         </div>
 
-                        <div className="flex items-center gap-4">
-                            <div className="text-right hidden sm:block">
-                                <p className="text-xs font-bold text-slate-300">Olá, {userName}</p>
-                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Acesso Cliente</p>
-                            </div>
-
-                            <form action={logout}>
-                                <Button type="submit" variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-xl">
-                                    <LogOut className="w-4 h-4" />
-                                </Button>
-                            </form>
+                        <div className="p-4 border-b border-slate-800 bg-slate-950/40">
+                            <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Acesso Cliente</p>
+                            <p className="text-sm font-bold text-slate-200 mt-0.5">Olá, {userName}</p>
                         </div>
-                    </div>
+
+                        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
+                            {menuItems.map((item) => {
+                                const Icon = item.icon;
+                                const active = activeTab === item.id;
+                                return (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => {
+                                            setActiveTab(item.id as any);
+                                            setSidebarOpen(false);
+                                        }}
+                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                                            active
+                                                ? "bg-primary text-slate-900 shadow-lg shadow-primary/20 font-black"
+                                                : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
+                                        }`}
+                                    >
+                                        <Icon className="w-5 h-5 shrink-0" />
+                                        <span>{item.label}</span>
+                                    </button>
+                                );
+                            })}
+                        </nav>
+
+                        <div className="p-3 border-t border-slate-800">
+                            <button
+                                onClick={() => logout()}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/10 transition-colors"
+                            >
+                                <LogOut className="w-5 h-5 shrink-0" />
+                                <span>Sair</span>
+                            </button>
+                        </div>
+                    </aside>
                 </div>
-            </div>
+            )}
 
-            {/* Dashboard Content Container */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 space-y-6">
-                
-                {/* Control Panel */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    <div>
-                        <h2 className="text-2xl font-black text-slate-900 tracking-tight">Status de Presença Diário</h2>
-                        <p className="text-slate-500 font-medium text-xs">Monitore a lotação e o cumprimento de escalas em tempo real dos seus contratos.</p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                        {/* Calendário */}
-                        <div className="flex items-center bg-white rounded-xl shadow-premium border border-slate-200/50 p-1">
-                            <Button variant="ghost" size="icon" onClick={handlePrevDay} className="h-8 w-8 rounded-lg">
-                                <ChevronLeft className="w-4 h-4" />
-                            </Button>
-                            <div className="flex items-center gap-1.5 px-3">
-                                <Calendar className="w-4 h-4 text-slate-400" />
-                                <input 
-                                    type="date" 
-                                    value={date} 
-                                    onChange={(e) => handleDateChange(e.target.value)}
-                                    className="border-none outline-none font-bold text-xs text-slate-700 bg-transparent cursor-pointer"
-                                />
-                            </div>
-                            <Button variant="ghost" size="icon" onClick={handleNextDay} className="h-8 w-8 rounded-lg">
-                                <ChevronRight className="w-4 h-4" />
-                            </Button>
-                        </div>
-
-                        {/* Contract Filter */}
-                        <select
-                            value={selectedContractId}
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                setSelectedContractId(val);
-                                setActiveContractId(val === "all" ? null : val);
-                            }}
-                            className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Mobile Top Header */}
+                <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 shrink-0">
+                    <div className="flex items-center gap-3">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setSidebarOpen(!sidebarOpen)}
+                            className="text-slate-600 md:hidden"
                         >
-                            <option value="all">Todos os Contratos</option>
-                            {contracts.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                        </select>
-
-                        <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-1.5 h-10 shadow-premium border-slate-200">
-                            <Download className="w-4 h-4" /> Exportar Planilha
+                            <Menu className="w-5 h-5" />
                         </Button>
-
-                        <Button variant="ghost" size="icon" onClick={fetchData} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
-                            <RefreshCw className={`w-4 h-4 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
-                        </Button>
+                        <h2 className="text-lg font-black tracking-tight text-slate-800">
+                            {menuItems.find(m => m.id === activeTab)?.label}
+                        </h2>
                     </div>
-                </div>
 
-                {/* Metrics Cards Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                    <Card className="border-none shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
-                        <span className="text-xs font-bold uppercase tracking-wide text-slate-300">Postos em Escala</span>
-                        <div className="flex items-baseline justify-between mt-1">
-                            <span className="text-2xl font-black">{metrics.total}</span>
-                            <div className="flex flex-col text-[9px] font-bold uppercase tracking-wider text-slate-400 text-right select-none leading-normal">
-                                <span>Escala: <strong className="text-emerald-400 font-black">{metrics.total}</strong></span>
-                                <span>Folga: <strong className="text-slate-200 font-black">{metrics.totalContractPostos - metrics.total}</strong></span>
-                            </div>
+                    <div className="flex items-center gap-4">
+                        <div className="text-right hidden sm:block">
+                            <p className="text-xs font-bold text-slate-700">Olá, {userName}</p>
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Acesso Cliente</p>
                         </div>
-                    </Card>
+                    </div>
+                </header>
 
-                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
-                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Presentes</span>
-                        <div className="flex items-center justify-between mt-1">
-                            <span className="text-2xl font-black text-emerald-600">{metrics.presentCount}</span>
-                            <UserCheck className="w-5 h-5 text-emerald-600 bg-emerald-50 p-1 rounded" />
-                        </div>
-                    </Card>
-
-                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
-                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Aguardando/Atrasados</span>
-                        <div className="flex items-center justify-between mt-1">
-                            <span className="text-2xl font-black text-amber-600">{metrics.lateCount}</span>
-                            <Clock className="w-5 h-5 text-amber-600 bg-amber-50 p-1 rounded" />
-                        </div>
-                    </Card>
-
-                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
-                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Cobertos</span>
-                        <div className="flex items-center justify-between mt-1">
-                            <span className="text-2xl font-black text-blue-600">{metrics.coveredCount}</span>
-                            <RefreshCw className="w-5 h-5 text-blue-600 bg-blue-50 p-1 rounded" />
-                        </div>
-                    </Card>
-
-                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
-                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Vagos (Sem Cobertura)</span>
-                        <div className="flex items-center justify-between mt-1">
-                            <span className="text-2xl font-black text-red-600">{metrics.vacantCount}</span>
-                            <UserX className="w-5 h-5 text-red-600 bg-red-50 p-1 rounded" />
-                        </div>
-                    </Card>
-                </div>
-                      {/* Table Section */}
-                <Card className="border-none shadow-premium bg-white overflow-hidden">
-                    <div className="w-full overflow-x-auto">
-                        {loading ? (
-                            <div className="flex flex-col items-center justify-center py-20 gap-3">
-                                <RefreshCw className="w-8 h-8 text-primary animate-spin" />
-                                <span className="text-xs text-slate-500 font-semibold">Carregando dados da escala...</span>
-                            </div>
-                        ) : activeContractId === null ? (
-                            /* Contract Master List View */
-                            <Table>
-                                <TableHeader className="bg-slate-50">
-                                    <TableRow>
-                                        <TableHead className="font-bold text-slate-800">Contrato / Unidade</TableHead>
-                                        <TableHead className="font-bold text-slate-800">Endereço</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-center">Total de Postos</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-center">Status de Presença</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-right pr-6">Ação</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {groupedContracts.map((contract) => (
-                                        <TableRow 
-                                            key={contract.id} 
-                                            className="hover:bg-slate-50/50 transition-colors cursor-pointer"
-                                            onClick={() => {
-                                                setActiveContractId(contract.id);
-                                                setSelectedContractId(contract.id);
-                                            }}
-                                        >
-                                            <TableCell className="font-bold text-slate-900 text-sm">
-                                                {contract.name}
-                                            </TableCell>
-                                            <TableCell className="text-slate-500 text-xs max-w-[300px] truncate">
-                                                {contract.address}
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                <div className="flex flex-col items-center">
-                                                    <span className="text-sm font-bold text-slate-800">{contract.totalContractPostos} Postos</span>
-                                                    <span className="text-[10px] text-slate-400 font-medium">{contract.total} em escala hoje</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                <div className="flex justify-center items-center gap-1.5 flex-wrap">
-                                                    {contract.present > 0 && (
-                                                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50 text-[10px] font-bold">
-                                                            {contract.present} Presentes
-                                                        </Badge>
-                                                    )}
-                                                    {contract.late > 0 && (
-                                                        <Badge className="bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-50 text-[10px] font-bold">
-                                                            {contract.late} Atrasados
-                                                        </Badge>
-                                                    )}
-                                                    {contract.covered > 0 && (
-                                                        <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 text-[10px] font-bold">
-                                                            {contract.covered} Cobertos
-                                                        </Badge>
-                                                    )}
-                                                    {contract.vacant > 0 && (
-                                                        <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-50 text-[10px] font-bold">
-                                                            {contract.vacant} Vagos
-                                                        </Badge>
-                                                    )}
-                                                    {contract.present === 0 && contract.late === 0 && contract.covered === 0 && contract.vacant === 0 && (
-                                                        <span className="text-xs text-slate-400 italic">Nenhuma escala ativa</span>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-right pr-6">
-                                                <Button variant="ghost" size="sm" className="text-xs font-semibold text-primary hover:text-primary/80">
-                                                    Ver Detalhes →
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                    {groupedContracts.length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={5} className="text-center text-slate-500 py-20 font-semibold">
-                                                Nenhum contrato ativo sob sua gestão na data selecionada.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        ) : (
-                            /* Contract Detailed View of Posts (First Column removed) */
-                            <div>
-                                <div className="p-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <Button 
-                                            variant="outline" 
-                                            size="sm" 
-                                            onClick={() => {
-                                                setActiveContractId(null);
-                                                setSelectedContractId("all");
-                                            }}
-                                            className="text-xs gap-1.5 h-8 border-slate-200"
-                                        >
-                                            ← Voltar para Contratos
+                {/* Tab Renderers */}
+                <main className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
+                    {activeTab === "presence" && (
+                        /* TAB 1: PRESENCE (Original Attendance view) */
+                        <div className="space-y-6">
+                            {/* Original header date selector and contract filter */}
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
+                                <div className="space-y-1">
+                                    <h3 className="text-md font-bold text-slate-850">Status de Presença Diário</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Monitore a lotação e o cumprimento de escalas em tempo real dos seus contratos.</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <div className="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200/30">
+                                        <Button variant="ghost" size="icon" onClick={handlePrevDay} className="h-8 w-8 hover:bg-white rounded-lg">
+                                            <ChevronLeft className="w-4 h-4 text-slate-600" />
                                         </Button>
-                                        <span className="text-sm font-bold text-slate-800">
-                                            Detalhamento do Contrato: {items[0]?.clientName || "Contrato"}
-                                        </span>
+                                        <div className="relative px-3 flex items-center gap-1.5">
+                                            <Calendar className="w-4 h-4 text-slate-400" />
+                                            <input 
+                                                type="date" 
+                                                value={date} 
+                                                onChange={(e) => handleDateChange(e.target.value)}
+                                                className="bg-transparent text-xs font-bold text-slate-700 outline-none border-none select-none cursor-pointer"
+                                            />
+                                        </div>
+                                        <Button variant="ghost" size="icon" onClick={handleNextDay} className="h-8 w-8 hover:bg-white rounded-lg">
+                                            <ChevronRight className="w-4 h-4 text-slate-600" />
+                                        </Button>
+                                    </div>
+
+                                    <select
+                                        value={selectedContractId}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setSelectedContractId(val);
+                                            setActiveContractId(val === "all" ? null : val);
+                                        }}
+                                        className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
+                                    >
+                                        <option value="all">Todos os Contratos</option>
+                                        {contracts.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+
+                                    <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-1.5 h-10 shadow-premium border-slate-200">
+                                        <Download className="w-4 h-4" /> Exportar Planilha
+                                    </Button>
+
+                                    <Button variant="ghost" size="icon" onClick={fetchData} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
+                                        <RefreshCw className={`w-4 h-4 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Metrics Cards Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                                <Card className="border-none shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-300">Postos em Escala</span>
+                                    <div className="flex items-baseline justify-between mt-1">
+                                        <span className="text-2xl font-black">{metrics.total}</span>
+                                        <div className="flex flex-col text-[9px] font-bold uppercase tracking-wider text-slate-400 text-right select-none leading-normal">
+                                            <span>Escala: <strong className="text-emerald-400 font-black">{metrics.total}</strong></span>
+                                            <span>Folga: <strong className="text-slate-200 font-black">{metrics.totalContractPostos - metrics.total}</strong></span>
+                                        </div>
+                                    </div>
+                                </Card>
+
+                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Presentes</span>
+                                    <div className="flex items-center justify-between mt-1">
+                                        <span className="text-2xl font-black text-emerald-600">{metrics.presentCount}</span>
+                                        <UserCheck className="w-5 h-5 text-emerald-600 bg-emerald-50 p-1 rounded" />
+                                    </div>
+                                </Card>
+
+                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Aguardando/Atrasados</span>
+                                    <div className="flex items-center justify-between mt-1">
+                                        <span className="text-2xl font-black text-amber-600">{metrics.lateCount}</span>
+                                        <Clock className="w-5 h-5 text-amber-600 bg-amber-50 p-1 rounded" />
+                                    </div>
+                                </Card>
+
+                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Cobertos</span>
+                                    <div className="flex items-center justify-between mt-1">
+                                        <span className="text-2xl font-black text-blue-600">{metrics.coveredCount}</span>
+                                        <RefreshCw className="w-5 h-5 text-blue-600 bg-blue-50 p-1 rounded" />
+                                    </div>
+                                </Card>
+
+                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Vagos (Sem Cobertura)</span>
+                                    <div className="flex items-center justify-between mt-1">
+                                        <span className="text-2xl font-black text-red-600">{metrics.vacantCount}</span>
+                                        <UserX className="w-5 h-5 text-red-600 bg-red-50 p-1 rounded" />
+                                    </div>
+                                </Card>
+                            </div>
+
+                            {/* Table Card */}
+                            <Card className="border-none shadow-premium bg-white overflow-hidden">
+                                <div className="w-full overflow-x-auto">
+                                    {loading ? (
+                                        <div className="flex flex-col items-center justify-center py-20 gap-3">
+                                            <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                                            <span className="text-xs text-slate-500 font-semibold">Carregando dados da escala...</span>
+                                        </div>
+                                    ) : activeContractId === null ? (
+                                        /* Contract Master List View */
+                                        <Table>
+                                            <TableHeader className="bg-slate-50">
+                                                <TableRow>
+                                                    <TableHead className="font-bold text-slate-800">Contrato / Unidade</TableHead>
+                                                    <TableHead className="font-bold text-slate-800">Endereço</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-center">Total de Postos</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-center">Status de Presença</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-right pr-6">Ação</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {groupedContracts.map((contract) => (
+                                                    <TableRow 
+                                                        key={contract.id} 
+                                                        className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                                                        onClick={() => {
+                                                            setActiveContractId(contract.id);
+                                                            setSelectedContractId(contract.id);
+                                                        }}
+                                                    >
+                                                        <TableCell className="font-bold text-slate-900 text-sm">
+                                                            {contract.name}
+                                                        </TableCell>
+                                                        <TableCell className="text-slate-500 text-xs max-w-[300px] truncate">
+                                                            {contract.address}
+                                                        </TableCell>
+                                                        <TableCell className="text-center">
+                                                            <div className="flex flex-col items-center">
+                                                                <span className="text-sm font-bold text-slate-800">{contract.totalContractPostos} Postos</span>
+                                                                <span className="text-[10px] text-slate-400 font-medium">{contract.total} em escala hoje</span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-center">
+                                                            <div className="flex justify-center items-center gap-1.5 flex-wrap">
+                                                                {contract.present > 0 && (
+                                                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50 text-[10px] font-bold">
+                                                                        {contract.present} Presentes
+                                                                    </Badge>
+                                                                )}
+                                                                {contract.late > 0 && (
+                                                                    <Badge className="bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-50 text-[10px] font-bold">
+                                                                        {contract.late} Atrasados
+                                                                    </Badge>
+                                                                )}
+                                                                {contract.covered > 0 && (
+                                                                    <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 text-[10px] font-bold">
+                                                                        {contract.covered} Cobertos
+                                                                    </Badge>
+                                                                )}
+                                                                {contract.vacant > 0 && (
+                                                                    <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-50 text-[10px] font-bold">
+                                                                        {contract.vacant} Vagos
+                                                                    </Badge>
+                                                                )}
+                                                                {contract.present === 0 && contract.late === 0 && contract.covered === 0 && contract.vacant === 0 && (
+                                                                    <span className="text-xs text-slate-400 italic">Nenhuma escala ativa</span>
+                                                                )}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-right pr-6">
+                                                            <Button variant="ghost" size="sm" className="text-xs font-semibold text-primary hover:text-primary/80">
+                                                                Ver Detalhes →
+                                                            </Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                                {groupedContracts.length === 0 && (
+                                                    <TableRow>
+                                                        <TableCell colSpan={5} className="text-center text-slate-500 py-20 font-semibold">
+                                                            Nenhum contrato ativo sob sua gestão na data selecionada.
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    ) : (
+                                        /* Contract Detailed View of Posts (First Column removed) */
+                                        <div>
+                                            <div className="p-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <Button 
+                                                        variant="outline" 
+                                                        size="sm" 
+                                                        onClick={() => {
+                                                            setActiveContractId(null);
+                                                            setSelectedContractId("all");
+                                                        }}
+                                                        className="text-xs gap-1.5 h-8 border-slate-200"
+                                                    >
+                                                        ← Voltar para Contratos
+                                                    </Button>
+                                                    <span className="text-sm font-bold text-slate-800">
+                                                        Detalhamento do Contrato: {items[0]?.clientName || "Contrato"}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <Table>
+                                                <TableHeader className="bg-slate-50">
+                                                    <TableRow>
+                                                        <TableHead className="font-bold text-slate-800">Função / Cargo</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">Horário</TableHead>
+                                                        <TableHead className="font-bold text-slate-800">Titular do Posto</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">Valor Mensal</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">Status do Posto</TableHead>
+                                                        <TableHead className="font-bold text-slate-800">Observações Operacionais</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {items.map((item) => {
+                                                        const att = item.attendance;
+                                                        let rowBgClass = "";
+                                                        let statusBadge = null;
+
+                                                        if (att.status === "PRESENTE_PONTO") {
+                                                            statusBadge = (
+                                                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50 font-bold">
+                                                                    ● Confirmado (Ponto às {att.clockInTime ? format(new Date(att.clockInTime), "HH:mm") : ""})
+                                                                </Badge>
+                                                            );
+                                                        } else if (att.status === "PRESENTE_MANUAL") {
+                                                            statusBadge = (
+                                                                <Badge className="bg-emerald-50 text-emerald-855 hover:bg-emerald-50 font-black">
+                                                                    ● Confirmado pela Mesa
+                                                                </Badge>
+                                                            );
+                                                        } else if (att.status === "FALTA") {
+                                                            if (att.coveredByName) {
+                                                                statusBadge = (
+                                                                    <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 font-bold">
+                                                                        ● Falta Coberta: {att.coveredByName}
+                                                                    </Badge>
+                                                                );
+                                                            } else if (att.coverageType === "DIARISTA") {
+                                                                statusBadge = (
+                                                                    <Badge className="bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-50 font-bold">
+                                                                        ● Coberto por Diarista
+                                                                    </Badge>
+                                                                );
+                                                            } else {
+                                                                rowBgClass = "bg-red-50/20";
+                                                                statusBadge = (
+                                                                    <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-50 font-black animate-pulse">
+                                                                        ▲ Posto Vago (Glosa)
+                                                                    </Badge>
+                                                                );
+                                                            }
+                                                        } else if (att.status === "FOLGA") {
+                                                            rowBgClass = "opacity-70 bg-slate-100/40";
+                                                            statusBadge = (
+                                                                <Badge className="bg-slate-250 text-slate-500 border-slate-300 hover:bg-slate-200 font-semibold select-none">
+                                                                    ○ Folga (Sem Escala)
+                                                                </Badge>
+                                                            );
+                                                        } else {
+                                                            if (att.isLate) {
+                                                                rowBgClass = "bg-amber-50/20";
+                                                                statusBadge = (
+                                                                    <Badge className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50 font-black">
+                                                                        ▲ Entrada Pendente (Atraso)
+                                                                    </Badge>
+                                                                );
+                                                            } else {
+                                                                statusBadge = (
+                                                                    <Badge className="bg-slate-100 text-slate-600 border-none hover:bg-slate-100">
+                                                                        ○ Em Escala (Aguardando)
+                                                                    </Badge>
+                                                                );
+                                                            }
+                                                        }
+
+                                                        return (
+                                                            <TableRow key={item.id} className={`hover:bg-slate-50/50 transition-colors ${rowBgClass}`}>
+                                                                <TableCell className="text-slate-700 text-xs font-semibold">
+                                                                    {item.role}
+                                                                </TableCell>
+                                                                <TableCell className="text-center">
+                                                                    <div className="flex flex-col items-center">
+                                                                        <span className="text-xs font-bold text-slate-850">{item.startTime} - {item.endTime}</span>
+                                                                        <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-500 font-mono mt-0.5">{item.schedule}</span>
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell className="text-slate-800 text-xs font-medium">
+                                                                    {item.employeeName}
+                                                                </TableCell>
+                                                                <TableCell className="text-center text-xs font-mono font-bold text-slate-705">
+                                                                    {item.billingValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                                                </TableCell>
+                                                                <TableCell className="text-center">
+                                                                    {statusBadge}
+                                                                </TableCell>
+                                                                <TableCell className="text-xs text-slate-500 font-medium italic">
+                                                                    {att.notes || (att.status === "FALTA" && !att.coveredByName ? "Posto desocupado sem aviso de cobertura." : "-")}
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        );
+                                                    })}
+                                                    {items.length === 0 && (
+                                                        <TableRow>
+                                                            <TableCell colSpan={6} className="text-center text-slate-500 py-20 font-semibold">
+                                                                Nenhum posto cadastrado neste contrato.
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    )}
+                                </div>
+                            </Card>
+
+                            {/* Info Note */}
+                            <div className="text-[10px] text-slate-400 bg-slate-100 rounded-lg p-3 flex items-start gap-2 border border-slate-200/50">
+                                <ShieldAlert className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="font-bold uppercase tracking-wider text-slate-500 mb-0.5">Nota de Conformidade e Transparência</p>
+                                    <p className="leading-relaxed">Este painel exibe dados de controle de ponto e efetivo auditados. Apontamentos manuais de presença ou justificados de falta são informados pela mesa de operações da Prestadora. Glosas financeiras diárias são computadas de acordo com as regras contratuais acordadas.</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === "requests" && (
+                        /* TAB 2: REQUESTS (Solicitações) */
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
+                                <div className="space-y-1">
+                                    <h3 className="text-md font-bold text-slate-850">Solicitações e Ocorrências</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Abra chamados para coberturas extras, reclamações, fardamentos, EPIs ou movimentação de equipe.</p>
+                                </div>
+                                <Button onClick={() => setShowNewRequestModal(true)} className="gap-2 bg-primary hover:bg-primary/95 text-slate-900 font-bold text-xs uppercase tracking-wider h-10 px-4 rounded-xl shadow-premium">
+                                    <Plus className="w-4 h-4" /> Nova Solicitação
+                                </Button>
+                            </div>
+
+                            {/* List of Requests */}
+                            <Card className="border-none shadow-premium bg-white overflow-hidden">
+                                <div className="w-full overflow-x-auto">
+                                    {loadingRequests ? (
+                                        <div className="flex flex-col items-center justify-center py-20 gap-3">
+                                            <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                                            <span className="text-xs text-slate-500 font-semibold">Carregando chamados...</span>
+                                        </div>
+                                    ) : (
+                                        <Table>
+                                            <TableHeader className="bg-slate-50">
+                                                <TableRow>
+                                                    <TableHead className="font-bold text-slate-800">Tipo de Solicitação</TableHead>
+                                                    <TableHead className="font-bold text-slate-800">Data Abertura</TableHead>
+                                                    <TableHead className="font-bold text-slate-800">Descrição</TableHead>
+                                                    <TableHead className="font-bold text-slate-800">Colaborador Relacionado</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-center">Status</TableHead>
+                                                    <TableHead className="font-bold text-slate-800">Retorno da Operação</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {requests.map((req) => {
+                                                    let typeLabel = "";
+                                                    let typeColor = "";
+                                                    if (req.type === "MOVIMENTACAO") { typeLabel = "Movimentação"; typeColor = "bg-blue-50 text-blue-700 border-blue-100"; }
+                                                    else if (req.type === "UNIFORME") { typeLabel = "Material / Uniforme"; typeColor = "bg-orange-50 text-orange-700 border-orange-100"; }
+                                                    else if (req.type === "HORARIO" || req.type === "MUDANCA_ESCALA") { typeLabel = "Mudança de Escala"; typeColor = "bg-purple-50 text-purple-700 border-purple-100"; }
+                                                    else { typeLabel = "Outros / Reclamação / Elogio"; typeColor = "bg-slate-100 text-slate-700 border-slate-200"; }
+
+                                                    let statusLabel = req.status;
+                                                    let statusColor = "bg-slate-100 text-slate-750";
+                                                    if (req.status === "PENDENTE") { statusLabel = "Pendente"; statusColor = "bg-slate-100 text-slate-700 border-slate-200"; }
+                                                    else if (req.status === "AGUARDANDO_APROVACAO") { statusLabel = "Aguardando Aprovação"; statusColor = "bg-amber-50 text-amber-700 border-amber-200"; }
+                                                    else if (req.status === "EM_ANDAMENTO") { statusLabel = "Em Andamento"; statusColor = "bg-sky-50 text-sky-700 border-sky-200"; }
+                                                    else if (req.status === "CONCLUIDO") { statusLabel = "Concluído"; statusColor = "bg-emerald-50 text-emerald-700 border-emerald-250"; }
+                                                    else if (req.status === "REJEITADO") { statusLabel = "Recusado"; statusColor = "bg-red-50 text-red-750 border-red-200"; }
+
+                                                    return (
+                                                        <TableRow key={req.id} className="hover:bg-slate-50/50 transition-colors">
+                                                            <TableCell className="font-bold text-xs text-slate-900">
+                                                                <Badge className={`${typeColor} font-black hover:opacity-100`}>{typeLabel}</Badge>
+                                                            </TableCell>
+                                                            <TableCell className="text-slate-600 text-xs font-semibold">
+                                                                {format(new Date(req.createdAt), "dd/MM/yyyy HH:mm")}
+                                                            </TableCell>
+                                                            <TableCell className="text-slate-800 text-xs max-w-[280px] break-words">
+                                                                {req.description}
+                                                            </TableCell>
+                                                            <TableCell className="text-slate-700 text-xs font-semibold">
+                                                                {req.employee?.name || "-"}
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                <Badge className={`${statusColor} font-black hover:opacity-100`}>{statusLabel}</Badge>
+                                                            </TableCell>
+                                                            <TableCell className="text-xs text-slate-500 font-medium italic">
+                                                                {req.resolutionNotes || "Aguardando análise da mesa de operações..."}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                                {requests.length === 0 && (
+                                                    <TableRow>
+                                                        <TableCell colSpan={6} className="text-center text-slate-500 py-20 font-semibold">
+                                                            Nenhum chamado aberto. Clique em "+ Nova Solicitação" para criar.
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    )}
+                                </div>
+                            </Card>
+
+                            {/* Modal de Nova Solicitação */}
+                            {showNewRequestModal && (
+                                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-955/50 backdrop-blur-sm">
+                                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200">
+                                        <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
+                                            <h3 className="text-sm font-black uppercase tracking-wider">Nova Solicitação</h3>
+                                            <Button variant="ghost" size="icon" onClick={() => setShowNewRequestModal(false)} className="text-slate-400 hover:text-white">
+                                                <X className="w-5 h-5" />
+                                            </Button>
+                                        </div>
+                                        <form onSubmit={handleCreateRequest} className="p-6 space-y-4">
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Tipo de Solicitação</label>
+                                                <select
+                                                    value={newRequestType}
+                                                    onChange={(e) => setNewRequestType(e.target.value)}
+                                                    className="w-full h-10 border border-slate-200 bg-white rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary"
+                                                >
+                                                    <option value="MOVIMENTACAO">Movimentação de Colaboradores (Troca/Afastamento)</option>
+                                                    <option value="UNIFORME">Solicitar Materiais / EPIs / Uniformes</option>
+                                                    <option value="HORARIO">Mudança de Horários / Escala de Posto</option>
+                                                    <option value="OUTROS">Outros (Elogio / Reclamação / Manutenção / Dúvida)</option>
+                                                </select>
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Colaborador Relacionado (Opcional)</label>
+                                                <select
+                                                    value={newRequestEmployeeId}
+                                                    onChange={(e) => setNewRequestEmployeeId(e.target.value)}
+                                                    className="w-full h-10 border border-slate-200 bg-white rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary"
+                                                >
+                                                    <option value="">Não Relacionado a Colaborador Específico</option>
+                                                    {employees.map(emp => (
+                                                        <option key={emp.id} value={emp.id}>{emp.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Descrição Detalhada</label>
+                                                <textarea
+                                                    value={newRequestDescription}
+                                                    onChange={(e) => setNewRequestDescription(e.target.value)}
+                                                    placeholder="Descreva detalhadamente sua solicitação, reclamação ou necessidade..."
+                                                    rows={4}
+                                                    className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 outline-none focus:border-primary resize-none"
+                                                />
+                                            </div>
+
+                                            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                                                <Button type="button" variant="outline" onClick={() => setShowNewRequestModal(false)} className="h-10 text-xs font-bold uppercase tracking-wider px-4 rounded-xl">
+                                                    Cancelar
+                                                </Button>
+                                                <Button type="submit" disabled={submittingRequest} className="h-10 text-xs font-bold uppercase tracking-wider px-4 bg-primary text-slate-900 hover:bg-primary/95 rounded-xl">
+                                                    {submittingRequest ? "Enviando..." : "Enviar Solicitação"}
+                                                </Button>
+                                            </div>
+                                        </form>
                                     </div>
                                 </div>
-                                <Table>
-                                    <TableHeader className="bg-slate-50">
-                                        <TableRow>
-                                            <TableHead className="font-bold text-slate-800">Função / Cargo</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-center">Horário</TableHead>
-                                            <TableHead className="font-bold text-slate-800">Titular do Posto</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-center">Valor Mensal</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-center">Status do Posto</TableHead>
-                                            <TableHead className="font-bold text-slate-800">Observações Operacionais</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {items.map((item) => {
-                                            const att = item.attendance;
-                                            let rowBgClass = "";
-                                            let statusBadge = null;
+                            )}
+                        </div>
+                    )}
 
-                                            if (att.status === "PRESENTE_PONTO") {
-                                                statusBadge = (
-                                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50 font-bold">
-                                                        ● Confirmado (Ponto às {att.clockInTime ? format(new Date(att.clockInTime), "HH:mm") : ""})
-                                                    </Badge>
-                                                );
-                                            } else if (att.status === "PRESENTE_MANUAL") {
-                                                statusBadge = (
-                                                    <Badge className="bg-emerald-50 text-emerald-855 hover:bg-emerald-50 font-black">
-                                                        ● Confirmado pela Mesa
-                                                    </Badge>
-                                                );
-                                            } else if (att.status === "FALTA") {
-                                                if (att.coveredByName) {
-                                                    statusBadge = (
-                                                        <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 font-bold">
-                                                            ● Falta Coberta: {att.coveredByName}
-                                                        </Badge>
-                                                    );
-                                                } else if (att.coverageType === "DIARISTA") {
-                                                    statusBadge = (
-                                                        <Badge className="bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-50 font-bold">
-                                                            ● Coberto por Diarista
-                                                        </Badge>
-                                                    );
-                                                } else {
-                                                    rowBgClass = "bg-red-50/20";
-                                                    statusBadge = (
-                                                        <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-50 font-black animate-pulse">
-                                                            ▲ Posto Vago (Glosa)
-                                                        </Badge>
-                                                    );
-                                                }
-                                            } else if (att.status === "FOLGA") {
-                                                rowBgClass = "opacity-70 bg-slate-100/40";
-                                                statusBadge = (
-                                                    <Badge className="bg-slate-250 text-slate-500 border-slate-300 hover:bg-slate-200 font-semibold select-none">
-                                                        ○ Folga (Sem Escala)
-                                                    </Badge>
-                                                );
-                                            } else {
-                                                if (att.isLate) {
-                                                    rowBgClass = "bg-amber-50/20";
-                                                    statusBadge = (
-                                                        <Badge className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50 font-black">
-                                                            ▲ Entrada Pendente (Atraso)
-                                                        </Badge>
-                                                    );
-                                                } else {
-                                                    statusBadge = (
-                                                        <Badge className="bg-slate-100 text-slate-600 border-none hover:bg-slate-100">
-                                                            ○ Em Escala (Aguardando)
-                                                        </Badge>
-                                                    );
-                                                }
-                                            }
-
-                                            return (
-                                                <TableRow key={item.id} className={`hover:bg-slate-50/50 transition-colors ${rowBgClass}`}>
-                                                    <TableCell className="text-slate-700 text-xs font-semibold">
-                                                        {item.role}
-                                                    </TableCell>
-                                                    <TableCell className="text-center">
-                                                        <div className="flex flex-col items-center">
-                                                            <span className="text-xs font-bold text-slate-850">{item.startTime} - {item.endTime}</span>
-                                                            <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-500 font-mono mt-0.5">{item.schedule}</span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-slate-800 text-xs font-medium">
-                                                        {item.employeeName}
-                                                    </TableCell>
-                                                    <TableCell className="text-center text-xs font-mono font-bold text-slate-705">
-                                                        {item.billingValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                                                    </TableCell>
-                                                    <TableCell className="text-center">
-                                                        {statusBadge}
-                                                    </TableCell>
-                                                    <TableCell className="text-xs text-slate-500 font-medium italic">
-                                                        {att.notes || (att.status === "FALTA" && !att.coveredByName ? "Posto desocupado sem aviso de cobertura." : "-")}
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                        {items.length === 0 && (
-                                            <TableRow>
-                                                <TableCell colSpan={6} className="text-center text-slate-500 py-20 font-semibold">
-                                                    Nenhum posto cadastrado neste contrato.
-                                                </TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
+                    {activeTab === "billing" && (
+                        /* TAB 3: BILLING (Faturamento) */
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
+                                <div className="space-y-1">
+                                    <h3 className="text-md font-bold text-slate-850">Faturamento Mensal e Efetividade</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Demonstrativo consolidado de faturamento e glosas por faltas não cobertas.</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <select
+                                        value={billingYear}
+                                        onChange={(e) => setBillingYear(Number(e.target.value))}
+                                        className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
+                                    >
+                                        <option value={2026}>Ano 2026</option>
+                                        <option value={2025}>Ano 2025</option>
+                                    </select>
+                                    <Button variant="ghost" size="icon" onClick={() => fetchBilling(billingYear)} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
+                                        <RefreshCw className={`w-4 h-4 text-slate-500 ${loadingBilling ? 'animate-spin' : ''}`} />
+                                    </Button>
+                                </div>
                             </div>
-                        )}
-                    </div>
-                </Card>
 
-                {/* Info Note */}
-                <div className="text-[10px] text-slate-400 bg-slate-100 rounded-lg p-3 flex items-start gap-2 border border-slate-200/50">
-                    <ShieldAlert className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                    <div>
-                        <p className="font-bold uppercase tracking-wider text-slate-500 mb-0.5">Nota de Conformidade e Transparência</p>
-                        <p className="leading-relaxed">Este painel exibe dados de controle de ponto e efetivo auditados. Apontamentos manuais de presença ou justificados de falta são informados pela mesa de operações da Prestadora. Glosas financeiras diárias são computadas de acordo com as regras contratuais acordadas.</p>
-                    </div>
-                </div>
+                            {/* Billing Statistics Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                <Card className="border-none shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-300">Bruto Previsto (Mensal)</span>
+                                    <div className="flex items-baseline justify-between mt-1">
+                                        <span className="text-xl font-black">
+                                            {billingData[0]?.expectedBilling.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) || "R$ 0,00"}
+                                        </span>
+                                    </div>
+                                </Card>
+
+                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-700 font-semibold">Total de Glosas (Acumulado)</span>
+                                    <div className="flex items-center justify-between mt-1">
+                                        <span className="text-xl font-black text-red-650">
+                                            {billingData.reduce((sum, m) => sum + m.glosas, 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                        </span>
+                                    </div>
+                                </Card>
+
+                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-700 font-semibold">Total Líquido (Acumulado)</span>
+                                    <div className="flex items-center justify-between mt-1">
+                                        <span className="text-xl font-black text-emerald-600">
+                                            {billingData.reduce((sum, m) => sum + m.netBilling, 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                        </span>
+                                    </div>
+                                </Card>
+
+                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-700 font-semibold">Efetividade Operacional</span>
+                                    <div className="flex items-center justify-between mt-1">
+                                        <span className="text-xl font-black text-blue-600">
+                                            {(billingData.length > 0 
+                                                ? (billingData.reduce((sum, m) => sum + m.effectiveness, 0) / billingData.length).toFixed(1) 
+                                                : "100.0")}%
+                                        </span>
+                                    </div>
+                                </Card>
+                            </div>
+
+                            {/* Billing Table */}
+                            <Card className="border-none shadow-premium bg-white overflow-hidden">
+                                <div className="w-full overflow-x-auto">
+                                    {loadingBilling ? (
+                                        <div className="flex flex-col items-center justify-center py-20 gap-3">
+                                            <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                                            <span className="text-xs text-slate-500 font-semibold">Calculando faturamento...</span>
+                                        </div>
+                                    ) : (
+                                        <Table>
+                                            <TableHeader className="bg-slate-50">
+                                                <TableRow>
+                                                    <TableHead className="font-bold text-slate-800">Mês</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-right pr-6">Faturamento Previsto</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-right pr-6">Desconto de Glosas</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-right pr-6">Faturamento Líquido</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-center">Efetividade Operacional</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-center">Escalas / Faltas</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {billingData.map((m) => (
+                                                    <TableRow key={m.monthIndex} className="hover:bg-slate-50/50 transition-colors">
+                                                        <TableCell className="font-bold text-xs text-slate-900">
+                                                            {m.name}
+                                                        </TableCell>
+                                                        <TableCell className="text-right pr-6 font-semibold text-xs text-slate-700">
+                                                            {m.expectedBilling.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                                        </TableCell>
+                                                        <TableCell className={`text-right pr-6 font-semibold text-xs ${m.glosas > 0 ? 'text-red-650' : 'text-slate-500'}`}>
+                                                            {m.glosas > 0 ? `-${m.glosas.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}` : "R$ 0,00"}
+                                                        </TableCell>
+                                                        <TableCell className="text-right pr-6 font-bold text-xs text-emerald-650">
+                                                            {m.netBilling.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                                        </TableCell>
+                                                        <TableCell className="text-center">
+                                                            <Badge className={`${
+                                                                m.effectiveness >= 95 ? 'bg-emerald-50 text-emerald-700' :
+                                                                m.effectiveness >= 90 ? 'bg-amber-50 text-amber-700' :
+                                                                'bg-red-50 text-red-700'
+                                                            } hover:opacity-100 font-bold`}>
+                                                                {m.effectiveness.toFixed(1)}%
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="text-center text-xs font-semibold text-slate-505">
+                                                            {m.totalShifts} Escalas / <span className={m.vacantShifts > 0 ? "text-red-650 font-bold" : ""}>{m.vacantShifts} Faltas</span>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    )}
+                                </div>
+                            </Card>
+                        </div>
+                    )}
+
+                    {activeTab === "monthly_report" && (
+                        /* TAB 4: MONTHLY REPORT */
+                        <div className="space-y-6">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
+                                <div className="space-y-1">
+                                    <h3 className="text-md font-bold text-slate-850">Relatório de Efetividade e Ocorrências</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Histórico completo de presenças, coberturas e faltas do mês selecionado.</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <select
+                                        value={reportMonth}
+                                        onChange={(e) => setReportMonth(Number(e.target.value))}
+                                        className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
+                                    >
+                                        <option value={0}>Janeiro</option>
+                                        <option value={1}>Fevereiro</option>
+                                        <option value={2}>Março</option>
+                                        <option value={3}>Abril</option>
+                                        <option value={4}>Maio</option>
+                                        <option value={5}>Junho</option>
+                                        <option value={6}>Julho</option>
+                                        <option value={7}>Agosto</option>
+                                        <option value={8}>Setembro</option>
+                                        <option value={9}>Outubro</option>
+                                        <option value={10}>Novembro</option>
+                                        <option value={11}>Dezembro</option>
+                                    </select>
+                                    <select
+                                        value={reportYear}
+                                        onChange={(e) => setReportYear(Number(e.target.value))}
+                                        className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
+                                    >
+                                        <option value={2026}>Ano 2026</option>
+                                        <option value={2025}>Ano 2025</option>
+                                    </select>
+                                    <Button variant="ghost" size="icon" onClick={() => fetchReport(reportMonth, reportYear)} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
+                                        <RefreshCw className={`w-4 h-4 text-slate-500 ${loadingReport ? 'animate-spin' : ''}`} />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Consolidated Stats */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                <Card className="border-none shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-300">Presenças Confirmadas</span>
+                                    <div className="flex items-baseline justify-between mt-1">
+                                        <span className="text-2xl font-black">
+                                            {reportData.filter(r => r.status === "PRESENTE_PONTO" || r.status === "PRESENTE_MANUAL").length}
+                                        </span>
+                                    </div>
+                                </Card>
+
+                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-700 font-semibold">Faltas Cobertas</span>
+                                    <div className="flex items-center justify-between mt-1">
+                                        <span className="text-2xl font-black text-blue-600">
+                                            {reportData.filter(r => r.status === "FALTA" && (r.coveredByName || r.coverageType)).length}
+                                        </span>
+                                    </div>
+                                </Card>
+
+                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-700 font-semibold">Postos Vagos (Glosas)</span>
+                                    <div className="flex items-center justify-between mt-1">
+                                        <span className="text-2xl font-black text-red-650">
+                                            {reportData.filter(r => r.status === "FALTA" && !r.coveredByName && !r.coverageType).length}
+                                        </span>
+                                    </div>
+                                </Card>
+
+                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-700 font-semibold">Efetividade Geral</span>
+                                    <div className="flex items-center justify-between mt-1">
+                                        <span className="text-2xl font-black text-emerald-650">
+                                            {(() => {
+                                                const active = reportData.filter(r => r.status !== "FOLGA");
+                                                const total = active.length;
+                                                const vacant = active.filter(r => r.status === "FALTA" && !r.coveredByName && !r.coverageType).length;
+                                                return total > 0 ? ((total - vacant) / total * 100).toFixed(1) + "%" : "100.0%";
+                                            })()}
+                                        </span>
+                                    </div>
+                                </Card>
+                            </div>
+
+                            {/* Monthly Roster Table */}
+                            <Card className="border-none shadow-premium bg-white overflow-hidden">
+                                <div className="w-full overflow-x-auto">
+                                    {loadingReport ? (
+                                        <div className="flex flex-col items-center justify-center py-20 gap-3">
+                                            <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                                            <span className="text-xs text-slate-500 font-semibold">Construindo relatório...</span>
+                                        </div>
+                                    ) : (
+                                        <Table>
+                                            <TableHeader className="bg-slate-50">
+                                                <TableRow>
+                                                    <TableHead className="font-bold text-slate-800">Data</TableHead>
+                                                    <TableHead className="font-bold text-slate-800">Unidade</TableHead>
+                                                    <TableHead className="font-bold text-slate-800">Cargo / Função</TableHead>
+                                                    <TableHead className="font-bold text-slate-800">Colaborador</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-center">Status</TableHead>
+                                                    <TableHead className="font-bold text-slate-800">Notas Operacionais</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {reportData.map((row) => {
+                                                    let statusBadge = null;
+                                                    let rowBgClass = "";
+
+                                                    if (row.status === "PRESENTE_PONTO" || row.status === "PRESENTE_MANUAL") {
+                                                        statusBadge = <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50 font-bold">● Confirmado</Badge>;
+                                                    } else if (row.status === "FALTA") {
+                                                        if (row.coveredByName) {
+                                                            statusBadge = <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 font-bold">● Falta Coberta: {row.coveredByName}</Badge>;
+                                                        } else if (row.coverageType === "DIARISTA") {
+                                                            statusBadge = <Badge className="bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-50 font-bold">● Coberto Diarista</Badge>;
+                                                        } else {
+                                                            rowBgClass = "bg-red-50/20";
+                                                            statusBadge = <Badge className="bg-red-50 text-red-700 border-red-150 hover:bg-red-50 font-black animate-pulse">▲ Posto Vago (Glosa)</Badge>;
+                                                        }
+                                                    } else if (row.status === "FOLGA") {
+                                                        rowBgClass = "opacity-75 bg-slate-100/40";
+                                                        statusBadge = <Badge className="bg-slate-100 text-slate-500 border-slate-200/50 hover:bg-slate-100 font-semibold select-none">○ Folga</Badge>;
+                                                    } else {
+                                                        statusBadge = <Badge className="bg-slate-100 text-slate-650 border-none hover:bg-slate-100">○ Aguardando</Badge>;
+                                                    }
+
+                                                    return (
+                                                        <TableRow key={row.id} className={`hover:bg-slate-50/50 transition-colors ${rowBgClass}`}>
+                                                            <TableCell className="text-slate-805 text-xs font-bold">
+                                                                {format(new Date(row.date), "dd/MM/yyyy")}
+                                                            </TableCell>
+                                                            <TableCell className="text-slate-800 text-xs font-semibold truncate max-w-[150px]">
+                                                                {row.clientName}
+                                                            </TableCell>
+                                                            <TableCell className="text-slate-700 text-xs font-semibold">
+                                                                {row.roleName}
+                                                            </TableCell>
+                                                            <TableCell className="text-slate-800 text-xs font-semibold">
+                                                                {row.employeeName}
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                {statusBadge}
+                                                            </TableCell>
+                                                            <TableCell className="text-xs text-slate-500 font-medium italic">
+                                                                {row.notes || "-"}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                                {reportData.length === 0 && (
+                                                    <TableRow>
+                                                        <TableCell colSpan={6} className="text-center text-slate-500 py-20 font-semibold">
+                                                            Nenhum registro encontrado para o mês selecionado.
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    )}
+                                </div>
+                            </Card>
+                        </div>
+                    )}
+                </main>
             </div>
         </div>
     );

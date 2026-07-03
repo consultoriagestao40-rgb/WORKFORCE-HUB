@@ -136,3 +136,118 @@ export async function getRequestComments(requestId: string) {
         orderBy: { createdAt: 'desc' }
     });
 }
+
+export async function getClientRequests() {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    return await prisma.request.findMany({
+        where: { requesterId: user.id },
+        include: {
+            employee: { select: { name: true, role: { select: { name: true } } } },
+            resolver: { select: { name: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+    });
+}
+
+export async function createClientRequest(data: { type: any, description: string, employeeId?: string }) {
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'CLIENTE') throw new Error("Unauthorized");
+
+    // Calcular SLA com base nas configurações da PENDENTE se existir
+    const slaConfig = await prisma.requestStageConfiguration.findUnique({
+        where: { status: 'PENDENTE' }
+    });
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + (slaConfig?.slaDays || 3));
+
+    const request = await prisma.request.create({
+        data: {
+            type: data.type,
+            description: data.description,
+            employeeId: data.employeeId || null,
+            requesterId: user.id,
+            dueDate,
+            status: 'PENDENTE'
+        }
+    });
+
+    revalidatePath("/admin/requests");
+    revalidatePath("/client/dashboard");
+
+    return { success: true, request };
+}
+
+export async function getClientEmployees() {
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'CLIENTE') throw new Error("Unauthorized");
+
+    const clientIds = user.clientIds || [];
+
+    const assignments = await prisma.assignment.findMany({
+        where: {
+            posto: { clientId: { in: clientIds } },
+            OR: [
+                { endDate: null },
+                { endDate: { gte: new Date() } }
+            ]
+        },
+        include: {
+            employee: {
+                select: { id: true, name: true }
+            }
+        }
+    });
+
+    const map = new Map<string, string>();
+    assignments.forEach(a => {
+        if (a.employee) {
+            map.set(a.employee.id, a.employee.name);
+        }
+    });
+
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+}
+
+export async function getClientMonthlyReport(month: number, year: number) {
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'CLIENTE') throw new Error("Unauthorized");
+
+    const clientIds = user.clientIds || [];
+    if (clientIds.length === 0) return [];
+    
+    const startDate = new Date(Date.UTC(year, month, 1, 0, 0, 0));
+    const endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59));
+
+    const attendances = await prisma.attendance.findMany({
+        where: {
+            posto: { clientId: { in: clientIds } },
+            date: { gte: startDate, lte: endDate }
+        },
+        include: {
+            posto: {
+                include: { role: true, client: true }
+            },
+            employee: true,
+            coveredBy: true
+        },
+        orderBy: { date: 'desc' }
+    });
+
+    return attendances.map(a => ({
+        id: a.id,
+        date: a.date.toISOString(),
+        postoId: a.postoId,
+        clientName: a.posto.client.name,
+        roleName: a.posto.role.name,
+        employeeName: a.employee?.name || "Vaga em Aberto",
+        status: a.status,
+        clockInTime: a.clockInTime ? a.clockInTime.toISOString() : null,
+        coveredByName: a.coveredBy?.name || null,
+        coverageType: a.coverageType,
+        notes: a.notes,
+        billingValue: a.posto.billingValue
+    }));
+}
