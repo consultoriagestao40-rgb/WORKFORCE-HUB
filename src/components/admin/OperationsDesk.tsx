@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useTransition } from "react";
-import { format, addDays, subDays } from "date-fns";
+import { format, addDays, subDays, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { 
     Card, CardContent, CardHeader, CardTitle, CardDescription 
@@ -122,6 +122,56 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
         setDetailsItems(filtered);
         setOpenDetailsDialog(true);
     };
+
+    // Tabs and KPIs States
+    const [activeTab, setActiveTab] = useState<"mesa" | "kpis">("mesa");
+    const [kpiRange, setKpiRange] = useState<"7d" | "30d" | "mes" | "custom">("30d");
+    const [kpiStartDate, setKpiStartDate] = useState<string>(() => format(subDays(new Date(), 30), "yyyy-MM-dd"));
+    const [kpiEndDate, setKpiEndDate] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
+    const [kpisData, setKpisData] = useState<any>(null);
+    const [kpisLoading, setKpisLoading] = useState<boolean>(false);
+
+    const fetchKPIs = useCallback(async () => {
+        setKpisLoading(true);
+        try {
+            let start = kpiStartDate;
+            let end = kpiEndDate;
+            const today = new Date();
+
+            if (kpiRange === "7d") {
+                start = format(subDays(today, 7), "yyyy-MM-dd");
+                end = format(today, "yyyy-MM-dd");
+            } else if (kpiRange === "30d") {
+                start = format(subDays(today, 30), "yyyy-MM-dd");
+                end = format(today, "yyyy-MM-dd");
+            } else if (kpiRange === "mes") {
+                start = format(startOfMonth(today), "yyyy-MM-dd");
+                end = format(today, "yyyy-MM-dd");
+            }
+
+            const queryParams = new URLSearchParams({
+                startDate: start,
+                endDate: end
+            });
+            const res = await fetch(`/api/admin/operations/kpis?${queryParams.toString()}`);
+            const data = await res.json();
+            if (data.success) {
+                setKpisData(data.kpis);
+            } else {
+                toast.error("Erro ao carregar KPIs: " + data.error);
+            }
+        } catch (e) {
+            toast.error("Erro de conexão ao buscar KPIs.");
+        } finally {
+            setKpisLoading(false);
+        }
+    }, [kpiRange, kpiStartDate, kpiEndDate]);
+
+    useEffect(() => {
+        if (activeTab === "kpis") {
+            fetchKPIs();
+        }
+    }, [activeTab, fetchKPIs]);
 
     // Fetch daily operations data
     const fetchData = useCallback(async () => {
@@ -422,7 +472,36 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                 </div>
             </div>
 
-            {/* Metrics Dashboard Grid */}
+            {/* Tabs Control */}
+            <div className="flex border-b border-slate-200">
+                <button
+                    onClick={() => setActiveTab("mesa")}
+                    className={`pb-3 text-sm font-black transition-colors px-4 border-b-2 -mb-[2px] ${
+                        activeTab === "mesa" 
+                        ? "border-primary text-primary" 
+                        : "border-transparent text-slate-400 hover:text-slate-600"
+                    }`}
+                >
+                    Mesa Diária
+                </button>
+                <button
+                    onClick={() => {
+                        setActiveTab("kpis");
+                        fetchKPIs();
+                    }}
+                    className={`pb-3 text-sm font-black transition-colors px-4 border-b-2 -mb-[2px] ${
+                        activeTab === "kpis" 
+                        ? "border-primary text-primary" 
+                        : "border-transparent text-slate-400 hover:text-slate-600"
+                    }`}
+                >
+                    Indicadores (KPIs)
+                </button>
+            </div>
+
+            {activeTab === "mesa" ? (
+                <>
+                    {/* Metrics Dashboard Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
                 <Card className="border-none shadow-premium bg-gradient-to-br from-indigo-900 to-slate-950 text-white p-3.5 flex flex-col justify-between h-[110px] select-none">
                     <div>
@@ -701,6 +780,281 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                     )}
                 </div>
             </Card>
+                </>
+            ) : (
+                <div className="space-y-6">
+                    {/* Filter KPI Bar */}
+                    <Card className="border-none shadow-premium bg-white p-4">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <span className="text-xs font-black text-slate-700 uppercase">Período de Análise:</span>
+                                <select
+                                    value={kpiRange}
+                                    onChange={(e) => setKpiRange(e.target.value as any)}
+                                    className="h-10 rounded-md border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer"
+                                >
+                                    <option value="7d">Últimos 7 Dias</option>
+                                    <option value="30d">Últimos 30 Dias</option>
+                                    <option value="mes">Mês Atual</option>
+                                    <option value="custom">Período Personalizado</option>
+                                </select>
+
+                                {kpiRange === "custom" && (
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="date"
+                                            value={kpiStartDate}
+                                            onChange={(e) => setKpiStartDate(e.target.value)}
+                                            className="h-10 rounded-md border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer"
+                                        />
+                                        <span className="text-slate-400 text-xs">até</span>
+                                        <input
+                                            type="date"
+                                            value={kpiEndDate}
+                                            onChange={(e) => setKpiEndDate(e.target.value)}
+                                            className="h-10 rounded-md border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            <Button 
+                                onClick={fetchKPIs} 
+                                disabled={kpisLoading}
+                                className="h-10 text-xs px-4 bg-primary hover:bg-primary/95 text-white flex items-center gap-2 shadow-premium"
+                            >
+                                <RefreshCw className={`w-4 h-4 ${kpisLoading ? "animate-spin" : ""}`} />
+                                Atualizar Indicadores
+                            </Button>
+                        </div>
+                    </Card>
+
+                    {kpisLoading ? (
+                        <div className="flex flex-col items-center justify-center py-20 gap-3">
+                            <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                            <span className="text-xs text-slate-500 font-semibold">Processando dados e gerando indicadores...</span>
+                        </div>
+                    ) : kpisData ? (
+                        <div className="space-y-6">
+                            {/* KPI Metrics Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                                <Card className="border-none shadow-premium bg-gradient-to-br from-indigo-900 to-slate-950 text-white p-3.5 flex flex-col justify-between h-[110px] select-none">
+                                    <div>
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-200/70">Taxa de Absenteísmo (Abs)</p>
+                                        <p className="text-2xl font-black mt-0.5">{kpisData.absenteismRate.toFixed(1)}%</p>
+                                    </div>
+                                    <p className="text-[8px] text-indigo-200/80 font-bold uppercase tracking-wider">
+                                        {kpisData.totalAbsences} faltas em {kpisData.totalExpectedShifts} escalas
+                                    </p>
+                                </Card>
+
+                                <Card className="border-none shadow-premium bg-white p-3.5 flex flex-col justify-between h-[110px] select-none">
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Turnover do Período</p>
+                                            <p className="text-2xl font-black mt-0.5 text-blue-600">{kpisData.turnoverRate.toFixed(1)}%</p>
+                                        </div>
+                                        <Clock className="w-5 h-5 text-blue-500 bg-blue-50 p-0.5 rounded" />
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                                        {kpisData.admissions} adm / {kpisData.dismissals} demissões
+                                    </p>
+                                </Card>
+
+                                <Card className="border-none shadow-premium bg-white p-3.5 flex flex-col justify-between h-[110px] select-none">
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Índice de Cobertura</p>
+                                            <p className="text-2xl font-black mt-0.5 text-emerald-600">{kpisData.coverageRate.toFixed(1)}%</p>
+                                        </div>
+                                        <UserCheck className="w-5 h-5 text-emerald-500 bg-emerald-50 p-0.5 rounded" />
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                                        {kpisData.coveredAbsences} ausências cobertas
+                                    </p>
+                                </Card>
+
+                                <Card className="border-none shadow-premium bg-white p-3.5 flex flex-col justify-between h-[110px] select-none">
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Faltas sem Cobertura</p>
+                                            <p className="text-2xl font-black mt-0.5 text-red-600">{kpisData.glosasCount}</p>
+                                        </div>
+                                        <UserX className="w-5 h-5 text-red-500 bg-red-50 p-0.5 rounded" />
+                                    </div>
+                                    <div className="flex items-center justify-between text-[8px] text-red-500 font-extrabold uppercase tracking-wider">
+                                        <span>Glosa Estimada:</span>
+                                        <span>{kpisData.glosasValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                                    </div>
+                                </Card>
+
+                                <Card className="border-none shadow-premium bg-white p-3.5 flex flex-col justify-between h-[110px] select-none">
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Dias de Postos Vagos</p>
+                                            <p className="text-2xl font-black mt-0.5 text-slate-700">{kpisData.totalVacantDays}</p>
+                                        </div>
+                                        <AlertTriangle className="w-5 h-5 text-slate-500 bg-slate-50 p-0.5 rounded" />
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                                        Plantões ativos sem titular alocado
+                                    </p>
+                                </Card>
+                            </div>
+
+                            {/* Row 1: Charts & Rankings */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Reasons for Absence Chart */}
+                                <Card className="border-none shadow-premium bg-white p-5 space-y-4">
+                                    <div>
+                                        <h2 className="text-base font-black text-slate-900 tracking-tight">Ausências por Motivo</h2>
+                                        <p className="text-xs text-slate-400 font-medium">Classificação baseada nas justificativas e observações</p>
+                                    </div>
+                                    <div className="space-y-4 pt-2">
+                                        {kpisData.reasons.map((r: any, idx: number) => {
+                                            const total = kpisData.totalAbsences || 1;
+                                            const pct = ((r.value / total) * 100).toFixed(0);
+                                            const colors = ["bg-blue-500", "bg-red-500", "bg-indigo-500", "bg-slate-400"];
+                                            return (
+                                                <div key={r.name} className="space-y-1.5">
+                                                    <div className="flex items-center justify-between text-xs font-semibold">
+                                                        <span className="text-slate-600">{r.name}</span>
+                                                        <span className="text-slate-800 font-bold">{r.value} ocorrências ({pct}%)</span>
+                                                    </div>
+                                                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                                        <div className={`h-full ${colors[idx % colors.length]}`} style={{ width: `${pct}%` }} />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </Card>
+
+                                {/* Ranking of Absences by Collaborator */}
+                                <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between">
+                                    <div>
+                                        <div className="mb-4">
+                                            <h2 className="text-base font-black text-slate-900 tracking-tight">Ranking de Ausências por Colaborador</h2>
+                                            <p className="text-xs text-slate-400 font-medium">Colaboradores com maior índice de faltas no período</p>
+                                        </div>
+                                        <div className="overflow-x-auto w-full">
+                                            <Table>
+                                                <TableHeader className="bg-slate-50">
+                                                    <TableRow>
+                                                        <TableHead className="font-bold text-slate-855 text-xs">Colaborador</TableHead>
+                                                        <TableHead className="font-bold text-slate-855 text-xs">CPF</TableHead>
+                                                        <TableHead className="font-bold text-slate-855 text-xs text-right pr-4">Total de Faltas</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {kpisData.employeeRanking.map((emp: any) => (
+                                                        <TableRow key={emp.cpf} className="hover:bg-slate-50/50">
+                                                            <TableCell className="text-xs font-bold text-slate-800 py-2.5">{emp.name}</TableCell>
+                                                            <TableCell className="text-xs text-slate-500 py-2.5">{emp.cpf}</TableCell>
+                                                            <TableCell className="text-xs text-slate-800 font-black text-right pr-4 py-2.5">{emp.count} faltas</TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                    {kpisData.employeeRanking.length === 0 && (
+                                                        <TableRow>
+                                                            <TableCell colSpan={3} className="text-center text-xs text-slate-500 py-8">
+                                                                Nenhuma ausência registrada no período.
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
+
+                            {/* Row 2: Vacant posts lists */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Vacant Days by Posto */}
+                                <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between">
+                                    <div>
+                                        <div className="mb-4">
+                                            <h2 className="text-base font-black text-slate-900 tracking-tight">Dias de Postos Vagos por Posto</h2>
+                                            <p className="text-xs text-slate-400 font-medium">Postos sem titular ativo com maior recorrência de vaga</p>
+                                        </div>
+                                        <div className="overflow-x-auto w-full">
+                                            <Table>
+                                                <TableHeader className="bg-slate-50">
+                                                    <TableRow>
+                                                        <TableHead className="font-bold text-slate-855 text-xs">Posto / Cliente</TableHead>
+                                                        <TableHead className="font-bold text-slate-855 text-xs">Cargo</TableHead>
+                                                        <TableHead className="font-bold text-slate-855 text-xs text-right pr-4">Dias Vagos</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {kpisData.vacantByPosto.map((vp: any, index: number) => (
+                                                        <TableRow key={index} className="hover:bg-slate-50/50">
+                                                            <TableCell className="text-xs py-2.5">
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-bold text-slate-800">{vp.client}</span>
+                                                                    <span className="text-[9px] text-slate-400 font-medium">{vp.label}</span>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="text-xs text-slate-600 py-2.5">{vp.role}</TableCell>
+                                                            <TableCell className="text-xs text-slate-800 font-black text-right pr-4 py-2.5">{vp.count} dias</TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                    {kpisData.vacantByPosto.length === 0 && (
+                                                        <TableRow>
+                                                            <TableCell colSpan={3} className="text-center text-xs text-slate-500 py-8">
+                                                                Nenhum dia de vaga em aberto registrado.
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </div>
+                                </Card>
+
+                                {/* Vacant Days by Role */}
+                                <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between">
+                                    <div>
+                                        <div className="mb-4">
+                                            <h2 className="text-base font-black text-slate-900 tracking-tight">Dias de Postos Vagos por Função</h2>
+                                            <p className="text-xs text-slate-400 font-medium">Acúmulo de dias vagos agrupados por função operacional</p>
+                                        </div>
+                                        <div className="overflow-x-auto w-full">
+                                            <Table>
+                                                <TableHeader className="bg-slate-50">
+                                                    <TableRow>
+                                                        <TableHead className="font-bold text-slate-855 text-xs">Função / Cargo</TableHead>
+                                                        <TableHead className="font-bold text-slate-855 text-xs text-right pr-4">Total de Dias Vagos</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {kpisData.vacantByRole.map((vr: any) => (
+                                                        <TableRow key={vr.name} className="hover:bg-slate-50/50">
+                                                            <TableCell className="text-xs font-bold text-slate-800 py-2.5">{vr.name}</TableCell>
+                                                            <TableCell className="text-xs text-slate-800 font-black text-right pr-4 py-2.5">{vr.count} dias</TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                    {kpisData.vacantByRole.length === 0 && (
+                                                        <TableRow>
+                                                            <TableCell colSpan={2} className="text-center text-xs text-slate-500 py-8">
+                                                                Nenhum dia de vaga em aberto registrado.
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-center py-20 bg-white border border-slate-100 rounded-2xl shadow-premium">
+                            <span className="text-xs text-slate-500 font-semibold">Nenhum dado disponível. Tente alterar o período de análise.</span>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Dialog for Treating Lack and Coverage selection */}
             <Dialog open={openDialog} onOpenChange={setOpenDialog}>
