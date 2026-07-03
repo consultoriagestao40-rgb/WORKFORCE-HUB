@@ -582,25 +582,25 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
 
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Mobile Top Header */}
-                <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 shrink-0">
+                {/* Top Header */}
+                <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 md:px-8 shrink-0 text-white shadow-md">
                     <div className="flex items-center gap-3">
                         <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => setSidebarOpen(!sidebarOpen)}
-                            className="text-slate-600 md:hidden"
+                            className="text-slate-300 hover:bg-slate-800 hover:text-white md:hidden"
                         >
                             <Menu className="w-5 h-5" />
                         </Button>
-                        <h2 className="text-lg font-black tracking-tight text-slate-800">
+                        <h2 className="text-sm md:text-base font-black tracking-widest text-slate-100 uppercase">
                             {menuItems.find(m => m.id === activeTab)?.label}
                         </h2>
                     </div>
 
                     <div className="flex items-center gap-4">
                         <div className="text-right hidden sm:block">
-                            <p className="text-xs font-bold text-slate-700">Olá, {userName}</p>
+                            <p className="text-xs font-bold text-slate-200">Olá, {userName}</p>
                             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Acesso Cliente</p>
                         </div>
                     </div>

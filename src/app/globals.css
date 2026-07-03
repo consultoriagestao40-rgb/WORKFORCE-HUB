@@ -53,8 +53,8 @@
   --card-foreground: oklch(0.15 0.02 240);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.15 0.02 240);
-  --primary: oklch(0.6 0.25 340);
-  /* Vibrant Pink/Magenta */
+  --primary: oklch(0.55 0.18 250);
+  /* Elegant Corporate Blue */
   --primary-foreground: oklch(0.99 0.005 240);
   --secondary: oklch(0.92 0.02 240);
   --secondary-foreground: oklch(0.3 0.1 240);
@@ -66,7 +66,7 @@
   --destructive: oklch(0.6 0.2 25);
   --border: oklch(0.9 0.01 240);
   --input: oklch(0.9 0.01 240);
-  --ring: oklch(0.6 0.25 340);
+  --ring: oklch(0.55 0.18 250);
 
   --glass: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(255, 255, 255, 0.4);
@@ -82,7 +82,7 @@
   --card-foreground: oklch(0.98 0.01 240);
   --popover: oklch(0.14 0.02 240);
   --popover-foreground: oklch(0.98 0.01 240);
-  --primary: oklch(0.65 0.22 340);
+  --primary: oklch(0.6 0.18 250);
   --primary-foreground: oklch(0.99 0.005 240);
   --secondary: oklch(0.22 0.02 240);
   --secondary-foreground: oklch(0.9 0.01 240);
@@ -93,7 +93,7 @@
   --destructive: oklch(0.45 0.2 25);
   --border: oklch(0.25 0.02 240);
   --input: oklch(0.25 0.02 240);
-  --ring: oklch(0.65 0.22 340);
+  --ring: oklch(0.6 0.18 250);
 
   --glass: rgba(15, 23, 42, 0.7);
   --glass-border: rgba(255, 255, 255, 0.1);
