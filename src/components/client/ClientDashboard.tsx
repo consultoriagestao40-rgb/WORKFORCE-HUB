@@ -533,22 +533,19 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
 
                 {/* Logout and Collapse area */}
                 <div className="p-3 border-t border-slate-800 space-y-1.5">
-                    <button
-                        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                        className={`w-full flex items-center rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:bg-slate-800 hover:text-white transition-all ${
-                            sidebarCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
-                        }`}
-                        title={sidebarCollapsed ? "Expandir Menu" : "Recolher Menu"}
-                    >
-                        {sidebarCollapsed ? (
-                            <ChevronRight className="w-5 h-5 shrink-0" />
-                        ) : (
-                            <>
+                    <div className="flex justify-center py-1">
+                        <button
+                            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                            className="p-2 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+                            title={sidebarCollapsed ? "Expandir Menu" : "Recolher Menu"}
+                        >
+                            {sidebarCollapsed ? (
+                                <ChevronRight className="w-5 h-5 shrink-0" />
+                            ) : (
                                 <ChevronLeft className="w-5 h-5 shrink-0" />
-                                <span>Recolher Menu</span>
-                            </>
-                        )}
-                    </button>
+                            )}
+                        </button>
+                    </div>
                     <button
                         onClick={() => logout()}
                         className={`w-full flex items-center rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/10 transition-all ${
