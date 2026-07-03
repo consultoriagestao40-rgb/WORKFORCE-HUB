@@ -39,6 +39,7 @@ interface ClientAttendanceItem {
     clientName: string;
     clientAddress: string;
     employeeName: string;
+    totalContractPostos: number;
     attendance: {
         status: string;
         clockInTime: string | null;
@@ -122,7 +123,14 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
             }
         });
 
-        return { total, presentCount, lateCount, vacantCount, coveredCount };
+        // Calcular postos físicos totais do contrato mapeados de forma única
+        const contractMap = new Map<string, number>();
+        items.forEach(item => {
+            contractMap.set(item.clientId, item.totalContractPostos || 0);
+        });
+        const totalContractPostos = Array.from(contractMap.values()).reduce((sum, val) => sum + val, 0);
+
+        return { total, presentCount, lateCount, vacantCount, coveredCount, totalContractPostos };
     }, [items]);
 
     // Group items by client contract for the master list view
@@ -136,6 +144,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
             late: number;
             covered: number;
             vacant: number;
+            totalContractPostos: number;
         }>();
 
         items.forEach(item => {
@@ -149,7 +158,8 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                     present: 0,
                     late: 0,
                     covered: 0,
-                    vacant: 0
+                    vacant: 0,
+                    totalContractPostos: item.totalContractPostos || 0
                 });
             }
             const c = map.get(key)!;
@@ -308,10 +318,13 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                 {/* Metrics Cards Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     <Card className="border-none shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
-                        <span className="text-xs font-bold uppercase tracking-wide text-slate-300">Total de Postos</span>
+                        <span className="text-xs font-bold uppercase tracking-wide text-slate-300">Postos em Escala</span>
                         <div className="flex items-baseline justify-between mt-1">
                             <span className="text-2xl font-black">{metrics.total}</span>
-                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Ativos</span>
+                            <div className="flex flex-col text-[9px] font-bold uppercase tracking-wider text-slate-400 text-right select-none leading-normal">
+                                <span>Escala: <strong className="text-emerald-400 font-black">{metrics.total}</strong></span>
+                                <span>Folga: <strong className="text-slate-200 font-black">{metrics.totalContractPostos - metrics.total}</strong></span>
+                            </div>
                         </div>
                     </Card>
 
@@ -383,8 +396,11 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <TableCell className="text-slate-500 text-xs max-w-[300px] truncate">
                                                 {contract.address}
                                             </TableCell>
-                                            <TableCell className="text-center text-xs font-semibold text-slate-700">
-                                                {contract.total} Postos
+                                            <TableCell className="text-center">
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-sm font-bold text-slate-800">{contract.totalContractPostos} Postos</span>
+                                                    <span className="text-[10px] text-slate-400 font-medium">{contract.total} em escala hoje</span>
+                                                </div>
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <div className="flex justify-center items-center gap-1.5 flex-wrap">

@@ -152,6 +152,8 @@ export async function GET(request: Request) {
                 }
             }
 
+            const totalPostosInContract = postos.filter((p: any) => p.clientId === posto.clientId).length;
+
             return {
                 id: posto.id,
                 role: posto.role.name,
@@ -162,6 +164,7 @@ export async function GET(request: Request) {
                 clientName: posto.client.name,
                 clientAddress: posto.client.address,
                 employeeName: employee?.name || "Vaga em Aberto",
+                totalContractPostos: totalPostosInContract,
                 attendance: {
                     status,
                     clockInTime,
