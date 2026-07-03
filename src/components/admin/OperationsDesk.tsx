@@ -22,7 +22,7 @@ import {
     AlertTriangle, Clock, Coins, Download, RefreshCw, Eye, Edit
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar, PieChart, Pie, Cell, Legend } from "recharts";
 import { toast } from "sonner";
 
 interface Company {
@@ -990,60 +990,74 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                         <h2 className="text-base font-black text-slate-900 tracking-tight">Ausências por Motivo</h2>
                                         <p className="text-xs text-slate-400 font-medium">Classificação baseada nas justificativas e observações</p>
                                     </div>
-                                    <div className="space-y-4 pt-2">
-                                        {kpisData.reasons.map((r: any, idx: number) => {
-                                            const total = kpisData.totalAbsences || 1;
-                                            const pct = ((r.value / total) * 100).toFixed(0);
-                                            const colors = ["bg-blue-500", "bg-red-500", "bg-indigo-500", "bg-slate-400"];
-                                            return (
-                                                <div key={r.name} className="space-y-1.5">
-                                                    <div className="flex items-center justify-between text-xs font-semibold">
-                                                        <span className="text-slate-600">{r.name}</span>
-                                                        <span className="text-slate-800 font-bold">{r.value} ocorrências ({pct}%)</span>
-                                                    </div>
-                                                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                                                        <div className={`h-full ${colors[idx % colors.length]}`} style={{ width: `${pct}%` }} />
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                    <div className="h-64 w-full flex items-center justify-center">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={kpisData.reasons}
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    innerRadius={60}
+                                                    outerRadius={80}
+                                                    paddingAngle={3}
+                                                    dataKey="value"
+                                                    nameKey="name"
+                                                >
+                                                    {kpisData.reasons.map((entry: any, index: number) => (
+                                                        <Cell key={`cell-${index}`} fill={["#3b82f6", "#ef4444", "#f59e0b", "#94a3b8"][index % 4]} />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip 
+                                                    contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                                                    itemStyle={{ fontSize: '11px', fontWeight: 600 }}
+                                                />
+                                                <Legend 
+                                                    verticalAlign="bottom" 
+                                                    height={36} 
+                                                    iconType="circle"
+                                                    wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }}
+                                                />
+                                            </PieChart>
+                                        </ResponsiveContainer>
                                     </div>
                                 </Card>
 
                                 {/* Ranking of Absences by Collaborator */}
-                                <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between">
+                                <Card className="border-none shadow-premium bg-white p-5 space-y-4">
                                     <div>
-                                        <div className="mb-4">
-                                            <h2 className="text-base font-black text-slate-900 tracking-tight">Ranking de Ausências por Colaborador</h2>
-                                            <p className="text-xs text-slate-400 font-medium">Colaboradores com maior índice de faltas no período</p>
-                                        </div>
-                                        <div className="overflow-x-auto w-full">
-                                            <Table>
-                                                <TableHeader className="bg-slate-50">
-                                                    <TableRow>
-                                                        <TableHead className="font-bold text-slate-855 text-xs">Colaborador</TableHead>
-                                                        <TableHead className="font-bold text-slate-855 text-xs">CPF</TableHead>
-                                                        <TableHead className="font-bold text-slate-855 text-xs text-right pr-4">Total de Faltas</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {kpisData.employeeRanking.map((emp: any) => (
-                                                        <TableRow key={emp.cpf} className="hover:bg-slate-50/50">
-                                                            <TableCell className="text-xs font-bold text-slate-800 py-2.5">{emp.name}</TableCell>
-                                                            <TableCell className="text-xs text-slate-500 py-2.5">{emp.cpf}</TableCell>
-                                                            <TableCell className="text-xs text-slate-800 font-black text-right pr-4 py-2.5">{emp.count} faltas</TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                    {kpisData.employeeRanking.length === 0 && (
-                                                        <TableRow>
-                                                            <TableCell colSpan={3} className="text-center text-xs text-slate-500 py-8">
-                                                                Nenhuma ausência registrada no período.
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    )}
-                                                </TableBody>
-                                            </Table>
-                                        </div>
+                                        <h2 className="text-base font-black text-slate-900 tracking-tight">Ranking de Ausências por Colaborador</h2>
+                                        <p className="text-xs text-slate-400 font-medium">Colaboradores com maior índice de faltas no período</p>
+                                    </div>
+                                    <div className="h-64 w-full">
+                                        {kpisData.employeeRanking.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart 
+                                                    data={kpisData.employeeRanking} 
+                                                    layout="vertical"
+                                                    margin={{ top: 5, right: 10, left: 30, bottom: 5 }}
+                                                >
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                                                    <XAxis type="number" tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 9 }} />
+                                                    <YAxis 
+                                                        dataKey="name" 
+                                                        type="category" 
+                                                        tickLine={false} 
+                                                        axisLine={false} 
+                                                        tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }}
+                                                        width={90}
+                                                    />
+                                                    <Tooltip 
+                                                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                                                        itemStyle={{ fontSize: '11px', fontWeight: 600 }}
+                                                    />
+                                                    <Bar dataKey="count" name="Faltas" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={12} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center text-xs text-slate-400 font-semibold">
+                                                Nenhuma ausência registrada no período.
+                                            </div>
+                                        )}
                                     </div>
                                 </Card>
                             </div>
@@ -1051,79 +1065,85 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                             {/* Row 2: Vacant posts lists */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 {/* Vacant Days by Posto */}
-                                <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between">
+                                <Card className="border-none shadow-premium bg-white p-5 space-y-4">
                                     <div>
-                                        <div className="mb-4">
-                                            <h2 className="text-base font-black text-slate-900 tracking-tight">Dias de Postos Vagos por Posto</h2>
-                                            <p className="text-xs text-slate-400 font-medium">Postos sem titular ativo com maior recorrência de vaga</p>
-                                        </div>
-                                        <div className="overflow-x-auto w-full">
-                                            <Table>
-                                                <TableHeader className="bg-slate-50">
-                                                    <TableRow>
-                                                        <TableHead className="font-bold text-slate-855 text-xs">Posto / Cliente</TableHead>
-                                                        <TableHead className="font-bold text-slate-855 text-xs">Cargo</TableHead>
-                                                        <TableHead className="font-bold text-slate-855 text-xs text-right pr-4">Dias Vagos</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {kpisData.vacantByPosto.map((vp: any, index: number) => (
-                                                        <TableRow key={index} className="hover:bg-slate-50/50">
-                                                            <TableCell className="text-xs py-2.5">
-                                                                <div className="flex flex-col">
-                                                                    <span className="font-bold text-slate-800">{vp.client}</span>
-                                                                    <span className="text-[9px] text-slate-400 font-medium">{vp.label}</span>
-                                                                </div>
-                                                            </TableCell>
-                                                            <TableCell className="text-xs text-slate-600 py-2.5">{vp.role}</TableCell>
-                                                            <TableCell className="text-xs text-slate-800 font-black text-right pr-4 py-2.5">{vp.count} dias</TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                    {kpisData.vacantByPosto.length === 0 && (
-                                                        <TableRow>
-                                                            <TableCell colSpan={3} className="text-center text-xs text-slate-500 py-8">
-                                                                Nenhum dia de vaga em aberto registrado.
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    )}
-                                                </TableBody>
-                                            </Table>
-                                        </div>
+                                        <h2 className="text-base font-black text-slate-900 tracking-tight">Dias de Postos Vagos por Posto</h2>
+                                        <p className="text-xs text-slate-400 font-medium">Postos sem titular ativo com maior recorrência de vaga</p>
+                                    </div>
+                                    <div className="h-64 w-full">
+                                        {kpisData.vacantByPosto.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart 
+                                                    data={kpisData.vacantByPosto} 
+                                                    layout="vertical"
+                                                    margin={{ top: 5, right: 10, left: 30, bottom: 5 }}
+                                                >
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                                                    <XAxis type="number" tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 9 }} />
+                                                    <YAxis 
+                                                        dataKey="client" 
+                                                        type="category" 
+                                                        tickLine={false} 
+                                                        axisLine={false} 
+                                                        tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }}
+                                                        width={90}
+                                                    />
+                                                    <Tooltip 
+                                                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                                                        itemStyle={{ fontSize: '11px', fontWeight: 600 }}
+                                                    />
+                                                    <Bar dataKey="count" name="Dias Vagos" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={12} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center text-xs text-slate-400 font-semibold">
+                                                Nenhum posto vago registrado.
+                                            </div>
+                                        )}
                                     </div>
                                 </Card>
 
                                 {/* Vacant Days by Role */}
-                                <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between">
+                                <Card className="border-none shadow-premium bg-white p-5 space-y-4">
                                     <div>
-                                        <div className="mb-4">
-                                            <h2 className="text-base font-black text-slate-900 tracking-tight">Dias de Postos Vagos por Função</h2>
-                                            <p className="text-xs text-slate-400 font-medium">Acúmulo de dias vagos agrupados por função operacional</p>
-                                        </div>
-                                        <div className="overflow-x-auto w-full">
-                                            <Table>
-                                                <TableHeader className="bg-slate-50">
-                                                    <TableRow>
-                                                        <TableHead className="font-bold text-slate-855 text-xs">Função / Cargo</TableHead>
-                                                        <TableHead className="font-bold text-slate-855 text-xs text-right pr-4">Total de Dias Vagos</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {kpisData.vacantByRole.map((vr: any) => (
-                                                        <TableRow key={vr.name} className="hover:bg-slate-50/50">
-                                                            <TableCell className="text-xs font-bold text-slate-800 py-2.5">{vr.name}</TableCell>
-                                                            <TableCell className="text-xs text-slate-800 font-black text-right pr-4 py-2.5">{vr.count} dias</TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                    {kpisData.vacantByRole.length === 0 && (
-                                                        <TableRow>
-                                                            <TableCell colSpan={2} className="text-center text-xs text-slate-500 py-8">
-                                                                Nenhum dia de vaga em aberto registrado.
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    )}
-                                                </TableBody>
-                                            </Table>
-                                        </div>
+                                        <h2 className="text-base font-black text-slate-900 tracking-tight">Dias de Postos Vagos por Função</h2>
+                                        <p className="text-xs text-slate-400 font-medium">Acúmulo de dias vagos agrupados por função operacional</p>
+                                    </div>
+                                    <div className="h-64 w-full flex items-center justify-center">
+                                        {kpisData.vacantByRole.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie
+                                                        data={kpisData.vacantByRole}
+                                                        cx="50%"
+                                                        cy="50%"
+                                                        innerRadius={60}
+                                                        outerRadius={80}
+                                                        paddingAngle={3}
+                                                        dataKey="count"
+                                                        nameKey="name"
+                                                    >
+                                                        {kpisData.vacantByRole.map((entry: any, index: number) => (
+                                                            <Cell key={`cell-${index}`} fill={["#8b5cf6", "#ec4899", "#3b82f6", "#14b8a6", "#ef4444", "#10b981", "#f59e0b", "#94a3b8"][index % 8]} />
+                                                        ))}
+                                                    </Pie>
+                                                    <Tooltip 
+                                                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                                                        itemStyle={{ fontSize: '11px', fontWeight: 600 }}
+                                                    />
+                                                    <Legend 
+                                                        verticalAlign="bottom" 
+                                                        height={36} 
+                                                        iconType="circle"
+                                                        wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }}
+                                                    />
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center text-xs text-slate-400 font-semibold">
+                                                Nenhum posto vago registrado.
+                                            </div>
+                                        )}
                                     </div>
                                 </Card>
                             </div>
