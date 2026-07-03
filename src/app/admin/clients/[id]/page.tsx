@@ -17,6 +17,7 @@ import { NewPostoSheet } from "@/components/admin/NewPostoSheet";
 import { getCurrentUserRole } from "@/lib/auth";
 import { ClientPostosTable } from "@/components/admin/ClientPostosTable";
 import { ClientVacantPostosDialog } from "@/components/admin/ClientVacantPostosDialog";
+import { ClientConfigTabs } from "@/components/admin/ClientConfigTabs";
 
 async function getClientDetails(id: string) {
     return await prisma.client.findUnique({
@@ -36,6 +37,13 @@ async function getClientDetails(id: string) {
                         }
                     }
                 }
+            },
+            npsQuestions: {
+                orderBy: { createdAt: "asc" }
+            },
+            slaConfigItems: {
+                include: { monthlyValues: true },
+                orderBy: { createdAt: "asc" }
             }
         }
     });
@@ -92,72 +100,20 @@ export default async function ClientPostosPage(props: { params: Promise<{ id: st
                 </Link>
                 <div className="flex-1">
                     <h1 className="text-2xl font-bold text-slate-800">{client.name}</h1>
-                    <p className="text-slate-500 text-sm">Gerenciamento de Vagas e Postos</p>
+                    <p className="text-slate-500 text-sm">Gerenciamento de Vagas, SLA e NPS do Contrato</p>
                 </div>
-
-                <NewPostoSheet clientId={client.id} schedules={schedules} roles={roles} />
             </div>
 
-            {/* TOTALIZERS */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-500">Total de Postos</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{client.postos.length}</div>
-                        <p className="text-xs text-slate-500 mt-1">
-                            {client.postos.filter(p => p.assignments.some(a => !a.endDate)).length} Ocupados
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <ClientVacantPostosDialog postos={client.postos} />
-
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-500">Receita Mensal (Faturamento)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-green-600">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                                client.postos.reduce((acc, p) => acc + p.billingValue, 0)
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-500">Custo Salarial Estimado</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-blue-600">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                                client.postos.reduce((acc, p) => acc + (p.baseSalary || 0) + (p.insalubridade || 0) + (p.periculosidade || 0) + (p.gratificacao || 0) + (p.outrosAdicionais || 0), 0)
-                            )}
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1 italic">
-                            Salário Base + Adicionais
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Postos Contratados</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <ClientPostosTable
-                        postos={client.postos}
-                        employees={employees}
-                        schedules={schedules}
-                        roles={roles}
-                        situations={situations}
-                        userRole={userRole || ""}
-                    />
-                </CardContent>
-            </Card>
+            <ClientConfigTabs
+                client={client}
+                employees={employees}
+                schedules={schedules}
+                roles={roles}
+                situations={situations}
+                userRole={userRole || ""}
+                initialNpsQuestions={client.npsQuestions}
+                initialSlaConfigs={client.slaConfigItems}
+            />
         </div>
     );
 }

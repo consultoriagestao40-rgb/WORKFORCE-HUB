@@ -25,7 +25,9 @@ import {
     getClientMonthlyReport,
     submitClientNps,
     getClientKpis,
-    getPostoRoutines
+    getPostoRoutines,
+    getNpsQuestions,
+    submitClientNpsAnswers
 } from "@/app/admin/requests/actions";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -96,11 +98,12 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     const [reportData, setReportData] = useState<any[]>([]);
     const [loadingReport, setLoadingReport] = useState(false);
 
-    // NPS Tab States
     const [selectedNpsClientId, setSelectedNpsClientId] = useState<string>("");
     const [npsScore, setNpsScore] = useState<number | null>(null);
     const [npsFeedback, setNpsFeedback] = useState<string>("");
     const [submittingNps, setSubmittingNps] = useState(false);
+    const [dynamicNpsQuestions, setDynamicNpsQuestions] = useState<any[]>([]);
+    const [npsAnswers, setNpsAnswers] = useState<Record<string, number>>({});
 
     // SLA & KPIs Tab States
     const [slaYear, setSlaYear] = useState(new Date().getFullYear());
@@ -249,29 +252,53 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
         }
     };
 
+    const handleNpsClientChange = async (clientId: string) => {
+        setSelectedNpsClientId(clientId);
+        setDynamicNpsQuestions([]);
+        setNpsAnswers({});
+        if (!clientId) return;
+        try {
+            const res = await getNpsQuestions(clientId);
+            if (res.success) {
+                setDynamicNpsQuestions(res.questions || []);
+            }
+        } catch (e) {
+            toast.error("Erro ao carregar perguntas do NPS.");
+        }
+    };
+
     const handleNpsSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedNpsClientId) {
             toast.error("Por favor, selecione um contrato/unidade.");
             return;
         }
-        if (npsScore === null) {
-            toast.error("Por favor, selecione uma nota de 0 a 10.");
+
+        const unanswered = dynamicNpsQuestions.filter(q => npsAnswers[q.id] === undefined);
+        if (unanswered.length > 0) {
+            toast.error("Por favor, responda a todas as perguntas da avaliação.");
             return;
         }
 
         setSubmittingNps(true);
         try {
-            const res = await submitClientNps({
-                clientId: selectedNpsClientId,
-                score: npsScore,
-                feedback: npsFeedback
-            });
+            const formattedAnswers = Object.entries(npsAnswers).map(([questionId, score]) => ({
+                questionId,
+                score
+            }));
+
+            const res = await submitClientNpsAnswers(
+                selectedNpsClientId,
+                formattedAnswers,
+                npsFeedback
+            );
 
             if (res.success) {
-                toast.success("Avaliação enviada com sucesso! Obrigado pelo seu feedback.");
-                setNpsScore(null);
+                toast.success("Avaliação enviada com sucesso! Muito obrigado pelo seu feedback.");
+                setNpsAnswers({});
                 setNpsFeedback("");
+                setDynamicNpsQuestions([]);
+                setSelectedNpsClientId("");
             } else {
                 toast.error("Erro ao enviar avaliação.");
             }
@@ -1458,7 +1485,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                         <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Selecione o Contrato / Unidade sob Avaliação</label>
                                         <select
                                             value={selectedNpsClientId}
-                                            onChange={(e) => setSelectedNpsClientId(e.target.value)}
+                                            onChange={(e) => handleNpsClientChange(e.target.value)}
                                             className="w-full md:w-1/2 h-10 border border-slate-250 bg-white rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary"
                                             required
                                         >
@@ -1469,42 +1496,57 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                         </select>
                                     </div>
 
-                                    <div className="space-y-3">
-                                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                                            Em uma escala de 0 a 10, qual a probabilidade de você recomendar nossos serviços para um parceiro ou conhecido?
-                                        </label>
-                                        <div className="flex flex-wrap gap-2 pt-2">
-                                            {[...Array(11).keys()].map((num) => {
-                                                const selected = npsScore === num;
-                                                let btnClass = "border-slate-200 hover:bg-slate-50";
-                                                if (selected) {
-                                                    if (num <= 6) btnClass = "bg-red-650 text-white border-red-600 shadow-lg shadow-red-200";
-                                                    else if (num <= 8) btnClass = "bg-amber-500 text-white border-amber-500 shadow-lg shadow-amber-200";
-                                                    else btnClass = "bg-emerald-650 text-white border-emerald-600 shadow-lg shadow-emerald-250";
-                                                } else {
-                                                    if (num <= 6) btnClass = "bg-red-50/30 text-red-700 border-red-100 hover:bg-red-50";
-                                                    else if (num <= 8) btnClass = "bg-amber-50/30 text-amber-700 border-amber-100 hover:bg-amber-50";
-                                                    else btnClass = "bg-emerald-50/30 text-emerald-700 border-emerald-100 hover:bg-emerald-50";
-                                                }
-
+                                    {selectedNpsClientId && dynamicNpsQuestions.length > 0 ? (
+                                        <div className="space-y-6">
+                                            {dynamicNpsQuestions.map((q) => {
+                                                const currentAnswer = npsAnswers[q.id];
                                                 return (
-                                                    <button
-                                                        key={num}
-                                                        type="button"
-                                                        onClick={() => setNpsScore(num)}
-                                                        className={`w-11 h-11 rounded-full border text-sm font-black flex items-center justify-center transition-all ${btnClass}`}
-                                                    >
-                                                        {num}
-                                                    </button>
+                                                    <div key={q.id} className="space-y-3 p-4 rounded-xl border border-slate-200/50 bg-slate-50/30">
+                                                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                                                            {q.text}
+                                                        </label>
+                                                        <div className="flex flex-wrap gap-1.5 pt-1">
+                                                            {[...Array(11).keys()].map((num) => {
+                                                                const selected = currentAnswer === num;
+                                                                let btnClass = "border-slate-250 hover:bg-slate-100/50";
+                                                                if (selected) {
+                                                                    if (num <= 6) btnClass = "bg-red-600 text-white border-red-600 shadow-sm";
+                                                                    else if (num <= 8) btnClass = "bg-amber-500 text-white border-amber-500 shadow-sm";
+                                                                    else btnClass = "bg-emerald-600 text-white border-emerald-600 shadow-sm";
+                                                                } else {
+                                                                    if (num <= 6) btnClass = "bg-red-50/20 text-red-700 border-red-100/55 hover:bg-red-50";
+                                                                    else if (num <= 8) btnClass = "bg-amber-50/20 text-amber-700 border-amber-100/55 hover:bg-amber-50";
+                                                                    else btnClass = "bg-emerald-50/20 text-emerald-700 border-emerald-100/55 hover:bg-emerald-50";
+                                                                }
+
+                                                                return (
+                                                                    <button
+                                                                        key={num}
+                                                                        type="button"
+                                                                        onClick={() => setNpsAnswers(prev => ({ ...prev, [q.id]: num }))}
+                                                                        className={`w-9 h-9 rounded-full border text-[11px] font-black flex items-center justify-center transition-all ${btnClass}`}
+                                                                    >
+                                                                        {num}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
                                                 );
                                             })}
+                                            <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1 pt-1 select-none">
+                                                <span className="text-red-500">Insatisfeito (0 a 6)</span>
+                                                <span className="text-amber-500">Neutro (7 ou 8)</span>
+                                                <span className="text-emerald-500">Satisfeito (9 ou 10)</span>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 pt-1 select-none">
-                                            <span className="text-red-500">Pouco Provável (0 a 6)</span>
-                                            <span className="text-amber-500">Neutro (7 ou 8)</span>
-                                            <span className="text-emerald-500">Muito Provável (9 ou 10)</span>
-                                        </div>
-                                    </div>
+                                    ) : (
+                                        selectedNpsClientId && (
+                                            <div className="text-center py-6 text-xs text-slate-400 font-semibold italic">
+                                                Carregando perguntas da avaliação...
+                                            </div>
+                                        )
+                                    )}
 
                                     <div className="space-y-2">
                                         <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Conte-nos o motivo da sua nota ou envie sugestões de melhoria (Opcional)</label>

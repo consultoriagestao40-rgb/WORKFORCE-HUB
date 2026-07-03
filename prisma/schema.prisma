@@ -71,6 +71,8 @@ model Client {
   company             Company? @relation(fields: [companyId], references: [id])
   postos              Posto[]
   npsResponses        NpsResponse[]
+  npsQuestions        NpsQuestion[]
+  slaConfigItems      SlaConfigItem[]
 
   @@index([companyId])
 }
@@ -483,14 +485,67 @@ model Attendance {
 }
 
 model NpsResponse {
-  id        String   @id @default(uuid())
+  id        String      @id @default(uuid())
   clientId  String
-  score     Int
   feedback  String?
-  createdAt DateTime @default(now())
-  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+  client    Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  answers   NpsAnswer[]
 
   @@index([clientId])
+}
+
+model NpsQuestion {
+  id        String      @id @default(uuid())
+  clientId  String
+  text      String
+  weight    Float       @default(1.0)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  client    Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  answers   NpsAnswer[]
+
+  @@index([clientId])
+}
+
+model NpsAnswer {
+  id            String      @id @default(uuid())
+  npsResponseId String
+  questionId    String
+  score         Int
+  npsResponse   NpsResponse @relation(fields: [npsResponseId], references: [id], onDelete: Cascade)
+  question      NpsQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([npsResponseId])
+  @@index([questionId])
+}
+
+model SlaConfigItem {
+  id            String            @id @default(uuid())
+  clientId      String
+  name          String
+  metricType    String
+  weight        Float             @default(1.0)
+  targetValue   Float             @default(90.0)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  client        Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  monthlyValues SlaMonthlyValue[]
+
+  @@index([clientId])
+}
+
+model SlaMonthlyValue {
+  id              String        @id @default(uuid())
+  slaConfigItemId String
+  month           Int
+  year            Int
+  value           Float
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  configItem      SlaConfigItem @relation(fields: [slaConfigItemId], references: [id], onDelete: Cascade)
+
+  @@unique([slaConfigItemId, month, year])
 }
 
 model WorkRoutine {
