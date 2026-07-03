@@ -926,17 +926,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
 
                                 <div className="h-72 w-full pt-4">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={kpisData.dailyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                            <defs>
-                                                <linearGradient id="colorGlosas" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2}/>
-                                                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                                                </linearGradient>
-                                                <linearGradient id="colorAbs" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
-                                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                                                </linearGradient>
-                                            </defs>
+                                        <BarChart data={kpisData.dailyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                                             <XAxis 
                                                 dataKey="date" 
@@ -968,25 +958,21 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                                 labelStyle={{ fontWeight: 'bold', fontSize: '12px', color: '#1e293b' }}
                                                 itemStyle={{ fontSize: '11px', fontWeight: 600 }}
                                             />
-                                            <Area 
+                                            <Bar 
                                                 name="Faltas Sem Cobertura"
-                                                type="monotone" 
                                                 dataKey="glosas" 
-                                                stroke="#ef4444" 
-                                                strokeWidth={2}
-                                                fillOpacity={1} 
-                                                fill="url(#colorGlosas)" 
+                                                fill="#ef4444" 
+                                                radius={[3, 3, 0, 0]}
+                                                barSize={8}
                                             />
-                                            <Area 
+                                            <Bar 
                                                 name="Taxa de Absenteísmo (%)"
-                                                type="monotone" 
                                                 dataKey="absRate" 
-                                                stroke="#6366f1" 
-                                                strokeWidth={2}
-                                                fillOpacity={1} 
-                                                fill="url(#colorAbs)" 
+                                                fill="#6366f1" 
+                                                radius={[3, 3, 0, 0]}
+                                                barSize={8}
                                             />
-                                        </AreaChart>
+                                        </BarChart>
                                     </ResponsiveContainer>
                                 </div>
                             </Card>
