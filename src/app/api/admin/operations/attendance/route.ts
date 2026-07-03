@@ -206,7 +206,11 @@ export async function GET(request: Request) {
                 if (att.status === "AGUARDANDO") return 3;
                 return 4;
             };
-            return getPriority(a) - getPriority(b);
+            
+            const priorityDiff = getPriority(a) - getPriority(b);
+            if (priorityDiff !== 0) return priorityDiff;
+            
+            return a.startTime.localeCompare(b.startTime);
         });
 
         return NextResponse.json({
