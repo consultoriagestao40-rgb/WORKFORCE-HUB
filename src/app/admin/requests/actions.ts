@@ -251,3 +251,143 @@ export async function getClientMonthlyReport(month: number, year: number) {
         billingValue: a.posto.billingValue
     }));
 }
+
+export async function submitClientNps(data: { clientId: string; score: number; feedback?: string }) {
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'CLIENTE') throw new Error("Unauthorized");
+
+    const clientIds = user.clientIds || [];
+    if (!clientIds.includes(data.clientId)) throw new Error("Unauthorized");
+
+    const nps = await prisma.npsResponse.create({
+        data: {
+            clientId: data.clientId,
+            score: data.score,
+            feedback: data.feedback || null
+        }
+    });
+
+    revalidatePath("/client/dashboard");
+    return { success: true, nps };
+}
+
+export async function getClientKpis(year: number) {
+    const user = await getCurrentUser();
+    if (!user || user.role !== 'CLIENTE') throw new Error("Unauthorized");
+
+    const clientIds = user.clientIds || [];
+    if (clientIds.length === 0) {
+        return {
+            success: true,
+            monthlyData: [],
+            summary: {
+                effectiveness: 100,
+                absenteeism: 0,
+                slaCompliance: 100,
+                npsScore: 100,
+                mttrHours: 0
+            }
+        };
+    }
+
+    const startDate = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+    const endDate = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
+
+    const [attendances, requests, npsResponses] = await Promise.all([
+        prisma.attendance.findMany({
+            where: {
+                posto: { clientId: { in: clientIds } },
+                date: { gte: startDate, lte: endDate }
+            },
+            include: { posto: true }
+        }),
+        prisma.request.findMany({
+            where: {
+                requesterId: user.id,
+                createdAt: { gte: startDate, lte: endDate }
+            }
+        }),
+        prisma.npsResponse.findMany({
+            where: {
+                clientId: { in: clientIds },
+                createdAt: { gte: startDate, lte: endDate }
+            }
+        })
+    ]);
+
+    const monthNames = [
+        "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+        "Jul", "Ago", "Set", "Out", "Nov", "Dez"
+    ];
+
+    const monthlyData = monthNames.map((name, index) => {
+        const monthAtts = attendances.filter(a => {
+            const d = new Date(a.date);
+            return d.getUTCMonth() === index;
+        });
+        const activeShifts = monthAtts.filter(a => a.status !== "FOLGA");
+        const totalShifts = activeShifts.length;
+        const vacantShifts = activeShifts.filter(a => a.status === "FALTA" && !a.coveredById && !a.coverageType).length;
+        const totalAbsences = activeShifts.filter(a => a.status === "FALTA").length;
+
+        const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : 100;
+        const absenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : 0;
+
+        const monthRequests = requests.filter(r => new Date(r.createdAt).getUTCMonth() === index);
+        const resolvedRequests = monthRequests.filter(r => r.status === "CONCLUIDO" || r.status === "REJEITADO");
+        
+        const slaOnTime = resolvedRequests.filter(r => r.updatedAt <= r.dueDate).length;
+        const slaCompliance = resolvedRequests.length > 0 ? (slaOnTime / resolvedRequests.length) * 100 : 100;
+
+        const monthNps = npsResponses.filter(n => new Date(n.createdAt).getUTCMonth() === index);
+        const promoters = monthNps.filter(n => n.score >= 9).length;
+        const detractors = monthNps.filter(n => n.score <= 6).length;
+        const npsScore = monthNps.length > 0 ? ((promoters - detractors) / monthNps.length) * 100 : 100;
+
+        return {
+            monthIndex: index,
+            name,
+            effectiveness,
+            absenteeism,
+            slaCompliance,
+            npsScore,
+            npsCount: monthNps.length
+        };
+    });
+
+    const activeAtts = attendances.filter(a => a.status !== "FOLGA");
+    const totalShifts = activeAtts.length;
+    const vacantShifts = activeAtts.filter(a => a.status === "FALTA" && !a.coveredById && !a.coverageType).length;
+    const totalAbsences = activeAtts.filter(a => a.status === "FALTA").length;
+
+    const totalEffectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : 100;
+    const totalAbsenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : 0;
+
+    const resolved = requests.filter(r => r.status === "CONCLUIDO" || r.status === "REJEITADO");
+    const totalSlaOnTime = resolved.filter(r => r.updatedAt <= r.dueDate).length;
+    const totalSlaCompliance = resolved.length > 0 ? (totalSlaOnTime / resolved.length) * 100 : 100;
+
+    const totalPromoters = npsResponses.filter(n => n.score >= 9).length;
+    const totalDetractors = npsResponses.filter(n => n.score <= 6).length;
+    const totalNpsScore = npsResponses.length > 0 ? ((totalPromoters - totalDetractors) / npsResponses.length) * 100 : 100;
+
+    const resolvedWithTimes = resolved.filter(r => r.createdAt && r.updatedAt);
+    let totalHours = 0;
+    resolvedWithTimes.forEach(r => {
+        const diffMs = r.updatedAt.getTime() - r.createdAt.getTime();
+        totalHours += diffMs / (1000 * 60 * 60);
+    });
+    const avgMttr = resolvedWithTimes.length > 0 ? totalHours / resolvedWithTimes.length : 0;
+
+    return {
+        success: true,
+        monthlyData,
+        summary: {
+            effectiveness: totalEffectiveness,
+            absenteeism: totalAbsenteeism,
+            slaCompliance: totalSlaCompliance,
+            npsScore: totalNpsScore,
+            mttrHours: avgMttr
+        }
+    };
+}

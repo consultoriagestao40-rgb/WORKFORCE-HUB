@@ -70,6 +70,7 @@ model Client {
   updatedAt           DateTime @updatedAt
   company             Company? @relation(fields: [companyId], references: [id])
   postos              Posto[]
+  npsResponses        NpsResponse[]
 
   @@index([companyId])
 }
@@ -478,4 +479,15 @@ model Attendance {
   @@index([postoId])
   @@index([employeeId])
   @@index([date])
+}
+
+model NpsResponse {
+  id        String   @id @default(uuid())
+  clientId  String
+  score     Int
+  feedback  String?
+  createdAt DateTime @default(now())
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
 }

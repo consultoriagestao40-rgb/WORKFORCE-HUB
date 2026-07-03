@@ -13,14 +13,16 @@ import { Button } from "@/components/ui/button";
 import {
     Calendar, ChevronLeft, ChevronRight, Clock, UserCheck, UserX, 
     RefreshCw, LogOut, ShieldAlert, Award, FileText, Download,
-    DollarSign, Inbox, Plus, Search, Menu, X
+    DollarSign, Inbox, Plus, Search, Menu, X, Smile, BarChart2
 } from "lucide-react";
 import { logout } from "@/app/actions";
 import { 
     createClientRequest, 
     getClientRequests, 
     getClientEmployees, 
-    getClientMonthlyReport 
+    getClientMonthlyReport,
+    submitClientNps,
+    getClientKpis
 } from "@/app/admin/requests/actions";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -66,7 +68,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     const [loading, setLoading] = useState<boolean>(true);
     const [isPending, startTransition] = useTransition();
 
-    const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report">("presence");
+    const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report" | "nps" | "kpis">("presence");
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
     // Requests Tab States
@@ -89,6 +91,17 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     const [reportYear, setReportYear] = useState(new Date().getFullYear());
     const [reportData, setReportData] = useState<any[]>([]);
     const [loadingReport, setLoadingReport] = useState(false);
+
+    // NPS Tab States
+    const [selectedNpsClientId, setSelectedNpsClientId] = useState<string>("");
+    const [npsScore, setNpsScore] = useState<number | null>(null);
+    const [npsFeedback, setNpsFeedback] = useState<string>("");
+    const [submittingNps, setSubmittingNps] = useState(false);
+
+    // KPIs Tab States
+    const [kpiYear, setKpiYear] = useState(new Date().getFullYear());
+    const [kpiData, setKpiData] = useState<any>(null);
+    const [loadingKpis, setLoadingKpis] = useState(false);
 
     const fetchRequests = useCallback(async () => {
         setLoadingRequests(true);
@@ -140,6 +153,20 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
         }
     }, []);
 
+    const fetchKpiData = useCallback(async (year: number) => {
+        setLoadingKpis(true);
+        try {
+            const data = await getClientKpis(year);
+            if (data.success) {
+                setKpiData(data);
+            }
+        } catch (e) {
+            toast.error("Erro ao carregar indicadores (KPIs).");
+        } finally {
+            setLoadingKpis(false);
+        }
+    }, []);
+
     useEffect(() => {
         if (activeTab === "requests") {
             fetchRequests();
@@ -148,8 +175,10 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
             fetchBilling(billingYear);
         } else if (activeTab === "monthly_report") {
             fetchReport(reportMonth, reportYear);
+        } else if (activeTab === "kpis") {
+            fetchKpiData(kpiYear);
         }
-    }, [activeTab, billingYear, reportMonth, reportYear, fetchRequests, fetchEmployees, fetchBilling, fetchReport]);
+    }, [activeTab, billingYear, reportMonth, reportYear, kpiYear, fetchRequests, fetchEmployees, fetchBilling, fetchReport, fetchKpiData]);
 
     const handleCreateRequest = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -179,6 +208,39 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
             toast.error("Ocorreu um erro ao processar sua solicitação.");
         } finally {
             setSubmittingRequest(false);
+        }
+    };
+
+    const handleNpsSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedNpsClientId) {
+            toast.error("Por favor, selecione um contrato/unidade.");
+            return;
+        }
+        if (npsScore === null) {
+            toast.error("Por favor, selecione uma nota de 0 a 10.");
+            return;
+        }
+
+        setSubmittingNps(true);
+        try {
+            const res = await submitClientNps({
+                clientId: selectedNpsClientId,
+                score: npsScore,
+                feedback: npsFeedback
+            });
+
+            if (res.success) {
+                toast.success("Avaliação enviada com sucesso! Obrigado pelo seu feedback.");
+                setNpsScore(null);
+                setNpsFeedback("");
+            } else {
+                toast.error("Erro ao enviar avaliação.");
+            }
+        } catch (e) {
+            toast.error("Erro ao registrar avaliação.");
+        } finally {
+            setSubmittingNps(false);
         }
     };
 
@@ -362,7 +424,9 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
         { id: "presence", label: "Presença Diária", icon: UserCheck },
         { id: "requests", label: "Solicitações", icon: Inbox },
         { id: "billing", label: "Faturamento Mensal", icon: DollarSign },
-        { id: "monthly_report", label: "Relatório Mensal", icon: FileText }
+        { id: "monthly_report", label: "Relatório Mensal", icon: FileText },
+        { id: "nps", label: "NPS / Avaliação", icon: Smile },
+        { id: "kpis", label: "Indicadores (KPIs)", icon: BarChart2 }
     ];
 
     return (
@@ -382,7 +446,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                 </div>
 
                 {/* User Info */}
-                <div className="p-4 border-b border-slate-800 bg-slate-955/40">
+                <div className="p-4 border-b border-slate-800 bg-slate-950/40">
                     <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Acesso Cliente</p>
                     <p className="text-sm font-bold text-slate-200 mt-0.5 truncate">Olá, {userName}</p>
                 </div>
@@ -865,6 +929,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                     <TableHead className="font-bold text-slate-800">Descrição</TableHead>
                                                     <TableHead className="font-bold text-slate-800">Colaborador Relacionado</TableHead>
                                                     <TableHead className="font-bold text-slate-800 text-center">Status</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-center">Prazo SLA</TableHead>
                                                     <TableHead className="font-bold text-slate-800">Retorno da Operação</TableHead>
                                                 </TableRow>
                                             </TableHeader>
@@ -885,6 +950,29 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                     else if (req.status === "CONCLUIDO") { statusLabel = "Concluído"; statusColor = "bg-emerald-50 text-emerald-700 border-emerald-250"; }
                                                     else if (req.status === "REJEITADO") { statusLabel = "Recusado"; statusColor = "bg-red-50 text-red-750 border-red-200"; }
 
+                                                    // Calcular status de SLA
+                                                    const isResolved = req.status === "CONCLUIDO" || req.status === "REJEITADO";
+                                                    const resolutionDate = req.updatedAt ? new Date(req.updatedAt) : new Date();
+                                                    const dueDate = new Date(req.dueDate);
+                                                    const now = new Date();
+                                                    
+                                                    let slaBadge = null;
+                                                    if (isResolved) {
+                                                        const wasOnTime = resolutionDate <= dueDate;
+                                                        slaBadge = wasOnTime ? (
+                                                            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 font-bold hover:opacity-100">No Prazo</Badge>
+                                                        ) : (
+                                                            <Badge className="bg-red-50 text-red-700 border-red-200 font-bold hover:opacity-100">Estourado</Badge>
+                                                        );
+                                                    } else {
+                                                        const isLate = now > dueDate;
+                                                        slaBadge = isLate ? (
+                                                            <Badge className="bg-red-50 text-red-750 border-red-200 font-black animate-pulse hover:opacity-100">Expirado</Badge>
+                                                        ) : (
+                                                            <Badge className="bg-sky-50 text-sky-750 border-sky-200 font-bold hover:opacity-100">No Prazo</Badge>
+                                                        );
+                                                    }
+
                                                     return (
                                                         <TableRow key={req.id} className="hover:bg-slate-50/50 transition-colors">
                                                             <TableCell className="font-bold text-xs text-slate-900">
@@ -902,6 +990,12 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                             <TableCell className="text-center">
                                                                 <Badge className={`${statusColor} font-black hover:opacity-100`}>{statusLabel}</Badge>
                                                             </TableCell>
+                                                            <TableCell className="text-center">
+                                                                <div className="flex flex-col items-center gap-1">
+                                                                    <span className="text-[11px] font-bold text-slate-600">{format(dueDate, "dd/MM/yyyy")}</span>
+                                                                    {slaBadge}
+                                                                </div>
+                                                            </TableCell>
                                                             <TableCell className="text-xs text-slate-500 font-medium italic">
                                                                 {req.resolutionNotes || "Aguardando análise da mesa de operações..."}
                                                             </TableCell>
@@ -910,7 +1004,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                 })}
                                                 {requests.length === 0 && (
                                                     <TableRow>
-                                                        <TableCell colSpan={6} className="text-center text-slate-500 py-20 font-semibold">
+                                                        <TableCell colSpan={7} className="text-center text-slate-500 py-20 font-semibold">
                                                             Nenhum chamado aberto. Clique em "+ Nova Solicitação" para criar.
                                                         </TableCell>
                                                     </TableRow>
@@ -1270,6 +1364,240 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                     )}
                                 </div>
                             </Card>
+                        </div>
+                    )}
+
+                    {activeTab === "nps" && (
+                        /* TAB 5: NPS (Avaliação de Satisfação) */
+                        <div className="space-y-6 max-w-4xl mx-auto">
+                            <div className="bg-white p-6 rounded-2xl shadow-premium border border-slate-200/50 space-y-4">
+                                <div className="space-y-1">
+                                    <h3 className="text-lg font-black text-slate-850">Pesquisa de Satisfação - NPS</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Sua opinião é fundamental para evoluirmos a qualidade e eficiência operacional do nosso time.</p>
+                                </div>
+
+                                <form onSubmit={handleNpsSubmit} className="space-y-6 pt-4 border-t border-slate-100">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Selecione o Contrato / Unidade sob Avaliação</label>
+                                        <select
+                                            value={selectedNpsClientId}
+                                            onChange={(e) => setSelectedNpsClientId(e.target.value)}
+                                            className="w-full md:w-1/2 h-10 border border-slate-250 bg-white rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary"
+                                            required
+                                        >
+                                            <option value="">-- Selecione uma Unidade --</option>
+                                            {contracts.map(c => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                                            Em uma escala de 0 a 10, qual a probabilidade de você recomendar nossos serviços para um parceiro ou conhecido?
+                                        </label>
+                                        <div className="flex flex-wrap gap-2 pt-2">
+                                            {[...Array(11).keys()].map((num) => {
+                                                const selected = npsScore === num;
+                                                let btnClass = "border-slate-200 hover:bg-slate-50";
+                                                if (selected) {
+                                                    if (num <= 6) btnClass = "bg-red-650 text-white border-red-600 shadow-lg shadow-red-200";
+                                                    else if (num <= 8) btnClass = "bg-amber-500 text-white border-amber-500 shadow-lg shadow-amber-200";
+                                                    else btnClass = "bg-emerald-650 text-white border-emerald-600 shadow-lg shadow-emerald-250";
+                                                } else {
+                                                    if (num <= 6) btnClass = "bg-red-50/30 text-red-700 border-red-100 hover:bg-red-50";
+                                                    else if (num <= 8) btnClass = "bg-amber-50/30 text-amber-700 border-amber-100 hover:bg-amber-50";
+                                                    else btnClass = "bg-emerald-50/30 text-emerald-700 border-emerald-100 hover:bg-emerald-50";
+                                                }
+
+                                                return (
+                                                    <button
+                                                        key={num}
+                                                        type="button"
+                                                        onClick={() => setNpsScore(num)}
+                                                        className={`w-11 h-11 rounded-full border text-sm font-black flex items-center justify-center transition-all ${btnClass}`}
+                                                    >
+                                                        {num}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 pt-1 select-none">
+                                            <span className="text-red-500">Pouco Provável (0 a 6)</span>
+                                            <span className="text-amber-500">Neutro (7 ou 8)</span>
+                                            <span className="text-emerald-500">Muito Provável (9 ou 10)</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Conte-nos o motivo da sua nota ou envie sugestões de melhoria (Opcional)</label>
+                                        <textarea
+                                            value={npsFeedback}
+                                            onChange={(e) => setNpsFeedback(e.target.value)}
+                                            placeholder="O que estamos fazendo bem? O que podemos fazer para melhorar?"
+                                            rows={4}
+                                            className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 outline-none focus:border-primary resize-none"
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center justify-end pt-4 border-t border-slate-100">
+                                        <Button
+                                            type="submit"
+                                            disabled={submittingNps || npsScore === null || !selectedNpsClientId}
+                                            className="h-11 text-xs font-bold uppercase tracking-wider px-6 bg-primary text-slate-900 hover:bg-primary/95 rounded-xl shadow-premium"
+                                        >
+                                            {submittingNps ? "Enviando..." : "Enviar Avaliação"}
+                                        </Button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === "kpis" && (
+                        /* TAB 6: KPIS (Indicadores) */
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
+                                <div className="space-y-1">
+                                    <h3 className="text-md font-bold text-slate-850">Indicadores de Performance e Qualidade (KPIs)</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Visão geral do cumprimento de SLAs, nível de efetividade operacional e satisfação com a equipe.</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <select
+                                        value={kpiYear}
+                                        onChange={(e) => setKpiYear(Number(e.target.value))}
+                                        className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
+                                    >
+                                        <option value={2026}>Ano 2026</option>
+                                        <option value={2025}>Ano 2025</option>
+                                    </select>
+                                    <Button variant="ghost" size="icon" onClick={() => fetchKpiData(kpiYear)} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
+                                        <RefreshCw className={`w-4 h-4 text-slate-500 ${loadingKpis ? 'animate-spin' : ''}`} />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* KPI Metrics Summary */}
+                            {loadingKpis || !kpiData ? (
+                                <div className="flex flex-col items-center justify-center py-20 gap-3">
+                                    <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                                    <span className="text-xs text-slate-500 font-semibold">Carregando indicadores...</span>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                        <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
+                                            <div className="flex items-start justify-between">
+                                                <div className="space-y-1">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Efetividade</span>
+                                                    <span className="text-2xl font-black text-slate-850">{kpiData.summary.effectiveness.toFixed(1)}%</span>
+                                                </div>
+                                                <UserCheck className="w-8 h-8 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl border border-emerald-100" />
+                                            </div>
+                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Cumprimento total de escalas cobertas contra postos desocupados.</p>
+                                        </Card>
+
+                                        <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
+                                            <div className="flex items-start justify-between">
+                                                <div className="space-y-1">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Cumprimento SLA</span>
+                                                    <span className="text-2xl font-black text-slate-850">{kpiData.summary.slaCompliance.toFixed(1)}%</span>
+                                                </div>
+                                                <Clock className="w-8 h-8 text-blue-600 bg-blue-50 p-1.5 rounded-xl border border-blue-100" />
+                                            </div>
+                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Chamados resolvidos dentro do prazo previsto em contrato.</p>
+                                        </Card>
+
+                                        <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
+                                            <div className="flex items-start justify-between">
+                                                <div className="space-y-1">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Absenteísmo</span>
+                                                    <span className="text-2xl font-black text-slate-850">{kpiData.summary.absenteeism.toFixed(1)}%</span>
+                                                </div>
+                                                <UserX className="w-8 h-8 text-red-655 bg-red-50 p-1.5 rounded-xl border border-red-100" />
+                                            </div>
+                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Média de faltas ou ausências de profissionais titulares.</p>
+                                        </Card>
+
+                                        <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
+                                            <div className="flex items-start justify-between">
+                                                <div className="space-y-1">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Tempo Médio (MTTR)</span>
+                                                    <span className="text-2xl font-black text-slate-850">
+                                                        {kpiData.summary.mttrHours ? kpiData.summary.mttrHours.toFixed(1) + " h" : "0.0 h"}
+                                                    </span>
+                                                </div>
+                                                <RefreshCw className="w-8 h-8 text-orange-600 bg-orange-50 p-1.5 rounded-xl border border-orange-100" />
+                                            </div>
+                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Tempo médio de resposta e encerramento de solicitações.</p>
+                                        </Card>
+                                    </div>
+
+                                    {/* Monthly KPI comparative table */}
+                                    <Card className="border-none shadow-premium bg-white overflow-hidden">
+                                        <div className="w-full overflow-x-auto">
+                                            <Table>
+                                                <TableHeader className="bg-slate-50">
+                                                    <TableRow>
+                                                        <TableHead className="font-bold text-slate-800">Mês</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">Efetividade Operacional</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">Nível de Absenteísmo</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">Conformidade SLA</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">NPS (Net Promoter Score)</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {kpiData.monthlyData.map((m: any) => (
+                                                        <TableRow key={m.monthIndex} className="hover:bg-slate-50/50 transition-colors">
+                                                            <TableCell className="font-bold text-xs text-slate-900">{m.name}</TableCell>
+                                                            <TableCell className="text-center">
+                                                                <Badge className={`${
+                                                                    m.effectiveness >= 95 ? 'bg-emerald-50 text-emerald-700' :
+                                                                    m.effectiveness >= 90 ? 'bg-amber-50 text-amber-700' :
+                                                                    'bg-red-50 text-red-755'
+                                                                } font-bold hover:opacity-100`}>
+                                                                    {m.effectiveness.toFixed(1)}%
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                <Badge className={`${
+                                                                    m.absenteeism <= 3 ? 'bg-emerald-50 text-emerald-700' :
+                                                                    m.absenteeism <= 6 ? 'bg-amber-50 text-amber-700' :
+                                                                    'bg-red-50 text-red-755'
+                                                                } font-bold hover:opacity-100`}>
+                                                                    {m.absenteeism.toFixed(1)}%
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                <Badge className={`${
+                                                                    m.slaCompliance >= 90 ? 'bg-emerald-50 text-emerald-700' :
+                                                                    m.slaCompliance >= 80 ? 'bg-amber-50 text-amber-700' :
+                                                                    'bg-red-50 text-red-755'
+                                                                } font-bold hover:opacity-100`}>
+                                                                    {m.slaCompliance.toFixed(1)}%
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell className="text-center font-bold text-xs text-slate-800">
+                                                                {m.npsCount > 0 ? (
+                                                                    <Badge className={`${
+                                                                        m.npsScore >= 80 ? 'bg-emerald-100 text-emerald-800' :
+                                                                        m.npsScore >= 50 ? 'bg-amber-100 text-amber-800' :
+                                                                        'bg-red-100 text-red-800'
+                                                                    } font-bold hover:opacity-100`}>
+                                                                        {m.npsScore.toFixed(0)} ({m.npsCount} avaliações)
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <span className="text-slate-400 italic text-[11px]">Nenhuma avaliação</span>
+                                                                )}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </Card>
+                                </div>
+                            )}
                         </div>
                     )}
                 </main>
