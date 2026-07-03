@@ -903,28 +903,85 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                 </Card>
                             </div>
 
-                            {/* Trend Chart: Faltas Sem Cobertura e Absenteísmo por Dia */}
+                            {/* Trend Chart 1: Absenteísmo */}
                             <Card className="border-none shadow-premium bg-white p-5 space-y-4">
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                     <div>
                                         <h2 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-1.5">
-                                            <UserX className="w-5 h-5 text-red-500" /> Histórico de Faltas Sem Cobertura & Absenteísmo
+                                            <Clock className="w-5 h-5 text-indigo-500" /> Evolução da Taxa de Absenteísmo
                                         </h2>
-                                        <p className="text-xs text-slate-400 font-medium">Evolução diária de glosas e taxa de ausências no período selecionado</p>
+                                        <p className="text-xs text-slate-400 font-medium">Histórico diário da porcentagem de ausências no período selecionado</p>
                                     </div>
-                                    <div className="flex items-center gap-4 text-xs font-semibold">
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="w-3 h-3 rounded bg-red-500" />
-                                            <span className="text-slate-600">Glosas (Faltas Sem Cobertura)</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="w-3 h-3 rounded bg-indigo-500" />
-                                            <span className="text-slate-600">Taxa de Absenteísmo (%)</span>
-                                        </div>
+                                    <div className="flex items-center gap-1.5 text-xs font-semibold">
+                                        <div className="w-3 h-3 rounded-full bg-indigo-500" />
+                                        <span className="text-slate-600">Taxa de Absenteísmo (%)</span>
                                     </div>
                                 </div>
 
-                                <div className="h-72 w-full pt-4">
+                                <div className="h-64 w-full pt-4">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={kpisData.dailyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="colorAbs" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
+                                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                                            <XAxis 
+                                                dataKey="date" 
+                                                tickLine={false} 
+                                                axisLine={false} 
+                                                tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
+                                            />
+                                            <YAxis 
+                                                tickLine={false} 
+                                                axisLine={false} 
+                                                tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
+                                                unit="%"
+                                            />
+                                            <Tooltip 
+                                                formatter={(value: any) => {
+                                                    return [`${Number(value).toFixed(1)}%`, "Absenteísmo"];
+                                                }}
+                                                contentStyle={{ 
+                                                    backgroundColor: '#ffffff', 
+                                                    borderRadius: '12px', 
+                                                    border: 'none', 
+                                                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05)' 
+                                                }}
+                                                labelStyle={{ fontWeight: 'bold', fontSize: '12px', color: '#1e293b' }}
+                                                itemStyle={{ fontSize: '11px', fontWeight: 600 }}
+                                            />
+                                            <Area 
+                                                type="monotone" 
+                                                dataKey="absRate" 
+                                                stroke="#6366f1" 
+                                                strokeWidth={2}
+                                                fillOpacity={1} 
+                                                fill="url(#colorAbs)" 
+                                            />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </Card>
+
+                            {/* Trend Chart 2: Faltas Sem Cobertura */}
+                            <Card className="border-none shadow-premium bg-white p-5 space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div>
+                                        <h2 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                                            <UserX className="w-5 h-5 text-red-500" /> Faltas Sem Cobertura (Glosas)
+                                        </h2>
+                                        <p className="text-xs text-slate-400 font-medium">Contagem de postos de trabalho que operaram sem cobertura no período</p>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-xs font-semibold">
+                                        <div className="w-3 h-3 rounded bg-red-500" />
+                                        <span className="text-slate-600">Glosas (Faltas)</span>
+                                    </div>
+                                </div>
+
+                                <div className="h-64 w-full pt-4">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={kpisData.dailyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -938,16 +995,11 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                                 tickLine={false} 
                                                 axisLine={false} 
                                                 tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
+                                                allowDecimals={false}
                                             />
                                             <Tooltip 
-                                                formatter={(value: any, name: any) => {
-                                                    if (typeof value === 'number') {
-                                                        if (name.includes("%")) {
-                                                            return [`${value.toFixed(1)}%`, name];
-                                                        }
-                                                        return [value.toFixed(0), name];
-                                                    }
-                                                    return [value, name];
+                                                formatter={(value: any) => {
+                                                    return [`${value} faltas`, "Glosas"];
                                                 }}
                                                 contentStyle={{ 
                                                     backgroundColor: '#ffffff', 
@@ -959,18 +1011,10 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                                 itemStyle={{ fontSize: '11px', fontWeight: 600 }}
                                             />
                                             <Bar 
-                                                name="Faltas Sem Cobertura"
                                                 dataKey="glosas" 
                                                 fill="#ef4444" 
                                                 radius={[3, 3, 0, 0]}
-                                                barSize={8}
-                                            />
-                                            <Bar 
-                                                name="Taxa de Absenteísmo (%)"
-                                                dataKey="absRate" 
-                                                fill="#6366f1" 
-                                                radius={[3, 3, 0, 0]}
-                                                barSize={8}
+                                                barSize={16}
                                             />
                                         </BarChart>
                                     </ResponsiveContainer>
