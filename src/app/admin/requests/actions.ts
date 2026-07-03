@@ -343,6 +343,29 @@ export async function getClientKpis(year: number) {
         const promoters = monthNps.filter(n => n.score >= 9).length;
         const detractors = monthNps.filter(n => n.score <= 6).length;
         const npsScore = monthNps.length > 0 ? ((promoters - detractors) / monthNps.length) * 100 : 100;
+        
+        const avgNpsRating = monthNps.length > 0
+            ? monthNps.reduce((sum, n) => sum + n.score, 0) / monthNps.length
+            : 10;
+
+        // Nota do Contrato (0 a 10) baseada nos pesos dos indicadores ativos
+        let weightSum = 0;
+        let scoreSum = 0;
+
+        if (totalShifts > 0) {
+            scoreSum += effectiveness * 0.5; // Efetividade (50%)
+            weightSum += 0.5;
+        }
+        if (resolvedRequests.length > 0) {
+            scoreSum += slaCompliance * 0.25; // SLA de Solicitações (25%)
+            weightSum += 0.25;
+        }
+        if (monthNps.length > 0) {
+            scoreSum += (avgNpsRating * 10) * 0.25; // Satisfação NPS (25%)
+            weightSum += 0.25;
+        }
+
+        const contractScore = weightSum > 0 ? (scoreSum / weightSum) / 10 : 10;
 
         return {
             monthIndex: index,
@@ -351,7 +374,9 @@ export async function getClientKpis(year: number) {
             absenteeism,
             slaCompliance,
             npsScore,
-            npsCount: monthNps.length
+            npsCount: monthNps.length,
+            avgNpsRating,
+            contractScore
         };
     });
 
@@ -371,6 +396,28 @@ export async function getClientKpis(year: number) {
     const totalDetractors = npsResponses.filter(n => n.score <= 6).length;
     const totalNpsScore = npsResponses.length > 0 ? ((totalPromoters - totalDetractors) / npsResponses.length) * 100 : 100;
 
+    const totalAvgNpsRating = npsResponses.length > 0
+        ? npsResponses.reduce((sum, n) => sum + n.score, 0) / npsResponses.length
+        : 10;
+
+    let summaryWeightSum = 0;
+    let summaryScoreSum = 0;
+
+    if (totalShifts > 0) {
+        summaryScoreSum += totalEffectiveness * 0.5;
+        summaryWeightSum += 0.5;
+    }
+    if (resolved.length > 0) {
+        summaryScoreSum += totalSlaCompliance * 0.25;
+        summaryWeightSum += 0.25;
+    }
+    if (npsResponses.length > 0) {
+        summaryScoreSum += (totalAvgNpsRating * 10) * 0.25;
+        summaryWeightSum += 0.25;
+    }
+
+    const totalContractScore = summaryWeightSum > 0 ? (summaryScoreSum / summaryWeightSum) / 10 : 10;
+
     const resolvedWithTimes = resolved.filter(r => r.createdAt && r.updatedAt);
     let totalHours = 0;
     resolvedWithTimes.forEach(r => {
@@ -387,7 +434,9 @@ export async function getClientKpis(year: number) {
             absenteeism: totalAbsenteeism,
             slaCompliance: totalSlaCompliance,
             npsScore: totalNpsScore,
-            mttrHours: avgMttr
+            mttrHours: avgMttr,
+            avgNpsRating: totalAvgNpsRating,
+            contractScore: totalContractScore
         }
     };
 }

@@ -68,7 +68,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     const [loading, setLoading] = useState<boolean>(true);
     const [isPending, startTransition] = useTransition();
 
-    const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report" | "nps" | "kpis">("presence");
+    const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report" | "nps" | "sla">("presence");
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
     // Requests Tab States
@@ -98,10 +98,10 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     const [npsFeedback, setNpsFeedback] = useState<string>("");
     const [submittingNps, setSubmittingNps] = useState(false);
 
-    // KPIs Tab States
-    const [kpiYear, setKpiYear] = useState(new Date().getFullYear());
-    const [kpiData, setKpiData] = useState<any>(null);
-    const [loadingKpis, setLoadingKpis] = useState(false);
+    // SLA Tab States
+    const [slaYear, setSlaYear] = useState(new Date().getFullYear());
+    const [slaData, setSlaData] = useState<any>(null);
+    const [loadingSla, setLoadingSla] = useState(false);
 
     const fetchRequests = useCallback(async () => {
         setLoadingRequests(true);
@@ -153,17 +153,17 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
         }
     }, []);
 
-    const fetchKpiData = useCallback(async (year: number) => {
-        setLoadingKpis(true);
+    const fetchSlaData = useCallback(async (year: number) => {
+        setLoadingSla(true);
         try {
             const data = await getClientKpis(year);
             if (data.success) {
-                setKpiData(data);
+                setSlaData(data);
             }
         } catch (e) {
-            toast.error("Erro ao carregar indicadores (KPIs).");
+            toast.error("Erro ao carregar dados de performance (SLA).");
         } finally {
-            setLoadingKpis(false);
+            setLoadingSla(false);
         }
     }, []);
 
@@ -175,10 +175,10 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
             fetchBilling(billingYear);
         } else if (activeTab === "monthly_report") {
             fetchReport(reportMonth, reportYear);
-        } else if (activeTab === "kpis") {
-            fetchKpiData(kpiYear);
+        } else if (activeTab === "sla") {
+            fetchSlaData(slaYear);
         }
-    }, [activeTab, billingYear, reportMonth, reportYear, kpiYear, fetchRequests, fetchEmployees, fetchBilling, fetchReport, fetchKpiData]);
+    }, [activeTab, billingYear, reportMonth, reportYear, slaYear, fetchRequests, fetchEmployees, fetchBilling, fetchReport, fetchSlaData]);
 
     const handleCreateRequest = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -426,7 +426,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
         { id: "billing", label: "Faturamento Mensal", icon: DollarSign },
         { id: "monthly_report", label: "Relatório Mensal", icon: FileText },
         { id: "nps", label: "NPS / Avaliação", icon: Smile },
-        { id: "kpis", label: "Indicadores (KPIs)", icon: BarChart2 }
+        { id: "sla", label: "SLA / Desempenho", icon: Award }
     ];
 
     return (
@@ -1454,82 +1454,117 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                         </div>
                     )}
 
-                    {activeTab === "kpis" && (
-                        /* TAB 6: KPIS (Indicadores) */
+                    {activeTab === "sla" && (
+                        /* TAB 6: SLA (Performance e Acordo de Nível de Serviço) */
                         <div className="space-y-6">
-                            <div className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
                                 <div className="space-y-1">
-                                    <h3 className="text-md font-bold text-slate-850">Indicadores de Performance e Qualidade (KPIs)</h3>
-                                    <p className="text-xs text-slate-500 font-medium">Visão geral do cumprimento de SLAs, nível de efetividade operacional e satisfação com a equipe.</p>
+                                    <h3 className="text-md font-bold text-slate-850">Performance e SLA do Contrato</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Controle de conformidade de SLA e satisfação geral gerando a nota de desempenho mensal do contrato.</p>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <select
-                                        value={kpiYear}
-                                        onChange={(e) => setKpiYear(Number(e.target.value))}
+                                        value={slaYear}
+                                        onChange={(e) => setSlaYear(Number(e.target.value))}
                                         className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
                                     >
                                         <option value={2026}>Ano 2026</option>
                                         <option value={2025}>Ano 2025</option>
                                     </select>
-                                    <Button variant="ghost" size="icon" onClick={() => fetchKpiData(kpiYear)} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
-                                        <RefreshCw className={`w-4 h-4 text-slate-500 ${loadingKpis ? 'animate-spin' : ''}`} />
+                                    <Button variant="ghost" size="icon" onClick={() => fetchSlaData(slaYear)} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
+                                        <RefreshCw className={`w-4 h-4 text-slate-500 ${loadingSla ? 'animate-spin' : ''}`} />
                                     </Button>
                                 </div>
                             </div>
 
-                            {/* KPI Metrics Summary */}
-                            {loadingKpis || !kpiData ? (
+                            {loadingSla || !slaData ? (
                                 <div className="flex flex-col items-center justify-center py-20 gap-3">
                                     <RefreshCw className="w-8 h-8 text-primary animate-spin" />
-                                    <span className="text-xs text-slate-500 font-semibold">Carregando indicadores...</span>
+                                    <span className="text-xs text-slate-500 font-semibold">Calculando índices de SLA...</span>
                                 </div>
                             ) : (
                                 <div className="space-y-6">
+                                    {/* Main SLA Contract Rating Panel */}
+                                    <Card className="border-none shadow-premium bg-slate-900 text-white p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                        <div className="space-y-3">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Índice de Performance Consolidado</span>
+                                            <h4 className="text-2xl font-black tracking-tight">Nota do Contrato (Mês Atual)</h4>
+                                            <p className="text-xs text-slate-350 leading-relaxed max-w-xl">
+                                                A nota consolidada mensal do contrato é uma média ponderada calculada a partir dos indicadores de:
+                                                <strong className="text-slate-200"> Efetividade Operacional (50%)</strong>,
+                                                <strong className="text-slate-200"> Conformidade de Chamados SLA (25%)</strong> e
+                                                <strong className="text-slate-200"> Avaliação de Satisfação NPS (25%)</strong>.
+                                            </p>
+                                            <div className="text-[10px] bg-slate-800/50 p-2.5 rounded-lg border border-slate-700/30 text-slate-400 font-bold uppercase tracking-wider inline-block select-none">
+                                                Meta Mínima Contratual: <strong className="text-primary font-black">9.0 / 10</strong>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col items-center justify-center bg-slate-950/65 border border-slate-800 p-6 px-8 rounded-2xl shrink-0 text-center gap-2 select-none shadow-inner">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nota Obtida</span>
+                                            <span className="text-4xl font-black text-primary tracking-tight">
+                                                {slaData.summary.contractScore.toFixed(1)} <span className="text-sm font-bold text-slate-500">/ 10</span>
+                                            </span>
+                                            {slaData.summary.contractScore >= 9.0 ? (
+                                                <Badge className="bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 font-black text-[10px] uppercase hover:opacity-100 mt-1 select-none">
+                                                    ✓ CONFORME (SLA OK)
+                                                </Badge>
+                                            ) : (
+                                                <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 font-black text-[10px] uppercase hover:opacity-100 mt-1 select-none animate-pulse">
+                                                    ▲ NÃO CONFORME
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </Card>
+
+                                    {/* KPI Sub-Metrics Summary Grid */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                         <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
                                             <div className="flex items-start justify-between">
                                                 <div className="space-y-1">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Efetividade</span>
-                                                    <span className="text-2xl font-black text-slate-850">{kpiData.summary.effectiveness.toFixed(1)}%</span>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Efetividade (Peso 50%)</span>
+                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.effectiveness.toFixed(1)}%</span>
                                                 </div>
                                                 <UserCheck className="w-8 h-8 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl border border-emerald-100" />
                                             </div>
-                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Cumprimento total de escalas cobertas contra postos desocupados.</p>
+                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Cumprimento de postos titulares e coberturas de faltas.</p>
                                         </Card>
 
                                         <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
                                             <div className="flex items-start justify-between">
                                                 <div className="space-y-1">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Cumprimento SLA</span>
-                                                    <span className="text-2xl font-black text-slate-850">{kpiData.summary.slaCompliance.toFixed(1)}%</span>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">SLA Chamados (Peso 25%)</span>
+                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.slaCompliance.toFixed(1)}%</span>
                                                 </div>
                                                 <Clock className="w-8 h-8 text-blue-600 bg-blue-50 p-1.5 rounded-xl border border-blue-100" />
                                             </div>
-                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Chamados resolvidos dentro do prazo previsto em contrato.</p>
+                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Tempo de resposta e solução de chamados operacionais.</p>
                                         </Card>
 
                                         <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
                                             <div className="flex items-start justify-between">
                                                 <div className="space-y-1">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Absenteísmo</span>
-                                                    <span className="text-2xl font-black text-slate-850">{kpiData.summary.absenteeism.toFixed(1)}%</span>
-                                                </div>
-                                                <UserX className="w-8 h-8 text-red-655 bg-red-50 p-1.5 rounded-xl border border-red-100" />
-                                            </div>
-                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Média de faltas ou ausências de profissionais titulares.</p>
-                                        </Card>
-
-                                        <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
-                                            <div className="flex items-start justify-between">
-                                                <div className="space-y-1">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Tempo Médio (MTTR)</span>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Satisfação NPS (Peso 25%)</span>
                                                     <span className="text-2xl font-black text-slate-850">
-                                                        {kpiData.summary.mttrHours ? kpiData.summary.mttrHours.toFixed(1) + " h" : "0.0 h"}
+                                                        {slaData.summary.avgNpsRating ? slaData.summary.avgNpsRating.toFixed(1) : "10.0"} <span className="text-xs font-semibold text-slate-400">/ 10</span>
+                                                    </span>
+                                                </div>
+                                                <Smile className="w-8 h-8 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl border border-emerald-100" />
+                                            </div>
+                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Nota média das pesquisas mensais de satisfação do cliente.</p>
+                                        </Card>
+
+                                        <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
+                                            <div className="flex items-start justify-between">
+                                                <div className="space-y-1">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">MTTR Operacional</span>
+                                                    <span className="text-2xl font-black text-slate-850">
+                                                        {slaData.summary.mttrHours ? slaData.summary.mttrHours.toFixed(1) + " h" : "0.0 h"}
                                                     </span>
                                                 </div>
                                                 <RefreshCw className="w-8 h-8 text-orange-600 bg-orange-50 p-1.5 rounded-xl border border-orange-100" />
                                             </div>
-                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Tempo médio de resposta e encerramento de solicitações.</p>
+                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Tempo médio decorrido até a resolução completa dos chamados.</p>
                                         </Card>
                                     </div>
 
@@ -1540,14 +1575,15 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                 <TableHeader className="bg-slate-50">
                                                     <TableRow>
                                                         <TableHead className="font-bold text-slate-800">Mês</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-center">Efetividade Operacional</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-center">Nível de Absenteísmo</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-center">Conformidade SLA</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-center">NPS (Net Promoter Score)</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">Efetividade Operacional (50%)</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">Conformidade SLA (25%)</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">Média NPS (25%)</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">Nota do Contrato</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-center">Status SLA</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    {kpiData.monthlyData.map((m: any) => (
+                                                    {slaData.monthlyData.map((m: any) => (
                                                         <TableRow key={m.monthIndex} className="hover:bg-slate-50/50 transition-colors">
                                                             <TableCell className="font-bold text-xs text-slate-900">{m.name}</TableCell>
                                                             <TableCell className="text-center">
@@ -1561,15 +1597,6 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                             </TableCell>
                                                             <TableCell className="text-center">
                                                                 <Badge className={`${
-                                                                    m.absenteeism <= 3 ? 'bg-emerald-50 text-emerald-700' :
-                                                                    m.absenteeism <= 6 ? 'bg-amber-50 text-amber-700' :
-                                                                    'bg-red-50 text-red-755'
-                                                                } font-bold hover:opacity-100`}>
-                                                                    {m.absenteeism.toFixed(1)}%
-                                                                </Badge>
-                                                            </TableCell>
-                                                            <TableCell className="text-center">
-                                                                <Badge className={`${
                                                                     m.slaCompliance >= 90 ? 'bg-emerald-50 text-emerald-700' :
                                                                     m.slaCompliance >= 80 ? 'bg-amber-50 text-amber-700' :
                                                                     'bg-red-50 text-red-755'
@@ -1577,17 +1604,23 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                     {m.slaCompliance.toFixed(1)}%
                                                                 </Badge>
                                                             </TableCell>
-                                                            <TableCell className="text-center font-bold text-xs text-slate-800">
-                                                                {m.npsCount > 0 ? (
-                                                                    <Badge className={`${
-                                                                        m.npsScore >= 80 ? 'bg-emerald-100 text-emerald-800' :
-                                                                        m.npsScore >= 50 ? 'bg-amber-100 text-amber-800' :
-                                                                        'bg-red-100 text-red-800'
-                                                                    } font-bold hover:opacity-100`}>
-                                                                        {m.npsScore.toFixed(0)} ({m.npsCount} avaliações)
+                                                            <TableCell className="text-center">
+                                                                <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold hover:opacity-100">
+                                                                    {m.avgNpsRating ? m.avgNpsRating.toFixed(1) : "10.0"} / 10
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell className="text-center font-black text-xs text-slate-900">
+                                                                {m.contractScore.toFixed(1)} / 10
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                {m.contractScore >= 9.0 ? (
+                                                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-250 font-black uppercase hover:opacity-100">
+                                                                        Conforme
                                                                     </Badge>
                                                                 ) : (
-                                                                    <span className="text-slate-400 italic text-[11px]">Nenhuma avaliação</span>
+                                                                    <Badge className="bg-red-50 text-red-700 border-red-200 font-black uppercase hover:opacity-100 animate-pulse">
+                                                                        Abaixo Meta
+                                                                    </Badge>
                                                                 )}
                                                             </TableCell>
                                                         </TableRow>
