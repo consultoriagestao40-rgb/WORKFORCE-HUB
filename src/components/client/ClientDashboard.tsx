@@ -73,6 +73,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
 
     const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report" | "nps" | "kpis" | "sla" | "service_plan">("presence");
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     // Requests Tab States
     const [requests, setRequests] = useState<any[]>([]);
@@ -476,23 +477,33 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     return (
         <div className="flex h-screen bg-slate-100 overflow-hidden font-sans">
             {/* Sidebar Desktop */}
-            <aside className="hidden md:flex flex-col bg-slate-900 text-white w-64 shrink-0 border-r border-slate-800">
+            <aside className={`hidden md:flex flex-col bg-slate-900 text-white shrink-0 border-r border-slate-800 transition-all duration-300 ${sidebarCollapsed ? "w-20" : "w-64"}`}>
                 <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800">
                     <div className="flex items-center gap-3 overflow-hidden">
                         <div className="bg-primary/20 p-2 rounded-xl border border-primary/20 shrink-0">
                             <Award className="w-6 h-6 text-primary" />
                         </div>
-                        <div className="flex flex-col">
-                            <span className="text-sm font-black tracking-wider leading-none">WORKFORCE HUB</span>
-                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Portal do Cliente</span>
-                        </div>
+                        {!sidebarCollapsed && (
+                            <div className="flex flex-col">
+                                <span className="text-sm font-black tracking-wider leading-none">WORKFORCE HUB</span>
+                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Portal do Cliente</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
                 {/* User Info */}
-                <div className="p-4 border-b border-slate-800 bg-slate-950/40">
-                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Acesso Cliente</p>
-                    <p className="text-sm font-bold text-slate-200 mt-0.5 truncate">Olá, {userName}</p>
+                <div className={`p-4 border-b border-slate-800 bg-slate-950/40 flex ${sidebarCollapsed ? "justify-center animate-fade-in" : "flex-col"}`}>
+                    {sidebarCollapsed ? (
+                        <div className="w-8 h-8 rounded-xl bg-primary/20 border border-primary/20 flex items-center justify-center text-primary text-xs font-black uppercase tracking-wider" title={`Olá, ${userName}`}>
+                            {userName.substring(0, 2)}
+                        </div>
+                    ) : (
+                        <>
+                            <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Acesso Cliente</p>
+                            <p className="text-sm font-bold text-slate-200 mt-0.5 truncate">Olá, {userName}</p>
+                        </>
+                    )}
                 </div>
 
                 {/* Navigation menu */}
@@ -504,27 +515,49 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                             <button
                                 key={item.id}
                                 onClick={() => setActiveTab(item.id as any)}
-                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                                title={sidebarCollapsed ? item.label : undefined}
+                                className={`w-full flex items-center rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                                    sidebarCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
+                                } ${
                                     active
                                         ? "bg-primary text-slate-900 shadow-lg shadow-primary/20 font-black"
                                         : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
                                 }`}
                             >
                                 <Icon className="w-5 h-5 shrink-0" />
-                                <span>{item.label}</span>
+                                {!sidebarCollapsed && <span>{item.label}</span>}
                             </button>
                         );
                     })}
                 </nav>
 
-                {/* Logout area */}
-                <div className="p-3 border-t border-slate-800">
+                {/* Logout and Collapse area */}
+                <div className="p-3 border-t border-slate-800 space-y-1.5">
+                    <button
+                        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                        className={`w-full flex items-center rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:bg-slate-800 hover:text-white transition-all ${
+                            sidebarCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
+                        }`}
+                        title={sidebarCollapsed ? "Expandir Menu" : "Recolher Menu"}
+                    >
+                        {sidebarCollapsed ? (
+                            <ChevronRight className="w-5 h-5 shrink-0" />
+                        ) : (
+                            <>
+                                <ChevronLeft className="w-5 h-5 shrink-0" />
+                                <span>Recolher Menu</span>
+                            </>
+                        )}
+                    </button>
                     <button
                         onClick={() => logout()}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/10 transition-colors"
+                        className={`w-full flex items-center rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/10 transition-all ${
+                            sidebarCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
+                        }`}
+                        title={sidebarCollapsed ? "Sair" : undefined}
                     >
                         <LogOut className="w-5 h-5 shrink-0" />
-                        <span>Sair</span>
+                        {!sidebarCollapsed && <span>Sair</span>}
                     </button>
                 </div>
             </aside>
