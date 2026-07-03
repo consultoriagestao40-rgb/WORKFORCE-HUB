@@ -64,11 +64,18 @@ export async function POST(request: Request) {
         });
 
         if (coverageAttendance) {
+            let targetClockIn = clockInTime;
+            if (coverageAttendance.clockInTime) {
+                const existingTime = new Date(coverageAttendance.clockInTime);
+                if (existingTime < clockInTime) {
+                    targetClockIn = existingTime;
+                }
+            }
             const updated = await prisma.attendance.update({
                 where: { id: coverageAttendance.id },
                 data: {
                     status: "PRESENTE_PONTO",
-                    clockInTime: clockInTime
+                    clockInTime: targetClockIn
                 }
             });
             return NextResponse.json({ success: true, message: "Ponto de cobertura registrado com sucesso", data: updated });
@@ -83,6 +90,24 @@ export async function POST(request: Request) {
             }, { status: 400 });
         }
 
+        // Buscar presença existente para comparar horários
+        const existingAttendance = await prisma.attendance.findUnique({
+            where: {
+                postoId_date: {
+                    postoId: activeAssignment.postoId,
+                    date: dateStartOfDay
+                }
+            }
+        });
+
+        let targetClockIn = clockInTime;
+        if (existingAttendance && existingAttendance.clockInTime) {
+            const existingTime = new Date(existingAttendance.clockInTime);
+            if (existingTime < clockInTime) {
+                targetClockIn = existingTime;
+            }
+        }
+
         // Registrar presença do titular
         const attendance = await prisma.attendance.upsert({
             where: {
@@ -93,7 +118,7 @@ export async function POST(request: Request) {
             },
             update: {
                 status: "PRESENTE_PONTO",
-                clockInTime: clockInTime,
+                clockInTime: targetClockIn,
                 employeeId: employee.id
             },
             create: {
@@ -101,7 +126,7 @@ export async function POST(request: Request) {
                 employeeId: employee.id,
                 date: dateStartOfDay,
                 status: "PRESENTE_PONTO",
-                clockInTime: clockInTime
+                clockInTime: targetClockIn
             }
         });
 
