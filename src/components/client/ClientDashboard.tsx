@@ -307,54 +307,44 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
 
                 {/* Metrics Cards Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                    <Card className="border-none shadow-premium bg-slate-900 text-white">
-                        <CardHeader className="p-3 pb-0">
-                            <CardDescription className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total de Postos</CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-3 pt-1 flex items-baseline justify-between">
+                    <Card className="border-none shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                        <span className="text-xs font-bold uppercase tracking-wide text-slate-300">Total de Postos</span>
+                        <div className="flex items-baseline justify-between mt-1">
                             <span className="text-2xl font-black">{metrics.total}</span>
-                            <span className="text-[8px] text-slate-500 font-bold uppercase tracking-wider">Ativos</span>
-                        </CardContent>
+                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Ativos</span>
+                        </div>
                     </Card>
 
-                    <Card className="border-none shadow-premium bg-white">
-                        <CardHeader className="p-3 pb-0">
-                            <CardDescription className="text-[9px] font-black uppercase tracking-widest text-slate-400">Presentes</CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-3 pt-1 flex items-center justify-between">
+                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Presentes</span>
+                        <div className="flex items-center justify-between mt-1">
                             <span className="text-2xl font-black text-emerald-600">{metrics.presentCount}</span>
-                            <UserCheck className="w-4 h-4 text-emerald-600 bg-emerald-50 p-0.5 rounded" />
-                        </CardContent>
+                            <UserCheck className="w-5 h-5 text-emerald-600 bg-emerald-50 p-1 rounded" />
+                        </div>
                     </Card>
 
-                    <Card className="border-none shadow-premium bg-white">
-                        <CardHeader className="p-3 pb-0">
-                            <CardDescription className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-semibold">Aguardando/Atrasados</CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-3 pt-1 flex items-center justify-between">
+                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Aguardando/Atrasados</span>
+                        <div className="flex items-center justify-between mt-1">
                             <span className="text-2xl font-black text-amber-600">{metrics.lateCount}</span>
-                            <Clock className="w-4 h-4 text-amber-600 bg-amber-50 p-0.5 rounded" />
-                        </CardContent>
+                            <Clock className="w-5 h-5 text-amber-600 bg-amber-50 p-1 rounded" />
+                        </div>
                     </Card>
 
-                    <Card className="border-none shadow-premium bg-white">
-                        <CardHeader className="p-3 pb-0">
-                            <CardDescription className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-semibold">Cobertos</CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-3 pt-1 flex items-center justify-between">
+                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Cobertos</span>
+                        <div className="flex items-center justify-between mt-1">
                             <span className="text-2xl font-black text-blue-600">{metrics.coveredCount}</span>
-                            <RefreshCw className="w-4 h-4 text-blue-600 bg-blue-50 p-0.5 rounded" />
-                        </CardContent>
+                            <RefreshCw className="w-5 h-5 text-blue-600 bg-blue-50 p-1 rounded" />
+                        </div>
                     </Card>
 
-                    <Card className="border-none shadow-premium bg-white">
-                        <CardHeader className="p-3 pb-0">
-                            <CardDescription className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-semibold">Vagos (Sem Cobertura)</CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-3 pt-1 flex items-center justify-between">
+                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Vagos (Sem Cobertura)</span>
+                        <div className="flex items-center justify-between mt-1">
                             <span className="text-2xl font-black text-red-600">{metrics.vacantCount}</span>
-                            <UserX className="w-4 h-4 text-red-600 bg-red-50 p-0.5 rounded" />
-                        </CardContent>
+                            <UserX className="w-5 h-5 text-red-600 bg-red-50 p-1 rounded" />
+                        </div>
                     </Card>
                 </div>
                       {/* Table Section */}
