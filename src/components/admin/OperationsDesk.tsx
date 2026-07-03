@@ -424,7 +424,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
 
             {/* Metrics Dashboard Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-                <Card className="border-none shadow-premium bg-gradient-to-br from-indigo-900 to-slate-950 text-white p-3.5 flex flex-col justify-between h-[96px] select-none">
+                <Card className="border-none shadow-premium bg-gradient-to-br from-indigo-900 to-slate-950 text-white p-3.5 flex flex-col justify-between h-[110px] select-none">
                     <div>
                         <p className="text-[9px] font-black uppercase tracking-widest text-indigo-200/70">Total de Postos Ativos</p>
                         <p className="text-2xl font-black mt-0.5">{metrics.total}</p>
@@ -432,7 +432,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                     <p className="text-[8px] text-indigo-200/80 font-bold uppercase tracking-wider">Escala linear diária completa</p>
                 </Card>
 
-                <Card className="border-none shadow-premium bg-white p-3.5 flex flex-col justify-between h-[96px] select-none">
+                <Card className="border-none shadow-premium bg-white p-3.5 flex flex-col justify-between h-[110px] select-none">
                     <div className="flex items-start justify-between">
                         <div>
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Presença Confirmada</p>
@@ -445,7 +445,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                     </p>
                 </Card>
 
-                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[96px] select-none" onClick={() => handleOpenDetails("ATRASADOS")}>
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[110px] select-none" onClick={() => handleOpenDetails("ATRASADOS")}>
                     <div className="flex items-start justify-between">
                         <div>
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Postos Atrasados</p>
@@ -456,7 +456,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                     <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Turno iniciado sem ponto batido</p>
                 </Card>
 
-                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[96px] select-none" onClick={() => handleOpenDetails("COBERTURAS")}>
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[110px] select-none" onClick={() => handleOpenDetails("COBERTURAS")}>
                     <div className="flex items-start justify-between">
                         <div>
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Postos com Cobertura</p>
@@ -467,7 +467,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                     <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Coberto por Reserva ou Diarista</p>
                 </Card>
 
-                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[96px] select-none" onClick={() => handleOpenDetails("GLOSAS")}>
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[110px] select-none" onClick={() => handleOpenDetails("GLOSAS")}>
                     <div className="flex items-start justify-between">
                         <div>
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Faltas Sem Cobertura (Glosa)</p>
