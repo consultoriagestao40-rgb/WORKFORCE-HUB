@@ -480,7 +480,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <TableHead className="font-bold text-slate-800">Função / Cargo</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-center">Horário</TableHead>
                                             <TableHead className="font-bold text-slate-800">Titular do Posto</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-center">Valor Diário</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-center">Valor Mensal</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-center">Status do Posto</TableHead>
                                             <TableHead className="font-bold text-slate-800">Observações Operacionais</TableHead>
                                         </TableRow>
@@ -563,7 +563,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                         {item.employeeName}
                                                     </TableCell>
                                                     <TableCell className="text-center text-xs font-mono font-bold text-slate-705">
-                                                        {(item.billingValue / 30).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                                        {item.billingValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                                                     </TableCell>
                                                     <TableCell className="text-center">
                                                         {statusBadge}
