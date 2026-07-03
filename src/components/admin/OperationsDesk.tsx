@@ -1034,25 +1034,24 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart 
                                                     data={kpisData.employeeRanking} 
-                                                    margin={{ top: 5, right: 10, left: -20, bottom: 25 }}
+                                                    layout="vertical"
+                                                    margin={{ top: 5, right: 10, left: 30, bottom: 5 }}
                                                 >
-                                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                                                    <XAxis 
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                                                    <XAxis type="number" tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 9 }} />
+                                                    <YAxis 
                                                         dataKey="name" 
+                                                        type="category" 
                                                         tickLine={false} 
                                                         axisLine={false} 
-                                                        tick={{ fill: '#475569', fontSize: 9, fontWeight: 700 }}
-                                                        interval={0}
-                                                        angle={-30}
-                                                        textAnchor="end"
-                                                        height={55}
+                                                        tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }}
+                                                        width={90}
                                                     />
-                                                    <YAxis tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} />
                                                     <Tooltip 
                                                         contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                                                         itemStyle={{ fontSize: '11px', fontWeight: 600 }}
                                                     />
-                                                    <Bar dataKey="count" name="Faltas" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
+                                                    <Bar dataKey="count" name="Faltas" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={12} />
                                                 </BarChart>
                                             </ResponsiveContainer>
                                         ) : (
@@ -1077,25 +1076,24 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart 
                                                     data={kpisData.vacantByPosto} 
-                                                    margin={{ top: 5, right: 10, left: -20, bottom: 25 }}
+                                                    layout="vertical"
+                                                    margin={{ top: 5, right: 10, left: 30, bottom: 5 }}
                                                 >
-                                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                                                    <XAxis 
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                                                    <XAxis type="number" tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 9 }} />
+                                                    <YAxis 
                                                         dataKey="client" 
+                                                        type="category" 
                                                         tickLine={false} 
                                                         axisLine={false} 
-                                                        tick={{ fill: '#475569', fontSize: 9, fontWeight: 700 }}
-                                                        interval={0}
-                                                        angle={-30}
-                                                        textAnchor="end"
-                                                        height={55}
+                                                        tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }}
+                                                        width={90}
                                                     />
-                                                    <YAxis tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} />
                                                     <Tooltip 
                                                         contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                                                         itemStyle={{ fontSize: '11px', fontWeight: 600 }}
                                                     />
-                                                    <Bar dataKey="count" name="Dias Vagos" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={20} />
+                                                    <Bar dataKey="count" name="Dias Vagos" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={12} />
                                                 </BarChart>
                                             </ResponsiveContainer>
                                         ) : (
