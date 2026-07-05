@@ -112,6 +112,9 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [dailyAttendances, setDailyAttendances] = useState<any[]>([]);
     const [loadingDaily, setLoadingDaily] = useState<boolean>(false);
 
+    // Sidebar collapse state
+    const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+
     // Card Details Modal State
     const [detailsModalOpen, setDetailsModalOpen] = useState<boolean>(false);
     const [detailsModalType, setDetailsModalType] = useState<"contracts" | "employees" | "billing" | "vacancies">("contracts");
@@ -867,23 +870,33 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     return (
         <div className="flex h-screen bg-slate-100 overflow-hidden font-sans">
             {/* Left Sidebar - Idêntica à do Cliente, Imagem 2 */}
-            <aside className="hidden md:flex flex-col bg-slate-900 text-white shrink-0 border-r border-slate-800 transition-all duration-300 w-64">
+            <aside className={`hidden md:flex flex-col bg-slate-900 text-white shrink-0 border-r border-slate-800 transition-all duration-300 ${sidebarCollapsed ? "w-20" : "w-64"}`}>
                 <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800">
                     <div className="flex items-center gap-3 overflow-hidden">
                         <div className="bg-primary/20 p-2 rounded-xl border border-primary/20 shrink-0">
                             <Award className="w-6 h-6 text-primary" />
                         </div>
-                        <div className="flex flex-col">
-                            <span className="text-sm font-black tracking-wider leading-none">WORKFORCE HUB</span>
-                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Portal do Gestor</span>
-                        </div>
+                        {!sidebarCollapsed && (
+                            <div className="flex flex-col">
+                                <span className="text-sm font-black tracking-wider leading-none">WORKFORCE HUB</span>
+                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Portal do Gestor</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
                 {/* User Info - Idêntica ao portal do cliente */}
-                <div className="p-4 border-b border-slate-800 bg-slate-950/40 flex flex-col">
-                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Acesso Gestor</p>
-                    <p className="text-sm font-bold text-slate-200 mt-0.5 truncate" title={userName}>Olá, {userName}</p>
+                <div className={`p-4 border-b border-slate-800 bg-slate-950/40 flex ${sidebarCollapsed ? "justify-center animate-fade-in" : "flex-col"}`}>
+                    {sidebarCollapsed ? (
+                        <div className="w-8 h-8 rounded-xl bg-primary/20 border border-primary/20 flex items-center justify-center text-primary text-xs font-black uppercase tracking-wider" title={`Olá, ${userName}`}>
+                            {userName.substring(0, 2)}
+                        </div>
+                    ) : (
+                        <>
+                            <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Acesso Gestor</p>
+                            <p className="text-sm font-bold text-slate-200 mt-0.5 truncate" title={userName}>Olá, {userName}</p>
+                        </>
+                    )}
                 </div>
 
                 {/* Navigation menu - Idêntica ao portal do cliente */}
@@ -895,14 +908,17 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             <button
                                 key={item.id}
                                 onClick={() => setActiveTab(item.id as any)}
-                                className={`w-full flex items-center rounded-xl text-xs font-bold uppercase tracking-wider transition-all gap-3 px-3 py-2.5 ${
+                                title={sidebarCollapsed ? item.label : undefined}
+                                className={`w-full flex items-center rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                                    sidebarCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
+                                } ${
                                     active
                                         ? "bg-primary text-slate-900 shadow-lg shadow-primary/20 font-black"
                                         : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
                                 }`}
                             >
                                 <Icon className="w-5 h-5 shrink-0" />
-                                <span>{item.label}</span>
+                                {!sidebarCollapsed && <span>{item.label}</span>}
                             </button>
                         );
                     })}
@@ -910,19 +926,38 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
                 {/* Logout and Exit area */}
                 <div className="p-3 border-t border-slate-800 space-y-1.5">
+                    <div className="flex justify-center py-1">
+                        <button
+                            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                            className="p-2 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+                            title={sidebarCollapsed ? "Expandir Menu" : "Recolher Menu"}
+                        >
+                            {sidebarCollapsed ? (
+                                <ChevronRight className="w-5 h-5 shrink-0" />
+                            ) : (
+                                <ChevronLeft className="w-5 h-5 shrink-0" />
+                            )}
+                        </button>
+                    </div>
                     <button
                         onClick={() => setSelectedClientId("all")}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-350 hover:bg-slate-800 hover:text-white transition-colors"
+                        className={`w-full flex items-center rounded-xl text-xs font-bold uppercase tracking-wider text-slate-350 hover:bg-slate-800 hover:text-white transition-all ${
+                            sidebarCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
+                        }`}
+                        title={sidebarCollapsed ? "Voltar ao Consolidado" : undefined}
                     >
                         <ChevronLeft className="w-5 h-5 shrink-0" />
-                        <span>Voltar ao Consolidado</span>
+                        {!sidebarCollapsed && <span>Voltar ao Consolidado</span>}
                     </button>
                     <button
                         onClick={() => window.location.href = "/admin/requests"}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:bg-red-550/10 transition-colors"
+                        className={`w-full flex items-center rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:bg-red-550/10 transition-all ${
+                            sidebarCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
+                        }`}
+                        title={sidebarCollapsed ? "Voltar ao Admin" : undefined}
                     >
                         <LogOut className="w-5 h-5 shrink-0" />
-                        <span>Voltar ao Admin</span>
+                        {!sidebarCollapsed && <span>Voltar ao Admin</span>}
                     </button>
                 </div>
             </aside>
