@@ -488,67 +488,6 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
                 {/* Área de Conteúdo Executivo */}
                 <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
-                    
-                    {/* Card de Filtros da Home Consolidada */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
-                        <div className="space-y-1">
-                            <h3 className="text-md font-bold text-slate-850">Gestão Consolidada de Contratos</h3>
-                            <p className="text-xs text-slate-500 font-medium">Selecione um contrato na tabela ou no menu abaixo para gerenciar individualmente.</p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3">
-                            {/* Date Navigator */}
-                            <div className="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200/30">
-                                <Button variant="ghost" size="icon" onClick={handlePrevDay} className="h-8 w-8 hover:bg-white rounded-lg">
-                                    <ChevronLeft className="w-4 h-4 text-slate-600" />
-                                </Button>
-                                <div className="relative px-3 flex items-center gap-1.5">
-                                    <Calendar className="w-4 h-4 text-slate-400" />
-                                    <input 
-                                        type="date" 
-                                        value={date} 
-                                        onChange={(e) => setDate(e.target.value)}
-                                        className="bg-transparent text-xs font-bold text-slate-700 outline-none border-none select-none cursor-pointer"
-                                    />
-                                </div>
-                                <Button variant="ghost" size="icon" onClick={handleNextDay} className="h-8 w-8 hover:bg-white rounded-lg">
-                                    <ChevronRight className="w-4 h-4 text-slate-600" />
-                                </Button>
-                            </div>
-
-                            {/* Contract Selector */}
-                            <select
-                                value={selectedClientId}
-                                onChange={(e) => setSelectedClientId(e.target.value)}
-                                className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
-                            >
-                                <option value="all">Todos os Contratos</option>
-                                {initialClients.map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                            </select>
-
-                            {/* Sort Selector */}
-                            <select
-                                value={sortBy}
-                                onChange={(e: any) => setSortBy(e.target.value)}
-                                className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
-                            >
-                                <option value="abc">Classificar: Curva ABC</option>
-                                <option value="billing">Classificar: Faturamento</option>
-                                <option value="name">Classificar: Nome</option>
-                            </select>
-
-                            {/* Action Buttons */}
-                            <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-1.5 h-10 shadow-premium border-slate-200">
-                                <Download className="w-4 h-4" /> Exportar Planilha
-                            </Button>
-
-                            <Button variant="ghost" size="icon" onClick={loadPerformanceData} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
-                                <RefreshCw className="w-4 h-4 text-slate-550" />
-                            </Button>
-                        </div>
-                    </div>
-
                     {/* Metrics Cards Grid - Corrigindo a altura e adicionando padding elegante */}
                     {consolidatedData && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -669,102 +608,6 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             </TableBody>
                         </Table>
                     </Card>
-
-                    {/* Nota de conformidade e visitas */}
-                    <div className="bg-blue-50/50 border border-blue-200/50 rounded-2xl p-4 flex gap-3 text-xs text-blue-700/80">
-                        <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-                        <div>
-                            <p className="font-bold text-blue-800">NOTA DE CONFORMIDADE E TRANSPARÊNCIA</p>
-                            <p className="mt-1 font-medium leading-relaxed">
-                                Este painel exibe dados de controle de presença e faturamento consolidados em tempo real. Apontamentos manuais e glosas financeiras são calculados com base nas regras contratuais ativas de cada unidade operacional.
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Régua de Visitas */}
-                        <Card className="border border-slate-200/50 bg-white rounded-2xl shadow-premium">
-                            <CardHeader>
-                                <CardTitle className="text-sm font-black uppercase text-slate-800">Régua de Visitas por Classe</CardTitle>
-                                <CardDescription>Resumo de conformidade por curva de faturamento.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-3">
-                                {["A", "B", "C"].map(classLetter => {
-                                    const clsClients = (consolidatedData?.clients || []).filter((c: any) => c.class === classLetter);
-                                    const countOk = clsClients.filter((c: any) => c.visitCompliance?.supervisor?.status === "OK").length;
-                                    return (
-                                        <div key={classLetter} className="flex justify-between items-center text-xs p-3 rounded-xl border border-slate-100 bg-slate-50/50">
-                                            <span className="font-bold text-slate-700">Classe {classLetter}</span>
-                                            <span className="font-black text-slate-900">{countOk} / {clsClients.length} em dia</span>
-                                        </div>
-                                    );
-                                })}
-                            </CardContent>
-                        </Card>
-
-                        {/* Semáforo */}
-                        <Card className="lg:col-span-2 border border-slate-200/50 bg-white rounded-2xl shadow-premium">
-                            <CardHeader className="flex flex-row items-center justify-between">
-                                <div>
-                                    <CardTitle className="text-sm font-black uppercase text-slate-800">Semáforo de Relacionamento</CardTitle>
-                                    <CardDescription>Supervisor (15 dias), Gerente (30 dias) e Diretor (60 dias).</CardDescription>
-                                </div>
-                                <Button 
-                                    size="sm" 
-                                    onClick={() => {
-                                        if (initialClients.length > 0) {
-                                            setVisitClientId(initialClients[0].id);
-                                            setLogVisitOpen(true);
-                                        }
-                                    }}
-                                    className="bg-slate-900 hover:bg-slate-850 text-white font-bold text-xs rounded-xl"
-                                >
-                                    Registrar Visita
-                                </Button>
-                            </CardHeader>
-                            <CardContent className="p-0 border-t border-slate-100">
-                                <Table>
-                                    <TableHeader className="bg-slate-50">
-                                        <TableRow>
-                                            <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Contrato</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Curva</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Supervisor</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Gerente</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Diretor</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {sortedClients.slice(0, 8).map((c: any) => {
-                                            const renderBall = (status: "OK" | "WARNING" | "CRITICAL", dateStr: string | null) => {
-                                                let color = "bg-emerald-500 border-emerald-600 shadow-emerald-100";
-                                                if (status === "WARNING") color = "bg-amber-400 border-amber-500 shadow-amber-100";
-                                                else if (status === "CRITICAL") color = "bg-red-500 border-red-650 shadow-red-100";
-                                                return (
-                                                    <div className="flex flex-col items-center justify-center">
-                                                        <span className={`w-3.5 h-3.5 rounded-full border shadow-sm ${color}`} />
-                                                        <span className="text-[9px] font-semibold text-slate-400 mt-0.5">{dateStr ? new Date(dateStr).toLocaleDateString('pt-BR') : 'N/D'}</span>
-                                                    </div>
-                                                );
-                                            };
-                                            return (
-                                                <TableRow key={c.id} className="hover:bg-slate-50/50">
-                                                    <TableCell className="text-xs font-bold text-slate-700 pl-6 py-2">
-                                                        {c.name}
-                                                    </TableCell>
-                                                    <TableCell className="text-center py-2">
-                                                        <span className="text-[10px] font-semibold">Classe {c.class}</span>
-                                                    </TableCell>
-                                                    <TableCell className="py-2">{renderBall(c.visitCompliance.supervisor.status, c.visitCompliance.supervisor.lastDate)}</TableCell>
-                                                    <TableCell className="py-2">{renderBall(c.visitCompliance.gerente.status, c.visitCompliance.gerente.lastDate)}</TableCell>
-                                                    <TableCell className="py-2">{renderBall(c.visitCompliance.diretor.status, c.visitCompliance.diretor.lastDate)}</TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
-                    </div>
                 </main>
 
                 {/* Modals e Dialogs para a tela consolidada */}
@@ -1319,17 +1162,6 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             </Table>
                                         </Card>
 
-                                        {/* Nota de conformidade e transparência - Idêntica ao portal do cliente */}
-                                        <div className="bg-blue-50/50 border border-blue-200/50 rounded-2xl p-4 flex gap-3 text-xs text-blue-700/80">
-                                            <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-                                            <div>
-                                                <p className="font-bold text-blue-800">NOTA DE CONFORMIDADE E TRANSPARÊNCIA</p>
-                                                <p className="mt-1 font-medium leading-relaxed">
-                                                    Este painel exibe dados de controle de presença e faturamento consolidados em tempo real. Apontamentos manuais e glosas financeiras são calculados com base nas regras contratuais ativas de cada unidade operacional.
-                                                </p>
-                                            </div>
-                                        </div>
-
                                         {/* Visitas & Semáforos no rodapé */}
                                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                             <Card className="lg:col-span-1 border border-slate-200/50 bg-white rounded-2xl shadow-premium">
@@ -1479,16 +1311,6 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                 );
                                             })()}
                                         </Card>
-
-                                        <div className="bg-blue-50/50 border border-blue-200/50 rounded-2xl p-4 flex gap-3 text-xs text-blue-700/80">
-                                            <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-                                            <div>
-                                                <p className="font-bold text-blue-800">NOTA DE CONFORMIDADE E TRANSPARÊNCIA</p>
-                                                <p className="mt-1 font-medium leading-relaxed">
-                                                    Este painel exibe dados de controle de presença e faturamento consolidados em tempo real. Apontamentos manuais e glosas financeiras são calculados com base nas regras contratuais ativas de cada unidade operacional.
-                                                </p>
-                                            </div>
-                                        </div>
                                     </div>
                                 )
                             )}
