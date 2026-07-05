@@ -1444,3 +1444,254 @@ export async function getAdminClientKpis(clientId: string, year: number) {
     }
 }
 
+export async function updatePostoBilling(postoId: string, billingValue: number) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR')) {
+            throw new Error("Unauthorized");
+        }
+
+        const posto = await prisma.posto.update({
+            where: { id: postoId },
+            data: { billingValue }
+        });
+
+        revalidatePath("/admin/performance");
+        return { success: true, posto };
+    } catch (e) {
+        console.error("Erro ao atualizar faturamento do posto:", e);
+        return { success: false, error: "Erro de servidor ao atualizar faturamento." };
+    }
+}
+
+export async function upsertSlaConfigItem(data: {
+    id?: string;
+    clientId: string;
+    name: string;
+    metricType: string;
+    weight: number;
+    targetValue: number;
+}) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR')) {
+            throw new Error("Unauthorized");
+        }
+
+        let item;
+        if (data.id) {
+            item = await prisma.slaConfigItem.update({
+                where: { id: data.id },
+                data: {
+                    name: data.name,
+                    metricType: data.metricType,
+                    weight: data.weight,
+                    targetValue: data.targetValue
+                }
+            });
+        } else {
+            item = await prisma.slaConfigItem.create({
+                data: {
+                    clientId: data.clientId,
+                    name: data.name,
+                    metricType: data.metricType,
+                    weight: data.weight,
+                    targetValue: data.targetValue
+                }
+            });
+        }
+
+        revalidatePath("/admin/performance");
+        return { success: true, item };
+    } catch (e) {
+        console.error("Erro ao salvar configuração do SLA:", e);
+        return { success: false, error: "Erro de servidor ao salvar configuração de SLA." };
+    }
+}
+
+export async function deleteSlaConfigItem(id: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR')) {
+            throw new Error("Unauthorized");
+        }
+
+        await prisma.slaConfigItem.delete({
+            where: { id }
+        });
+
+        revalidatePath("/admin/performance");
+        return { success: true };
+    } catch (e) {
+        console.error("Erro ao deletar configuração de SLA:", e);
+        return { success: false, error: "Erro de servidor ao deletar configuração." };
+    }
+}
+
+export async function updateSlaMonthlyValue(configItemId: string, month: number, year: number, value: number) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR')) {
+            throw new Error("Unauthorized");
+        }
+
+        const mValue = await prisma.slaMonthlyValue.upsert({
+            where: {
+                slaConfigItemId_month_year: {
+                    slaConfigItemId: configItemId,
+                    month,
+                    year
+                }
+            },
+            update: { value },
+            create: {
+                slaConfigItemId: configItemId,
+                month,
+                year,
+                value
+            }
+        });
+
+        revalidatePath("/admin/performance");
+        return { success: true, mValue };
+    } catch (e) {
+        console.error("Erro ao salvar valor mensal de SLA:", e);
+        return { success: false, error: "Erro de servidor ao salvar valor mensal de SLA." };
+    }
+}
+
+export async function upsertNpsQuestion(data: {
+    id?: string;
+    clientId: string;
+    text: string;
+    weight: number;
+}) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR')) {
+            throw new Error("Unauthorized");
+        }
+
+        let question;
+        if (data.id) {
+            question = await prisma.npsQuestion.update({
+                where: { id: data.id },
+                data: {
+                    text: data.text,
+                    weight: data.weight
+                }
+            });
+        } else {
+            question = await prisma.npsQuestion.create({
+                data: {
+                    clientId: data.clientId,
+                    text: data.text,
+                    weight: data.weight
+                }
+            });
+        }
+
+        revalidatePath("/admin/performance");
+        return { success: true, question };
+    } catch (e) {
+        console.error("Erro ao salvar pergunta NPS:", e);
+        return { success: false, error: "Erro de servidor ao salvar pergunta NPS." };
+    }
+}
+
+export async function deleteNpsQuestion(id: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR')) {
+            throw new Error("Unauthorized");
+        }
+
+        await prisma.npsQuestion.delete({
+            where: { id }
+        });
+
+        revalidatePath("/admin/performance");
+        return { success: true };
+    } catch (e) {
+        console.error("Erro ao deletar pergunta NPS:", e);
+        return { success: false, error: "Erro ao excluir pergunta NPS." };
+    }
+}
+
+export async function getClientDetailedData(clientId: string, year: number, month: number) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR')) {
+            throw new Error("Unauthorized");
+        }
+
+        const startOfMonth = new Date(year, month, 1);
+        const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59);
+
+        // Fetch client postos for billing management
+        const postos = await prisma.posto.findMany({
+            where: { clientId },
+            include: { role: true },
+            orderBy: { role: { name: 'asc' } }
+        });
+
+        // Fetch client specific SLA items
+        const slaConfigItems = await prisma.slaConfigItem.findMany({
+            where: { clientId },
+            include: {
+                monthlyValues: {
+                    where: { year, month }
+                }
+            },
+            orderBy: { name: 'asc' }
+        });
+
+        // Fetch client specific NPS questions
+        const npsQuestions = await prisma.npsQuestion.findMany({
+            where: { clientId },
+            orderBy: { createdAt: 'asc' }
+        });
+
+        // Fetch detailed NPS responses for audit
+        const npsResponses = await prisma.npsResponse.findMany({
+            where: {
+                clientId,
+                createdAt: { gte: startOfMonth, lte: endOfMonth }
+            },
+            include: {
+                answers: {
+                    include: { question: true }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        // Fetch detailed attendance for operation report
+        const attendances = await prisma.attendance.findMany({
+            where: {
+                posto: { clientId },
+                date: { gte: startOfMonth, lte: endOfMonth }
+            },
+            include: {
+                posto: { include: { role: true } },
+                employee: true,
+                coveredBy: true
+            },
+            orderBy: { date: 'asc' }
+        });
+
+        return {
+            success: true,
+            postos,
+            slaConfigItems,
+            npsQuestions,
+            npsResponses,
+            attendances
+        };
+
+    } catch (e) {
+        console.error("Erro ao carregar dados detalhados do cliente:", e);
+        return { success: false, error: "Erro de servidor ao buscar detalhes operacionais." };
+    }
+}
+
