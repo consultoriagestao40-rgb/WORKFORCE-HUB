@@ -392,8 +392,8 @@ export async function getClientKpis(year: number) {
         };
     }
 
-    const startDate = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
-    const endDate = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
+    const startDate = new Date(year, 0, 1, 0, 0, 0);
+    const endDate = new Date(year, 11, 31, 23, 59, 59);
 
     const [attendances, requests, npsResponses, npsQuestions, slaConfigs, assignments, totalPostosCount] = await Promise.all([
         prisma.attendance.findMany({
@@ -467,7 +467,7 @@ export async function getClientKpis(year: number) {
     const monthlyData = monthNames.map((name, index) => {
         const monthAtts = attendances.filter(a => {
             const d = new Date(a.date);
-            return d.getUTCMonth() === index;
+            return d.getMonth() === index;
         });
         const activeShifts = monthAtts.filter(a => a.status !== "FOLGA");
         const totalShifts = activeShifts.length;
@@ -477,13 +477,13 @@ export async function getClientKpis(year: number) {
         const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : 100;
         const absenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : 0;
 
-        const monthRequests = requests.filter(r => new Date(r.createdAt).getUTCMonth() === index);
+        const monthRequests = requests.filter(r => new Date(r.createdAt).getMonth() === index);
         const resolvedRequests = monthRequests.filter(r => r.status === "CONCLUIDO" || r.status === "REJEITADO");
         
         const slaOnTime = resolvedRequests.filter(r => r.updatedAt <= r.dueDate).length;
         const slaCompliance = resolvedRequests.length > 0 ? (slaOnTime / resolvedRequests.length) * 100 : 100;
 
-        const monthNps = mappedNpsResponses.filter(n => new Date(n.createdAt).getUTCMonth() === index);
+        const monthNps = mappedNpsResponses.filter(n => new Date(n.createdAt).getMonth() === index);
         const promoters = monthNps.filter(n => n.resolvedScore >= 9).length;
         const detractors = monthNps.filter(n => n.resolvedScore <= 6).length;
         const npsScore = monthNps.length > 0 ? ((promoters - detractors) / monthNps.length) * 100 : 100;
@@ -1419,8 +1419,8 @@ export async function getAdminClientKpis(clientId: string, year: number) {
         }
 
         const clientIds = [clientId];
-        const startDate = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
-        const endDate = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
+        const startDate = new Date(year, 0, 1, 0, 0, 0);
+        const endDate = new Date(year, 11, 31, 23, 59, 59);
 
         const [attendances, requests, npsResponses, npsQuestions, slaConfigs, assignments, totalPostosCount] = await Promise.all([
             prisma.attendance.findMany({
@@ -1512,7 +1512,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
         const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
         const monthlyData = monthNames.map((name: string, index: number) => {
-            const monthAtts = attendances.filter((a: any) => new Date(a.date).getUTCMonth() === index && a.status !== "FOLGA");
+            const monthAtts = attendances.filter((a: any) => new Date(a.date).getMonth() === index && a.status !== "FOLGA");
             const totalShifts = monthAtts.length;
             const vacantShifts = monthAtts.filter((a: any) => a.status === "FALTA" && !a.coveredById && !a.coverageType).length;
             const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : 100;
@@ -1520,12 +1520,12 @@ export async function getAdminClientKpis(clientId: string, year: number) {
             const totalAbsences = monthAtts.filter((a: any) => a.status === "FALTA").length;
             const absenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : 0;
 
-            const monthRequests = clientRequests.filter((r: any) => new Date(r.createdAt).getUTCMonth() === index);
+            const monthRequests = clientRequests.filter((r: any) => new Date(r.createdAt).getMonth() === index);
             const resolved = monthRequests.filter((r: any) => r.status === "CONCLUIDO" || r.status === "REJEITADO");
             const totalSlaOnTime = resolved.filter((r: any) => r.updatedAt && r.dueDate && r.updatedAt <= r.dueDate).length;
             const slaCompliance = resolved.length > 0 ? (totalSlaOnTime / resolved.length) * 100 : 100;
 
-            const monthNps = mappedNpsResponses.filter((n: any) => new Date(n.createdAt).getUTCMonth() === index);
+            const monthNps = mappedNpsResponses.filter((n: any) => new Date(n.createdAt).getMonth() === index);
             const promoters = monthNps.filter((n: any) => n.resolvedScore >= 9).length;
             const detractors = monthNps.filter((n: any) => n.resolvedScore <= 6).length;
             const npsScore = monthNps.length > 0 ? ((promoters - detractors) / monthNps.length) * 100 : 100;
