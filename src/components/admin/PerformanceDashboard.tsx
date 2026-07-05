@@ -1658,7 +1658,12 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         </span>
                                     </div>
                                     <div className="space-y-1">
-                                        <span className="text-[10px] font-black uppercase text-slate-400 block font-bold">Prazo SLA</span>
+                                        <span className="text-[10px] font-black uppercase text-slate-400 block font-bold">
+                                            {selectedRequestForAction.status === "PENDENTE" && (selectedRequestForAction.comments || []).filter((c: any) => c.user?.role !== "CLIENTE").length === 0 
+                                                ? "Prazo 1ª Resposta (24h úteis)" 
+                                                : "Previsão de Solução"
+                                            }
+                                        </span>
                                         <input
                                             type="date"
                                             value={selectedRequestForAction.dueDate ? selectedRequestForAction.dueDate.split("T")[0] : ""}
@@ -3858,7 +3863,12 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     </span>
                                 </div>
                                 <div className="space-y-1">
-                                    <span className="text-[10px] font-black uppercase text-slate-400 block font-bold">Prazo SLA</span>
+                                    <span className="text-[10px] font-black uppercase text-slate-400 block font-bold">
+                                        {selectedRequestForAction.status === "PENDENTE" && (selectedRequestForAction.comments || []).filter((c: any) => c.user?.role !== "CLIENTE").length === 0 
+                                            ? "Prazo 1ª Resposta (24h úteis)" 
+                                            : "Previsão de Solução"
+                                        }
+                                    </span>
                                     <input
                                         type="date"
                                         value={selectedRequestForAction.dueDate ? selectedRequestForAction.dueDate.split("T")[0] : ""}

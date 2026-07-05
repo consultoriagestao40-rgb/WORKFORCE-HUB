@@ -201,17 +201,42 @@ export async function getClientRequests() {
 }
 
 
+function addBusinessDays(date: Date, days: number): Date {
+    const result = new Date(date.getTime());
+    let added = 0;
+    // Feriados nacionais fixos (MM-DD)
+    const fixedHolidays = [
+        "01-01", // Ano Novo
+        "04-21", // Tiradentes
+        "05-01", // Dia do Trabalho
+        "09-07", // Independência
+        "10-12", // Padroeira do Brasil
+        "11-02", // Finados
+        "11-15", // Proclamação da República
+        "12-25"  // Natal
+    ];
+
+    while (added < days) {
+        result.setDate(result.getDate() + 1);
+        const dayOfWeek = result.getDay(); // 0 = Domingo, 6 = Sábado
+        const monthDayStr = `${String(result.getMonth() + 1).padStart(2, '0')}-${String(result.getDate()).padStart(2, '0')}`;
+        
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        const isHoliday = fixedHolidays.includes(monthDayStr);
+
+        if (!isWeekend && !isHoliday) {
+            added++;
+        }
+    }
+    return result;
+}
+
 export async function createClientRequest(data: { type: any, description: string, employeeId?: string, clientId?: string }) {
     const user = await getCurrentUser();
     if (!user || user.role !== 'CLIENTE') throw new Error("Unauthorized");
 
-    // Calcular SLA com base nas configurações da PENDENTE se existir
-    const slaConfig = await prisma.requestStageConfiguration.findUnique({
-        where: { status: 'PENDENTE' }
-    });
-
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + (slaConfig?.slaDays || 3));
+    // Prazo para primeira resposta é de 24h úteis (1 dia útil)
+    const dueDate = addBusinessDays(new Date(), 1);
 
     const request = await prisma.request.create({
         data: {

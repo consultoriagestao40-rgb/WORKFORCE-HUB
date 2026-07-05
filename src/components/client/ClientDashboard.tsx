@@ -1187,6 +1187,8 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                         );
                                                     }
 
+                                                    const hasFirstResponse = req.status !== "PENDENTE" || (req.comments || []).some((c: any) => c.user?.role !== "CLIENTE");
+
                                                     return (
                                                         <TableRow 
                                                             key={req.id} 
@@ -1209,8 +1211,11 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                 <Badge className={`${statusColor} font-black hover:opacity-100`}>{statusLabel}</Badge>
                                                             </TableCell>
                                                             <TableCell className="text-center">
-                                                                <div className="flex flex-col items-center gap-1">
-                                                                    <span className="text-[11px] font-bold text-slate-600">{format(dueDate, "dd/MM/yyyy")}</span>
+                                                                <div className="flex flex-col items-center gap-0.5">
+                                                                    <span className="text-[11px] font-bold text-slate-700">{format(dueDate, "dd/MM/yyyy")}</span>
+                                                                    <span className="text-[8px] font-black uppercase text-slate-400">
+                                                                        {hasFirstResponse ? "Solução" : "1ª Resposta"}
+                                                                    </span>
                                                                     {slaBadge}
                                                                 </div>
                                                             </TableCell>
@@ -1416,7 +1421,12 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                     </span>
                                                 </div>
                                                 <div>
-                                                    <span className="text-[9px] font-black uppercase text-slate-400 block">Prazo SLA</span>
+                                                    <span className="text-[9px] font-black uppercase text-slate-400 block">
+                                                        {selectedRequest.status !== "PENDENTE" || (selectedRequest.comments || []).some((c: any) => c.user?.role !== "CLIENTE") 
+                                                            ? "Previsão de Solução" 
+                                                            : "Prazo para 1ª Resposta"
+                                                        }
+                                                    </span>
                                                     <span className="font-extrabold text-slate-700 block mt-0.5">{format(new Date(selectedRequest.dueDate), "dd/MM/yyyy")}</span>
                                                 </div>
                                             </div>
