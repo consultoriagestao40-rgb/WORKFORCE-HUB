@@ -142,6 +142,9 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [deletingRequest, setDeletingRequest] = useState<boolean>(false);
 
+    // Sub-abas de NPS
+    const [npsSubTab, setNpsSubTab] = useState<"results" | "config">("results");
+
     // Comentários e Interatividade do Gestor nos chamados
     const [newCommentContent, setNewCommentContent] = useState<string>("");
     const [submittingComment, setSubmittingComment] = useState<boolean>(false);
@@ -2956,82 +2959,188 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             ) : (
                                 detailedData && (
                                     <div className="space-y-6">
-                                        {/* NPS Question Config */}
-                                        <Card className="border border-slate-200/50 shadow-premium bg-white rounded-2xl overflow-hidden">
-                                            <CardHeader className="flex flex-row items-center justify-between">
-                                                <div>
-                                                    <CardTitle className="text-sm font-black uppercase text-slate-850">Perguntas Ativas do NPS</CardTitle>
-                                                    <CardDescription>Gerencie o questionário respondido por este cliente.</CardDescription>
-                                                </div>
-                                                <Button 
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        setEditingNpsQ(null);
-                                                        setNpsQText("");
-                                                        setNpsQWeight(1);
-                                                        setNpsDialogOpen(true);
-                                                    }}
-                                                    className="gap-1 bg-slate-900 text-white font-bold text-xs rounded-xl"
-                                                >
-                                                    <Plus className="w-3.5 h-3.5" /> Adicionar Pergunta
-                                                </Button>
-                                            </CardHeader>
-                                            <CardContent className="p-0 border-t border-slate-100">
-                                                <Table>
-                                                    <TableHeader className="bg-slate-50">
-                                                        <TableRow>
-                                                            <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Quesito</TableHead>
-                                                            <TableHead className="font-bold text-slate-800 text-xs text-center w-24 py-2.5">Peso</TableHead>
-                                                            <TableHead className="font-bold text-slate-800 text-xs text-center w-28 py-2.5">Ações</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {detailedData.npsQuestions.map((q: any) => (
-                                                            <TableRow key={q.id} className="hover:bg-slate-50/50">
-                                                                <TableCell className="text-xs font-bold text-slate-700 pl-6 py-3">{q.text}</TableCell>
-                                                                <TableCell className="text-center text-xs font-black py-3">{q.weight}</TableCell>
-                                                                <TableCell className="text-center py-3">
-                                                                    <div className="flex justify-center gap-1">
-                                                                        <Button size="sm" variant="ghost" onClick={() => { setEditingNpsQ(q); setNpsQText(q.text); setNpsQWeight(q.weight); setNpsDialogOpen(true); }} className="h-7 w-7 p-0 rounded hover:bg-slate-100">✏️</Button>
-                                                                        <Button size="sm" variant="ghost" onClick={() => handleDeleteNpsQClick(q.id)} className="h-7 w-7 p-0 rounded hover:bg-red-50">🗑️</Button>
-                                                                    </div>
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        ))}
-                                                    </TableBody>
-                                                </Table>
-                                            </CardContent>
-                                        </Card>
+                                        {/* Sub-abas de NPS */}
+                                        <div className="flex border-b border-slate-200 bg-white p-1 rounded-xl shadow-premium border border-slate-200/30">
+                                            <button
+                                                onClick={() => setNpsSubTab("results")}
+                                                className={`pb-2 pt-2 px-4 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer rounded-lg ${
+                                                    npsSubTab === "results" 
+                                                        ? "bg-slate-900 text-white shadow-sm font-extrabold" 
+                                                        : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                                                }`}
+                                            >
+                                                📊 Resultados & Notas
+                                            </button>
+                                            <button
+                                                onClick={() => setNpsSubTab("config")}
+                                                className={`pb-2 pt-2 px-4 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer rounded-lg ${
+                                                    npsSubTab === "config" 
+                                                        ? "bg-slate-900 text-white shadow-sm font-extrabold" 
+                                                        : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                                                }`}
+                                            >
+                                                ⚙️ Configuração do NPS
+                                            </button>
+                                        </div>
 
-                                        {/* NPS Response History */}
-                                        <Card className="border border-slate-200/50 shadow-premium bg-white rounded-2xl">
-                                            <CardHeader>
-                                                <CardTitle className="text-sm font-black uppercase text-slate-850">Respostas e Feedbacks do Cliente</CardTitle>
-                                            </CardHeader>
-                                            <CardContent className="space-y-4">
-                                                {detailedData.npsResponses.length === 0 ? (
-                                                    <div className="text-center py-6 text-slate-400 italic text-xs">Nenhum feedback registrado este mês.</div>
-                                                ) : (
-                                                    detailedData.npsResponses.map((r: any) => {
-                                                        let sumS = 0; let sumW = 0;
-                                                        r.answers.forEach((an: any) => {
-                                                            const w = an.question?.weight || 1.0;
-                                                            sumS += an.score * w; sumW += w;
+                                        {npsSubTab === "results" ? (
+                                            <div className="space-y-6">
+                                                {/* Tabela de Notas Evolutivas nos 12 meses */}
+                                                {(() => {
+                                                    const npsResponses = clientKpiData?.npsResponses || [];
+                                                    const questions = detailedData?.npsQuestions || [];
+
+                                                    const monthlyScoresByQuestion = questions.map((q: any) => {
+                                                        const scoresByMonth = Array.from({ length: 12 }, (_, monthIdx) => {
+                                                            const monthResponses = npsResponses.filter((r: any) => {
+                                                                const date = new Date(r.createdAt);
+                                                                return date.getMonth() === monthIdx;
+                                                            });
+
+                                                            const scores: number[] = [];
+                                                            monthResponses.forEach((r: any) => {
+                                                                const matchAnswer = r.answers?.find((a: any) => a.questionId === q.id || a.question?.text === q.text);
+                                                                if (matchAnswer && matchAnswer.score !== undefined) {
+                                                                    scores.push(matchAnswer.score);
+                                                                }
+                                                            });
+
+                                                            if (scores.length === 0) return null;
+                                                            return scores.reduce((sum, val) => sum + val, 0) / scores.length;
                                                         });
-                                                        const finalNpsVal = sumW > 0 ? sumS / sumW : 10;
-                                                        return (
-                                                            <div key={r.id} className="p-3 rounded-xl border border-slate-200 space-y-2">
-                                                                <div className="flex justify-between items-center text-xs">
-                                                                    <span className="font-semibold text-slate-500">Enviado em {new Date(r.createdAt).toLocaleDateString('pt-BR')}</span>
-                                                                    <span className="font-black text-blue-600">Nota: {finalNpsVal.toFixed(1)}/10</span>
-                                                                </div>
-                                                                {r.feedback && <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded">"{r.feedback}"</p>}
-                                                            </div>
-                                                        );
-                                                    })
-                                                )}
-                                            </CardContent>
-                                        </Card>
+
+                                                        return {
+                                                            questionId: q.id,
+                                                            text: q.text,
+                                                            scoresByMonth
+                                                        };
+                                                    });
+
+                                                    return (
+                                                        <Card className="border border-slate-200/50 shadow-premium bg-white rounded-2xl overflow-hidden">
+                                                            <CardHeader>
+                                                                <CardTitle className="text-sm font-black uppercase text-slate-850">Notas do NPS (Evolução 12 Meses)</CardTitle>
+                                                                <CardDescription>Notas médias por quesito avaliado, mês a mês.</CardDescription>
+                                                            </CardHeader>
+                                                            <CardContent className="p-0 border-t border-slate-100 overflow-x-auto">
+                                                                <Table className="min-w-[900px]">
+                                                                    <TableHeader className="bg-slate-50">
+                                                                        <TableRow>
+                                                                            <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Quesito</TableHead>
+                                                                            {monthShortNames.map((m, idx) => (
+                                                                                <TableHead key={idx} className="font-bold text-slate-800 text-xs text-center w-14 py-2.5">{m}</TableHead>
+                                                                            ))}
+                                                                        </TableRow>
+                                                                    </TableHeader>
+                                                                    <TableBody>
+                                                                        {monthlyScoresByQuestion.map((row: any) => (
+                                                                            <TableRow key={row.questionId} className="hover:bg-slate-50/50">
+                                                                                <TableCell className="text-xs font-bold text-slate-700 pl-6 py-3">{row.text}</TableCell>
+                                                                                {row.scoresByMonth.map((score: number | null, mIdx: number) => (
+                                                                                    <TableCell key={mIdx} className="text-center text-xs font-black py-3">
+                                                                                        {score !== null ? (
+                                                                                            <span className={score >= 8.5 ? "text-emerald-600 font-extrabold" : score >= 7.0 ? "text-amber-600 font-extrabold" : "text-red-500 font-extrabold"}>
+                                                                                                {score.toFixed(1)}
+                                                                                            </span>
+                                                                                        ) : (
+                                                                                            <span className="text-slate-300">-</span>
+                                                                                        )}
+                                                                                    </TableCell>
+                                                                                ))}
+                                                                            </TableRow>
+                                                                        ))}
+                                                                        {monthlyScoresByQuestion.length === 0 && (
+                                                                            <TableRow>
+                                                                                <TableCell colSpan={13} className="text-center py-6 text-slate-400 italic text-xs">
+                                                                                    Nenhum quesito cadastrado.
+                                                                                    </TableCell>
+                                                                            </TableRow>
+                                                                        )}
+                                                                    </TableBody>
+                                                                </Table>
+                                                            </CardContent>
+                                                        </Card>
+                                                    );
+                                                })()}
+
+                                                {/* NPS Response History */}
+                                                <Card className="border border-slate-200/50 shadow-premium bg-white rounded-2xl">
+                                                    <CardHeader>
+                                                        <CardTitle className="text-sm font-black uppercase text-slate-850">Respostas e Feedbacks do Cliente</CardTitle>
+                                                    </CardHeader>
+                                                    <CardContent className="space-y-4">
+                                                        {detailedData.npsResponses.length === 0 ? (
+                                                            <div className="text-center py-6 text-slate-400 italic text-xs">Nenhum feedback registrado este mês.</div>
+                                                        ) : (
+                                                            detailedData.npsResponses.map((r: any) => {
+                                                                let sumS = 0; let sumW = 0;
+                                                                r.answers.forEach((an: any) => {
+                                                                    const w = an.question?.weight || 1.0;
+                                                                    sumS += an.score * w; sumW += w;
+                                                                });
+                                                                const finalNpsVal = sumW > 0 ? sumS / sumW : 10;
+                                                                return (
+                                                                    <div key={r.id} className="p-3 rounded-xl border border-slate-200 space-y-2">
+                                                                        <div className="flex justify-between items-center text-xs">
+                                                                            <span className="font-semibold text-slate-500">Enviado em {new Date(r.createdAt).toLocaleDateString('pt-BR')}</span>
+                                                                            <span className="font-black text-blue-600">Nota: {finalNpsVal.toFixed(1)}/10</span>
+                                                                        </div>
+                                                                        {r.feedback && <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded">"{r.feedback}"</p>}
+                                                                    </div>
+                                                                );
+                                                            })
+                                                        )}
+                                                    </CardContent>
+                                                </Card>
+                                            </div>
+                                        ) : (
+                                            /* NPS Question Config */
+                                            <Card className="border border-slate-200/50 shadow-premium bg-white rounded-2xl overflow-hidden">
+                                                <CardHeader className="flex flex-row items-center justify-between">
+                                                    <div>
+                                                        <CardTitle className="text-sm font-black uppercase text-slate-850">Perguntas Ativas do NPS</CardTitle>
+                                                        <CardDescription>Gerencie o questionário respondido por este cliente.</CardDescription>
+                                                    </div>
+                                                    <Button 
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            setEditingNpsQ(null);
+                                                            setNpsQText("");
+                                                            setNpsQWeight(1);
+                                                            setNpsDialogOpen(true);
+                                                        }}
+                                                        className="gap-1 bg-slate-900 text-white font-bold text-xs rounded-xl"
+                                                    >
+                                                        <Plus className="w-3.5 h-3.5" /> Adicionar Pergunta
+                                                    </Button>
+                                                </CardHeader>
+                                                <CardContent className="p-0 border-t border-slate-100">
+                                                    <Table>
+                                                        <TableHeader className="bg-slate-50">
+                                                            <TableRow>
+                                                                <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Quesito</TableHead>
+                                                                <TableHead className="font-bold text-slate-800 text-xs text-center w-24 py-2.5">Peso</TableHead>
+                                                                <TableHead className="font-bold text-slate-800 text-xs text-center w-28 py-2.5">Ações</TableHead>
+                                                            </TableRow>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {detailedData.npsQuestions.map((q: any) => (
+                                                                <TableRow key={q.id} className="hover:bg-slate-50/50">
+                                                                    <TableCell className="text-xs font-bold text-slate-700 pl-6 py-3">{q.text}</TableCell>
+                                                                    <TableCell className="text-center text-xs font-black py-3">{q.weight}</TableCell>
+                                                                    <TableCell className="text-center py-3">
+                                                                        <div className="flex justify-center gap-1">
+                                                                            <Button size="sm" variant="ghost" onClick={() => { setEditingNpsQ(q); setNpsQText(q.text); setNpsQWeight(q.weight); setNpsDialogOpen(true); }} className="h-7 w-7 p-0 rounded hover:bg-slate-100">✏️</Button>
+                                                                            <Button size="sm" variant="ghost" onClick={() => handleDeleteNpsQClick(q.id)} className="h-7 w-7 p-0 rounded hover:bg-red-50">🗑️</Button>
+                                                                        </div>
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            ))}
+                                                        </TableBody>
+                                                    </Table>
+                                                </CardContent>
+                                            </Card>
+                                        )}
                                     </div>
                                 )
                             )}
