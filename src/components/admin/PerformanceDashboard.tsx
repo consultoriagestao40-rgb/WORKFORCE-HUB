@@ -30,7 +30,8 @@ import {
     transitionRequest,
     updateRequestClient,
     updateRequestDetails,
-    addRequestComment
+    addRequestComment,
+    getRequestComments
 } from "@/app/admin/requests/actions";
 import { 
     Award, Calendar, Users, DollarSign, 
@@ -292,37 +293,23 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 toast.success("Mensagem enviada com sucesso!");
                 setNewCommentContent("");
                 
-                // Recarregar os dados para ter o histórico atualizado
-                await loadPerformanceData();
-                await loadClientDetails();
+                // Buscar comentários atualizados diretamente via Server Action
+                const comments = await getRequestComments(selectedRequestForAction.id);
+                
+                // Atualizar o modal localmente na hora
+                setSelectedRequestForAction({
+                    ...selectedRequestForAction,
+                    comments: comments
+                });
 
-                // Buscar a ocorrência atualizada localmente para atualizar o chat no modal sem fechá-lo
-                let updatedReq = null;
-                if (selectedClientId === "all") {
-                    const consolidatedRes = await getConsolidatedPerformanceData(selectedYear, selectedMonth);
-                    if (consolidatedRes.success) {
-                        setConsolidatedData(consolidatedRes);
-                        updatedReq = (consolidatedRes as any).allRequests?.find((r: any) => r.id === selectedRequestForAction.id);
-                    }
-                } else {
-                    const clientRes = await getAdminClientKpis(selectedClientId, selectedYear);
-                    if (clientRes.success) {
-                        setClientKpiData(clientRes);
-                        updatedReq = (clientRes as any).requests?.find((r: any) => r.id === selectedRequestForAction.id);
-                    }
-                }
-
-                if (updatedReq) {
-                    setSelectedRequestForAction({
-                        ...selectedRequestForAction,
-                        comments: updatedReq.comments
-                    });
-                }
+                // Atualizar as listas da tela em background
+                loadPerformanceData().catch(console.error);
+                loadClientDetails().catch(console.error);
             } else {
                 toast.error("Erro ao enviar mensagem.");
             }
         } catch (err) {
-            toast.error("Erro de conexão ao enviar comentário.");
+            toast.error("Erro ao enviar comentário.");
         } finally {
             setSubmittingComment(false);
         }

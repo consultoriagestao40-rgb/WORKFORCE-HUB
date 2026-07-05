@@ -176,7 +176,7 @@ export async function getRequestComments(requestId: string) {
     return await prisma.requestComment.findMany({
         where: { requestId },
         include: { user: { select: { name: true, role: true } } },
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: 'asc' }
     });
 }
 
