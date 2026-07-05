@@ -3547,7 +3547,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             const found = item.monthlyValues?.find((v: any) => v.month === monthIdx && v.year === selectedYear);
                             return found ? found.value : null;
                         }
-                        const mData = detailedData.monthlyData?.find((m: any) => m.monthIndex === monthIdx);
+                        const mData = clientKpiData?.monthlyData?.find((m: any) => m.monthIndex === monthIdx);
                         if (!mData) return null;
                         if (item.metricType === "EFETIVIDADE") {
                             return mData.effectiveness;
@@ -3604,7 +3604,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                     let annualSlaSum = 0;
                     let totalWeight = detailedData.slaConfigItems.reduce((sum: number, item: any) => sum + item.weight, 0);
 
-                    detailedData.monthlyData?.forEach((m: any) => {
+                    clientKpiData?.monthlyData?.forEach((m: any) => {
                         const mScore = getMonthFinalSlaScore(m.monthIndex);
                         if (mScore !== null) {
                             annualSlaSum += mScore;
@@ -3691,7 +3691,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    {detailedData.monthlyData?.map((m: any) => {
+                                                    {clientKpiData?.monthlyData?.map((m: any) => {
                                                         const monthScore = getMonthFinalSlaScore(m.monthIndex);
                                                         
                                                         // Verificar se há dados nesse mês
