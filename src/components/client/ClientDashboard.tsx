@@ -32,6 +32,8 @@ import {
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 
+const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
 interface Contract {
     id: string;
     name: string;
@@ -1570,6 +1572,51 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                     </div>
                                 </form>
                             </div>
+
+                            {/* Tabela de Evolução Mensal do NPS por Quesito */}
+                            {slaData && slaData.npsEvolution && slaData.npsEvolution.length > 0 && (
+                                <Card className="bg-white p-6 rounded-2xl shadow-premium border border-slate-200/50 space-y-4">
+                                    <div className="space-y-1">
+                                        <h3 className="text-md font-bold text-slate-850">Evolução Mensal do NPS por Quesito</h3>
+                                        <p className="text-xs text-slate-500 font-medium">Acompanhe as notas médias alcançadas em cada quesito avaliado mês a mês.</p>
+                                    </div>
+                                    <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                                        <Table>
+                                            <TableHeader className="bg-slate-50">
+                                                <TableRow>
+                                                    <TableHead className="font-bold text-slate-800 text-xs py-3">Quesito / Indicador</TableHead>
+                                                    {monthNames.map((m, i) => (
+                                                        <TableHead key={i} className="font-bold text-slate-800 text-xs text-center py-3">{m}</TableHead>
+                                                    ))}
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {slaData.npsEvolution.map((item: any) => (
+                                                    <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                                                        <TableCell className="text-xs font-bold text-slate-700 py-3.5 max-w-[285px] truncate" title={item.text}>
+                                                            {item.text}
+                                                        </TableCell>
+                                                        {item.monthlyScores.map((score: number | null, sIdx: number) => (
+                                                            <TableCell key={sIdx} className="text-xs text-center py-3.5">
+                                                                {score !== null ? (
+                                                                    <span className={`px-2 py-0.5 rounded font-black text-[11px] ${
+                                                                        score >= 9 ? "bg-emerald-50 text-emerald-600" :
+                                                                        score >= 7 ? "bg-amber-50 text-amber-600" : "bg-red-50 text-red-600"
+                                                                    }`}>
+                                                                        {score.toFixed(1)}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-slate-300 font-medium">-</span>
+                                                                )}
+                                                            </TableCell>
+                                                        ))}
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </Card>
+                            )}
                         </div>
                     )}
 

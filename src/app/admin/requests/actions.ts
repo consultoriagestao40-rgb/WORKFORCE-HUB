@@ -514,9 +514,34 @@ export async function getClientKpis(year: number) {
     });
     const avgMttr = resolvedWithTimes.length > 0 ? totalHours / resolvedWithTimes.length : 0;
 
+    const activeQuestions = npsQuestions.length > 0 ? npsQuestions : [
+        { id: "def-1", text: "Como você avalia a pontualidade e assiduidade dos colaboradores?" },
+        { id: "def-2", text: "Como você avalia a qualidade da execução dos serviços e rotinas?" },
+        { id: "def-3", text: "Como você avalia o atendimento da nossa mesa de operações?" },
+        { id: "def-4", text: "Como você avalia a postura e apresentação pessoal da equipe?" },
+        { id: "def-5", text: "Qual a probabilidade de recomendar nossos serviços a um parceiro?" }
+    ];
+
+    const npsEvolution = activeQuestions.map(q => {
+        const monthlyScores = monthNames.map((_, index) => {
+            const monthResponses = mappedNpsResponses.filter(n => new Date(n.createdAt).getUTCMonth() === index);
+            const answers = monthResponses.flatMap(n => n.answers.filter(a => a.questionId === q.id));
+            if (answers.length > 0) {
+                return parseFloat((answers.reduce((sum, a) => sum + a.score, 0) / answers.length).toFixed(1));
+            }
+            return null;
+        });
+        return {
+            id: q.id,
+            text: q.text,
+            monthlyScores
+        };
+    });
+
     return {
         success: true,
         monthlyData,
+        npsEvolution,
         summary: {
             effectiveness: totalEffectiveness,
             absenteeism: totalAbsenteeism,

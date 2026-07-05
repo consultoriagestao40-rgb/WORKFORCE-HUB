@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ClientPostosTable } from "./ClientPostosTable";
 import { NewPostoSheet } from "./NewPostoSheet";
 import { ClientVacantPostosDialog } from "./ClientVacantPostosDialog";
@@ -27,6 +28,8 @@ interface ClientConfigTabsProps {
     initialNpsResponses: any[];
 }
 
+const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
 export function ClientConfigTabs({
     client,
     employees,
@@ -39,6 +42,30 @@ export function ClientConfigTabs({
     initialNpsResponses
 }: ClientConfigTabsProps) {
     const [activeSubTab, setActiveSubTab] = useState<"postos" | "sla" | "nps">("postos");
+
+    const activeQuestionsForEvolution = initialNpsQuestions && initialNpsQuestions.length > 0 ? initialNpsQuestions : [
+        { id: "def-1", text: "Como você avalia a pontualidade e assiduidade dos colaboradores?" },
+        { id: "def-2", text: "Como você avalia a qualidade da execução dos serviços e rotinas?" },
+        { id: "def-3", text: "Como você avalia o atendimento da nossa mesa de operações?" },
+        { id: "def-4", text: "Como você avalia a postura e apresentação pessoal da equipe?" },
+        { id: "def-5", text: "Qual a probabilidade de recomendar nossos serviços a um parceiro?" }
+    ];
+
+    const npsEvolution = activeQuestionsForEvolution.map(q => {
+        const monthlyScores = monthNames.map((_, index) => {
+            const monthResponses = (initialNpsResponses || []).filter(resp => new Date(resp.createdAt).getMonth() === index);
+            const answers = monthResponses.flatMap(resp => (resp.answers || []).filter((a: any) => a.questionId === q.id));
+            if (answers.length > 0) {
+                return parseFloat((answers.reduce((sum: number, a: any) => sum + a.score, 0) / answers.length).toFixed(1));
+            }
+            return null;
+        });
+        return {
+            id: q.id,
+            text: q.text,
+            monthlyScores
+        };
+    });
 
     // NPS States
     const [npsQuestions, setNpsQuestions] = useState<any[]>(
@@ -173,11 +200,6 @@ export function ClientConfigTabs({
             setSavingMonthly(null);
         }
     };
-
-    const monthNames = [
-        "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
-        "Jul", "Ago", "Set", "Out", "Nov", "Dez"
-    ];
 
     return (
         <div className="space-y-6">
@@ -518,6 +540,55 @@ export function ClientConfigTabs({
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* Tabela de Evolução Mensal do NPS por Quesito (Gestor) */}
+                {npsEvolution && npsEvolution.length > 0 && (
+                    <Card className="shadow-sm border-slate-200/60 mt-6">
+                        <CardHeader>
+                            <CardTitle>Evolução Mensal do NPS por Quesito</CardTitle>
+                            <CardDescription>
+                                Notas médias históricas alcançadas por pergunta em cada mês do ano.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                                <Table>
+                                    <TableHeader className="bg-slate-50">
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-3">Quesito / Indicador</TableHead>
+                                            {monthNames.map((m, i) => (
+                                                <TableHead key={i} className="font-bold text-slate-800 text-xs text-center py-3">{m}</TableHead>
+                                            ))}
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {npsEvolution.map((item: any) => (
+                                            <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                                                <TableCell className="text-xs font-bold text-slate-700 py-3.5 max-w-[285px] truncate" title={item.text}>
+                                                    {item.text}
+                                                </TableCell>
+                                                {item.monthlyScores.map((score: number | null, sIdx: number) => (
+                                                    <TableCell key={sIdx} className="text-xs text-center py-3.5">
+                                                        {score !== null ? (
+                                                            <span className={`px-2 py-0.5 rounded font-black text-[11px] ${
+                                                                score >= 9 ? "bg-emerald-50 text-emerald-600" :
+                                                                score >= 7 ? "bg-amber-50 text-amber-600" : "bg-red-50 text-red-600"
+                                                            }`}>
+                                                                {score.toFixed(1)}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-300 font-medium">-</span>
+                                                        )}
+                                                    </TableCell>
+                                                ))}
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 <Card className="shadow-sm border-slate-200/60 mt-6">
                     <CardHeader>
