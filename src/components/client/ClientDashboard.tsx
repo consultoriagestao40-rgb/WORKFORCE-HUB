@@ -1177,32 +1177,21 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             </Button>
                                         </div>
                                         <form onSubmit={handleCreateRequest} className="p-6 space-y-4">
-                                            {/* Abas Superiores de Categoria Principal */}
+                                            {/* Categoria de Ocorrência Principal (Lista Suspensa) */}
                                             <div className="space-y-1">
                                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Categoria de Ocorrência</label>
-                                                <div className="grid grid-cols-3 gap-2 p-1 bg-slate-100 rounded-xl border border-slate-200/50">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => { setRequestCategory("solicitacao"); setNewRequestEmployeeId(""); }}
-                                                        className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${requestCategory === "solicitacao" ? "bg-white text-slate-900 shadow-sm" : "text-slate-550 hover:text-slate-900"}`}
-                                                    >
-                                                        Solicitação
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => { setRequestCategory("elogio_sugestao"); setNewRequestEmployeeId(""); }}
-                                                        className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${requestCategory === "elogio_sugestao" ? "bg-white text-slate-900 shadow-sm" : "text-slate-550 hover:text-slate-900"}`}
-                                                    >
-                                                        Elogio/Sugestão
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => { setRequestCategory("reclamacao"); setNewRequestEmployeeId(""); }}
-                                                        className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${requestCategory === "reclamacao" ? "bg-white text-slate-900 shadow-sm" : "text-slate-550 hover:text-slate-900"}`}
-                                                    >
-                                                        Reclamação
-                                                    </button>
-                                                </div>
+                                                <select
+                                                    value={requestCategory}
+                                                    onChange={(e) => {
+                                                        setRequestCategory(e.target.value as any);
+                                                        setNewRequestEmployeeId("");
+                                                    }}
+                                                    className="w-full h-10 border border-slate-200 bg-white rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary cursor-pointer text-slate-800"
+                                                >
+                                                    <option value="solicitacao">Solicitação</option>
+                                                    <option value="elogio_sugestao">Elogio / Sugestão</option>
+                                                    <option value="reclamacao">Reclamação</option>
+                                                </select>
                                             </div>
 
                                             {/* Subformulários baseados na Categoria */}
