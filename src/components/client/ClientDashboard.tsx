@@ -2308,7 +2308,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
 
                                                         const turnoverRate = m.turnover || 0;
 
-                                                        const hasData = (m.effectiveness !== null && m.effectiveness !== undefined) || monthRequests.length > 0 || m.npsCount > 0;
+                                                        const hasData = (m.effectiveness !== null && m.effectiveness !== undefined) || (m.turnover !== null && m.turnover !== undefined && m.turnover > 0) || (m.avgRepositionDays !== null && m.avgRepositionDays !== undefined) || monthRequests.length > 0 || m.npsCount > 0;
 
                                                         if (!hasData) {
                                                             return (
