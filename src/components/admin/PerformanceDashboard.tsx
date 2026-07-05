@@ -81,12 +81,12 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [loadingDetails, setLoadingDetails] = useState<boolean>(false);
 
     // KPI Modal States
-    const [kpiModalConfig, setKpiModalConfig] = useState<{ monthIndex: number; monthName: string; kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints' } | null>(null);
+    const [kpiModalConfig, setKpiModalConfig] = useState<{ monthIndex: number; monthName: string; kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints'; value?: number } | null>(null);
     const [kpiModalData, setKpiModalData] = useState<any>(null);
     const [loadingKpiModal, setLoadingKpiModal] = useState<boolean>(false);
 
-    const handleKpiCellClick = async (monthIndex: number, monthName: string, kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints') => {
-        setKpiModalConfig({ monthIndex, monthName, kpiType });
+    const handleKpiCellClick = async (monthIndex: number, monthName: string, kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints', value?: number) => {
+        setKpiModalConfig({ monthIndex, monthName, kpiType, value });
         setLoadingKpiModal(true);
         setKpiModalData(null);
         try {
@@ -3404,31 +3404,31 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                 <TableRow key={m.monthIndex} className="hover:bg-slate-50/50 transition-colors">
                                                                     <TableCell className="font-bold text-xs text-slate-900 pl-6 py-3">{m.name}</TableCell>
                                                                     <TableCell 
-                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'effectiveness')}
+                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'effectiveness', m.effectiveness)}
                                                                         className="text-center font-bold text-xs text-emerald-600 py-3 cursor-pointer hover:bg-emerald-50 hover:scale-[1.03] transition-all select-none"
                                                                     >
                                                                         {m.effectiveness.toFixed(1)}%
                                                                     </TableCell>
                                                                     <TableCell 
-                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'nps')}
+                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'nps', m.npsCount > 0 ? m.avgNpsRating * 10 : undefined)}
                                                                         className="text-center font-bold text-xs text-blue-650 py-3 cursor-pointer hover:bg-blue-50 hover:scale-[1.03] transition-all select-none"
                                                                     >
                                                                         {m.npsCount > 0 ? `${(m.avgNpsRating * 10).toFixed(1).replace('.', ',')}%` : "-"}
                                                                     </TableCell>
                                                                     <TableCell 
-                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'turnover')}
+                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'turnover', turnoverRate)}
                                                                         className="text-center font-bold text-xs text-slate-700 py-3 cursor-pointer hover:bg-slate-100 hover:scale-[1.03] transition-all select-none"
                                                                     >
                                                                         {turnoverRate > 0 ? `${turnoverRate.toFixed(1).replace('.', ',')}%` : "0,0%"}
                                                                     </TableCell>
                                                                     <TableCell 
-                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'sla')}
+                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'sla', m.slaCompliance)}
                                                                         className="text-center font-bold text-xs text-blue-600 py-3 cursor-pointer hover:bg-blue-50 hover:scale-[1.03] transition-all select-none"
                                                                     >
                                                                         {m.slaCompliance.toFixed(1)}%
                                                                     </TableCell>
                                                                     <TableCell 
-                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'complaints')}
+                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'complaints', complaintsRate)}
                                                                         className="text-center font-bold text-xs text-red-500 py-3 cursor-pointer hover:bg-red-50 hover:scale-[1.03] transition-all select-none"
                                                                     >
                                                                         {complaintsRate > 0 ? `${complaintsRate.toFixed(1).replace('.', ',')}%` : "0,0%"}
@@ -4521,6 +4521,23 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             {/* KPI: ROTATIVIDADE (TURNOVER) */}
                             {kpiModalConfig?.kpiType === 'turnover' && (
                                 <div className="space-y-4">
+                                    {/* Cards de Calculo do Turnover */}
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Substituições no Mês</span>
+                                            <p className="text-2xl font-black text-slate-800 mt-1">{kpiModalData.assignments?.length || 0}</p>
+                                        </div>
+                                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Total de Postos do Contrato</span>
+                                            <p className="text-2xl font-black text-slate-800 mt-1">{kpiModalData.postos?.length || 10}</p>
+                                        </div>
+                                        <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100/50">
+                                            <span className="text-[10px] font-black uppercase text-blue-600 tracking-wider">Taxa de Rotatividade</span>
+                                            <p className="text-2xl font-black text-blue-700 mt-1">
+                                                {kpiModalConfig.value !== undefined ? `${kpiModalConfig.value.toFixed(1).replace('.', ',')}%` : "0,0%"}
+                                            </p>
+                                        </div>
+                                    </div>
                                     <div className="border border-slate-100 rounded-2xl overflow-x-auto bg-white">
                                         <Table className="min-w-[700px]">
                                             <TableHeader className="bg-slate-50">
