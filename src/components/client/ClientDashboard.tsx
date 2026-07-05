@@ -2472,7 +2472,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
             </div>
         {/* Modal de Detalhamento de KPIs Operacionais (Auditoria Mensal) */}
         <Dialog open={kpiModalConfig !== null} onOpenChange={(open) => { if (!open) setKpiModalConfig(null); }}>
-            <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto rounded-3xl p-6 bg-white border border-slate-100 shadow-premium">
+            <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[85vh] overflow-y-auto rounded-3xl p-6 bg-white border border-slate-100 shadow-premium">
                 <DialogHeader className="pb-4 border-b border-slate-100 flex flex-row items-center justify-between">
                     <div>
                         <DialogTitle className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
