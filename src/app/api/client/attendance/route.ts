@@ -7,7 +7,7 @@ import { generateRoster } from "@/lib/scheduling";
 export async function GET(request: Request) {
     try {
         const user = await getCurrentUser();
-        if (!user || user.role !== "CLIENTE") {
+        if (!user || (user.role !== "CLIENTE" && user.role !== "GESTOR" && user.role !== "ADMIN")) {
             return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
         }
 
@@ -22,16 +22,23 @@ export async function GET(request: Request) {
         const targetDateStr = dateStr || todayStr;
         const targetDate = new Date(targetDateStr + "T00:00:00Z"); // Pure UTC midnight of target day
         
-        // Obter apenas os IDs de clientes autorizados para este usuário
-        const authorizedClientIds = user.clientIds || [];
-
-        // Filtro adicional se o cliente escolher um contrato específico no dropdown
-        let finalClientIds = authorizedClientIds;
-        if (selectedClientId && selectedClientId !== "all") {
-            if (authorizedClientIds.includes(selectedClientId)) {
+        let finalClientIds: string[] = [];
+        if (user.role === "GESTOR" || user.role === "ADMIN") {
+            if (selectedClientId && selectedClientId !== "all") {
                 finalClientIds = [selectedClientId];
             } else {
-                return NextResponse.json({ error: "Contrato não autorizado" }, { status: 403 });
+                const allClients = await prisma.client.findMany({ select: { id: true } });
+                finalClientIds = allClients.map(c => c.id);
+            }
+        } else {
+            const authorizedClientIds = user.clientIds || [];
+            finalClientIds = authorizedClientIds;
+            if (selectedClientId && selectedClientId !== "all") {
+                if (authorizedClientIds.includes(selectedClientId)) {
+                    finalClientIds = [selectedClientId];
+                } else {
+                    return NextResponse.json({ error: "Contrato não autorizado" }, { status: 403 });
+                }
             }
         }
 

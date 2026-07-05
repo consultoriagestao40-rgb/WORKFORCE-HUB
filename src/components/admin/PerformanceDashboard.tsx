@@ -216,7 +216,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
         }
         setLoadingDaily(true);
         try {
-            const res = await fetch(`/api/admin/operations/attendance?date=${date}&clientId=${selectedClientId}`);
+            const res = await fetch(`/api/client/attendance?date=${date}&clientId=${selectedClientId}`);
             const data = await res.json();
             if (data.success && data.items) {
                 setDailyAttendances(data.items);
@@ -1082,40 +1082,46 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         const lateCount = dailyAtts.filter((a: any) => a.status === "ATRASADO" || a.status === "AGUARDANDO").length;
                                         const covCount = dailyAtts.filter((a: any) => a.coveredBy).length;
                                         const vacCount = dailyAtts.filter((a: any) => a.status === "FALTA" && !a.coveredBy).length;
+                                        const totalContractPostos = dailyAttendances[0]?.totalContractPostos || scaleCount;
+                                        const folgaCount = Math.max(0, totalContractPostos - scaleCount);
 
                                         return (
                                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                                                <Card className="border-none shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between h-auto min-h-0">
-                                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-350">Postos em Escala</span>
+                                                <Card className="border-none shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-300">Postos em Escala</span>
                                                     <div className="flex items-baseline justify-between mt-1">
-                                                        <span className="text-xl font-black">{scaleCount}</span>
+                                                        <span className="text-2xl font-black">{scaleCount}</span>
+                                                        <div className="flex flex-col text-[9px] font-bold uppercase tracking-wider text-slate-400 text-right select-none leading-normal">
+                                                            <span>Escala: <strong className="text-emerald-400 font-black">{scaleCount}</strong></span>
+                                                            <span>Folga: <strong className="text-slate-200 font-black">{folgaCount}</strong></span>
+                                                        </div>
                                                     </div>
                                                 </Card>
-                                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-auto min-h-0">
+                                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
                                                     <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Presentes</span>
                                                     <div className="flex items-center justify-between mt-1">
-                                                        <span className="text-xl font-black text-emerald-600">{presCount}</span>
+                                                        <span className="text-2xl font-black text-emerald-600">{presCount}</span>
                                                         <UserCheck className="w-5 h-5 text-emerald-600 bg-emerald-50 p-1 rounded" />
                                                     </div>
                                                 </Card>
-                                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-auto min-h-0">
+                                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
                                                     <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Aguardando/Atrasados</span>
                                                     <div className="flex items-center justify-between mt-1">
-                                                        <span className="text-xl font-black text-amber-600">{lateCount}</span>
+                                                        <span className="text-2xl font-black text-amber-600">{lateCount}</span>
                                                         <Clock className="w-5 h-5 text-amber-600 bg-amber-50 p-1 rounded" />
                                                     </div>
                                                 </Card>
-                                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-auto min-h-0">
+                                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
                                                     <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Cobertos</span>
                                                     <div className="flex items-center justify-between mt-1">
-                                                        <span className="text-xl font-black text-blue-600">{covCount}</span>
+                                                        <span className="text-2xl font-black text-blue-600">{covCount}</span>
                                                         <RefreshCw className="w-5 h-5 text-blue-600 bg-blue-50 p-1 rounded" />
                                                     </div>
                                                 </Card>
-                                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-auto min-h-0">
+                                                <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
                                                     <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Vagos (Sem Cobertura)</span>
                                                     <div className="flex items-center justify-between mt-1">
-                                                        <span className="text-xl font-black text-red-600">{vacCount}</span>
+                                                        <span className="text-2xl font-black text-red-600">{vacCount}</span>
                                                         <UserX className="w-5 h-5 text-red-600 bg-red-50 p-1 rounded" />
                                                     </div>
                                                 </Card>
@@ -1322,48 +1328,114 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                         </div>
                                                     );
                                                 }
-
                                                 return (
                                                     <Table>
                                                         <TableHeader className="bg-slate-50">
                                                             <TableRow>
-                                                                <TableHead className="font-bold text-slate-800 text-xs py-3.5 pl-6">Posto / Função</TableHead>
-                                                                <TableHead className="font-bold text-slate-800 text-xs py-3.5">Escala</TableHead>
-                                                                <TableHead className="font-bold text-slate-800 text-xs py-3.5">Horário</TableHead>
-                                                                <TableHead className="font-bold text-slate-800 text-xs py-3.5">Colaborador Titular</TableHead>
-                                                                <TableHead className="font-bold text-slate-800 text-xs py-3.5 text-center">Status</TableHead>
-                                                                <TableHead className="font-bold text-slate-800 text-xs py-3.5">Cobertura</TableHead>
+                                                                <TableHead className="font-bold text-slate-800 py-3.5 pl-6">Função / Cargo</TableHead>
+                                                                <TableHead className="font-bold text-slate-800 text-center py-3.5">Horário</TableHead>
+                                                                <TableHead className="font-bold text-slate-800 py-3.5">Titular do Posto</TableHead>
+                                                                <TableHead className="font-bold text-slate-800 text-center py-3.5">Valor Mensal</TableHead>
+                                                                <TableHead className="font-bold text-slate-800 text-center py-3.5">Status do Posto</TableHead>
+                                                                <TableHead className="font-bold text-slate-800 py-3.5">Observações Operacionais</TableHead>
                                                             </TableRow>
                                                         </TableHeader>
                                                         <TableBody>
-                                                            {dailyAtts.map((att: any) => (
-                                                                <TableRow key={att.id} className="hover:bg-slate-50/50">
-                                                                    <TableCell className="text-xs font-bold text-slate-700 py-3 pl-6">
-                                                                        {att.posto?.role?.name || "Posto"}
-                                                                    </TableCell>
-                                                                    <TableCell className="text-xs text-slate-655 font-semibold py-3">
-                                                                        {att.posto?.schedule}
-                                                                    </TableCell>
-                                                                    <TableCell className="text-xs text-slate-655 font-medium py-3">
-                                                                        {att.posto?.startTime} - {att.posto?.endTime}
-                                                                    </TableCell>
-                                                                    <TableCell className="text-xs text-slate-700 font-medium py-3">
-                                                                        {att.employee?.name || "Vaga em Aberto"}
-                                                                    </TableCell>
-                                                                    <TableCell className="text-center py-3">
-                                                                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
-                                                                            att.status === "PRESENTE_PONTO" || att.status === "PRESENTE_MANUAL" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                                                                            att.status === "FALTA" ? "bg-red-50 text-red-700 border-red-200" :
-                                                                            "bg-slate-100 text-slate-700 border-slate-200"
-                                                                        }`}>
-                                                                            {att.status === "FALTA" ? "Falta" : att.status === "FOLGA" ? "Folga" : "Presente"}
-                                                                        </span>
-                                                                    </TableCell>
-                                                                    <TableCell className="text-xs font-bold py-3 text-indigo-600">
-                                                                        {att.coveredBy ? `Coberto por ${att.coveredBy.name} (${att.coverageType})` : "-"}
+                                                            {dailyAttendances.map((item: any) => {
+                                                                const att = item.attendance;
+                                                                let rowBgClass = "";
+                                                                let statusBadge = null;
+
+                                                                if (att.status === "PRESENTE_PONTO") {
+                                                                    statusBadge = (
+                                                                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50 font-bold">
+                                                                            ● Confirmado (Ponto às {att.clockInTime ? format(new Date(att.clockInTime), "HH:mm") : ""})
+                                                                        </Badge>
+                                                                    );
+                                                                } else if (att.status === "PRESENTE_MANUAL") {
+                                                                    statusBadge = (
+                                                                        <Badge className="bg-emerald-50 text-emerald-855 hover:bg-emerald-50 font-black">
+                                                                            ● Confirmado pela Mesa
+                                                                        </Badge>
+                                                                    );
+                                                                } else if (att.status === "FALTA") {
+                                                                    if (att.coveredByName) {
+                                                                        statusBadge = (
+                                                                            <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 font-bold">
+                                                                                ● Falta Coberta: {att.coveredByName}
+                                                                            </Badge>
+                                                                        );
+                                                                    } else if (att.coverageType === "DIARISTA") {
+                                                                        statusBadge = (
+                                                                            <Badge className="bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-50 font-bold">
+                                                                                ● Coberto por Diarista
+                                                                            </Badge>
+                                                                        );
+                                                                    } else {
+                                                                        rowBgClass = "bg-red-50/20";
+                                                                        statusBadge = (
+                                                                            <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-50 font-black animate-pulse">
+                                                                                ▲ Posto Vago (Glosa)
+                                                                            </Badge>
+                                                                        );
+                                                                    }
+                                                                } else if (att.status === "FOLGA") {
+                                                                    rowBgClass = "opacity-70 bg-slate-100/40";
+                                                                    statusBadge = (
+                                                                        <Badge className="bg-slate-250 text-slate-500 border-slate-300 hover:bg-slate-200 font-semibold select-none">
+                                                                            ○ Folga (Sem Escala)
+                                                                        </Badge>
+                                                                    );
+                                                                } else {
+                                                                    if (att.isLate) {
+                                                                        rowBgClass = "bg-amber-50/20";
+                                                                        statusBadge = (
+                                                                            <Badge className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50 font-black">
+                                                                                ▲ Entrada Pendente (Atraso)
+                                                                            </Badge>
+                                                                        );
+                                                                    } else {
+                                                                        statusBadge = (
+                                                                            <Badge className="bg-slate-100 text-slate-600 border-none hover:bg-slate-100">
+                                                                                ○ Em Escala (Aguardando)
+                                                                            </Badge>
+                                                                        );
+                                                                    }
+                                                                }
+
+                                                                return (
+                                                                    <TableRow key={item.id} className={`hover:bg-slate-50/50 transition-colors ${rowBgClass}`}>
+                                                                        <TableCell className="text-slate-700 text-xs font-semibold pl-6 py-3">
+                                                                            {item.role}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-center py-3">
+                                                                            <div className="flex flex-col items-center">
+                                                                                <span className="text-xs font-bold text-slate-850">{item.startTime} - {item.endTime}</span>
+                                                                                <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-500 font-mono mt-0.5">{item.schedule}</span>
+                                                                            </div>
+                                                                        </TableCell>
+                                                                        <TableCell className="text-slate-800 text-xs font-medium py-3">
+                                                                            {item.employeeName}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-center text-xs font-mono font-bold text-slate-705 py-3">
+                                                                            {item.billingValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-center py-3">
+                                                                            {statusBadge}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-xs text-slate-500 font-medium italic py-3">
+                                                                            {att.notes || (att.status === "FALTA" && !att.coveredByName ? "Posto desocupado sem aviso de cobertura." : "-")}
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                );
+                                                            })}
+                                                            {dailyAttendances.length === 0 && (
+                                                                <TableRow>
+                                                                    <TableCell colSpan={6} className="text-center text-slate-500 py-20 font-semibold">
+                                                                        Nenhum posto cadastrado neste contrato.
                                                                     </TableCell>
                                                                 </TableRow>
-                                                            ))}
+                                                            )}
                                                         </TableBody>
                                                     </Table>
                                                 );
