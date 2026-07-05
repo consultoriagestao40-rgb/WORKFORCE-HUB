@@ -140,6 +140,15 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [newCommentContent, setNewCommentContent] = useState<string>("");
     const [submittingComment, setSubmittingComment] = useState<boolean>(false);
 
+    // Sincronizar o parecer nas notas operacionais ao abrir o card
+    useEffect(() => {
+        if (selectedRequestForAction) {
+            setRequestTransitionNotes(selectedRequestForAction.resolutionNotes || "");
+        } else {
+            setRequestTransitionNotes("");
+        }
+    }, [selectedRequestForAction]);
+
     // Filtros adicionais para a visão lista
     const [listSearchQuery, setListSearchQuery] = useState<string>("");
     const [listSelectedContract, setListSelectedContract] = useState<string>("all");
@@ -245,12 +254,18 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 dueDate: selectedRequestForAction.dueDate
             });
 
-            // 2. Mudar status se alterou no seletor
+            // 2. Mudar status ou persistir notas operacionais se houver alteração
             if (selectedRequestForAction.nextStatus && selectedRequestForAction.nextStatus !== selectedRequestForAction.status) {
                 await transitionRequest(
                     selectedRequestForAction.id,
                     selectedRequestForAction.nextStatus,
                     requestTransitionNotes || `Status alterado no modal de detalhes por ${userName}`
+                );
+            } else if (requestTransitionNotes.trim() !== "" && requestTransitionNotes !== (selectedRequestForAction.resolutionNotes || "")) {
+                await transitionRequest(
+                    selectedRequestForAction.id,
+                    selectedRequestForAction.status,
+                    requestTransitionNotes
                 );
             }
 
