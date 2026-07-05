@@ -1827,6 +1827,25 @@ export async function deleteNpsQuestion(id: string) {
     }
 }
 
+export async function deleteNpsResponse(id: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || user.role !== 'ADMIN') {
+            throw new Error("Unauthorized");
+        }
+
+        await prisma.npsResponse.delete({
+            where: { id }
+        });
+
+        revalidatePath("/admin/performance");
+        return { success: true };
+    } catch (e) {
+        console.error("Erro ao deletar resposta NPS:", e);
+        return { success: false, error: "Erro ao excluir resposta NPS." };
+    }
+}
+
 export async function getClientDetailedData(clientId: string, year: number, month: number) {
     try {
         const user = await getCurrentUser();

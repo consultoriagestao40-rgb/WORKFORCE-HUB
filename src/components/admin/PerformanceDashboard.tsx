@@ -26,6 +26,7 @@ import {
     updateSlaMonthlyValue,
     upsertNpsQuestion,
     deleteNpsQuestion,
+    deleteNpsResponse,
     getPostoRoutines,
     transitionRequest,
     updateRequestClient,
@@ -145,6 +146,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     // Sub-abas de NPS
     const [npsSubTab, setNpsSubTab] = useState<"results" | "config">("results");
     const [expandedResponseId, setExpandedResponseId] = useState<string | null>(null);
+    const [confirmDeleteResponseId, setConfirmDeleteResponseId] = useState<string | null>(null);
+    const [deletingResponse, setDeletingResponse] = useState<boolean>(false);
 
     // Comentários e Interatividade do Gestor nos chamados
     const [newCommentContent, setNewCommentContent] = useState<string>("");
@@ -310,6 +313,21 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
             toast.error("Erro ao excluir a solicitação.");
         } finally {
             setDeletingRequest(false);
+        }
+    };
+
+    const handleDeleteResponse = async (id: string) => {
+        setDeletingResponse(true);
+        try {
+            await deleteNpsResponse(id);
+            toast.success("Avaliação excluída com sucesso!");
+            setConfirmDeleteResponseId(null);
+            await loadPerformanceData();
+            await loadClientDetails();
+        } catch (err) {
+            toast.error("Erro ao excluir a avaliação.");
+        } finally {
+            setDeletingResponse(false);
         }
     };
 
@@ -3113,9 +3131,32 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                                         ({isExpanded ? "clique para ocultar quesitos" : "clique para detalhar notas"})
                                                                                     </span>
                                                                                 </span>
-                                                                                <span className="font-black text-blue-655 text-xs sm:text-sm bg-blue-50/50 px-2.5 py-1 rounded-lg border border-blue-100">
-                                                                                    Nota Geral: {finalNpsVal.toFixed(1)}/10
-                                                                                </span>
+                                                                                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                                                                    {userRole === "ADMIN" && (
+                                                                                        confirmDeleteResponseId === r.id ? (
+                                                                                            <Button
+                                                                                                size="sm"
+                                                                                                className="h-7 text-[10px] font-bold rounded-lg bg-red-650 text-white px-2.5 animate-pulse"
+                                                                                                disabled={deletingResponse}
+                                                                                                onClick={() => handleDeleteResponse(r.id)}
+                                                                                            >
+                                                                                                Confirmar?
+                                                                                            </Button>
+                                                                                        ) : (
+                                                                                            <Button
+                                                                                                size="sm"
+                                                                                                variant="ghost"
+                                                                                                className="h-7 w-7 p-0 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-650"
+                                                                                                onClick={() => setConfirmDeleteResponseId(r.id)}
+                                                                                            >
+                                                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                                                            </Button>
+                                                                                        )
+                                                                                    )}
+                                                                                    <span className="font-black text-blue-655 text-xs sm:text-sm bg-blue-50/50 px-2.5 py-1 rounded-lg border border-blue-100">
+                                                                                        Nota Geral: {finalNpsVal.toFixed(1)}/10
+                                                                                    </span>
+                                                                                </div>
                                                                             </div>
                                                                             {r.feedback && (
                                                                                 <p className="text-xs text-slate-650 bg-slate-50 p-2.5 rounded-lg border border-slate-100 font-medium italic">
