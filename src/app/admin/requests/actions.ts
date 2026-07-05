@@ -1680,18 +1680,132 @@ export async function getClientDetailedData(clientId: string, year: number, mont
             orderBy: { date: 'asc' }
         });
 
+        const allRequests = await prisma.request.findMany({
+            where: {
+                createdAt: { gte: startOfMonth, lte: endOfMonth }
+            },
+            include: {
+                requester: { select: { id: true, name: true, clientIds: true } },
+                employee: {
+                    include: {
+                        assignments: {
+                            include: {
+                                posto: true
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy: { createdAt: "desc" }
+        });
+
+        const requests = allRequests.filter((r: any) => 
+            r.requester?.clientIds?.includes(clientId) ||
+            r.employee?.assignments?.some((a: any) => a.posto?.clientId === clientId)
+        );
+
         return {
             success: true,
             postos,
             slaConfigItems,
             npsQuestions,
             npsResponses,
-            attendances
+            attendances,
+            requests: requests.map((r: any) => ({
+                id: r.id,
+                type: r.type,
+                status: r.status,
+                description: r.description,
+                createdAt: r.createdAt.toISOString(),
+                dueDate: r.dueDate.toISOString(),
+                employeeName: r.employee?.name || null,
+                requesterName: r.requester?.name || "Cliente"
+            }))
         };
 
     } catch (e) {
         console.error("Erro ao carregar dados detalhados do cliente:", e);
         return { success: false, error: "Erro de servidor ao buscar detalhes operacionais." };
+    }
+}
+
+export async function getAdminClientBilling(clientId: string, year: number) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR')) {
+            throw new Error("Unauthorized");
+        }
+
+        const clientIds = [clientId];
+        const startDate = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+        const endDate = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
+
+        const postos = await prisma.posto.findMany({
+            where: { clientId: { in: clientIds } }
+        });
+
+        const expectedMonthlyBilling = postos.reduce((sum: number, p: any) => sum + p.billingValue, 0);
+
+        const attendances = await prisma.attendance.findMany({
+            where: {
+                posto: { clientId: { in: clientIds } },
+                date: { gte: startDate, lte: endDate }
+            },
+            include: {
+                posto: true
+            }
+        });
+
+        const monthNames = [
+            "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+            "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+        ];
+
+        const monthsData = monthNames.map((name, index) => {
+            const monthAtts = attendances.filter((a: any) => {
+                const d = new Date(a.date);
+                return d.getUTCMonth() === index;
+            });
+
+            let glosas = 0;
+            monthAtts.forEach((a: any) => {
+                if (a.status === "FALTA" && !a.coveredById && !a.coverageType) {
+                    const dailyValue = a.posto.billingValue / 30;
+                    glosas += dailyValue;
+                }
+            });
+
+            const netBilling = Math.max(0, expectedMonthlyBilling - glosas);
+
+            const activeShifts = monthAtts.filter((a: any) => a.status !== "FOLGA");
+            const totalShifts = activeShifts.length;
+            const vacantShifts = activeShifts.filter((a: any) => a.status === "FALTA" && !a.coveredById && !a.coverageType).length;
+            
+            const effectiveness = totalShifts > 0 
+                ? ((totalShifts - vacantShifts) / totalShifts) * 100 
+                : 100;
+
+            return {
+                monthIndex: index,
+                name,
+                expectedBilling: expectedMonthlyBilling,
+                glosas,
+                netBilling,
+                effectiveness,
+                totalShifts,
+                vacantShifts
+            };
+        });
+
+        return {
+            success: true,
+            year,
+            months: monthsData
+        };
+
+    } catch (e) {
+        console.error("Erro ao buscar faturamento administrativo:", e);
+        return { success: false, error: "Erro ao buscar faturamento." };
     }
 }
 
