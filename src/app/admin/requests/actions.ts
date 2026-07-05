@@ -152,15 +152,24 @@ export async function addRequestComment(requestId: string, content: string) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
-    await prisma.requestComment.create({
+    if (!content.trim()) throw new Error("Conteúdo do comentário não pode ser vazio.");
+
+    const comment = await prisma.requestComment.create({
         data: {
             content,
             requestId,
             userId: user.id
+        },
+        include: {
+            user: { select: { name: true, role: true } }
         }
     });
 
+    revalidatePath("/client/dashboard");
+    revalidatePath("/admin/performance");
     revalidatePath("/admin/requests");
+    
+    return { success: true, comment };
 }
 
 export async function getRequestComments(requestId: string) {
@@ -179,11 +188,18 @@ export async function getClientRequests() {
         where: { requesterId: user.id },
         include: {
             employee: { select: { name: true, role: { select: { name: true } } } },
-            resolver: { select: { name: true } }
+            resolver: { select: { name: true } },
+            comments: {
+                include: {
+                    user: { select: { name: true, role: true } }
+                },
+                orderBy: { createdAt: 'asc' }
+            }
         },
         orderBy: { createdAt: 'desc' }
     });
 }
+
 
 export async function createClientRequest(data: { type: any, description: string, employeeId?: string, clientId?: string }) {
     const user = await getCurrentUser();

@@ -27,7 +27,9 @@ import {
     getClientKpis,
     getPostoRoutines,
     getNpsQuestions,
-    submitClientNpsAnswers
+    submitClientNpsAnswers,
+    addRequestComment,
+    updateRequestDetails
 } from "@/app/admin/requests/actions";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -93,6 +95,12 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     const [requestCategory, setRequestCategory] = useState<"solicitacao" | "elogio_sugestao" | "reclamacao">("solicitacao");
     const [solicitacaoSubtype, setSolicitacaoSubtype] = useState<"troca_colaborador" | "uniformes_produtos" | "servicos_extras">("troca_colaborador");
     const [reclamacaoCategory, setReclamacaoCategory] = useState<"qualidade_servicos" | "visita_supervisao" | "falta_sem_cobertura" | "atraso_recorrente" | "postura_uniforme" | "problemas_epi" | "outras">("qualidade_servicos");
+
+    // Interações e visualização de chamados do cliente
+    const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+    const [newCommentContent, setNewCommentContent] = useState<string>("");
+    const [submittingComment, setSubmittingComment] = useState<boolean>(false);
+    const [savingRequestDetails, setSavingRequestDetails] = useState<boolean>(false);
 
     // Billing Tab States
     const [billingYear, setBillingYear] = useState(new Date().getFullYear());
@@ -296,6 +304,61 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
             toast.error("Ocorreu um erro ao processar sua solicitação.");
         } finally {
             setSubmittingRequest(false);
+        }
+    };
+
+    const handleAddComment = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedRequest || !newCommentContent.trim()) return;
+
+        setSubmittingComment(true);
+        try {
+            const res = await addRequestComment(selectedRequest.id, newCommentContent);
+            if (res.success) {
+                toast.success("Mensagem enviada com sucesso!");
+                setNewCommentContent("");
+                // Atualizar o chamado selecionado localmente
+                const updatedRequests = await getClientRequests();
+                setRequests(updatedRequests);
+                const currentUpdated = updatedRequests.find((r: any) => r.id === selectedRequest.id);
+                if (currentUpdated) {
+                    setSelectedRequest(currentUpdated);
+                }
+            } else {
+                toast.error("Erro ao enviar mensagem.");
+            }
+        } catch (err) {
+            toast.error("Erro de conexão ao enviar comentário.");
+        } finally {
+            setSubmittingComment(false);
+        }
+    };
+
+    const handleSaveClientRequestDetails = async () => {
+        if (!selectedRequest) return;
+        setSavingRequestDetails(true);
+        try {
+            const res = await updateRequestDetails(selectedRequest.id, {
+                description: selectedRequest.description,
+                employeeId: selectedRequest.employeeId === "" ? null : selectedRequest.employeeId
+            });
+
+            if (res.success) {
+                toast.success("Solicitação salva com sucesso!");
+                // Recarregar
+                const updatedRequests = await getClientRequests();
+                setRequests(updatedRequests);
+                const currentUpdated = updatedRequests.find((r: any) => r.id === selectedRequest.id);
+                if (currentUpdated) {
+                    setSelectedRequest(currentUpdated);
+                }
+            } else {
+                toast.error("Erro ao salvar alterações.");
+            }
+        } catch (err) {
+            toast.error("Erro ao atualizar chamado.");
+        } finally {
+            setSavingRequestDetails(false);
         }
     };
 
@@ -1125,7 +1188,11 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                     }
 
                                                     return (
-                                                        <TableRow key={req.id} className="hover:bg-slate-50/50 transition-colors">
+                                                        <TableRow 
+                                                            key={req.id} 
+                                                            onClick={() => setSelectedRequest(req)}
+                                                            className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                                                        >
                                                             <TableCell className="font-bold text-xs text-slate-900">
                                                                 <Badge className={`${typeColor} font-black hover:opacity-100`}>{typeLabel}</Badge>
                                                             </TableCell>
@@ -1315,6 +1382,173 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                 </Button>
                                             </div>
                                         </form>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Modal de Detalhes e Interação com a Solicitação */}
+                            {selectedRequest && (
+                                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-955/50 backdrop-blur-sm p-4">
+                                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]">
+                                        {/* Header */}
+                                        <div className="p-5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+                                            <div className="flex flex-col">
+                                                <h3 className="text-sm font-black uppercase tracking-wider">Detalhes do Chamado</h3>
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Criado em {format(new Date(selectedRequest.createdAt), "dd/MM/yyyy HH:mm")}</span>
+                                            </div>
+                                            <Button variant="ghost" size="icon" onClick={() => setSelectedRequest(null)} className="text-slate-400 hover:text-white">
+                                                <X className="w-5 h-5" />
+                                            </Button>
+                                        </div>
+
+                                        {/* Corpo (Rolável) */}
+                                        <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                                            {/* Bloco de Informações Principais */}
+                                            <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/50 text-xs">
+                                                <div>
+                                                    <span className="text-[9px] font-black uppercase text-slate-400 block">Status atual</span>
+                                                    <span className="px-2 py-0.5 rounded text-[10px] font-black inline-block mt-0.5 border bg-slate-100 text-slate-850 border-slate-250">
+                                                        {selectedRequest.status === "PENDENTE" && "Pendente"}
+                                                        {selectedRequest.status === "AGUARDANDO_APROVACAO" && "Aguardando Op."}
+                                                        {selectedRequest.status === "EM_ANDAMENTO" && "Em Execução"}
+                                                        {selectedRequest.status === "CONCLUIDO" && "Concluído"}
+                                                        {selectedRequest.status === "REJEITADO" && "Recusado"}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-[9px] font-black uppercase text-slate-400 block">Prazo SLA</span>
+                                                    <span className="font-extrabold text-slate-700 block mt-0.5">{format(new Date(selectedRequest.dueDate), "dd/MM/yyyy")}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Campos Editáveis se PENDENTE, senão apenas leitura */}
+                                            {selectedRequest.status === "PENDENTE" ? (
+                                                <div className="space-y-3 p-3.5 bg-blue-50/20 border border-blue-100/50 rounded-xl">
+                                                    <div className="text-[10px] font-bold text-blue-800 uppercase flex items-center justify-between mb-1 select-none">
+                                                        <span>✏️ Editar Informações</span>
+                                                        <span className="bg-blue-100 text-blue-900 px-1.5 py-0.5 rounded font-black text-[9px]">Aberto</span>
+                                                    </div>
+                                                    
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Descrição Detalhada</label>
+                                                        <textarea
+                                                            value={selectedRequest.description || ""}
+                                                            onChange={(e) => setSelectedRequest({ ...selectedRequest, description: e.target.value })}
+                                                            rows={3}
+                                                            className="w-full border border-slate-200 bg-white rounded-xl text-xs font-semibold p-2.5 outline-none focus:border-primary resize-none text-slate-800 leading-relaxed"
+                                                        />
+                                                    </div>
+
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Colaborador Relacionado</label>
+                                                        <select
+                                                            value={selectedRequest.employeeId || ""}
+                                                            onChange={(e) => setSelectedRequest({ ...selectedRequest, employeeId: e.target.value || null })}
+                                                            className="w-full h-9 border border-slate-200 bg-white rounded-xl text-xs font-semibold px-2 outline-none focus:border-primary cursor-pointer text-slate-800"
+                                                        >
+                                                            <option value="">Não Relacionado / Nenhum Colaborador</option>
+                                                            {employees.map(emp => (
+                                                                <option key={emp.id} value={emp.id}>{emp.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+
+                                                    <Button 
+                                                        type="button" 
+                                                        disabled={savingRequestDetails}
+                                                        onClick={handleSaveClientRequestDetails}
+                                                        className="w-full h-8 text-[10px] font-black uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center gap-1.5 cursor-pointer"
+                                                    >
+                                                        {savingRequestDetails ? "Salvando..." : "Salvar Alterações"}
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    <div className="space-y-1">
+                                                        <span className="text-[9px] font-black uppercase text-slate-400 block font-bold">Descrição da Ocorrência</span>
+                                                        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 leading-relaxed whitespace-pre-wrap">
+                                                            {selectedRequest.description}
+                                                        </div>
+                                                    </div>
+                                                    {selectedRequest.employee?.name && (
+                                                        <div className="space-y-1">
+                                                            <span className="text-[9px] font-black uppercase text-slate-400 block font-bold">Colaborador Relacionado</span>
+                                                            <div className="p-2 bg-blue-50/30 border border-blue-100 rounded-xl text-xs font-bold text-blue-900">
+                                                                {selectedRequest.employee.name}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Histórico do chamado (Comentários e Notas) */}
+                                            <div className="space-y-2 pt-2 border-t border-slate-100">
+                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block font-bold">Histórico de Mensagens / Respostas</span>
+                                                
+                                                {/* Chat de mensagens */}
+                                                <div className="space-y-2.5 max-h-[160px] overflow-y-auto pr-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                    {/* Parecer JVS se houver */}
+                                                    {selectedRequest.resolutionNotes && (
+                                                        <div className="flex flex-col gap-1 items-start">
+                                                            <div className="bg-slate-200 text-slate-800 p-2.5 rounded-2xl rounded-tl-none max-w-[85%] text-xs font-medium leading-relaxed">
+                                                                <span className="text-[9px] font-black uppercase text-slate-500 block mb-0.5">Operação JVS (Resolução)</span>
+                                                                {selectedRequest.resolutionNotes}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Comentários adicionais */}
+                                                    {(selectedRequest.comments || []).length === 0 && !selectedRequest.resolutionNotes ? (
+                                                        <div className="text-center text-[10px] font-medium text-slate-400 py-6 italic">Sem mensagens adicionais registradas.</div>
+                                                    ) : (
+                                                        (selectedRequest.comments || []).map((comm: any) => {
+                                                            const isMyComment = comm.user?.role === "CLIENTE";
+                                                            return (
+                                                                <div key={comm.id} className={`flex flex-col gap-1 ${isMyComment ? "items-end" : "items-start"}`}>
+                                                                    <div className={`p-2.5 rounded-2xl text-xs font-medium leading-relaxed max-w-[85%] ${
+                                                                        isMyComment 
+                                                                            ? "bg-slate-900 text-white rounded-tr-none" 
+                                                                            : "bg-slate-250 text-slate-800 rounded-tl-none"
+                                                                    }`}>
+                                                                        <span className="text-[9px] font-black uppercase block opacity-70 mb-0.5">
+                                                                            {isMyComment ? "Você" : (comm.user?.name || "Operador")}
+                                                                        </span>
+                                                                        {comm.content}
+                                                                    </div>
+                                                                    <span className="text-[8px] font-semibold text-slate-400 px-1">{format(new Date(comm.createdAt), "dd/MM/yyyy HH:mm")}</span>
+                                                                </div>
+                                                            );
+                                                        })
+                                                    )}
+                                                </div>
+
+                                                {/* Enviar novo comentário / resposta */}
+                                                <form onSubmit={handleAddComment} className="flex gap-2 pt-2 border-t border-slate-100/50">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Digite uma mensagem para a operação..."
+                                                        value={newCommentContent}
+                                                        onChange={(e) => setNewCommentContent(e.target.value)}
+                                                        className="flex-1 h-9 border border-slate-200 bg-white rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary text-slate-800"
+                                                        required
+                                                    />
+                                                    <Button 
+                                                        type="submit" 
+                                                        disabled={submittingComment || !newCommentContent.trim()}
+                                                        className="h-9 text-[10px] font-black uppercase tracking-wider px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shrink-0 cursor-pointer"
+                                                    >
+                                                        {submittingComment ? "..." : "Responder"}
+                                                    </Button>
+                                                </form>
+                                            </div>
+                                        </div>
+
+                                        {/* Footer */}
+                                        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end shrink-0">
+                                            <Button type="button" variant="outline" onClick={() => setSelectedRequest(null)} className="h-9 text-xs font-bold uppercase tracking-wider px-4 rounded-xl cursor-pointer">
+                                                Fechar
+                                            </Button>
+                                        </div>
                                     </div>
                                 </div>
                             )}
