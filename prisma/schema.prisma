@@ -536,8 +536,22 @@ model SlaConfigItem {
   updatedAt     DateTime          @updatedAt
   client        Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
   monthlyValues SlaMonthlyValue[]
+  ranges        SlaRange[]
 
   @@index([clientId])
+}
+
+model SlaRange {
+  id              String        @id @default(uuid())
+  slaConfigItemId String
+  minVal          Float
+  maxVal          Float?
+  resultVal       Float
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  configItem      SlaConfigItem @relation(fields: [slaConfigItemId], references: [id], onDelete: Cascade)
+
+  @@index([slaConfigItemId])
 }
 
 model SlaMonthlyValue {

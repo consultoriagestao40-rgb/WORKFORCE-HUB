@@ -127,6 +127,10 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [slaWeight, setSlaWeight] = useState<number>(1);
     const [slaTarget, setSlaTarget] = useState<number>(90);
     const [savingSla, setSavingSla] = useState<boolean>(false);
+    const [slaRanges, setSlaRanges] = useState<{ minVal: number; maxVal: number | null; resultVal: number; }[]>([]);
+    const [newMinVal, setNewMinVal] = useState<string>("");
+    const [newMaxVal, setNewMaxVal] = useState<string>("");
+    const [newResultVal, setNewResultVal] = useState<string>("");
 
     // SLA Manual value State
     const [editingSlaValueId, setEditingSlaValueId] = useState<string | null>(null);
@@ -576,7 +580,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 name: slaName,
                 metricType: slaMetricType,
                 weight: Number(slaWeight),
-                targetValue: Number(slaTarget)
+                targetValue: Number(slaTarget),
+                ranges: slaRanges
             });
             if (res.success) {
                 toast.success("Indicador de SLA configurado!");
@@ -3548,6 +3553,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                     setSlaMetricType("EFETIVIDADE");
                                                     setSlaWeight(1);
                                                     setSlaTarget(90);
+                                                    setSlaRanges([]);
                                                     setSlaDialogOpen(true);
                                                 }}
                                                 className="gap-1 bg-slate-900 text-white font-bold text-xs rounded-xl"
@@ -3597,7 +3603,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                 </TableCell>
                                                                 <TableCell className="text-center py-3">
                                                                     <div className="flex justify-center gap-1">
-                                                                        <Button size="sm" variant="ghost" onClick={() => { setEditingSlaItem(item); setSlaName(item.name); setSlaMetricType(item.metricType); setSlaWeight(item.weight); setSlaTarget(item.targetValue); setSlaDialogOpen(true); }} className="h-7 w-7 p-0 rounded">✏️</Button>
+                                                                        <Button size="sm" variant="ghost" onClick={() => { setEditingSlaItem(item); setSlaName(item.name); setSlaMetricType(item.metricType); setSlaWeight(item.weight); setSlaTarget(item.targetValue); setSlaRanges(item.ranges || []); setSlaDialogOpen(true); }} className="h-7 w-7 p-0 rounded">✏️</Button>
                                                                         <Button size="sm" variant="ghost" onClick={() => handleDeleteSlaItemClick(item.id)} className="h-7 w-7 p-0 rounded hover:bg-red-50">🗑️</Button>
                                                                     </div>
                                                                 </TableCell>
@@ -3830,6 +3836,94 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         className="h-10 rounded-xl"
                                         required
                                     />
+                                </div>
+                            </div>
+
+                            {/* SEÇÃO DE FAIXAS DE ATINGIMENTO */}
+                            <div className="pt-4 border-t border-slate-100 space-y-3">
+                                <Label className="text-xs font-bold text-slate-800 uppercase tracking-wider block">Faixas de Atingimento (Nota Resultante)</Label>
+                                
+                                {slaRanges.length > 0 ? (
+                                    <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
+                                        {slaRanges.map((range, index) => (
+                                            <div key={index} className="flex items-center justify-between p-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-medium">
+                                                <span className="text-slate-700">
+                                                    Métrica de <strong className="text-slate-900">{range.minVal}%</strong> a <strong className="text-slate-900">{range.maxVal !== null && range.maxVal !== undefined ? `${range.maxVal}%` : "100%"}</strong> ➡️ Nota: <strong className="text-blue-600">{range.resultVal}%</strong>
+                                                </span>
+                                                <Button 
+                                                    type="button" 
+                                                    variant="ghost" 
+                                                    onClick={() => setSlaRanges(slaRanges.filter((_, i) => i !== index))}
+                                                    className="h-6 w-6 p-0 hover:bg-red-50 hover:text-red-650 text-slate-450 rounded-lg cursor-pointer"
+                                                >
+                                                    ✕
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-[10px] text-slate-400 font-medium italic">Nenhuma faixa de nota configurada (será considerado atingimento linear padrão).</p>
+                                )}
+
+                                <div className="bg-slate-50/50 p-3 rounded-2xl border border-dashed border-slate-200/80 space-y-2">
+                                    <span className="text-[10px] font-bold text-slate-500 block">Nova Faixa de Nota:</span>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div className="space-y-1">
+                                            <Label className="text-[10px] font-bold text-slate-500">Mínimo (%)</Label>
+                                            <Input
+                                                type="number"
+                                                placeholder="Ex: 90"
+                                                value={newMinVal}
+                                                onChange={(e) => setNewMinVal(e.target.value)}
+                                                className="h-8 text-xs rounded-lg bg-white"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-[10px] font-bold text-slate-500">Máximo (%)</Label>
+                                            <Input
+                                                type="number"
+                                                placeholder="Ex: 94.9"
+                                                value={newMaxVal}
+                                                onChange={(e) => setNewMaxVal(e.target.value)}
+                                                className="h-8 text-xs rounded-lg bg-white"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-[10px] font-bold text-slate-500">Nota Result. (%)</Label>
+                                            <Input
+                                                type="number"
+                                                placeholder="Ex: 95"
+                                                value={newResultVal}
+                                                onChange={(e) => setNewResultVal(e.target.value)}
+                                                className="h-8 text-xs rounded-lg bg-white"
+                                            />
+                                        </div>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        onClick={() => {
+                                            if (newMinVal === "" || newResultVal === "") {
+                                                toast.error("Preencha o valor Mínimo e a Nota Resultante!");
+                                                return;
+                                            }
+                                            const min = parseFloat(newMinVal);
+                                            const max = newMaxVal !== "" ? parseFloat(newMaxVal) : null;
+                                            const resVal = parseFloat(newResultVal);
+                                            
+                                            if (max !== null && min > max) {
+                                                toast.error("Mínimo não pode ser maior que o Máximo!");
+                                                return;
+                                            }
+
+                                            setSlaRanges([...slaRanges, { minVal: min, maxVal: max, resultVal: resVal }]);
+                                            setNewMinVal("");
+                                            setNewMaxVal("");
+                                            setNewResultVal("");
+                                        }}
+                                        className="w-full h-8 text-[10px] font-bold rounded-lg bg-slate-900 text-white hover:bg-slate-800"
+                                    >
+                                        + Adicionar Faixa
+                                    </Button>
                                 </div>
                             </div>
                         </div>

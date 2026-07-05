@@ -1,4 +1,21 @@
 "use server";
+// Função utilitária para converter valor real em pontuação com base nas faixas de atingimento (SLA Ranges)
+function calculateAtingimentoVal(realVal: number | null, ranges: any[]): number | null {
+    if (realVal === null || realVal === undefined) return null;
+    if (!ranges || ranges.length === 0) return realVal;
+
+    // Ordenar as faixas do menor mínimo para o maior mínimo
+    const sortedRanges = [...ranges].sort((x, y) => x.minVal - y.minVal);
+    for (const r of sortedRanges) {
+        const isAboveMin = realVal >= r.minVal;
+        const isBelowMax = r.maxVal === null || r.maxVal === undefined || realVal <= r.maxVal;
+        if (isAboveMin && isBelowMax) {
+            return r.resultVal;
+        }
+    }
+    return 0; // Se não atingiu nenhuma faixa mínima configurada
+}
+
 
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
@@ -421,7 +438,7 @@ export async function getClientKpis(year: number) {
         }),
         prisma.slaConfigItem.findMany({
             where: { clientId: { in: clientIds } },
-            include: { monthlyValues: true }
+            include: { monthlyValues: true, ranges: true }
         }),
         prisma.assignment.findMany({
             where: {
@@ -520,6 +537,10 @@ export async function getClientKpis(year: number) {
                 } else if (config.metricType === "MANUAL") {
                     const foundManual = config.monthlyValues.find(v => v.month === index && v.year === year);
                     metricValue = foundManual ? foundManual.value : config.targetValue;
+                }
+
+                if (metricValue !== null && config.ranges && config.ranges.length > 0) {
+                    metricValue = calculateAtingimentoVal(metricValue, config.ranges);
                 }
 
                 if (metricValue !== null && metricValue !== undefined) {
@@ -657,6 +678,10 @@ export async function getClientKpis(year: number) {
             }
 
             if (metricValue !== null && metricValue !== undefined) {
+                if (metricValue !== null && config.ranges && config.ranges.length > 0) {
+                    metricValue = calculateAtingimentoVal(metricValue, config.ranges);
+                }
+
                 if (metricValue !== null && metricValue !== undefined) {
                     summaryScoreSum += metricValue * config.weight;
                     summaryWeightSum += config.weight;
@@ -1553,7 +1578,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
             }),
             prisma.slaConfigItem.findMany({
                 where: { clientId: { in: clientIds } },
-                include: { monthlyValues: true },
+                include: { monthlyValues: true, ranges: true },
                 orderBy: { createdAt: "asc" }
             }),
             prisma.assignment.findMany({
@@ -1644,6 +1669,10 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                     } else if (config.metricType === "MANUAL") {
                         const foundManual = config.monthlyValues.find((v: any) => v.month === index && v.year === year);
                         metricValue = foundManual ? foundManual.value : config.targetValue;
+                    }
+
+                    if (metricValue !== null && config.ranges && config.ranges.length > 0) {
+                        metricValue = calculateAtingimentoVal(metricValue, config.ranges);
                     }
 
                     if (metricValue !== null && metricValue !== undefined) {
@@ -1776,6 +1805,10 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                         ? manualVals.reduce((sum: number, v: any) => sum + v.value, 0) / manualVals.length
                         : config.targetValue;
                 }
+                if (metricValue !== null && config.ranges && config.ranges.length > 0) {
+                    metricValue = calculateAtingimentoVal(metricValue, config.ranges);
+                }
+
                 if (metricValue !== null && metricValue !== undefined) {
                     summaryScoreSum += metricValue * config.weight;
                     summaryWeightSum += config.weight;
@@ -1881,6 +1914,7 @@ export async function upsertSlaConfigItem(data: {
     metricType: string;
     weight: number;
     targetValue: number;
+    ranges?: { minVal: number; maxVal: number | null; resultVal: number; }[];
 }) {
     try {
         const user = await getCurrentUser();
@@ -1890,14 +1924,33 @@ export async function upsertSlaConfigItem(data: {
 
         let item;
         if (data.id) {
-            item = await prisma.slaConfigItem.update({
-                where: { id: data.id },
-                data: {
-                    name: data.name,
-                    metricType: data.metricType,
-                    weight: data.weight,
-                    targetValue: data.targetValue
+            // Usar transação para apagar ranges antigos e criar os novos no update
+            item = await prisma.$transaction(async (tx) => {
+                const updated = await tx.slaConfigItem.update({
+                    where: { id: data.id },
+                    data: {
+                        name: data.name,
+                        metricType: data.metricType,
+                        weight: data.weight,
+                        targetValue: data.targetValue
+                    }
+                });
+                
+                await tx.slaRange.deleteMany({
+                    where: { slaConfigItemId: data.id }
+                });
+
+                if (data.ranges && data.ranges.length > 0) {
+                    await tx.slaRange.createMany({
+                        data: data.ranges.map(r => ({
+                            slaConfigItemId: data.id!,
+                            minVal: r.minVal,
+                            maxVal: r.maxVal,
+                            resultVal: r.resultVal
+                        }))
+                    });
                 }
+                return updated;
             });
         } else {
             item = await prisma.slaConfigItem.create({
@@ -1906,7 +1959,14 @@ export async function upsertSlaConfigItem(data: {
                     name: data.name,
                     metricType: data.metricType,
                     weight: data.weight,
-                    targetValue: data.targetValue
+                    targetValue: data.targetValue,
+                    ranges: data.ranges ? {
+                        create: data.ranges.map(r => ({
+                            minVal: r.minVal,
+                            maxVal: r.maxVal,
+                            resultVal: r.resultVal
+                        }))
+                    } : undefined
                 }
             });
         }
@@ -2068,6 +2128,7 @@ export async function getClientDetailedData(clientId: string, year: number, mont
         const slaConfigItems = await prisma.slaConfigItem.findMany({
             where: { clientId },
             include: {
+                ranges: true,
                 monthlyValues: {
                     where: { year, month }
                 }
