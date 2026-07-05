@@ -573,6 +573,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 <TableRow>
                                     <TableHead className="font-bold text-slate-800 text-xs py-3.5 pl-6">#</TableHead>
                                     <TableHead className="font-bold text-slate-800 text-xs py-3.5">Contrato / Cliente</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Qtd. Postos</TableHead>
                                     <TableHead className="font-bold text-slate-800 text-xs text-right py-3.5">Faturamento</TableHead>
                                     <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Curva (ABC)</TableHead>
                                     <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Nota média de NPS</TableHead>
@@ -602,6 +603,9 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                     {c.name}
                                                 </button>
                                                 <span className="text-[10px] text-slate-400 font-semibold">{c.companyName}</span>
+                                            </TableCell>
+                                            <TableCell className="text-center text-xs font-bold text-slate-700 py-3">
+                                                {c.totalSlots || 0}
                                             </TableCell>
                                             <TableCell className="text-right text-xs font-black text-slate-800 py-3">
                                                 {formatCurrency(c.billing)}
