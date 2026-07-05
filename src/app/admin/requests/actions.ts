@@ -469,7 +469,7 @@ export async function getClientKpis(year: number) {
     ];
 
     const monthlyData = monthNames.map((name, index) => {
-        const isMockPeriod = year === 2026 && index < 6;
+        const isMockPeriod = year === 2026 && index !== 6;
         const monthAtts = isMockPeriod ? [] : attendances.filter(a => {
             const d = new Date(a.date);
             return d.getMonth() === index;
