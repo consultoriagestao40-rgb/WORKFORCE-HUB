@@ -607,26 +607,28 @@ export async function getClientKpis(year: number) {
         };
     });
 
-    const activeAtts = attendances.filter(a => a.status !== "FOLGA");
-    const totalShifts = activeAtts.length;
-    const vacantShifts = activeAtts.filter(a => a.status === "FALTA" && !a.coveredById && !a.coverageType).length;
-    const totalAbsences = activeAtts.filter(a => a.status === "FALTA").length;
-
-    const totalEffectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : null;
-    const totalAbsenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : null;
-
     const resolved = requests.filter(r => r.status === "CONCLUIDO" || r.status === "REJEITADO");
-    const totalSlaOnTime = resolved.filter(r => r.updatedAt <= r.dueDate).length;
-    const totalSlaCompliance = resolved.length > 0 ? (totalSlaOnTime / resolved.length) * 100 : null;
-
     const totalMonthNps = mappedNpsResponses;
-    const totalPromoters = totalMonthNps.filter(n => n.resolvedScore >= 9).length;
-    const totalDetractors = totalMonthNps.filter(n => n.resolvedScore <= 6).length;
-    const totalNpsScore = totalMonthNps.length > 0 ? ((totalPromoters - totalDetractors) / totalMonthNps.length) * 100 : null;
-
-    const totalAvgNpsRating = totalMonthNps.length > 0
-        ? totalMonthNps.reduce((sum, n) => sum + n.resolvedScore, 0) / totalMonthNps.length
+    const validEffectiveness = monthlyData.filter(m => m.effectiveness !== null && m.effectiveness !== undefined);
+    const totalEffectiveness = validEffectiveness.length > 0
+        ? validEffectiveness.reduce((sum, m) => sum + m.effectiveness!, 0) / validEffectiveness.length
         : null;
+
+    const totalAbsenteeism = null; // Card removido do front-end
+
+    const validSla = monthlyData.filter(m => m.slaCompliance !== null && m.slaCompliance !== undefined);
+    const totalSlaCompliance = validSla.length > 0
+        ? validSla.reduce((sum, m) => sum + m.slaCompliance!, 0) / validSla.length
+        : null;
+
+    const validNps = monthlyData.filter(m => m.avgNpsRating !== null && m.avgNpsRating !== undefined);
+    const totalAvgNpsRating = validNps.length > 0
+        ? validNps.reduce((sum, m) => sum + m.avgNpsRating!, 0) / validNps.length
+        : null;
+
+    const totalPromoters = 0;
+    const totalDetractors = 0;
+    const totalNpsScore = null;
 
     let summaryWeightSum = 0;
     let summaryScoreSum = 0;
@@ -655,8 +657,10 @@ export async function getClientKpis(year: number) {
             }
 
             if (metricValue !== null && metricValue !== undefined) {
-                summaryScoreSum += metricValue * config.weight;
-                summaryWeightSum += config.weight;
+                if (metricValue !== null && metricValue !== undefined) {
+                    summaryScoreSum += metricValue * config.weight;
+                    summaryWeightSum += config.weight;
+                }
             }
         });
     } else {
@@ -1726,26 +1730,28 @@ export async function getAdminClientKpis(clientId: string, year: number) {
             };
         });
 
-        const activeAtts = attendances.filter((a: any) => a.status !== "FOLGA");
-        const totalShifts = activeAtts.length;
-        const vacantShifts = activeAtts.filter((a: any) => a.status === "FALTA" && !a.coveredById && !a.coverageType).length;
-        const totalAbsences = activeAtts.filter((a: any) => a.status === "FALTA").length;
-
-        const totalEffectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : 100;
-        const totalAbsenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : 0;
-
         const resolved = clientRequests.filter((r: any) => r.status === "CONCLUIDO" || r.status === "REJEITADO");
-        const totalSlaOnTime = resolved.filter((r: any) => r.updatedAt && r.dueDate && r.updatedAt <= r.dueDate).length;
-        const totalSlaCompliance = resolved.length > 0 ? (totalSlaOnTime / resolved.length) * 100 : 100;
-
         const totalMonthNps = mappedNpsResponses;
-        const totalPromoters = totalMonthNps.filter((n: any) => n.resolvedScore >= 9).length;
-        const totalDetractors = totalMonthNps.filter((n: any) => n.resolvedScore <= 6).length;
-        const totalNpsScore = totalMonthNps.length > 0 ? ((totalPromoters - totalDetractors) / totalMonthNps.length) * 100 : 100;
+        const validEffectiveness = monthlyData.filter(m => m.effectiveness !== null && m.effectiveness !== undefined);
+        const totalEffectiveness = validEffectiveness.length > 0
+            ? validEffectiveness.reduce((sum, m) => sum + m.effectiveness!, 0) / validEffectiveness.length
+            : null;
 
-        const totalAvgNpsRating = totalMonthNps.length > 0
-            ? totalMonthNps.reduce((sum: number, n: any) => sum + n.resolvedScore, 0) / totalMonthNps.length
-            : 10;
+        const totalAbsenteeism = null;
+
+        const validSla = monthlyData.filter(m => m.slaCompliance !== null && m.slaCompliance !== undefined);
+        const totalSlaCompliance = validSla.length > 0
+            ? validSla.reduce((sum, m) => sum + m.slaCompliance!, 0) / validSla.length
+            : null;
+
+        const validNps = monthlyData.filter(m => m.avgNpsRating !== null && m.avgNpsRating !== undefined);
+        const totalAvgNpsRating = validNps.length > 0
+            ? validNps.reduce((sum, m) => sum + m.avgNpsRating!, 0) / validNps.length
+            : null;
+
+        const totalPromoters = 0;
+        const totalDetractors = 0;
+        const totalNpsScore = null;
 
         let summaryWeightSum = 0;
         let summaryScoreSum = 0;
@@ -1754,13 +1760,13 @@ export async function getAdminClientKpis(clientId: string, year: number) {
 
         if (clientConfigs.length > 0) {
             clientConfigs.forEach((config: any) => {
-                let metricValue = 100;
+                let metricValue: number | null = 100;
                 if (config.metricType === "EFETIVIDADE") {
                     metricValue = totalEffectiveness;
                 } else if (config.metricType === "SLA_CHAMADOS") {
                     metricValue = totalSlaCompliance;
                 } else if (config.metricType === "NPS") {
-                    metricValue = totalAvgNpsRating * 10;
+                    metricValue = totalAvgNpsRating !== null ? totalAvgNpsRating * 10 : null;
                 } else if (config.metricType === "RECLAMACOES") {
                     const complaintsCount = clientRequests.filter((r: any) => r.type !== "MOVIMENTACAO" && r.type !== "UNIFORME").length;
                     metricValue = Math.max(0, 100 - complaintsCount * 20);
@@ -1770,8 +1776,10 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                         ? manualVals.reduce((sum: number, v: any) => sum + v.value, 0) / manualVals.length
                         : config.targetValue;
                 }
-                summaryScoreSum += metricValue * config.weight;
-                summaryWeightSum += config.weight;
+                if (metricValue !== null && metricValue !== undefined) {
+                    summaryScoreSum += metricValue * config.weight;
+                    summaryWeightSum += config.weight;
+                }
             });
         } else {
             let weightSum = 0;
