@@ -469,7 +469,8 @@ export async function getClientKpis(year: number) {
     ];
 
     const monthlyData = monthNames.map((name, index) => {
-        const monthAtts = attendances.filter(a => {
+        const isMockPeriod = year === 2026 && index < 6;
+        const monthAtts = isMockPeriod ? [] : attendances.filter(a => {
             const d = new Date(a.date);
             return d.getMonth() === index;
         });
@@ -481,13 +482,13 @@ export async function getClientKpis(year: number) {
         const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : null;
         const absenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : null;
 
-        const monthRequests = requests.filter(r => new Date(r.createdAt).getMonth() === index);
+        const monthRequests = isMockPeriod ? [] : requests.filter(r => new Date(r.createdAt).getMonth() === index);
         const resolvedRequests = monthRequests.filter(r => r.status === "CONCLUIDO" || r.status === "REJEITADO");
         
         const slaOnTime = resolvedRequests.filter(r => r.updatedAt <= r.dueDate).length;
         const slaCompliance = resolvedRequests.length > 0 ? (slaOnTime / resolvedRequests.length) * 100 : null;
 
-        const monthNps = mappedNpsResponses.filter(n => new Date(n.createdAt).getMonth() === index);
+        const monthNps = isMockPeriod ? [] : mappedNpsResponses.filter(n => new Date(n.createdAt).getMonth() === index);
         const promoters = monthNps.filter(n => n.resolvedScore >= 9).length;
         const detractors = monthNps.filter(n => n.resolvedScore <= 6).length;
         const npsScore = monthNps.length > 0 ? ((promoters - detractors) / monthNps.length) * 100 : null;
