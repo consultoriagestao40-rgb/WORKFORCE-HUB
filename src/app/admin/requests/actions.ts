@@ -887,7 +887,8 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                 company: true,
                 postos: {
                     include: {
-                        assignments: true
+                        assignments: true,
+                        role: true
                     }
                 },
                 visits: {
@@ -953,6 +954,49 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                 return !hasActiveAssignment;
             }).length;
             const filledSlots = totalSlots - vacantSlots;
+
+            // Filter vacant postos and compute details
+            const vacantPostosList = client.postos.filter((p: any) => {
+                const hasActiveAssignment = p.assignments.some((a: any) => !a.endDate || new Date(a.endDate) > new Date());
+                return !hasActiveAssignment;
+            });
+
+            const vacantPostosDetails = vacantPostosList.map((p: any) => {
+                const endedAssignments = p.assignments.filter((a: any) => a.endDate);
+                let vacantSinceDateStr: string;
+                let isNeverOccupied = false;
+
+                if (endedAssignments.length > 0) {
+                    const sorted = [...endedAssignments].sort((a: any, b: any) => 
+                        new Date(b.endDate).getTime() - new Date(a.endDate).getTime()
+                    );
+                    vacantSinceDateStr = new Date(sorted[0].endDate).toISOString();
+                } else {
+                    vacantSinceDateStr = new Date(p.createdAt).toISOString();
+                    isNeverOccupied = true;
+                }
+
+                // Compute days
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const vacantDateClean = new Date(vacantSinceDateStr);
+                vacantDateClean.setHours(0, 0, 0, 0);
+
+                const diffTime = Math.abs(today.getTime() - vacantDateClean.getTime());
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+                return {
+                    id: p.id,
+                    role: p.role?.name || "Posto",
+                    schedule: p.schedule,
+                    startTime: p.startTime,
+                    endTime: p.endTime,
+                    billingValue: p.billingValue,
+                    vacantSince: vacantSinceDateStr,
+                    diffDays,
+                    isNeverOccupied
+                };
+            });
 
             // Filter attendances for this client
             const clientAtts = attendances.filter((a: any) => a.posto?.clientId === client.id && a.status !== "FOLGA");
@@ -1023,7 +1067,8 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                 slaCompliance: finalSla,
                 npsRating: avgNpsRating,
                 npsCount: clientMonthNps.length,
-                visits: client.visits
+                visits: client.visits,
+                vacantPostosDetails
             };
         });
 

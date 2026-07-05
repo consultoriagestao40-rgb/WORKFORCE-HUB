@@ -30,7 +30,7 @@ import {
     Plus, Clock, LogOut, Star, Info,
     Trash2, Edit3, Inbox, FileText, Smile, 
     BarChart2, ClipboardList, ChevronLeft, ChevronRight, RefreshCw, Download,
-    UserCheck, UserX, Building
+    UserCheck, UserX, Building, Briefcase, AlertCircle
 } from "lucide-react";
 
 interface PerformanceDashboardProps {
@@ -697,76 +697,125 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         <TableRow>
                                             <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">#</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-xs py-2.5">Contrato</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Vagas em Aberto</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Total Postos</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-xs text-center pr-6 py-2.5">Urgência</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Cargo / Função</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Escala / Horário</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Vago Desde</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center pr-6 py-2.5">Tempo Vago</TableHead>
                                         </TableRow>
                                     )}
                                 </TableHeader>
                                 <TableBody>
-                                    {sortedClients.map((c: any, index: number) => (
-                                        <TableRow key={c.id} className="hover:bg-slate-50/50">
-                                            <TableCell className="pl-6 py-2 text-xs text-slate-400 font-bold">{index + 1}</TableCell>
-                                            <TableCell className="py-2 text-xs font-bold text-slate-800">{c.name}</TableCell>
-                                            
-                                            {detailsModalType === "contracts" && (
-                                                <>
-                                                    <TableCell className="py-2 text-xs text-slate-600">{c.companyName}</TableCell>
-                                                    <TableCell className="py-2 text-xs text-center">
-                                                        <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black ${
-                                                            c.class === "A" ? "bg-emerald-50 text-emerald-700 border-emerald-250" :
-                                                            c.class === "B" ? "bg-amber-50 text-amber-700 border-amber-250" :
-                                                            "bg-slate-100 text-slate-700 border-slate-200"
-                                                        }`}>
-                                                            Classe {c.class}
-                                                        </span>
-                                                    </TableCell>
-                                                    <TableCell className="py-2 text-xs text-right pr-6 font-black text-slate-800">{formatCurrency(c.billing)}</TableCell>
-                                                </>
-                                            )}
+                                    {detailsModalType === "vacancies" ? (
+                                        (() => {
+                                            const allVacantPostos: any[] = [];
+                                            sortedClients.forEach((c: any) => {
+                                                if (c.vacantPostosDetails) {
+                                                    c.vacantPostosDetails.forEach((p: any) => {
+                                                        allVacantPostos.push({
+                                                            ...p,
+                                                            clientName: c.name
+                                                        });
+                                                    });
+                                                }
+                                            });
 
-                                            {detailsModalType === "employees" && (
-                                                <>
-                                                    <TableCell className="py-2 text-xs text-center text-slate-700 font-bold">{c.filledSlots}</TableCell>
-                                                    <TableCell className="py-2 text-xs text-center text-slate-500 font-bold">{c.totalSlots}</TableCell>
-                                                    <TableCell className="py-2 text-xs text-center pr-6 font-black text-emerald-600">
-                                                        {c.totalSlots > 0 ? ((c.filledSlots / c.totalSlots) * 100).toFixed(0) + "%" : "100%"}
-                                                    </TableCell>
-                                                </>
-                                            )}
+                                            if (allVacantPostos.length === 0) {
+                                                return (
+                                                    <TableRow>
+                                                        <TableCell colSpan={6} className="text-center py-6 text-xs text-slate-500 font-bold">
+                                                            Nenhuma vaga em aberto cadastrada.
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            }
 
-                                            {detailsModalType === "billing" && (
-                                                <>
-                                                    <TableCell className="py-2 text-xs text-center">
-                                                        <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black ${
-                                                            c.class === "A" ? "bg-emerald-50 text-emerald-700 border-emerald-250" :
-                                                            c.class === "B" ? "bg-amber-50 text-amber-700 border-amber-250" :
-                                                            "bg-slate-100 text-slate-700 border-slate-200"
-                                                        }`}>
-                                                            Classe {c.class}
-                                                        </span>
-                                                    </TableCell>
-                                                    <TableCell className="py-2 text-xs text-right text-slate-600 font-semibold">{formatCurrency(c.billing)}</TableCell>
-                                                    <TableCell className="py-2 text-xs text-right text-red-500 font-semibold">-{formatCurrency(c.glosasTotal || 0)}</TableCell>
-                                                    <TableCell className="py-2 text-xs text-right pr-6 font-black text-emerald-600">{formatCurrency(Math.max(0, c.billing - (c.glosasTotal || 0)))}</TableCell>
-                                                </>
-                                            )}
+                                            return allVacantPostos.map((p: any, index: number) => {
+                                                const vacantDateFormatted = p.isNeverOccupied
+                                                    ? "Nunca ocupado"
+                                                    : format(new Date(p.vacantSince), "dd/MM/yyyy");
 
-                                            {detailsModalType === "vacancies" && (
-                                                <>
-                                                    <TableCell className="py-2 text-xs text-center text-red-650 font-black">{c.vacantSlots}</TableCell>
-                                                    <TableCell className="py-2 text-xs text-center text-slate-500 font-semibold">{c.totalSlots}</TableCell>
-                                                    <TableCell className="py-2 text-xs text-center pr-6">
-                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
-                                                            c.vacantSlots > 0 ? "bg-red-50 text-red-700 border-red-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                                        }`}>
-                                                            {c.vacantSlots > 0 ? "Alta" : "Nenhuma"}
-                                                        </span>
-                                                    </TableCell>
-                                                </>
-                                            )}
-                                        </TableRow>
-                                    ))}
+                                                return (
+                                                    <TableRow key={p.id} className="hover:bg-slate-50/50">
+                                                        <TableCell className="pl-6 py-2 text-xs text-slate-400 font-bold">{index + 1}</TableCell>
+                                                        <TableCell className="py-2 text-xs font-bold text-slate-800">{p.clientName}</TableCell>
+                                                        <TableCell className="py-2 text-xs text-slate-700 font-medium">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+                                                                <span>{p.role}</span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="py-2 text-xs text-center text-slate-655 font-medium">
+                                                            <div className="flex flex-col items-center">
+                                                                <span className="font-bold text-slate-800">{p.startTime} - {p.endTime}</span>
+                                                                <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-500 font-mono mt-0.5">{p.schedule}</span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="py-2 text-xs text-center text-slate-600 font-semibold">
+                                                            <div className="flex items-center justify-center gap-1.5">
+                                                                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                                                <span>{vacantDateFormatted}</span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="py-2 text-xs text-center pr-6">
+                                                            <span className="px-2 py-0.5 rounded text-[10px] font-black border bg-red-50 text-red-700 border-red-200">
+                                                                {p.diffDays} dias
+                                                            </span>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            });
+                                        })()
+                                    ) : (
+                                        sortedClients.map((c: any, index: number) => (
+                                            <TableRow key={c.id} className="hover:bg-slate-50/50">
+                                                <TableCell className="pl-6 py-2 text-xs text-slate-400 font-bold">{index + 1}</TableCell>
+                                                <TableCell className="py-2 text-xs font-bold text-slate-800">{c.name}</TableCell>
+                                                
+                                                {detailsModalType === "contracts" && (
+                                                    <>
+                                                        <TableCell className="py-2 text-xs text-slate-600">{c.companyName}</TableCell>
+                                                        <TableCell className="py-2 text-xs text-center">
+                                                            <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black ${
+                                                                c.class === "A" ? "bg-emerald-50 text-emerald-700 border-emerald-250" :
+                                                                c.class === "B" ? "bg-amber-50 text-amber-700 border-amber-250" :
+                                                                "bg-slate-100 text-slate-700 border-slate-200"
+                                                            }`}>
+                                                                Classe {c.class}
+                                                            </span>
+                                                        </TableCell>
+                                                        <TableCell className="py-2 text-xs text-right pr-6 font-black text-slate-800">{formatCurrency(c.billing)}</TableCell>
+                                                    </>
+                                                )}
+
+                                                {detailsModalType === "employees" && (
+                                                    <>
+                                                        <TableCell className="py-2 text-xs text-center text-slate-700 font-bold">{c.filledSlots}</TableCell>
+                                                        <TableCell className="py-2 text-xs text-center text-slate-500 font-bold">{c.totalSlots}</TableCell>
+                                                        <TableCell className="py-2 text-xs text-center pr-6 font-black text-emerald-600">
+                                                            {c.totalSlots > 0 ? ((c.filledSlots / c.totalSlots) * 100).toFixed(0) + "%" : "100%"}
+                                                        </TableCell>
+                                                    </>
+                                                )}
+
+                                                {detailsModalType === "billing" && (
+                                                    <>
+                                                        <TableCell className="py-2 text-xs text-center">
+                                                            <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black ${
+                                                                c.class === "A" ? "bg-emerald-50 text-emerald-700 border-emerald-250" :
+                                                                c.class === "B" ? "bg-amber-50 text-amber-700 border-amber-250" :
+                                                                "bg-slate-100 text-slate-700 border-slate-200"
+                                                            }`}>
+                                                                Classe {c.class}
+                                                            </span>
+                                                        </TableCell>
+                                                        <TableCell className="py-2 text-xs text-right text-slate-600 font-semibold">{formatCurrency(c.billing)}</TableCell>
+                                                        <TableCell className="py-2 text-xs text-right text-red-500 font-semibold">-{formatCurrency(c.glosasTotal || 0)}</TableCell>
+                                                        <TableCell className="py-2 text-xs text-right pr-6 font-black text-emerald-600">{formatCurrency(Math.max(0, c.billing - (c.glosasTotal || 0)))}</TableCell>
+                                                    </>
+                                                )}
+                                            </TableRow>
+                                        ))
+                                    )}
                                 </TableBody>
                             </Table>
                         </div>
@@ -2642,76 +2691,125 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     <TableRow>
                                         <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">#</TableHead>
                                         <TableHead className="font-bold text-slate-800 text-xs py-2.5">Contrato</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Vagas em Aberto</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Total Postos</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-xs text-center pr-6 py-2.5">Urgência</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5">Cargo / Função</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Escala / Horário</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Vago Desde</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs text-center pr-6 py-2.5">Tempo Vago</TableHead>
                                     </TableRow>
                                 )}
                             </TableHeader>
                             <TableBody>
-                                {sortedClients.map((c: any, index: number) => (
-                                    <TableRow key={c.id} className="hover:bg-slate-50/50">
-                                        <TableCell className="pl-6 py-2 text-xs text-slate-400 font-bold">{index + 1}</TableCell>
-                                        <TableCell className="py-2 text-xs font-bold text-slate-800">{c.name}</TableCell>
-                                        
-                                        {detailsModalType === "contracts" && (
-                                            <>
-                                                <TableCell className="py-2 text-xs text-slate-600">{c.companyName}</TableCell>
-                                                <TableCell className="py-2 text-xs text-center">
-                                                    <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black ${
-                                                        c.class === "A" ? "bg-emerald-50 text-emerald-700 border-emerald-250" :
-                                                        c.class === "B" ? "bg-amber-50 text-amber-700 border-amber-250" :
-                                                        "bg-slate-100 text-slate-700 border-slate-200"
-                                                    }`}>
-                                                        Classe {c.class}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell className="py-2 text-xs text-right pr-6 font-black text-slate-800">{formatCurrency(c.billing)}</TableCell>
-                                            </>
-                                        )}
+                                {detailsModalType === "vacancies" ? (
+                                    (() => {
+                                        const allVacantPostos: any[] = [];
+                                        sortedClients.forEach((c: any) => {
+                                            if (c.vacantPostosDetails) {
+                                                c.vacantPostosDetails.forEach((p: any) => {
+                                                    allVacantPostos.push({
+                                                        ...p,
+                                                        clientName: c.name
+                                                    });
+                                                });
+                                            }
+                                        });
 
-                                        {detailsModalType === "employees" && (
-                                            <>
-                                                <TableCell className="py-2 text-xs text-center text-slate-700 font-bold">{c.filledSlots}</TableCell>
-                                                <TableCell className="py-2 text-xs text-center text-slate-500 font-bold">{c.totalSlots}</TableCell>
-                                                <TableCell className="py-2 text-xs text-center pr-6 font-black text-emerald-600">
-                                                    {c.totalSlots > 0 ? ((c.filledSlots / c.totalSlots) * 100).toFixed(0) + "%" : "100%"}
-                                                </TableCell>
-                                            </>
-                                        )}
+                                        if (allVacantPostos.length === 0) {
+                                            return (
+                                                <TableRow>
+                                                    <TableCell colSpan={6} className="text-center py-6 text-xs text-slate-500 font-bold">
+                                                        Nenhuma vaga em aberto cadastrada.
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        }
 
-                                        {detailsModalType === "billing" && (
-                                            <>
-                                                <TableCell className="py-2 text-xs text-center">
-                                                    <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black ${
-                                                        c.class === "A" ? "bg-emerald-50 text-emerald-700 border-emerald-250" :
-                                                        c.class === "B" ? "bg-amber-50 text-amber-700 border-amber-250" :
-                                                        "bg-slate-100 text-slate-700 border-slate-200"
-                                                    }`}>
-                                                        Classe {c.class}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell className="py-2 text-xs text-right text-slate-600 font-semibold">{formatCurrency(c.billing)}</TableCell>
-                                                <TableCell className="py-2 text-xs text-right text-red-500 font-semibold">-{formatCurrency(c.glosasTotal || 0)}</TableCell>
-                                                <TableCell className="py-2 text-xs text-right pr-6 font-black text-emerald-600">{formatCurrency(Math.max(0, c.billing - (c.glosasTotal || 0)))}</TableCell>
-                                            </>
-                                        )}
+                                        return allVacantPostos.map((p: any, index: number) => {
+                                            const vacantDateFormatted = p.isNeverOccupied
+                                                ? "Nunca ocupado"
+                                                : format(new Date(p.vacantSince), "dd/MM/yyyy");
 
-                                        {detailsModalType === "vacancies" && (
-                                            <>
-                                                <TableCell className="py-2 text-xs text-center text-red-650 font-black">{c.vacantSlots}</TableCell>
-                                                <TableCell className="py-2 text-xs text-center text-slate-500 font-semibold">{c.totalSlots}</TableCell>
-                                                <TableCell className="py-2 text-xs text-center pr-6">
-                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
-                                                        c.vacantSlots > 0 ? "bg-red-50 text-red-700 border-red-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                                    }`}>
-                                                        {c.vacantSlots > 0 ? "Alta" : "Nenhuma"}
-                                                    </span>
-                                                </TableCell>
-                                            </>
-                                        )}
-                                    </TableRow>
-                                ))}
+                                            return (
+                                                <TableRow key={p.id} className="hover:bg-slate-50/50">
+                                                    <TableCell className="pl-6 py-2 text-xs text-slate-400 font-bold">{index + 1}</TableCell>
+                                                    <TableCell className="py-2 text-xs font-bold text-slate-800">{p.clientName}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-slate-700 font-medium">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+                                                            <span>{p.role}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="py-2 text-xs text-center text-slate-655 font-medium">
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="font-bold text-slate-800">{p.startTime} - {p.endTime}</span>
+                                                            <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-500 font-mono mt-0.5">{p.schedule}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="py-2 text-xs text-center text-slate-600 font-semibold">
+                                                        <div className="flex items-center justify-center gap-1.5">
+                                                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                                            <span>{vacantDateFormatted}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="py-2 text-xs text-center pr-6">
+                                                        <span className="px-2 py-0.5 rounded text-[10px] font-black border bg-red-50 text-red-700 border-red-200">
+                                                            {p.diffDays} dias
+                                                        </span>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        });
+                                    })()
+                                ) : (
+                                    sortedClients.map((c: any, index: number) => (
+                                        <TableRow key={c.id} className="hover:bg-slate-50/50">
+                                            <TableCell className="pl-6 py-2 text-xs text-slate-400 font-bold">{index + 1}</TableCell>
+                                            <TableCell className="py-2 text-xs font-bold text-slate-800">{c.name}</TableCell>
+                                            
+                                            {detailsModalType === "contracts" && (
+                                                <>
+                                                    <TableCell className="py-2 text-xs text-slate-600">{c.companyName}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-center">
+                                                        <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black ${
+                                                            c.class === "A" ? "bg-emerald-50 text-emerald-700 border-emerald-250" :
+                                                            c.class === "B" ? "bg-amber-50 text-amber-700 border-amber-250" :
+                                                            "bg-slate-100 text-slate-700 border-slate-200"
+                                                        }`}>
+                                                            Classe {c.class}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="py-2 text-xs text-right pr-6 font-black text-slate-800">{formatCurrency(c.billing)}</TableCell>
+                                                </>
+                                            )}
+
+                                            {detailsModalType === "employees" && (
+                                                <>
+                                                    <TableCell className="py-2 text-xs text-center text-slate-700 font-bold">{c.filledSlots}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-center text-slate-500 font-bold">{c.totalSlots}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-center pr-6 font-black text-emerald-600">
+                                                        {c.totalSlots > 0 ? ((c.filledSlots / c.totalSlots) * 100).toFixed(0) + "%" : "100%"}
+                                                    </TableCell>
+                                                </>
+                                            )}
+
+                                            {detailsModalType === "billing" && (
+                                                <>
+                                                    <TableCell className="py-2 text-xs text-center">
+                                                        <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black ${
+                                                            c.class === "A" ? "bg-emerald-50 text-emerald-700 border-emerald-250" :
+                                                            c.class === "B" ? "bg-amber-50 text-amber-700 border-amber-250" :
+                                                            "bg-slate-100 text-slate-700 border-slate-200"
+                                                        }`}>
+                                                            Classe {c.class}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="py-2 text-xs text-right text-slate-600 font-semibold">{formatCurrency(c.billing)}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-right text-red-500 font-semibold">-{formatCurrency(c.glosasTotal || 0)}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-right pr-6 font-black text-emerald-600">{formatCurrency(Math.max(0, c.billing - (c.glosasTotal || 0)))}</TableCell>
+                                                </>
+                                            )}
+                                        </TableRow>
+                                    ))
+                                )}
                             </TableBody>
                         </Table>
                     </div>
