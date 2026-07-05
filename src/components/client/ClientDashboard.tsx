@@ -131,11 +131,11 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     const [selectedServicePlanPostoId, setSelectedServicePlanPostoId] = useState<string>("");
 
     // KPI Modal States
-    const [kpiModalConfig, setKpiModalConfig] = useState<{ monthIndex: number; monthName: string; kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints'; value?: number } | null>(null);
+    const [kpiModalConfig, setKpiModalConfig] = useState<{ monthIndex: number; monthName: string; kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints' | 'reposition'; value?: number } | null>(null);
     const [kpiModalData, setKpiModalData] = useState<any>(null);
     const [loadingKpiModal, setLoadingKpiModal] = useState<boolean>(false);
 
-    const handleKpiCellClick = async (monthIndex: number, monthName: string, kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints', value?: number) => {
+    const handleKpiCellClick = async (monthIndex: number, monthName: string, kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints' | 'reposition', value?: number) => {
         const activeId = activeContractId || (contracts.length > 0 ? contracts[0].id : null);
         if (!activeId) return;
 
@@ -2295,6 +2295,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                         <TableHead className="font-bold text-slate-850 text-xs text-center py-3">Rotatividade (Turnover)</TableHead>
                                                         <TableHead className="font-bold text-slate-850 text-xs text-center py-3">Chamados no Prazo (SLA)</TableHead>
                                                         <TableHead className="font-bold text-slate-850 text-xs text-center py-3">Índice Reclamações</TableHead>
+                                                    <TableHead className="font-bold text-xs text-slate-800 text-right pr-4">SLA Reposição</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
@@ -2353,7 +2354,13 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                     onClick={() => handleKpiCellClick(mIndex, m.name, 'complaints', m.complaintsRate)}
                                                                     className="text-center font-bold text-xs text-red-500 py-3 cursor-pointer hover:bg-red-50 hover:scale-[1.03] transition-all select-none"
                                                                 >
-                                                                    {complaintsRate > 0 ? `${complaintsRate.toFixed(1).replace('.', ',')}%` : "0,0%"}
+                                                                    {m.complaintsRate !== undefined && m.complaintsRate !== null ? `${m.complaintsRate.toFixed(1).replace('.', ',')}%` : "0,0%"}
+                                                                </TableCell>
+                                                                <TableCell 
+                                                                    onClick={() => handleKpiCellClick(mIndex, m.name, 'reposition', m.avgRepositionDays)}
+                                                                    className="text-center font-bold text-xs text-blue-500 py-3 cursor-pointer hover:bg-blue-50 hover:scale-[1.03] transition-all select-none text-right pr-4"
+                                                                >
+                                                                    {m.avgRepositionDays !== undefined && m.avgRepositionDays !== null ? `${m.avgRepositionDays.toFixed(1).replace('.', ',')} dias` : "-"}
                                                                 </TableCell>
                                                             </TableRow>
                                                         );
@@ -2485,6 +2492,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                             {kpiModalConfig?.kpiType === 'turnover' && "Auditoria de Rotatividade e Movimentações de Postos"}
                             {kpiModalConfig?.kpiType === 'sla' && "Auditoria de SLA de Chamados Cumpridos no Prazo"}
                             {kpiModalConfig?.kpiType === 'complaints' && "Auditoria de Reclamações Registradas"}
+                            {kpiModalConfig?.kpiType === 'reposition' && "Auditoria de SLA de Reposição de Vagas"}
                         </p>
                     </div>
                 </DialogHeader>
@@ -2724,6 +2732,64 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                         </TableRow>
                                                     );
                                                 })
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* KPI: SLA DE REPOSIÇÃO */}
+                        {kpiModalConfig?.kpiType === 'reposition' && (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Vagas Repostas</span>
+                                        <p className="text-2xl font-black text-slate-800 mt-1">{kpiModalData.repositions?.length || 0}</p>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Acumulado Dias Vagos</span>
+                                        <p className="text-2xl font-black text-slate-800 mt-1">{(kpiModalData.repositions || []).reduce((sum: number, r: any) => sum + r.diffDays, 0)} dias</p>
+                                    </div>
+                                    <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100/50">
+                                        <span className="text-[10px] font-black uppercase text-blue-600 tracking-wider">Média de Reposição</span>
+                                        <p className="text-2xl font-black text-blue-700 mt-1">
+                                            {kpiModalConfig.value !== undefined && kpiModalConfig.value !== null ? `${kpiModalConfig.value.toFixed(1).replace('.', ',')} dias` : "-"}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="border border-slate-100 rounded-2xl overflow-x-auto bg-white">
+                                    <Table className="min-w-[700px]">
+                                        <TableHeader className="bg-slate-50">
+                                            <TableRow>
+                                                <TableHead className="font-bold text-xs text-slate-800 pl-4">Posto de Trabalho</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800">Cargo/Função</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800">Colaborador Antigo</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800">Data Saída</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800">Colaborador Novo</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800">Data Entrada</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800 text-right pr-4">Dias de Vacância</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {(kpiModalData.repositions || []).length === 0 ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={7} className="text-center py-8 text-slate-400 font-semibold text-xs">
+                                                        Nenhuma reposição de funcionário concluída neste mês.
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : (
+                                                (kpiModalData.repositions || []).map((r: any) => (
+                                                    <TableRow key={r.id} className="hover:bg-slate-55/30 transition-colors">
+                                                        <TableCell className="font-bold text-xs text-slate-800 pl-4">{r.posto?.name || "Posto"}</TableCell>
+                                                        <TableCell className="font-bold text-xs text-slate-600">{r.posto?.role?.name || "-"}</TableCell>
+                                                        <TableCell className="font-bold text-xs text-slate-900">{r.exitedEmployee?.name || "-"}</TableCell>
+                                                        <TableCell className="font-bold text-xs text-slate-550">{new Date(r.exitDate).toLocaleDateString('pt-BR')}</TableCell>
+                                                        <TableCell className="font-bold text-xs text-slate-900">{r.enteredEmployee?.name || "-"}</TableCell>
+                                                        <TableCell className="font-bold text-xs text-slate-800">{new Date(r.entryDate).toLocaleDateString('pt-BR')}</TableCell>
+                                                        <TableCell className="font-bold text-xs text-blue-650 text-right pr-4">{r.diffDays} dias</TableCell>
+                                                    </TableRow>
+                                                ))
                                             )}
                                         </TableBody>
                                     </Table>

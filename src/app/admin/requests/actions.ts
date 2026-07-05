@@ -532,6 +532,43 @@ export async function getClientKpis(year: number) {
         const activeStaff = totalPostosCount > 0 ? totalPostosCount : 5;
         const turnover = activeStaff > 0 ? (monthSubstitutions / activeStaff) * 100 : 0;
 
+        // SLA de Reposição (Média de dias decorridos para reposição)
+        const assignmentsByPosto: { [key: string]: any[] } = {};
+        assignments.forEach((a: any) => {
+            if (!assignmentsByPosto[a.postoId]) {
+                assignmentsByPosto[a.postoId] = [];
+            }
+            assignmentsByPosto[a.postoId].push(a);
+        });
+
+        const repositionTransitions: any[] = [];
+        Object.keys(assignmentsByPosto).forEach((postoId) => {
+            const list = assignmentsByPosto[postoId].sort((x, y) => new Date(x.startDate).getTime() - new Date(y.startDate).getTime());
+            for (let i = 0; i < list.length - 1; i++) {
+                const current = list[i];
+                const next = list[i + 1];
+                if (current.endDate) {
+                    const exitDate = new Date(current.endDate);
+                    const entryDate = new Date(next.startDate);
+                    if (entryDate >= exitDate) {
+                        const diffTime = Math.abs(entryDate.getTime() - exitDate.getTime());
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        repositionTransitions.push({
+                            entryDate,
+                            diffDays
+                        });
+                    }
+                }
+            }
+        });
+
+        const monthRepositionTransitions = repositionTransitions.filter(t => 
+            t.entryDate.getMonth() === index && 
+            t.entryDate.getFullYear() === year
+        );
+        const totalRepositionDays = monthRepositionTransitions.reduce((sum, t) => sum + t.diffDays, 0);
+        const avgRepositionDays = monthRepositionTransitions.length > 0 ? parseFloat((totalRepositionDays / monthRepositionTransitions.length).toFixed(1)) : null;
+
         const complaints = monthRequests.filter((r: any) => r.description?.toLowerCase().includes("reclam") || r.description?.toLowerCase().includes("queixa"));
         const complaintsRate = monthRequests.length > 0 ? (complaints.length / monthRequests.length) * 100 : 0;
 
@@ -546,7 +583,8 @@ export async function getClientKpis(year: number) {
             avgNpsRating,
             contractScore,
             turnover,
-            complaintsRate
+            complaintsRate,
+            avgRepositionDays
         };
     });
 
@@ -1579,6 +1617,43 @@ export async function getAdminClientKpis(clientId: string, year: number) {
             const activeStaff = totalPostosCount > 0 ? totalPostosCount : 5;
             const turnover = activeStaff > 0 ? (monthSubstitutions / activeStaff) * 100 : 0;
 
+            // SLA de Reposição (Média de dias decorridos para reposição)
+            const assignmentsByPosto: { [key: string]: any[] } = {};
+            assignments.forEach((a: any) => {
+                if (!assignmentsByPosto[a.postoId]) {
+                    assignmentsByPosto[a.postoId] = [];
+                }
+                assignmentsByPosto[a.postoId].push(a);
+            });
+
+            const repositionTransitions: any[] = [];
+            Object.keys(assignmentsByPosto).forEach((postoId) => {
+                const list = assignmentsByPosto[postoId].sort((x, y) => new Date(x.startDate).getTime() - new Date(y.startDate).getTime());
+                for (let i = 0; i < list.length - 1; i++) {
+                    const current = list[i];
+                    const next = list[i + 1];
+                    if (current.endDate) {
+                        const exitDate = new Date(current.endDate);
+                        const entryDate = new Date(next.startDate);
+                        if (entryDate >= exitDate) {
+                            const diffTime = Math.abs(entryDate.getTime() - exitDate.getTime());
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                            repositionTransitions.push({
+                                entryDate,
+                                diffDays
+                            });
+                        }
+                    }
+                }
+            });
+
+            const monthRepositionTransitions = repositionTransitions.filter(t => 
+                t.entryDate.getMonth() === index && 
+                t.entryDate.getFullYear() === year
+            );
+            const totalRepositionDays = monthRepositionTransitions.reduce((sum, t) => sum + t.diffDays, 0);
+            const avgRepositionDays = monthRepositionTransitions.length > 0 ? parseFloat((totalRepositionDays / monthRepositionTransitions.length).toFixed(1)) : null;
+
             const complaints = monthRequests.filter((r: any) => r.description?.toLowerCase().includes("reclam") || r.description?.toLowerCase().includes("queixa"));
             const complaintsRate = monthRequests.length > 0 ? (complaints.length / monthRequests.length) * 100 : 0;
 
@@ -1593,7 +1668,8 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                 avgNpsRating,
                 contractScore,
                 turnover,
-                complaintsRate
+                complaintsRate,
+                avgRepositionDays
             };
         });
 
