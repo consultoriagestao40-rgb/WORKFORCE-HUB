@@ -5,7 +5,7 @@ import { getAdminClientKpis, getClientDetailedData } from '@/app/admin/requests/
 export async function GET() {
     try {
         const client = await prisma.client.findFirst({
-            where: { name: { contains: "Penha" } }
+            where: { name: { contains: "penha", mode: 'insensitive' } }
         });
         if (!client) {
             return NextResponse.json({ error: "Cliente Penha não encontrado" });
