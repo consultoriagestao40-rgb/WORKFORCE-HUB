@@ -3348,7 +3348,11 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             </Card>
                                             <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                                 <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Nota NPS Média</span>
-                                                <span className="text-xl font-black mt-1 text-amber-500">{clientKpiData.summary?.avgNpsRating?.toFixed(1) || "10.0"}/10</span>
+                                                <span className="text-xl font-black mt-1 text-amber-500">
+                                                    {clientKpiData.summary?.avgNpsRating 
+                                                        ? `${(clientKpiData.summary.avgNpsRating * 10).toFixed(1).replace('.', ',')}%` 
+                                                        : "100,0%"}
+                                                </span>
                                             </Card>
                                             <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                                 <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Nível Absenteísmo</span>
