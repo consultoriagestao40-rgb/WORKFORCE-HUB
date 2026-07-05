@@ -2986,6 +2986,32 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
                                         {npsSubTab === "results" ? (
                                             <div className="space-y-6">
+                                                {/* Card de Média Acumulada no Topo */}
+                                                {(() => {
+                                                    let totalScoreSum = 0;
+                                                    let totalResponsesCount = detailedData?.npsResponses?.length || 0;
+                                                    (detailedData?.npsResponses || []).forEach((r: any) => {
+                                                        let sumS = 0; let sumW = 0;
+                                                        r.answers.forEach((an: any) => {
+                                                            const w = an.question?.weight || 1.0;
+                                                            sumS += an.score * w; sumW += w;
+                                                        });
+                                                        const finalNpsVal = sumW > 0 ? sumS / sumW : 10;
+                                                        totalScoreSum += finalNpsVal;
+                                                    });
+                                                    const overallAverage = totalResponsesCount > 0 ? totalScoreSum / totalResponsesCount : 10;
+
+                                                    return (
+                                                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                                                            <div className="border border-slate-200/60 bg-white p-4 rounded-2xl flex flex-col items-center justify-center text-center shadow-premium">
+                                                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Média Acumulada Geral</span>
+                                                                <span className="text-3xl font-black text-blue-650 mt-1">{overallAverage.toFixed(2)}/10</span>
+                                                                <span className="text-[10px] text-slate-400 mt-0.5">Baseado em {totalResponsesCount} avaliações deste mês</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+
                                                 {/* Tabela de Notas Evolutivas nos 12 meses */}
                                                 <Card className="border border-slate-200/50 shadow-premium bg-white rounded-2xl overflow-hidden">
                                                     <CardHeader>
@@ -3040,106 +3066,77 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                         {detailedData.npsResponses.length === 0 ? (
                                                             <div className="text-center py-6 text-slate-400 italic text-xs">Nenhum feedback registrado este mês.</div>
                                                         ) : (
-                                                            (() => {
-                                                                // Calcular a média acumulada geral das avaliações do mês
-                                                                let totalScoreSum = 0;
-                                                                let totalResponsesCount = detailedData.npsResponses.length;
-                                                                detailedData.npsResponses.forEach((r: any) => {
+                                                            <div className="space-y-3">
+                                                                {detailedData.npsResponses.map((r: any) => {
                                                                     let sumS = 0; let sumW = 0;
                                                                     r.answers.forEach((an: any) => {
                                                                         const w = an.question?.weight || 1.0;
                                                                         sumS += an.score * w; sumW += w;
                                                                     });
                                                                     const finalNpsVal = sumW > 0 ? sumS / sumW : 10;
-                                                                    totalScoreSum += finalNpsVal;
-                                                                });
-                                                                const overallAverage = totalResponsesCount > 0 ? totalScoreSum / totalResponsesCount : 10;
+                                                                    const isExpanded = expandedResponseId === r.id;
 
-                                                                return (
-                                                                    <div className="space-y-4">
-                                                                        {/* Card de Média Acumulada */}
-                                                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pb-2">
-                                                                            <div className="border border-slate-200/60 bg-slate-50/50 p-4 rounded-2xl flex flex-col items-center justify-center text-center">
-                                                                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Média Acumulada Geral</span>
-                                                                                <span className="text-3xl font-black text-blue-600 mt-1">{overallAverage.toFixed(2)}/10</span>
-                                                                                <span className="text-[10px] text-slate-400 mt-0.5">Baseado em {totalResponsesCount} avaliações deste mês</span>
+                                                                    return (
+                                                                        <div 
+                                                                            key={r.id} 
+                                                                            onClick={() => setExpandedResponseId(isExpanded ? null : r.id)}
+                                                                            className={`p-4 rounded-xl border transition-all cursor-pointer space-y-3 bg-white ${
+                                                                                isExpanded 
+                                                                                    ? "border-blue-400 shadow-md ring-1 ring-blue-400/20" 
+                                                                                    : "border-slate-200 hover:border-slate-350 hover:bg-slate-50/30 shadow-sm"
+                                                                            }`}
+                                                                        >
+                                                                            <div className="flex justify-between items-center text-xs">
+                                                                                <span className="font-semibold text-slate-500 flex items-center gap-1.5 select-none">
+                                                                                    📅 Enviado em {new Date(r.createdAt).toLocaleDateString('pt-BR')}
+                                                                                    <span className="text-[10px] text-slate-400 font-normal">
+                                                                                        ({isExpanded ? "clique para ocultar quesitos" : "clique para detalhar notas"})
+                                                                                    </span>
+                                                                                </span>
+                                                                                <span className="font-black text-blue-655 text-xs sm:text-sm bg-blue-50/50 px-2.5 py-1 rounded-lg border border-blue-100">
+                                                                                    Nota Geral: {finalNpsVal.toFixed(1)}/10
+                                                                                </span>
                                                                             </div>
-                                                                        </div>
+                                                                            {r.feedback && (
+                                                                                <p className="text-xs text-slate-650 bg-slate-50 p-2.5 rounded-lg border border-slate-100 font-medium italic">
+                                                                                    "{r.feedback}"
+                                                                                </p>
+                                                                            )}
 
-                                                                        <div className="space-y-3">
-                                                                            {detailedData.npsResponses.map((r: any) => {
-                                                                                let sumS = 0; let sumW = 0;
-                                                                                r.answers.forEach((an: any) => {
-                                                                                    const w = an.question?.weight || 1.0;
-                                                                                    sumS += an.score * w; sumW += w;
-                                                                                });
-                                                                                const finalNpsVal = sumW > 0 ? sumS / sumW : 10;
-                                                                                const isExpanded = expandedResponseId === r.id;
-
-                                                                                return (
-                                                                                    <div 
-                                                                                        key={r.id} 
-                                                                                        onClick={() => setExpandedResponseId(isExpanded ? null : r.id)}
-                                                                                        className={`p-4 rounded-xl border transition-all cursor-pointer space-y-3 bg-white ${
-                                                                                            isExpanded 
-                                                                                                ? "border-blue-400 shadow-md ring-1 ring-blue-400/20" 
-                                                                                                : "border-slate-200 hover:border-slate-350 hover:bg-slate-50/30 shadow-sm"
-                                                                                        }`}
-                                                                                    >
-                                                                                        <div className="flex justify-between items-center text-xs">
-                                                                                            <span className="font-semibold text-slate-500 flex items-center gap-1.5 select-none">
-                                                                                                📅 Enviado em {new Date(r.createdAt).toLocaleDateString('pt-BR')}
-                                                                                                <span className="text-[10px] text-slate-400 font-normal">
-                                                                                                    ({isExpanded ? "clique para ocultar quesitos" : "clique para detalhar notas"})
-                                                                                                </span>
-                                                                                            </span>
-                                                                                            <span className="font-black text-blue-655 text-xs sm:text-sm bg-blue-50/50 px-2.5 py-1 rounded-lg border border-blue-100">
-                                                                                                Nota Geral: {finalNpsVal.toFixed(1)}/10
-                                                                                            </span>
-                                                                                        </div>
-                                                                                        {r.feedback && (
-                                                                                            <p className="text-xs text-slate-650 bg-slate-50 p-2.5 rounded-lg border border-slate-100 font-medium italic">
-                                                                                                "{r.feedback}"
-                                                                                            </p>
-                                                                                        )}
-
-                                                                                        {/* Respostas individuais expandidas por quesito */}
-                                                                                        {isExpanded && (
-                                                                                            <div className="pt-3 border-t border-slate-100 space-y-2.5 animate-fadeIn">
-                                                                                                <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Detalhamento por Quesito</h4>
-                                                                                                <div className="grid grid-cols-1 gap-2 bg-slate-50/50 p-3 rounded-lg border border-slate-100" onClick={(e) => e.stopPropagation()}>
-                                                                                                    {r.answers.map((ans: any) => {
-                                                                                                        const qText = ans.question?.text || "Quesito de NPS";
-                                                                                                        const qWeight = ans.question?.weight || 1;
-                                                                                                        const score = ans.score;
-                                                                                                        return (
-                                                                                                            <div key={ans.id} className="flex justify-between items-start sm:items-center gap-4 text-xs">
-                                                                                                                <span className="text-slate-600 font-semibold">{qText} <span className="text-[9px] text-slate-400 font-normal">(Peso: {qWeight})</span></span>
-                                                                                                                <span className={`font-black px-2 py-0.5 rounded text-[10px] shrink-0 ${
-                                                                                                                    score >= 8.5 
-                                                                                                                        ? "bg-emerald-50 text-emerald-700 border border-emerald-100" 
-                                                                                                                        : score >= 7.0 
-                                                                                                                            ? "bg-amber-50 text-amber-700 border border-amber-100" 
-                                                                                                                            : "bg-red-50 text-red-700 border border-red-100"
-                                                                                                                }`}>
-                                                                                                                    {score.toFixed(1)}/10
-                                                                                                                </span>
-                                                                                                            </div>
-                                                                                                        );
-                                                                                                    })}
-                                                                                                    {r.answers.length === 0 && (
-                                                                                                        <div className="text-xs text-slate-400 italic">Nenhum quesito individual respondido nesta avaliação.</div>
-                                                                                                    )}
+                                                                            {/* Respostas individuais expandidas por quesito */}
+                                                                            {isExpanded && (
+                                                                                <div className="pt-3 border-t border-slate-100 space-y-2.5 animate-fadeIn">
+                                                                                    <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Detalhamento por Quesito</h4>
+                                                                                    <div className="grid grid-cols-1 gap-2 bg-slate-50/50 p-3 rounded-lg border border-slate-100" onClick={(e) => e.stopPropagation()}>
+                                                                                        {r.answers.map((ans: any) => {
+                                                                                            const qText = ans.question?.text || "Quesito de NPS";
+                                                                                            const qWeight = ans.question?.weight || 1;
+                                                                                            const score = ans.score;
+                                                                                            return (
+                                                                                                <div key={ans.id} className="flex justify-between items-start sm:items-center gap-4 text-xs">
+                                                                                                    <span className="text-slate-600 font-semibold">{qText} <span className="text-[9px] text-slate-400 font-normal">(Peso: {qWeight})</span></span>
+                                                                                                    <span className={`font-black px-2 py-0.5 rounded text-[10px] shrink-0 ${
+                                                                                                        score >= 8.5 
+                                                                                                            ? "bg-emerald-50 text-emerald-700 border border-emerald-100" 
+                                                                                                            : score >= 7.0 
+                                                                                                                ? "bg-amber-50 text-amber-700 border border-amber-100" 
+                                                                                                                : "bg-red-50 text-red-700 border border-red-100"
+                                                                                                    }`}>
+                                                                                                        {score.toFixed(1)}/10
+                                                                                                    </span>
                                                                                                 </div>
-                                                                                            </div>
+                                                                                            );
+                                                                                        })}
+                                                                                        {r.answers.length === 0 && (
+                                                                                            <div className="text-xs text-slate-400 italic">Nenhum quesito individual respondido nesta avaliação.</div>
                                                                                         )}
                                                                                     </div>
-                                                                                );
-                                                                            })}
+                                                                                </div>
+                                                                            )}
                                                                         </div>
-                                                                    </div>
-                                                                );
-                                                            })()
+                                                                    );
+                                                                })}
+                                                            </div>
                                                         )}
                                                     </CardContent>
                                                 </Card>
