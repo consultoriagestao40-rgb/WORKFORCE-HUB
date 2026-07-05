@@ -184,8 +184,15 @@ export async function getClientRequests() {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
+    const clientIds = user.clientIds || [];
+
     return await prisma.request.findMany({
-        where: { requesterId: user.id },
+        where: {
+            OR: [
+                { requesterId: user.id },
+                { clientId: { in: clientIds } }
+            ]
+        },
         include: {
             employee: { select: { name: true, role: { select: { name: true } } } },
             resolver: { select: { name: true } },
@@ -398,7 +405,7 @@ export async function getClientKpis(year: number) {
         }),
         prisma.request.findMany({
             where: {
-                requesterId: user.id,
+                clientId: { in: clientIds },
                 createdAt: { gte: startDate, lte: endDate }
             }
         }),
@@ -1458,6 +1465,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
         ]);
 
         const clientRequests = requests.filter((r: any) => 
+            (r.clientId && clientIds.includes(r.clientId)) ||
             r.requester?.clientIds?.some((id: string) => clientIds.includes(id)) ||
             r.employee?.assignments?.some((a: any) => clientIds.includes(a.posto?.clientId))
         );
