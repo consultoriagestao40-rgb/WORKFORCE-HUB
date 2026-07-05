@@ -141,14 +141,19 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [newCommentContent, setNewCommentContent] = useState<string>("");
     const [submittingComment, setSubmittingComment] = useState<boolean>(false);
 
-    // Sincronizar o parecer nas notas operacionais ao abrir o card
+    // Carregar comentários do chamado em tempo real sempre que o card for aberto
     useEffect(() => {
-        if (selectedRequestForAction) {
-            setRequestTransitionNotes(selectedRequestForAction.resolutionNotes || "");
-        } else {
-            setRequestTransitionNotes("");
+        if (selectedRequestForAction?.id) {
+            getRequestComments(selectedRequestForAction.id)
+                .then((comments) => {
+                    setSelectedRequestForAction((prev: any) => {
+                        if (!prev || prev.id !== selectedRequestForAction.id) return prev;
+                        return { ...prev, comments };
+                    });
+                })
+                .catch(console.error);
         }
-    }, [selectedRequestForAction]);
+    }, [selectedRequestForAction?.id]);
 
     // Filtros adicionais para a visão lista
     const [listSearchQuery, setListSearchQuery] = useState<string>("");
@@ -255,18 +260,19 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 dueDate: selectedRequestForAction.dueDate
             });
 
-            // 2. Mudar status ou persistir notas operacionais se houver alteração
+            // 2. Mudar status se alterou no seletor, registrando no chat a alteração de status
             if (selectedRequestForAction.nextStatus && selectedRequestForAction.nextStatus !== selectedRequestForAction.status) {
+                let statusName = selectedRequestForAction.nextStatus;
+                if (statusName === "PENDENTE") statusName = "Aguardando (Pendente)";
+                else if (statusName === "EM_ANDAMENTO") statusName = "Em Execução";
+                else if (statusName === "CONCLUIDO") statusName = "Concluído";
+                else if (statusName === "REJEITADO") statusName = "Recusado";
+                else if (statusName === "CANCELADO") statusName = "Cancelado";
+
                 await transitionRequest(
                     selectedRequestForAction.id,
                     selectedRequestForAction.nextStatus,
-                    requestTransitionNotes || `Status alterado no modal de detalhes por ${userName}`
-                );
-            } else if (requestTransitionNotes.trim() !== "" && requestTransitionNotes !== (selectedRequestForAction.resolutionNotes || "")) {
-                await transitionRequest(
-                    selectedRequestForAction.id,
-                    selectedRequestForAction.status,
-                    requestTransitionNotes
+                    `Status do chamado alterado para "${statusName}"`
                 );
             }
 
@@ -1729,17 +1735,6 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             <option value="REJEITADO">Rejeitar Solicitação</option>
                                             <option value="CANCELADO">Cancelar Solicitação</option>
                                         </select>
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <Label className="text-[10px] font-black uppercase text-slate-500">Notas / Parecer Operacional</Label>
-                                        <textarea
-                                            placeholder="Descreva a ação tomada ou justificativa da transição de status..."
-                                            rows={3}
-                                            value={requestTransitionNotes}
-                                            onChange={(e) => setRequestTransitionNotes(e.target.value)}
-                                            className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 bg-white outline-none resize-none"
-                                        />
                                     </div>
                                 </div>
 
@@ -3934,17 +3929,6 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         <option value="REJEITADO">Rejeitar Solicitação</option>
                                         <option value="CANCELADO">Cancelar Solicitação</option>
                                     </select>
-                                </div>
-
-                                <div className="space-y-1">
-                                    <Label className="text-[10px] font-black uppercase text-slate-500">Notas / Parecer Operacional</Label>
-                                    <textarea
-                                        placeholder="Descreva a ação tomada ou justificativa da transição de status..."
-                                        rows={3}
-                                        value={requestTransitionNotes}
-                                        onChange={(e) => setRequestTransitionNotes(e.target.value)}
-                                        className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 bg-white outline-none resize-none"
-                                    />
                                 </div>
                             </div>
 
