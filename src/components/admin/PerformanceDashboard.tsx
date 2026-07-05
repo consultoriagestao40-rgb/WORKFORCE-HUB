@@ -4381,7 +4381,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
             {/* Modal de Detalhamento de KPIs Operacionais (Auditoria Mensal) */}
             <Dialog open={kpiModalConfig !== null} onOpenChange={(open) => { if (!open) setKpiModalConfig(null); }}>
-                <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[85vh] overflow-y-auto rounded-3xl p-6 bg-white border border-slate-100 shadow-premium">
+                <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[85vh] overflow-y-auto overflow-x-hidden rounded-3xl p-6 bg-white border border-slate-100 shadow-premium">
                     <DialogHeader className="pb-4 border-b border-slate-100 flex flex-row items-center justify-between">
                         <div>
                             <DialogTitle className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
@@ -4430,7 +4430,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             </div>
                                         </div>
 
-                                        <div className="border border-slate-100 rounded-2xl overflow-x-auto bg-white">
+                                        <div className="w-full max-w-full border border-slate-100 rounded-2xl overflow-x-auto bg-white">
                                             <Table className="min-w-[700px]">
                                                 <TableHeader className="bg-slate-50">
                                                     <TableRow>
@@ -4550,7 +4550,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="border border-slate-100 rounded-2xl overflow-x-auto bg-white">
+                                    <div className="w-full max-w-full border border-slate-100 rounded-2xl overflow-x-auto bg-white">
                                         <Table className="min-w-[700px]">
                                             <TableHeader className="bg-slate-50">
                                                 <TableRow>
@@ -4588,7 +4588,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             {/* KPI: CHAMADOS NO PRAZO (SLA) */}
                             {kpiModalConfig?.kpiType === 'sla' && (
                                 <div className="space-y-4">
-                                    <div className="border border-slate-100 rounded-2xl overflow-x-auto bg-white">
+                                    <div className="w-full max-w-full border border-slate-100 rounded-2xl overflow-x-auto bg-white">
                                         <Table className="min-w-[700px]">
                                             <TableHeader className="bg-slate-50">
                                                 <TableRow>
@@ -4660,7 +4660,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="border border-slate-100 rounded-2xl overflow-x-auto bg-white">
+                                    <div className="w-full max-w-full border border-slate-100 rounded-2xl overflow-x-auto bg-white">
                                         <Table className="min-w-[700px]">
                                             <TableHeader className="bg-slate-50">
                                                 <TableRow>
@@ -4704,7 +4704,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 const complaints = (kpiModalData.requests || []).filter((r: any) => r.type === "RECLAMACOES" || r.description?.toLowerCase().includes("reclam") || r.description?.toLowerCase().includes("queixa"));
                                 return (
                                     <div className="space-y-4">
-                                        <div className="border border-slate-100 rounded-2xl overflow-x-auto bg-white">
+                                        <div className="w-full max-w-full border border-slate-100 rounded-2xl overflow-x-auto bg-white">
                                             <Table className="min-w-[700px]">
                                                 <TableHeader className="bg-slate-50">
                                                     <TableRow>
