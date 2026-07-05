@@ -3780,7 +3780,10 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                             <TableCell className="text-xs text-slate-505 py-3">
                                                                 {item.metricType === "MANUAL" ? "Lançamento Manual" : 
                                                                  item.metricType === "EFETIVIDADE" ? "Efetividade Escala" :
-                                                                 item.metricType === "SLA_CHAMADOS" ? "Chamados no Prazo" : "Nota NPS"}
+                                                                 item.metricType === "SLA_CHAMADOS" ? "Chamados no Prazo" :
+                                                                 item.metricType === "NPS" ? "Nota NPS" :
+                                                                 item.metricType === "TURNOVER" ? "Rotatividade (Turnover)" :
+                                                                 item.metricType === "RECLAMACOES" ? "Índice Reclamações" : "SLA Reposição"}
                                                             </TableCell>
                                                             <TableCell className="text-center text-xs font-bold py-3">{item.targetValue}%</TableCell>
                                                             <TableCell className="text-center text-xs font-bold py-3">{item.weight}</TableCell>
@@ -4013,6 +4016,9 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     <option value="EFETIVIDADE">Automático: Efetividade de Escala</option>
                                     <option value="SLA_CHAMADOS">Automático: Chamados no Prazo</option>
                                     <option value="NPS">Automático: Nota NPS do Cliente</option>
+                                    <option value="TURNOVER">Automático: Rotatividade (Turnover)</option>
+                                    <option value="RECLAMACOES">Automático: Índice de Reclamações</option>
+                                    <option value="REPOSICAO">Automático: SLA de Reposição (Média Dias)</option>
                                     <option value="MANUAL">Lançamento Manual pelo Gestor</option>
                                 </select>
                             </div>

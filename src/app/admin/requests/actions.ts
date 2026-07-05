@@ -537,6 +537,10 @@ export async function getClientKpis(year: number) {
                 } else if (config.metricType === "MANUAL") {
                     const foundManual = config.monthlyValues.find(v => v.month === index && v.year === year);
                     metricValue = foundManual ? foundManual.value : config.targetValue;
+                } else if (config.metricType === "TURNOVER") {
+                    metricValue = turnover;
+                } else if (config.metricType === "REPOSICAO") {
+                    metricValue = avgRepositionDays;
                 }
 
                 if (metricValue !== null && config.ranges && config.ranges.length > 0) {
@@ -675,6 +679,12 @@ export async function getClientKpis(year: number) {
                 metricValue = manualVals.length > 0
                     ? manualVals.reduce((sum, v) => sum + v.value, 0) / manualVals.length
                     : config.targetValue;
+            } else if (config.metricType === "TURNOVER") {
+                const validTurnover = monthlyData.filter(m => m.turnover !== null && m.turnover !== undefined);
+                metricValue = validTurnover.length > 0 ? validTurnover.reduce((sum, m) => sum + m.turnover, 0) / validTurnover.length : null;
+            } else if (config.metricType === "REPOSICAO") {
+                const validRep = monthlyData.filter(m => m.avgRepositionDays !== null && m.avgRepositionDays !== undefined);
+                metricValue = validRep.length > 0 ? validRep.reduce((sum, m) => sum + m.avgRepositionDays!, 0) / validRep.length : null;
             }
 
             if (metricValue !== null && metricValue !== undefined) {
@@ -1669,6 +1679,10 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                     } else if (config.metricType === "MANUAL") {
                         const foundManual = config.monthlyValues.find((v: any) => v.month === index && v.year === year);
                         metricValue = foundManual ? foundManual.value : config.targetValue;
+                    } else if (config.metricType === "TURNOVER") {
+                        metricValue = turnover;
+                    } else if (config.metricType === "REPOSICAO") {
+                        metricValue = avgRepositionDays;
                     }
 
                     if (metricValue !== null && config.ranges && config.ranges.length > 0) {
@@ -1804,6 +1818,12 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                     metricValue = manualVals.length > 0
                         ? manualVals.reduce((sum: number, v: any) => sum + v.value, 0) / manualVals.length
                         : config.targetValue;
+                } else if (config.metricType === "TURNOVER") {
+                    const validTurnover = monthlyData.filter(m => m.turnover !== null && m.turnover !== undefined);
+                    metricValue = validTurnover.length > 0 ? validTurnover.reduce((sum, m) => sum + m.turnover, 0) / validTurnover.length : null;
+                } else if (config.metricType === "REPOSICAO") {
+                    const validRep = monthlyData.filter(m => m.avgRepositionDays !== null && m.avgRepositionDays !== undefined);
+                    metricValue = validRep.length > 0 ? validRep.reduce((sum, m) => sum + m.avgRepositionDays!, 0) / validRep.length : null;
                 }
                 if (metricValue !== null && config.ranges && config.ranges.length > 0) {
                     metricValue = calculateAtingimentoVal(metricValue, config.ranges);
