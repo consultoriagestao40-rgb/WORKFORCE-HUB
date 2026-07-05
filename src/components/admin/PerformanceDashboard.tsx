@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -118,6 +118,9 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     // Card Details Modal State
     const [detailsModalOpen, setDetailsModalOpen] = useState<boolean>(false);
     const [detailsModalType, setDetailsModalType] = useState<"contracts" | "employees" | "billing" | "vacancies">("contracts");
+
+    // Modal contracts filter (multiple choice selection)
+    const [selectedContractsFilter, setSelectedContractsFilter] = useState<string[]>([]);
 
     const loadPerformanceData = useCallback(async () => {
         if (selectedClientId === "all") {
@@ -488,6 +491,45 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
         return a.name.localeCompare(b.name);
     });
 
+    const uniqueContractsWithVacancies = useMemo(() => {
+        return sortedClients
+            .filter((c: any) => c.vacantSlots > 0)
+            .map((c: any) => c.name);
+    }, [sortedClients]);
+
+    const totalDaysVacantAccumulated = useMemo(() => {
+        let sum = 0;
+        sortedClients.forEach((c: any) => {
+            if (c.vacantPostosDetails && selectedContractsFilter.includes(c.name)) {
+                c.vacantPostosDetails.forEach((p: any) => {
+                    sum += p.diffDays || 0;
+                });
+            }
+        });
+        return sum;
+    }, [sortedClients, selectedContractsFilter]);
+
+    const filteredVacantPostosCount = useMemo(() => {
+        let count = 0;
+        sortedClients.forEach((c: any) => {
+            if (c.vacantPostosDetails && selectedContractsFilter.includes(c.name)) {
+                count += c.vacantPostosDetails.length;
+            }
+        });
+        return count;
+    }, [sortedClients, selectedContractsFilter]);
+
+    useEffect(() => {
+        if (detailsModalOpen && detailsModalType === "vacancies" && consolidatedData?.clients) {
+            const contractsWithV = consolidatedData.clients
+                .filter((c: any) => c.vacantSlots > 0)
+                .map((c: any) => c.name);
+            setSelectedContractsFilter(contractsWithV);
+        } else {
+            setSelectedContractsFilter([]);
+        }
+    }, [detailsModalOpen, detailsModalType, consolidatedData]);
+
     if (selectedClientId === "all") {
         return (
             <div className="flex flex-col h-screen bg-slate-100 overflow-hidden font-sans w-full">
@@ -662,6 +704,78 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             </DialogDescription>
                         </DialogHeader>
 
+                        {detailsModalType === "vacancies" && (
+                            <div className="space-y-3 mb-4">
+                                {/* Total Days and metrics */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-red-50/50 rounded-2xl border border-red-100/50">
+                                    <div className="flex items-center gap-2">
+                                        <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-bold text-red-800 uppercase tracking-wider">Tempo Inativo das Vagas</span>
+                                            <span className="text-[10px] text-slate-500 font-medium">Análise de tempo ocioso acumulado dos postos vagos.</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="text-center bg-white px-4 py-2 rounded-xl border border-red-100 shadow-sm min-w-[100px]">
+                                            <div className="text-md font-black text-red-650 leading-none">
+                                                {totalDaysVacantAccumulated}
+                                            </div>
+                                            <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">
+                                                Dias Vagos
+                                            </div>
+                                        </div>
+                                        <div className="text-center bg-white px-4 py-2 rounded-xl border border-red-100 shadow-sm min-w-[100px]">
+                                            <div className="text-md font-black text-slate-800 leading-none">
+                                                {filteredVacantPostosCount}
+                                            </div>
+                                            <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">
+                                                Vagas Filtradas
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Seletor de Contratos (Badges Clicáveis Multi-seleção) */}
+                                <div className="flex flex-wrap items-center gap-2 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                                    <span className="text-[10px] font-black uppercase text-slate-500 mr-1">Filtrar Contratos:</span>
+                                    {uniqueContractsWithVacancies.map((contractName) => {
+                                        const isSelected = selectedContractsFilter.includes(contractName);
+                                        return (
+                                            <button
+                                                key={contractName}
+                                                onClick={() => {
+                                                    if (isSelected) {
+                                                        setSelectedContractsFilter(selectedContractsFilter.filter(n => n !== contractName));
+                                                    } else {
+                                                        setSelectedContractsFilter([...selectedContractsFilter, contractName]);
+                                                    }
+                                                }}
+                                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all border ${
+                                                    isSelected
+                                                        ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                                                        : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
+                                                }`}
+                                            >
+                                                {contractName}
+                                            </button>
+                                        );
+                                    })}
+                                    <button
+                                        onClick={() => {
+                                            if (selectedContractsFilter.length === uniqueContractsWithVacancies.length) {
+                                                setSelectedContractsFilter([]);
+                                            } else {
+                                                setSelectedContractsFilter(uniqueContractsWithVacancies);
+                                            }
+                                        }}
+                                        className="ml-auto text-[9px] font-extrabold uppercase text-blue-650 hover:text-blue-800 transition-colors"
+                                    >
+                                        {selectedContractsFilter.length === uniqueContractsWithVacancies.length ? "Desmarcar Todos" : "Selecionar Todos"}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="py-4 overflow-y-auto max-h-[380px] border border-slate-100 rounded-xl bg-white shadow-inner">
                             <Table>
                                 <TableHeader className="bg-slate-50">
@@ -709,7 +823,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         (() => {
                                             const allVacantPostos: any[] = [];
                                             sortedClients.forEach((c: any) => {
-                                                if (c.vacantPostosDetails) {
+                                                if (c.vacantPostosDetails && selectedContractsFilter.includes(c.name)) {
                                                     c.vacantPostosDetails.forEach((p: any) => {
                                                         allVacantPostos.push({
                                                             ...p,
@@ -2656,6 +2770,78 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                         </DialogDescription>
                     </DialogHeader>
 
+                    {detailsModalType === "vacancies" && (
+                        <div className="space-y-3 mb-4">
+                            {/* Total Days and metrics */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-red-50/50 rounded-2xl border border-red-100/50">
+                                <div className="flex items-center gap-2">
+                                    <AlertCircle className="w-5 h-5 text-red-650 shrink-0" />
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-bold text-red-800 uppercase tracking-wider">Tempo Inativo das Vagas</span>
+                                        <span className="text-[10px] text-slate-500 font-medium">Análise de tempo ocioso acumulado dos postos vagos.</span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <div className="text-center bg-white px-4 py-2 rounded-xl border border-red-100 shadow-sm min-w-[100px]">
+                                        <div className="text-md font-black text-red-650 leading-none">
+                                            {totalDaysVacantAccumulated}
+                                        </div>
+                                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">
+                                            Dias Vagos
+                                        </div>
+                                    </div>
+                                    <div className="text-center bg-white px-4 py-2 rounded-xl border border-red-100 shadow-sm min-w-[100px]">
+                                        <div className="text-md font-black text-slate-800 leading-none">
+                                            {filteredVacantPostosCount}
+                                        </div>
+                                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">
+                                            Vagas Filtradas
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Seletor de Contratos (Badges Clicáveis Multi-seleção) */}
+                            <div className="flex flex-wrap items-center gap-2 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                                <span className="text-[10px] font-black uppercase text-slate-500 mr-1">Filtrar Contratos:</span>
+                                {uniqueContractsWithVacancies.map((contractName) => {
+                                    const isSelected = selectedContractsFilter.includes(contractName);
+                                    return (
+                                        <button
+                                            key={contractName}
+                                            onClick={() => {
+                                                if (isSelected) {
+                                                    setSelectedContractsFilter(selectedContractsFilter.filter(n => n !== contractName));
+                                                } else {
+                                                    setSelectedContractsFilter([...selectedContractsFilter, contractName]);
+                                                }
+                                            }}
+                                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all border ${
+                                                isSelected
+                                                    ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                                                    : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
+                                            }`}
+                                        >
+                                            {contractName}
+                                        </button>
+                                    );
+                                })}
+                                <button
+                                    onClick={() => {
+                                        if (selectedContractsFilter.length === uniqueContractsWithVacancies.length) {
+                                            setSelectedContractsFilter([]);
+                                        } else {
+                                            setSelectedContractsFilter(uniqueContractsWithVacancies);
+                                        }
+                                    }}
+                                    className="ml-auto text-[9px] font-extrabold uppercase text-blue-650 hover:text-blue-800 transition-colors"
+                                    >
+                                    {selectedContractsFilter.length === uniqueContractsWithVacancies.length ? "Desmarcar Todos" : "Selecionar Todos"}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="py-4 overflow-y-auto max-h-[380px] border border-slate-100 rounded-xl bg-white shadow-inner">
                         <Table>
                             <TableHeader className="bg-slate-50">
@@ -2703,7 +2889,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     (() => {
                                         const allVacantPostos: any[] = [];
                                         sortedClients.forEach((c: any) => {
-                                            if (c.vacantPostosDetails) {
+                                            if (c.vacantPostosDetails && selectedContractsFilter.includes(c.name)) {
                                                 c.vacantPostosDetails.forEach((p: any) => {
                                                     allVacantPostos.push({
                                                         ...p,
