@@ -44,6 +44,16 @@ async function getClientDetails(id: string) {
             slaConfigItems: {
                 include: { monthlyValues: true },
                 orderBy: { createdAt: "asc" }
+            },
+            npsResponses: {
+                include: {
+                    answers: {
+                        include: {
+                            question: true
+                        }
+                    }
+                },
+                orderBy: { createdAt: "desc" }
             }
         }
     });
@@ -113,6 +123,7 @@ export default async function ClientPostosPage(props: { params: Promise<{ id: st
                 userRole={userRole || ""}
                 initialNpsQuestions={client.npsQuestions}
                 initialSlaConfigs={client.slaConfigItems}
+                initialNpsResponses={client.npsResponses}
             />
         </div>
     );

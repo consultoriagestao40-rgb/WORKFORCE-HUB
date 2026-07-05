@@ -1510,9 +1510,9 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                 const selected = currentAnswer === num;
                                                                 let btnClass = "border-slate-200 hover:bg-slate-100";
                                                                 if (selected) {
-                                                                    if (num <= 6) btnClass = "bg-red-605 text-white border-red-600 shadow-md";
+                                                                    if (num <= 6) btnClass = "bg-red-600 text-white border-red-600 shadow-md";
                                                                     else if (num <= 8) btnClass = "bg-amber-500 text-white border-amber-500 shadow-md";
-                                                                    else btnClass = "bg-emerald-605 text-white border-emerald-600 shadow-md";
+                                                                    else btnClass = "bg-emerald-600 text-white border-emerald-600 shadow-md";
                                                                 } else {
                                                                     if (num <= 6) btnClass = "bg-red-50/20 text-red-700 border-red-100 hover:bg-red-50";
                                                                     else if (num <= 8) btnClass = "bg-amber-50/20 text-amber-700 border-amber-100 hover:bg-amber-50";

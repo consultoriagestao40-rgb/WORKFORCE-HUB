@@ -24,6 +24,7 @@ interface ClientConfigTabsProps {
     userRole: string;
     initialNpsQuestions: any[];
     initialSlaConfigs: any[];
+    initialNpsResponses: any[];
 }
 
 export function ClientConfigTabs({
@@ -34,7 +35,8 @@ export function ClientConfigTabs({
     situations,
     userRole,
     initialNpsQuestions,
-    initialSlaConfigs
+    initialSlaConfigs,
+    initialNpsResponses
 }: ClientConfigTabsProps) {
     const [activeSubTab, setActiveSubTab] = useState<"postos" | "sla" | "nps">("postos");
 
@@ -452,7 +454,8 @@ export function ClientConfigTabs({
             )}
 
             {activeSubTab === "nps" && (
-                <Card className="shadow-sm border-slate-200/60">
+                <>
+                    <Card className="shadow-sm border-slate-200/60">
                     <CardHeader>
                         <CardTitle>Configuração de Perguntas do NPS</CardTitle>
                         <CardDescription>
@@ -515,6 +518,85 @@ export function ClientConfigTabs({
                         </div>
                     </CardContent>
                 </Card>
+
+                <Card className="shadow-sm border-slate-200/60 mt-6">
+                    <CardHeader>
+                        <CardTitle>Histórico de Avaliações NPS Recebidas</CardTitle>
+                        <CardDescription>
+                            Veja os feedbacks qualitativos e pontuações consolidadas enviados pelo cliente.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {initialNpsResponses && initialNpsResponses.length > 0 ? (
+                            <div className="space-y-4">
+                                {initialNpsResponses.map((resp: any) => {
+                                    let totalScore = 0;
+                                    let totalWeight = 0;
+                                    resp.answers.forEach((ans: any) => {
+                                        const qWeight = ans.question?.weight || 1.0;
+                                        totalScore += ans.score * qWeight;
+                                        totalWeight += qWeight;
+                                    });
+                                    const finalRating = totalWeight > 0 ? (totalScore / totalWeight).toFixed(1) : "10.0";
+                                    
+                                    const numericRating = parseFloat(finalRating);
+                                    let badgeColor = "bg-red-50 text-red-700 border-red-100";
+                                    let ratingLabel = "Detrator";
+                                    if (numericRating >= 9) {
+                                        badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
+                                        ratingLabel = "Promotor";
+                                    } else if (numericRating >= 7) {
+                                        badgeColor = "bg-amber-50 text-amber-700 border-amber-100";
+                                        ratingLabel = "Neutro";
+                                    }
+
+                                    return (
+                                        <div key={resp.id} className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm space-y-3">
+                                            <div className="flex justify-between items-center flex-wrap gap-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-black text-slate-700">
+                                                        {new Date(resp.createdAt).toLocaleDateString('pt-BR')} às {new Date(resp.createdAt).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-wider ${badgeColor}`}>
+                                                        {ratingLabel} ({finalRating}/10)
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs border-t border-slate-100 pt-3">
+                                                {resp.answers.map((ans: any) => (
+                                                    <div key={ans.id} className="flex justify-between items-center py-1 border-b border-slate-50">
+                                                        <span className="text-slate-550 font-medium truncate max-w-[280px]" title={ans.question?.text}>
+                                                            {ans.question?.text || "Pergunta Geral"}
+                                                        </span>
+                                                        <span className={`font-black px-2 py-0.5 rounded text-[11px] ${
+                                                            ans.score >= 9 ? "bg-emerald-50 text-emerald-600" :
+                                                            ans.score >= 7 ? "bg-amber-50 text-amber-600" : "bg-red-50 text-red-600"
+                                                        }`}>
+                                                            {ans.score}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {resp.feedback && (
+                                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 mt-2">
+                                                    <span className="text-[10px] font-bold text-slate-400 block tracking-wider uppercase">Comentário do Cliente</span>
+                                                    <p className="text-xs text-slate-700 font-medium mt-1 leading-relaxed">{resp.feedback}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="text-center py-12 text-slate-500 font-semibold italic text-xs">
+                                Nenhuma avaliação NPS recebida para este contrato até o momento.
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+                </>
             )}
         </div>
     );
