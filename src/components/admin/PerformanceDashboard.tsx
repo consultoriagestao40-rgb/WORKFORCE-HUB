@@ -3337,28 +3337,37 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             ) : (
                                 clientKpiData && (
                                     <div className="space-y-6">
-                                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                                            <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
-                                                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Efetividade Escala</span>
-                                                <span className="text-xl font-black mt-1 text-emerald-600">{clientKpiData.summary?.effectiveness?.toFixed(1) || "100.0"}%</span>
-                                            </Card>
-                                            <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
-                                                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Cumprimento SLA</span>
-                                                <span className="text-xl font-black mt-1 text-blue-600">{clientKpiData.summary?.slaCompliance?.toFixed(1) || "100.0"}%</span>
-                                            </Card>
-                                            <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
-                                                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Nota NPS Média</span>
-                                                <span className="text-xl font-black mt-1 text-amber-500">
-                                                    {clientKpiData.summary?.avgNpsRating 
-                                                        ? `${(clientKpiData.summary.avgNpsRating * 10).toFixed(1).replace('.', ',')}%` 
-                                                        : "100,0%"}
-                                                </span>
-                                            </Card>
-                                            <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
-                                                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Nível Absenteísmo</span>
-                                                <span className="text-xl font-black mt-1 text-red-500">{clientKpiData.summary?.absenteeism?.toFixed(1) || "0.0"}%</span>
-                                            </Card>
-                                        </div>
+                                        {(() => {
+                                            const currentMonthData = clientKpiData.monthlyData?.find((m: any) => m.monthIndex === selectedMonth);
+                                            return (
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                    <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
+                                                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Efetividade Escala</span>
+                                                        <span className="text-xl font-black mt-1 text-emerald-600">
+                                                            {currentMonthData?.effectiveness !== undefined && currentMonthData?.effectiveness !== null 
+                                                                ? `${currentMonthData.effectiveness.toFixed(1)}%` 
+                                                                : "100.0%"}
+                                                        </span>
+                                                    </Card>
+                                                    <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
+                                                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Cumprimento SLA</span>
+                                                        <span className="text-xl font-black mt-1 text-blue-600">
+                                                            {currentMonthData?.slaCompliance !== undefined && currentMonthData?.slaCompliance !== null 
+                                                                ? `${currentMonthData.slaCompliance.toFixed(1)}%` 
+                                                                : "100.0%"}
+                                                        </span>
+                                                    </Card>
+                                                    <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
+                                                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Nota NPS Média</span>
+                                                        <span className="text-xl font-black mt-1 text-amber-500">
+                                                            {currentMonthData?.avgNpsRating 
+                                                                ? `${(currentMonthData.avgNpsRating * 10).toFixed(1).replace('.', ',')}%` 
+                                                                : "100,0%"}
+                                                        </span>
+                                                    </Card>
+                                                </div>
+                                            );
+                                        })()}
 
                                         {/* Tabela de KPIs Comparativa Mensal */}
                                         <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
