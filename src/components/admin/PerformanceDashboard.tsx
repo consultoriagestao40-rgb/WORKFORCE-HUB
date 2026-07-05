@@ -3039,6 +3039,39 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                         </TableCell>
                                                                     </TableRow>
                                                                 )}
+
+                                                                {/* Linha de Totalização / Média do Mês */}
+                                                                {(clientKpiData?.npsEvolution || []).length > 0 && (
+                                                                    <TableRow className="bg-slate-100/60 font-extrabold border-t-2 border-slate-200 hover:bg-slate-100">
+                                                                        <TableCell className="text-xs font-black text-slate-805 pl-6 py-3">Média Geral Mensal</TableCell>
+                                                                        {Array.from({ length: 12 }).map((_, monthIdx) => {
+                                                                            const scores: number[] = [];
+                                                                            (clientKpiData?.npsEvolution || []).forEach((row: any) => {
+                                                                                const val = row.monthlyScores[monthIdx];
+                                                                                if (val !== null && val !== undefined) {
+                                                                                    scores.push(val);
+                                                                                }
+                                                                            });
+
+                                                                            if (scores.length === 0) {
+                                                                                return (
+                                                                                    <TableCell key={monthIdx} className="text-center text-xs text-slate-400 py-3 font-bold">
+                                                                                        -
+                                                                                    </TableCell>
+                                                                                );
+                                                                            }
+
+                                                                            const avg = scores.reduce((sum, val) => sum + val, 0) / scores.length;
+                                                                            return (
+                                                                                <TableCell key={monthIdx} className="text-center text-xs font-black py-3">
+                                                                                    <span className={avg >= 8.5 ? "text-emerald-600 font-extrabold" : avg >= 7.0 ? "text-amber-600 font-extrabold" : "text-red-500 font-extrabold"}>
+                                                                                        {avg.toFixed(1)}
+                                                                                    </span>
+                                                                                </TableCell>
+                                                                            );
+                                                                        })}
+                                                                    </TableRow>
+                                                                )}
                                                             </TableBody>
                                                         </Table>
                                                     </CardContent>
