@@ -1552,6 +1552,153 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                         </form>
                     </DialogContent>
                 </Dialog>
+
+                {/* Dialog de Detalhes e Transição da Solicitação */}
+                <Dialog open={selectedRequestForAction !== null} onOpenChange={(open) => { if (!open) setSelectedRequestForAction(null); }}>
+                    <DialogContent className="sm:max-w-[550px] rounded-[24px] overflow-hidden p-6 gap-0">
+                        <DialogHeader className="pb-4 border-b border-slate-100">
+                            <div className="flex items-center justify-between w-full">
+                                <DialogTitle className="text-md font-bold text-slate-800">Detalhes da Solicitação</DialogTitle>
+                                {selectedRequestForAction && (
+                                    <div className="flex items-center gap-1.5">
+                                        <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100 text-[10px] font-black uppercase rounded-lg px-2 py-0.5">
+                                            {selectedRequestForAction.type === "MOVIMENTACAO" && "Movimentação"}
+                                            {selectedRequestForAction.type === "UNIFORME" && "Uniforme"}
+                                            {selectedRequestForAction.type === "TERMINO_CONTRATO_EXPERIENCIA" && "Expira Experiência"}
+                                        </Badge>
+                                        <Badge className={`${
+                                            selectedRequestForAction.status === "CONCLUIDO" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                            selectedRequestForAction.status === "PENDENTE" ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                                            selectedRequestForAction.status === "EM_ANDAMENTO" ? "bg-indigo-50 text-indigo-700 border border-indigo-200" :
+                                            "bg-red-50 text-red-700 border border-red-200"
+                                        } text-[10px] font-black uppercase rounded-lg px-2 py-0.5`}>
+                                            {selectedRequestForAction.status === "CONCLUIDO" && "Concluído"}
+                                            {selectedRequestForAction.status === "PENDENTE" && "Pendente"}
+                                            {selectedRequestForAction.status === "EM_ANDAMENTO" && "Em Execução"}
+                                            {selectedRequestForAction.status === "EM_ANALISE_RH" && "Em Análise RH"}
+                                            {selectedRequestForAction.status === "REJEITADO" && "Rejeitado"}
+                                            {selectedRequestForAction.status === "CANCELADO" && "Cancelado"}
+                                        </Badge>
+                                    </div>
+                                )}
+                            </div>
+                            <DialogDescription className="text-xs text-slate-400 mt-1 font-medium">
+                                Histórico do chamado, controle de SLA e transição de status operacional.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        {selectedRequestForAction && (
+                            <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-1">
+                                {/* Bloco de Informações Principais */}
+                                <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] font-black uppercase text-slate-400 block">Contrato</span>
+                                        <span className="text-xs font-bold text-slate-800 block truncate">{selectedRequestForAction.clientName}</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] font-black uppercase text-slate-400 block">Solicitante</span>
+                                        <span className="text-xs font-bold text-slate-800 block truncate">{selectedRequestForAction.requesterName}</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] font-black uppercase text-slate-400 block">Data de Criação</span>
+                                        <span className="text-xs font-bold text-slate-700 block">
+                                            {new Date(selectedRequestForAction.createdAt).toLocaleDateString("pt-BR")}
+                                        </span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] font-black uppercase text-slate-400 block font-bold">Prazo SLA</span>
+                                        <input
+                                            type="date"
+                                            value={selectedRequestForAction.dueDate ? selectedRequestForAction.dueDate.split("T")[0] : ""}
+                                            onChange={(e) => setSelectedRequestForAction({ ...selectedRequestForAction, dueDate: e.target.value ? e.target.value + "T23:59:59.000Z" : selectedRequestForAction.dueDate })}
+                                            className="h-8 border border-slate-200 bg-white rounded-lg text-xs font-semibold px-2 outline-none w-full shadow-sm"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Colaborador Relacionado (Editável) */}
+                                <div className="space-y-1 bg-blue-50/40 p-3.5 rounded-xl border border-blue-100/50">
+                                    <span className="text-[10px] font-black uppercase text-blue-500 block font-bold">Colaborador Envolvido</span>
+                                    <select
+                                        value={selectedRequestForAction.employeeId || ""}
+                                        onChange={(e) => {
+                                            const empId = e.target.value;
+                                            const empObj = (consolidatedData?.allEmployees || []).find((emp: any) => emp.id === empId);
+                                            setSelectedRequestForAction({
+                                                ...selectedRequestForAction,
+                                                employeeId: empId || null,
+                                                employeeName: empObj ? empObj.name : null
+                                            });
+                                        }}
+                                        className="w-full h-9 border border-blue-200 bg-white text-xs font-semibold px-2 outline-none rounded-lg cursor-pointer text-blue-900 shadow-sm"
+                                    >
+                                        <option value="">Nenhum Colaborador</option>
+                                        {(consolidatedData?.allEmployees || []).map((emp: any) => (
+                                            <option key={emp.id} value={emp.id}>{emp.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Descrição Completa (Editável) */}
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] font-black uppercase text-slate-400 font-bold">Descrição da Solicitação</Label>
+                                    <textarea
+                                        value={selectedRequestForAction.description || ""}
+                                        onChange={(e) => setSelectedRequestForAction({ ...selectedRequestForAction, description: e.target.value })}
+                                        rows={3}
+                                        className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 outline-none resize-none bg-slate-50 focus:bg-white transition-all leading-relaxed shadow-sm"
+                                    />
+                                </div>
+
+                                {/* Divider */}
+                                <div className="border-t border-slate-100 my-4" />
+
+                                {/* Bloco de Ações do Gestor */}
+                                <div className="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-200/50">
+                                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Ações de Gestão</h4>
+                                    
+                                    <div className="space-y-1">
+                                        <Label className="text-[10px] font-black uppercase text-slate-500">Mudar Status do Chamado</Label>
+                                        <select
+                                            value={selectedRequestForAction.nextStatus || selectedRequestForAction.status}
+                                            onChange={(e) => setSelectedRequestForAction({ ...selectedRequestForAction, nextStatus: e.target.value })}
+                                            className="w-full h-10 border border-slate-200 bg-white text-xs font-semibold px-3 outline-none rounded-xl cursor-pointer"
+                                        >
+                                            <option value="PENDENTE">Aguardando (Pendente)</option>
+                                            <option value="EM_ANDAMENTO">Em Execução (Em Andamento)</option>
+                                            <option value="CONCLUIDO">Concluir Solicitação</option>
+                                            <option value="REJEITADO">Rejeitar Solicitação</option>
+                                            <option value="CANCELADO">Cancelar Solicitação</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <Label className="text-[10px] font-black uppercase text-slate-500">Notas / Parecer Operacional</Label>
+                                        <textarea
+                                            placeholder="Descreva a ação tomada ou justificativa da transição de status..."
+                                            rows={3}
+                                            value={requestTransitionNotes}
+                                            onChange={(e) => setRequestTransitionNotes(e.target.value)}
+                                            className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 bg-white outline-none resize-none"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <DialogFooter className="pt-4 border-t border-slate-100">
+                            <Button type="button" variant="outline" onClick={() => setSelectedRequestForAction(null)} className="h-10 text-xs font-bold rounded-xl">Fechar</Button>
+                            <Button
+                                type="button"
+                                disabled={transitioningRequestState || savingRequestDetails}
+                                onClick={handleSaveRequestDetails}
+                                className="h-10 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+                            >
+                                Salvar Alteração
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
         );
     }
