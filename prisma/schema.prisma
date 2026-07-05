@@ -74,6 +74,7 @@ model Client {
   npsQuestions        NpsQuestion[]
   slaConfigItems      SlaConfigItem[]
   visits              ContractVisit[]
+  requests            Request[]
 
   @@index([companyId])
 }
@@ -377,8 +378,11 @@ model Request {
   employee        Employee?     @relation(fields: [employeeId], references: [id])
   requester       User          @relation(fields: [requesterId], references: [id])
   resolver        User?         @relation("RequestResolver", fields: [resolverId], references: [id])
+  clientId        String?
+  client          Client?       @relation(fields: [clientId], references: [id])
 
   @@index([status])
+  @@index([clientId])
   comments        RequestComment[]
 }
 

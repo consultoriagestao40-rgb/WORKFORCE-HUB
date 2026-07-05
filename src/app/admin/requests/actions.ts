@@ -66,6 +66,19 @@ export async function transitionRequest(id: string, newStatus: string, notes?: s
     revalidatePath("/mobile/requests");
 }
 
+export async function updateRequestClient(requestId: string, newClientId: string) {
+    const user = await getCurrentUser();
+    if (!user || user.role === 'SUPERVISOR') throw new Error("Unauthorized");
+
+    await prisma.request.update({
+        where: { id: requestId },
+        data: { clientId: newClientId }
+    });
+
+    revalidatePath("/admin/performance");
+    return { success: true };
+}
+
 export async function deleteRequest(id: string) {
     const restriction = await getCurrentUserRole();
     if (restriction !== 'ADMIN') throw new Error("Unauthorized");
@@ -151,7 +164,7 @@ export async function getClientRequests() {
     });
 }
 
-export async function createClientRequest(data: { type: any, description: string, employeeId?: string }) {
+export async function createClientRequest(data: { type: any, description: string, employeeId?: string, clientId?: string }) {
     const user = await getCurrentUser();
     if (!user || user.role !== 'CLIENTE') throw new Error("Unauthorized");
 
@@ -169,6 +182,7 @@ export async function createClientRequest(data: { type: any, description: string
             description: data.description,
             employeeId: data.employeeId || null,
             requesterId: user.id,
+            clientId: data.clientId || user.clientIds?.[0] || null,
             dueDate,
             status: 'PENDENTE'
         }
@@ -958,6 +972,24 @@ export async function getConsolidatedPerformanceData(year: number, month: number
             orderBy: { createdAt: 'desc' }
         });
 
+        // Auto-correção (Self-healing): popular o clientId em registros novos ou históricos sem ele
+        const nullClientRequests = requests.filter((r: any) => !r.clientId);
+        if (nullClientRequests.length > 0) {
+            for (const r of nullClientRequests) {
+                const matchedClient = clients.find((c: any) => 
+                    r.requester?.clientIds?.includes(c.id) ||
+                    r.employee?.assignments?.some((a: any) => a.posto?.clientId === c.id)
+                );
+                if (matchedClient) {
+                    await prisma.request.update({
+                        where: { id: r.id },
+                        data: { clientId: matchedClient.id }
+                    });
+                    r.clientId = matchedClient.id; // atualiza a referência local
+                }
+            }
+        }
+
         // 1. Calculate faturamento and postos/vagas for each client
         const clientData = clients.map(client => {
             const billing = client.postos.reduce((sum: number, p: any) => sum + (p.billingValue || 0), 0);
@@ -1222,10 +1254,13 @@ export async function getConsolidatedPerformanceData(year: number, month: number
             groupNpsCount,
             clients: clientsWithABCAndVisits,
             allRequests: requests.map((r: any) => {
-                const clientName = clients.find((c: any) => 
-                    r.requester?.clientIds?.includes(c.id) ||
-                    r.employee?.assignments?.some((a: any) => a.posto?.clientId === c.id)
-                )?.name || "Geral";
+                const clientObj = clients.find((c: any) => c.id === r.clientId) || 
+                                  clients.find((c: any) => 
+                                      r.requester?.clientIds?.includes(c.id) ||
+                                      r.employee?.assignments?.some((a: any) => a.posto?.clientId === c.id)
+                                  );
+                const clientName = clientObj?.name || "Geral";
+                const clientId = clientObj?.id || null;
 
                 return {
                     id: r.id,
@@ -1236,6 +1271,7 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                     dueDate: r.dueDate.toISOString(),
                     employeeName: r.employee?.name || null,
                     requesterName: r.requester?.name || "Cliente",
+                    clientId,
                     clientName
                 };
             })
@@ -1792,8 +1828,11 @@ export async function getClientDetailedData(clientId: string, year: number, mont
         });
 
         const requests = allRequests.filter((r: any) => 
-            r.requester?.clientIds?.includes(clientId) ||
-            r.employee?.assignments?.some((a: any) => a.posto?.clientId === clientId)
+            r.clientId === clientId ||
+            (!r.clientId && (
+                r.requester?.clientIds?.includes(clientId) ||
+                r.employee?.assignments?.some((a: any) => a.posto?.clientId === clientId)
+            ))
         );
 
         return {

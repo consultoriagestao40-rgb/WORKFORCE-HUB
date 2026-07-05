@@ -1584,7 +1584,23 @@ export async function requestProbationDismissal(employeeId: string) {
     const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
     if (!employee) throw new Error("Employee not found");
 
+    const activeAssignment = await prisma.assignment.findFirst({
+        where: {
+            employeeId,
+            OR: [
+                { endDate: null },
+                { endDate: { gte: new Date() } }
+            ]
+        },
+        include: { posto: true }
+    });
+    const resolvedClientId = activeAssignment?.posto?.clientId || user.clientIds?.[0] || null;
+
+    const slaConfig = await prisma.requestStageConfiguration.findUnique({
+        where: { status: 'PENDENTE' }
+    });
     const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + (slaConfig?.slaDays || 3));
 
     const newRequest = await prisma.request.create({
         data: {
@@ -1594,6 +1610,7 @@ export async function requestProbationDismissal(employeeId: string) {
             dueDate: dueDate,
             requesterId: user.id,
             employeeId: employeeId,
+            clientId: resolvedClientId,
         }
     });
 

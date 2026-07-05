@@ -27,7 +27,8 @@ import {
     upsertNpsQuestion,
     deleteNpsQuestion,
     getPostoRoutines,
-    transitionRequest
+    transitionRequest,
+    updateRequestClient
 } from "@/app/admin/requests/actions";
 import { 
     Award, Calendar, Users, DollarSign, 
@@ -128,10 +129,85 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
     // Estados exclusivos para a aba/tela de solicitações do gestor
     const [consolidatedTab, setConsolidatedTab] = useState<"performance" | "requests">("performance");
-    const [requestsViewMode, setRequestsViewMode] = useState<"kanban" | "status" | "contract">("kanban");
+    const [requestsViewMode, setRequestsViewMode] = useState<"kanban-status" | "kanban-contract" | "list">("kanban-status");
     const [selectedRequestForAction, setSelectedRequestForAction] = useState<any | null>(null);
     const [requestTransitionNotes, setRequestTransitionNotes] = useState<string>("");
     const [transitioningRequestState, setTransitioningRequestState] = useState<boolean>(false);
+
+    // Filtros adicionais para a visão lista
+    const [listSearchQuery, setListSearchQuery] = useState<string>("");
+    const [listSelectedContract, setListSelectedContract] = useState<string>("all");
+    const [listSelectedStatus, setListSelectedStatus] = useState<string>("all");
+
+    // HTML5 Drag & Drop handlers
+    const handleDragStart = (e: React.DragEvent, requestId: string) => {
+        e.dataTransfer.setData("text/plain", requestId);
+    };
+
+    const handleDropStatus = async (e: React.DragEvent, targetStatus: string) => {
+        e.preventDefault();
+        const requestId = e.dataTransfer.getData("text/plain");
+        if (!requestId) return;
+
+        const req = consolidatedData?.allRequests?.find((r: any) => r.id === requestId);
+        if (!req || req.status === targetStatus) return;
+
+        // Atualização otimista local
+        setConsolidatedData((prev: any) => {
+            if (!prev) return prev;
+            return {
+                ...prev,
+                allRequests: prev.allRequests.map((r: any) => 
+                    r.id === requestId ? { ...r, status: targetStatus } : r
+                )
+            };
+        });
+
+        try {
+            await transitionRequest(requestId, targetStatus, `Status alterado via Kanban (arrastar e soltar) por ${userName}`);
+            toast.success(`Solicitação movida para ${targetStatus === 'CONCLUIDO' ? 'Concluída' : targetStatus === 'REJEITADO' ? 'Recusada' : 'Em Execução'}`);
+            await loadPerformanceData();
+            await loadClientDetails();
+        } catch (err) {
+            toast.error("Erro ao mover solicitação.");
+            await loadPerformanceData();
+            await loadClientDetails();
+        }
+    };
+
+    const handleDropContract = async (e: React.DragEvent, targetClientId: string) => {
+        e.preventDefault();
+        const requestId = e.dataTransfer.getData("text/plain");
+        if (!requestId) return;
+
+        const req = consolidatedData?.allRequests?.find((r: any) => r.id === requestId);
+        if (!req || req.clientId === targetClientId) return;
+
+        const targetClient = consolidatedData?.clients?.find((c: any) => c.id === targetClientId);
+        const targetClientName = targetClient?.name || "Contrato";
+
+        // Atualização otimista local
+        setConsolidatedData((prev: any) => {
+            if (!prev) return prev;
+            return {
+                ...prev,
+                allRequests: prev.allRequests.map((r: any) => 
+                    r.id === requestId ? { ...r, clientId: targetClientId, clientName: targetClientName } : r
+                )
+            };
+        });
+
+        try {
+            await updateRequestClient(requestId, targetClientId);
+            toast.success(`Solicitação movida para o contrato: ${targetClientName}`);
+            await loadPerformanceData();
+            await loadClientDetails();
+        } catch (err) {
+            toast.error("Erro ao transferir contrato da solicitação.");
+            await loadPerformanceData();
+            await loadClientDetails();
+        }
+    };
 
     const handleTransitionRequest = async (requestId: string, newStatus: string, notes?: string) => {
         setTransitioningRequestState(true);
@@ -558,19 +634,25 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
         }
     }, [detailsModalOpen, detailsModalType, consolidatedData]);
 
+    useEffect(() => {
+        if (selectedClientId !== "all" && requestsViewMode === "kanban-contract") {
+            setRequestsViewMode("kanban-status");
+        }
+    }, [selectedClientId, requestsViewMode]);
+
     const renderRequestsManager = (requestsList: any[]) => {
         const getStatusBadge = (status: string) => {
             switch (status) {
                 case "CONCLUIDO":
-                    return <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-250 text-[10px] font-black uppercase rounded-full">Concluído</Badge>;
+                    return <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase rounded-full">Concluído</Badge>;
                 case "PENDENTE":
-                    return <Badge className="bg-amber-50 text-amber-700 border border-amber-250 text-[10px] font-black uppercase rounded-full">Pendente</Badge>;
+                    return <Badge className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black uppercase rounded-full">Pendente</Badge>;
                 case "EM_ANDAMENTO":
                 case "EM_ANALISE_RH":
-                    return <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-250 text-[10px] font-black uppercase rounded-full">Em Execução</Badge>;
+                    return <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-black uppercase rounded-full">Em Execução</Badge>;
                 case "REJEITADO":
                 case "CANCELADO":
-                    return <Badge className="bg-red-50 text-red-700 border border-red-250 text-[10px] font-black uppercase rounded-full">Recusado / Cancelado</Badge>;
+                    return <Badge className="bg-red-50 text-red-700 border border-red-200 text-[10px] font-black uppercase rounded-full">Recusado / Cancelado</Badge>;
                 default:
                     return <Badge className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-black uppercase rounded-full">{status}</Badge>;
             }
@@ -582,35 +664,97 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                     return "Movimentação de Pessoal";
                 case "UNIFORME":
                     return "Solicitação de Uniforme";
+                case "TERMINO_CONTRATO_EXPERIENCIA":
+                    return "Término de Contrato Experiência";
                 default:
                     return "Outros Serviços";
             }
         };
 
-        if (requestsViewMode === "kanban") {
+        const getSlaBadge = (dueDateStr: string, status: string) => {
+            const dueDate = new Date(dueDateStr);
+            const now = new Date();
+            const isExpired = now > dueDate && status !== "CONCLUIDO" && status !== "REJEITADO" && status !== "CANCELADO";
+            
+            if (isExpired) {
+                return <span className="bg-red-100 text-red-700 text-[9px] font-bold px-2 py-0.5 rounded animate-pulse border border-red-200">Expirado</span>;
+            }
+            if (status === "CONCLUIDO") {
+                return <span className="bg-slate-100 text-slate-500 text-[9px] font-bold px-2 py-0.5 rounded border border-slate-200">Concluído</span>;
+            }
+            return <span className="bg-sky-100 text-sky-700 text-[9px] font-bold px-2 py-0.5 rounded border border-sky-200">No Prazo</span>;
+        };
+
+        const renderRequestCard = (r: any) => {
+            return (
+                <div
+                    key={r.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, r.id)}
+                    onClick={() => setSelectedRequestForAction({ ...r })}
+                    className="border border-slate-200/60 hover:shadow-premium hover:border-slate-300 hover:scale-[1.01] cursor-pointer transition-all duration-200 bg-white rounded-xl overflow-hidden p-3.5 space-y-3 shadow-sm select-none"
+                >
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-700 max-w-[120px] truncate" title={r.clientName}>
+                            {r.clientName}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-bold">{new Date(r.createdAt).toLocaleDateString("pt-BR")}</span>
+                    </div>
+                    <div className="space-y-1">
+                        <h4 className="text-xs font-bold text-slate-800 line-clamp-2" title={r.description}>
+                            {r.description}
+                        </h4>
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-[10px] text-slate-500 font-semibold italic">
+                                {getTypeLabel(r.type)}
+                            </p>
+                            {getSlaBadge(r.dueDate, r.status)}
+                        </div>
+                    </div>
+                    {r.employeeName && (
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                            <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="truncate">{r.employeeName}</span>
+                        </div>
+                    )}
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[10px] text-slate-400 gap-2">
+                        <span className="font-semibold truncate">Por: {r.requesterName}</span>
+                        <div className="flex items-center gap-1">
+                            {getStatusBadge(r.status)}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        if (requestsViewMode === "kanban-status") {
             const columns = [
                 {
                     title: "Pendente / Aguardando",
+                    id: "PENDENTE",
                     statuses: ["PENDENTE", "AGUARDANDO_APROVACAO"],
-                    bg: "bg-amber-50/30 border-amber-100/50",
+                    bg: "bg-amber-50/20 border-amber-100/40",
                     headerBg: "bg-amber-50 text-amber-800"
                 },
                 {
                     title: "Em Execução / RH",
+                    id: "EM_ANDAMENTO",
                     statuses: ["EM_ANALISE_RH", "EM_ANDAMENTO"],
-                    bg: "bg-indigo-50/20 border-indigo-100/50",
+                    bg: "bg-indigo-50/15 border-indigo-100/40",
                     headerBg: "bg-indigo-50 text-indigo-850"
                 },
                 {
                     title: "Concluídas",
+                    id: "CONCLUIDO",
                     statuses: ["CONCLUIDO"],
-                    bg: "bg-emerald-50/20 border-emerald-100/50",
+                    bg: "bg-emerald-50/15 border-emerald-100/40",
                     headerBg: "bg-emerald-50 text-emerald-850"
                 },
                 {
                     title: "Canceladas / Recusadas",
+                    id: "REJEITADO",
                     statuses: ["REJEITADO", "CANCELADO"],
-                    bg: "bg-red-50/20 border-red-100/50",
+                    bg: "bg-red-50/15 border-red-100/40",
                     headerBg: "bg-red-50 text-red-850"
                 }
             ];
@@ -620,52 +764,23 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                     {columns.map((col) => {
                         const colRequests = requestsList.filter((r) => col.statuses.includes(r.status));
                         return (
-                            <div key={col.title} className={`flex flex-col rounded-2xl border ${col.bg} p-3.5 min-h-[500px]`}>
+                            <div 
+                                key={col.id} 
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => handleDropStatus(e, col.id)}
+                                className={`flex flex-col rounded-2xl border ${col.bg} p-3.5 min-h-[500px] transition-all`}
+                            >
                                 <div className={`flex items-center justify-between mb-3 px-3 py-1.5 rounded-xl ${col.headerBg} font-bold text-xs shrink-0`}>
                                     <span>{col.title}</span>
-                                    <span className="bg-white/60 px-2 py-0.5 rounded-full text-[10px] font-black">{colRequests.length}</span>
+                                    <span className="bg-white/70 px-2 py-0.5 rounded-full text-[10px] font-black">{colRequests.length}</span>
                                 </div>
                                 <div className="flex-1 space-y-3 overflow-y-auto max-h-[600px] pr-1">
                                     {colRequests.length === 0 ? (
-                                        <div className="text-center text-[11px] text-slate-400 italic py-8 bg-white/40 rounded-xl border border-dashed border-slate-200">
+                                        <div className="text-center text-[11px] text-slate-400 italic py-12 bg-white/40 rounded-xl border border-dashed border-slate-200">
                                             Nenhuma solicitação
                                         </div>
                                     ) : (
-                                        colRequests.map((r) => (
-                                            <Card key={r.id} className="border border-slate-200/50 hover:shadow-premium cursor-pointer transition-all duration-200 bg-white rounded-xl overflow-hidden p-3.5 space-y-3">
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-slate-100 text-slate-700 max-w-[120px] truncate" title={r.clientName}>
-                                                        {r.clientName}
-                                                    </span>
-                                                    <span className="text-[9px] text-slate-400 font-bold">{new Date(r.createdAt).toLocaleDateString("pt-BR")}</span>
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <h4 className="text-xs font-bold text-slate-850 line-clamp-2" title={r.description}>
-                                                        {r.description}
-                                                    </h4>
-                                                    <p className="text-[10px] text-slate-500 font-semibold italic">
-                                                        {getTypeLabel(r.type)}
-                                                    </p>
-                                                </div>
-                                                {r.employeeName && (
-                                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-655 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
-                                                        <Briefcase className="w-3.5 h-3.5 text-slate-400" />
-                                                        <span className="truncate">{r.employeeName}</span>
-                                                    </div>
-                                                )}
-                                                <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[10px] text-slate-400 gap-2">
-                                                    <span className="font-medium truncate max-w-[80px]">Por: {r.requesterName}</span>
-                                                    <Button
-                                                        type="button"
-                                                        onClick={() => setSelectedRequestForAction({ ...r })}
-                                                        size="sm"
-                                                        className="h-6 text-[9px] font-black uppercase rounded-md bg-slate-800 text-white hover:bg-slate-900 px-2 cursor-pointer"
-                                                    >
-                                                        Ações
-                                                    </Button>
-                                                </div>
-                                            </Card>
-                                        ))
+                                        colRequests.map((r) => renderRequestCard(r))
                                     )}
                                 </div>
                             </div>
@@ -675,114 +790,153 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
             );
         }
 
-        if (requestsViewMode === "status") {
-            const statuses = ["PENDENTE", "EM_ANDAMENTO", "EM_ANALISE_RH", "CONCLUIDO", "REJEITADO", "CANCELADO"];
+        if (requestsViewMode === "kanban-contract") {
+            const activeClients = consolidatedData?.clients || [];
             return (
-                <div className="space-y-6">
-                    {statuses.map((status) => {
-                        const statusRequests = requestsList.filter((r) => r.status === status);
-                        if (statusRequests.length === 0) return null;
-
+                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin max-w-full">
+                    {activeClients.map((client: any) => {
+                        const clientRequests = requestsList.filter((r) => r.clientId === client.id);
                         return (
-                            <Card key={status} className="border border-slate-200/50 shadow-sm bg-white rounded-2xl overflow-hidden">
-                                <div className="px-4 py-3 bg-slate-50 border-b border-slate-150 flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        {getStatusBadge(status)}
-                                        <span className="text-[10px] font-black uppercase text-slate-400">({statusRequests.length} solicitações)</span>
-                                    </div>
+                            <div 
+                                key={client.id}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => handleDropContract(e, client.id)}
+                                className="flex flex-col w-72 shrink-0 bg-slate-50/60 border border-slate-200 p-3.5 rounded-2xl min-h-[500px]"
+                            >
+                                <div className="flex items-center justify-between mb-3 bg-slate-900 text-white px-3 py-2 rounded-xl font-bold text-[11px] uppercase tracking-wide shrink-0">
+                                    <span className="truncate max-w-[200px]">{client.name}</span>
+                                    <span className="bg-white/20 px-2 py-0.5 rounded-full text-[9px] font-black">{clientRequests.length}</span>
                                 </div>
-                                <Table>
-                                    <TableHeader className="bg-slate-50/50">
-                                        <TableRow>
-                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5 pl-6">Contrato</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Descrição</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Tipo</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Solicitante</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Criação</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Prazo SLA</TableHead>
-                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5 text-right pr-6">Ação</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {statusRequests.map((r) => (
-                                            <TableRow key={r.id} className="hover:bg-slate-50/50">
-                                                <TableCell className="text-xs font-bold text-slate-800 pl-6 py-2.5">{r.clientName}</TableCell>
-                                                <TableCell className="text-xs text-slate-700 py-2.5 font-medium max-w-xs truncate" title={r.description}>{r.description}</TableCell>
-                                                <TableCell className="text-xs text-slate-500 py-2.5 font-semibold">{getTypeLabel(r.type)}</TableCell>
-                                                <TableCell className="text-xs text-slate-655 font-bold py-2.5">{r.requesterName}</TableCell>
-                                                <TableCell className="text-xs text-slate-500 py-2.5">{new Date(r.createdAt).toLocaleDateString("pt-BR")}</TableCell>
-                                                <TableCell className="text-xs font-black text-slate-700 py-2.5">{new Date(r.dueDate).toLocaleDateString("pt-BR")}</TableCell>
-                                                <TableCell className="text-right pr-6 py-2.5">
-                                                    <Button
-                                                        type="button"
-                                                        onClick={() => setSelectedRequestForAction({ ...r })}
-                                                        size="sm"
-                                                        className="h-7 text-[10px] font-bold rounded-lg bg-slate-800 text-white hover:bg-slate-900 cursor-pointer"
-                                                    >
-                                                        Ações
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </Card>
+                                <div className="flex-1 space-y-3 overflow-y-auto max-h-[600px] pr-1">
+                                    {clientRequests.length === 0 ? (
+                                        <div className="text-center text-[11px] text-slate-400 italic py-12 bg-white/40 rounded-xl border border-dashed border-slate-200">
+                                            Nenhuma solicitação
+                                        </div>
+                                    ) : (
+                                        clientRequests.map((r) => renderRequestCard(r))
+                                    )}
+                                </div>
+                            </div>
                         );
                     })}
                 </div>
             );
         }
 
-        const uniqueClients = Array.from(new Set(requestsList.map((r) => r.clientName)));
+        // Visão Lista
+        const filteredRequests = requestsList.filter((r) => {
+            const matchesSearch = !listSearchQuery || 
+                r.description?.toLowerCase().includes(listSearchQuery.toLowerCase()) || 
+                r.employeeName?.toLowerCase().includes(listSearchQuery.toLowerCase()) ||
+                r.requesterName?.toLowerCase().includes(listSearchQuery.toLowerCase());
+
+            const matchesContract = listSelectedContract === "all" || r.clientId === listSelectedContract;
+            
+            const matchesStatus = listSelectedStatus === "all" || 
+                (listSelectedStatus === "PENDENTE" && (r.status === "PENDENTE" || r.status === "AGUARDANDO_APROVACAO")) ||
+                (listSelectedStatus === "EM_ANDAMENTO" && (r.status === "EM_ANDAMENTO" || r.status === "EM_ANALISE_RH")) ||
+                (listSelectedStatus === "CONCLUIDO" && r.status === "CONCLUIDO") ||
+                (listSelectedStatus === "REJEITADO" && (r.status === "REJEITADO" || r.status === "CANCELADO"));
+
+            return matchesSearch && matchesContract && matchesStatus;
+        });
+
+        const activeClients = consolidatedData?.clients || [];
+
         return (
-            <div className="space-y-6">
-                {uniqueClients.map((clientName) => {
-                    const clientRequests = requestsList.filter((r) => r.clientName === clientName);
-                    return (
-                        <Card key={clientName} className="border border-slate-200/50 shadow-sm bg-white rounded-2xl overflow-hidden">
-                            <div className="px-4 py-3 bg-slate-50 border-b border-slate-150 flex items-center justify-between">
-                                <span className="text-xs font-black text-slate-800 uppercase">{clientName}</span>
-                                <Badge className="bg-slate-800 text-white text-[10px] font-extrabold">{clientRequests.length} solicitações</Badge>
-                            </div>
-                            <Table>
-                                <TableHeader className="bg-slate-50/50">
-                                    <TableRow>
-                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5 pl-6">Descrição</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5">Tipo</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5 text-center">Status</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5">Solicitante</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5">Criação</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5">Prazo SLA</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5 text-right pr-6">Ação</TableHead>
+            <Card className="border border-slate-200/50 shadow-premium bg-white rounded-2xl overflow-hidden">
+                <div className="p-4 bg-slate-50 border-b border-slate-150 flex flex-col md:flex-row gap-3 items-center justify-between shrink-0">
+                    <div className="w-full md:w-72">
+                        <Input
+                            placeholder="Buscar por descrição, funcionário..."
+                            value={listSearchQuery}
+                            onChange={(e) => setListSearchQuery(e.target.value)}
+                            className="bg-white rounded-xl h-9 text-xs border-slate-250 font-semibold"
+                        />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                            <span className="text-[10px] font-black uppercase text-slate-400">Contrato:</span>
+                            <select
+                                value={listSelectedContract}
+                                onChange={(e) => setListSelectedContract(e.target.value)}
+                                className="h-9 border border-slate-200 bg-white rounded-xl text-xs font-semibold px-3 outline-none cursor-pointer w-full sm:w-[180px]"
+                            >
+                                <option value="all">Todos os Contratos</option>
+                                {activeClients.map((c: any) => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                            <span className="text-[10px] font-black uppercase text-slate-400">Status:</span>
+                            <select
+                                value={listSelectedStatus}
+                                onChange={(e) => setListSelectedStatus(e.target.value)}
+                                className="h-9 border border-slate-200 bg-white rounded-xl text-xs font-semibold px-3 outline-none cursor-pointer w-full sm:w-[150px]"
+                            >
+                                <option value="all">Todos os Status</option>
+                                <option value="PENDENTE">Pendente</option>
+                                <option value="EM_ANDAMENTO">Em Execução</option>
+                                <option value="CONCLUIDO">Concluído</option>
+                                <option value="REJEITADO">Recusado / Cancelado</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                {filteredRequests.length === 0 ? (
+                    <div className="p-12 text-center text-slate-400 italic text-xs">
+                        Nenhuma solicitação encontrada.
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto rounded-[20px] m-1 border border-slate-200/50">
+                        <Table>
+                            <TableHeader className="bg-slate-50/50">
+                                <TableRow>
+                                    <TableHead className="font-bold text-slate-800 text-xs py-3 pl-6">Contrato</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs py-3">Descrição</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs py-3">Tipo</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs py-3">Solicitante</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs py-3">Colaborador</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs py-3">Criação</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs py-3">Prazo SLA</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs py-3 text-center">Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {filteredRequests.map((r) => (
+                                    <TableRow 
+                                        key={r.id} 
+                                        onClick={() => setSelectedRequestForAction({ ...r })}
+                                        className="hover:bg-slate-50/70 cursor-pointer transition-colors"
+                                    >
+                                        <TableCell className="text-xs font-bold text-slate-800 pl-6 py-3">{r.clientName}</TableCell>
+                                        <TableCell className="text-xs text-slate-700 py-3 font-medium max-w-xs truncate" title={r.description}>{r.description}</TableCell>
+                                        <TableCell className="text-xs text-slate-500 py-3 font-semibold">{getTypeLabel(r.type)}</TableCell>
+                                        <TableCell className="text-xs text-slate-655 font-bold py-3">{r.requesterName}</TableCell>
+                                        <TableCell className="text-xs text-slate-600 font-semibold py-3">
+                                            {r.employeeName ? (
+                                                <span className="flex items-center gap-1">
+                                                    <Briefcase className="w-3 h-3 text-slate-400 shrink-0" />
+                                                    {r.employeeName}
+                                                </span>
+                                            ) : "-"}
+                                        </TableCell>
+                                        <TableCell className="text-xs text-slate-500 py-3">{new Date(r.createdAt).toLocaleDateString("pt-BR")}</TableCell>
+                                        <TableCell className="text-xs font-black text-slate-700 py-3">
+                                            <div className="flex items-center gap-1.5">
+                                                <span>{new Date(r.dueDate).toLocaleDateString("pt-BR")}</span>
+                                                {getSlaBadge(r.dueDate, r.status)}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-center py-3">{getStatusBadge(r.status)}</TableCell>
                                     </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {clientRequests.map((r) => (
-                                        <TableRow key={r.id} className="hover:bg-slate-50/50">
-                                            <TableCell className="text-xs font-bold text-slate-700 pl-6 py-2.5 max-w-xs truncate" title={r.description}>{r.description}</TableCell>
-                                            <TableCell className="text-xs text-slate-500 py-2.5 font-semibold">{getTypeLabel(r.type)}</TableCell>
-                                            <TableCell className="text-center py-2.5">{getStatusBadge(r.status)}</TableCell>
-                                            <TableCell className="text-xs text-slate-655 font-bold py-2.5">{r.requesterName}</TableCell>
-                                            <TableCell className="text-xs text-slate-500 py-2.5">{new Date(r.createdAt).toLocaleDateString("pt-BR")}</TableCell>
-                                            <TableCell className="text-xs font-black text-slate-700 py-2.5">{new Date(r.dueDate).toLocaleDateString("pt-BR")}</TableCell>
-                                            <TableCell className="text-right pr-6 py-2.5">
-                                                <Button
-                                                    type="button"
-                                                    onClick={() => setSelectedRequestForAction({ ...r })}
-                                                    size="sm"
-                                                    className="h-7 text-[10px] font-bold rounded-lg bg-slate-800 text-white hover:bg-slate-900 cursor-pointer"
-                                                >
-                                                    Ações
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </Card>
-                    );
-                })}
-            </div>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                )}
+            </Card>
         );
     }
 
@@ -973,28 +1127,28 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 <div className="flex flex-wrap items-center gap-3">
                                     <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
                                         <button
-                                            onClick={() => setRequestsViewMode("kanban")}
+                                            onClick={() => setRequestsViewMode("kanban-status")}
                                             className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                                requestsViewMode === "kanban" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
+                                                requestsViewMode === "kanban-status" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
                                             }`}
                                         >
-                                            Kanban
+                                            Kanban Status
                                         </button>
                                         <button
-                                            onClick={() => setRequestsViewMode("status")}
+                                            onClick={() => setRequestsViewMode("kanban-contract")}
                                             className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                                requestsViewMode === "status" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
+                                                requestsViewMode === "kanban-contract" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
                                             }`}
                                         >
-                                            Por Status
+                                            Kanban Contrato
                                         </button>
                                         <button
-                                            onClick={() => setRequestsViewMode("contract")}
+                                            onClick={() => setRequestsViewMode("list")}
                                             className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                                requestsViewMode === "contract" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
+                                                requestsViewMode === "list" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
                                             }`}
                                         >
-                                            Por Contrato
+                                            Visão Lista
                                         </button>
                                     </div>
                                     <Button variant="ghost" size="icon" onClick={loadPerformanceData} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
@@ -1983,28 +2137,20 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 <div className="flex flex-wrap items-center gap-3">
                                     <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
                                         <button
-                                            onClick={() => setRequestsViewMode("kanban")}
+                                            onClick={() => setRequestsViewMode("kanban-status")}
                                             className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                                requestsViewMode === "kanban" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
+                                                requestsViewMode === "kanban-status" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
                                             }`}
                                         >
-                                            Kanban
+                                            Kanban Status
                                         </button>
                                         <button
-                                            onClick={() => setRequestsViewMode("status")}
+                                            onClick={() => setRequestsViewMode("list")}
                                             className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                                requestsViewMode === "status" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
+                                                requestsViewMode === "list" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
                                             }`}
                                         >
-                                            Por Status
-                                        </button>
-                                        <button
-                                            onClick={() => setRequestsViewMode("contract")}
-                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                                requestsViewMode === "contract" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
-                                            }`}
-                                        >
-                                            Por Contrato
+                                            Visão Lista
                                         </button>
                                     </div>
                                     <Button variant="ghost" size="icon" onClick={loadPerformanceData} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
@@ -3365,59 +3511,130 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 </DialogContent>
             </Dialog>
 
-            {/* Dialog de Transição de Chamado */}
+            {/* Dialog de Detalhes e Transição da Solicitação */}
             <Dialog open={selectedRequestForAction !== null} onOpenChange={(open) => { if (!open) setSelectedRequestForAction(null); }}>
-                <DialogContent className="sm:max-w-[480px] rounded-[24px]">
-                    <DialogHeader>
-                        <DialogTitle className="text-md font-bold text-slate-800">Atualizar Status da Solicitação</DialogTitle>
-                        <DialogDescription>
-                            Mude o status do chamado e adicione notas explicativas para o cliente.
+                <DialogContent className="sm:max-w-[550px] rounded-[24px] overflow-hidden p-6 gap-0">
+                    <DialogHeader className="pb-4 border-b border-slate-100">
+                        <div className="flex items-center justify-between mt-1">
+                            <DialogTitle className="text-md font-bold text-slate-800">Detalhes da Solicitação</DialogTitle>
+                            {selectedRequestForAction && (
+                                <div className="flex items-center gap-1.5">
+                                    <Badge className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-black uppercase rounded-full">
+                                        {selectedRequestForAction.type === "MOVIMENTACAO" ? "Movimentação" : 
+                                         selectedRequestForAction.type === "UNIFORME" ? "Uniforme" : 
+                                         selectedRequestForAction.type === "TERMINO_CONTRATO_EXPERIENCIA" ? "Término Experiência" : "Outro"}
+                                    </Badge>
+                                    <Badge className={`${
+                                        selectedRequestForAction.status === "CONCLUIDO" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                        selectedRequestForAction.status === "PENDENTE" ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                                        selectedRequestForAction.status === "EM_ANDAMENTO" || selectedRequestForAction.status === "EM_ANALISE_RH" ? "bg-indigo-50 text-indigo-700 border border-indigo-200" :
+                                        "bg-red-50 text-red-700 border border-red-200"
+                                    } text-[10px] font-black uppercase rounded-full`}>
+                                        {selectedRequestForAction.status === "CONCLUIDO" ? "Concluído" :
+                                         selectedRequestForAction.status === "PENDENTE" ? "Pendente" :
+                                         selectedRequestForAction.status === "EM_ANDAMENTO" || selectedRequestForAction.status === "EM_ANALISE_RH" ? "Em Execução" : "Cancelado"}
+                                    </Badge>
+                                </div>
+                            )}
+                        </div>
+                        <DialogDescription className="text-xs text-slate-400 mt-1 font-medium">
+                            Histórico do chamado, controle de SLA e transição de status operacional.
                         </DialogDescription>
                     </DialogHeader>
 
                     {selectedRequestForAction && (
-                        <div className="space-y-4 py-2">
-                            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 space-y-1">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[10px] font-black uppercase text-slate-400">Contrato:</span>
-                                    <span className="text-xs font-bold text-slate-800">{selectedRequestForAction.clientName}</span>
+                        <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-1">
+                            {/* Bloco de Informações Principais */}
+                            <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                <div className="space-y-1">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 block">Contrato</span>
+                                    <span className="text-xs font-bold text-slate-800 block truncate">{selectedRequestForAction.clientName}</span>
                                 </div>
-                                <div className="flex flex-col pt-1">
-                                    <span className="text-[10px] font-black uppercase text-slate-400">Descrição:</span>
-                                    <span className="text-xs text-slate-700 font-medium italic">"{selectedRequestForAction.description}"</span>
+                                <div className="space-y-1">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 block">Solicitante</span>
+                                    <span className="text-xs font-bold text-slate-800 block truncate">{selectedRequestForAction.requesterName}</span>
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 block">Data de Criação</span>
+                                    <span className="text-xs font-bold text-slate-700 block">
+                                        {new Date(selectedRequestForAction.createdAt).toLocaleDateString("pt-BR")}
+                                    </span>
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 block">Prazo SLA</span>
+                                    <span className="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                                        {new Date(selectedRequestForAction.dueDate).toLocaleDateString("pt-BR")}
+                                        {(() => {
+                                            const dueDate = new Date(selectedRequestForAction.dueDate);
+                                            const now = new Date();
+                                            const isExpired = now > dueDate && selectedRequestForAction.status !== "CONCLUIDO" && selectedRequestForAction.status !== "REJEITADO" && selectedRequestForAction.status !== "CANCELADO";
+                                            return isExpired ? (
+                                                <Badge className="bg-red-50 text-red-600 border border-red-200 text-[9px] font-bold animate-pulse py-0 px-1">Expirado</Badge>
+                                            ) : (
+                                                <Badge className="bg-sky-50 text-sky-600 border border-sky-200 text-[9px] font-bold py-0 px-1">No Prazo</Badge>
+                                            );
+                                        })()}
+                                    </span>
                                 </div>
                             </div>
 
+                            {/* Colaborador Relacionado (se houver) */}
+                            {selectedRequestForAction.employeeName && (
+                                <div className="space-y-1 bg-blue-50/40 p-3.5 rounded-xl border border-blue-100/50">
+                                    <span className="text-[10px] font-black uppercase text-blue-500 block">Colaborador Envolvido</span>
+                                    <span className="text-xs font-extrabold text-blue-900 flex items-center gap-1.5">
+                                        <Briefcase className="w-3.5 h-3.5 text-blue-400" />
+                                        {selectedRequestForAction.employeeName}
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* Descrição Completa */}
                             <div className="space-y-1">
-                                <Label className="text-xs font-bold text-slate-655">Novo Status</Label>
-                                <select
-                                    value={selectedRequestForAction.nextStatus || selectedRequestForAction.status}
-                                    onChange={(e) => setSelectedRequestForAction({ ...selectedRequestForAction, nextStatus: e.target.value })}
-                                    className="w-full h-10 border border-slate-200 bg-white text-xs font-semibold px-3 outline-none rounded-xl cursor-pointer"
-                                >
-                                    <option value="PENDENTE">Aguardando (Pendente)</option>
-                                    <option value="EM_ANDAMENTO">Em Execução (Em Andamento)</option>
-                                    <option value="CONCLUIDO">Concluir Solicitação</option>
-                                    <option value="REJEITADO">Rejeitar Solicitação</option>
-                                    <option value="CANCELADO">Cancelar Solicitação</option>
-                                </select>
+                                <Label className="text-[10px] font-black uppercase text-slate-400">Descrição da Solicitação</Label>
+                                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 whitespace-pre-wrap leading-relaxed">
+                                    {selectedRequestForAction.description}
+                                </div>
                             </div>
 
-                            <div className="space-y-1">
-                                <Label className="text-xs font-bold text-slate-655">Notas / Parecer Operacional</Label>
-                                <textarea
-                                    placeholder="Ex: Novo funcionário escalado para início imediato no dia..."
-                                    rows={3}
-                                    value={requestTransitionNotes}
-                                    onChange={(e) => setRequestTransitionNotes(e.target.value)}
-                                    className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 outline-none resize-none"
-                                />
+                            {/* Divider */}
+                            <div className="border-t border-slate-100 my-4" />
+
+                            {/* Bloco de Ações do Gestor */}
+                            <div className="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-200/50">
+                                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Ações de Gestão</h4>
+                                
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] font-black uppercase text-slate-500">Mudar Status do Chamado</Label>
+                                    <select
+                                        value={selectedRequestForAction.nextStatus || selectedRequestForAction.status}
+                                        onChange={(e) => setSelectedRequestForAction({ ...selectedRequestForAction, nextStatus: e.target.value })}
+                                        className="w-full h-10 border border-slate-200 bg-white text-xs font-semibold px-3 outline-none rounded-xl cursor-pointer"
+                                    >
+                                        <option value="PENDENTE">Aguardando (Pendente)</option>
+                                        <option value="EM_ANDAMENTO">Em Execução (Em Andamento)</option>
+                                        <option value="CONCLUIDO">Concluir Solicitação</option>
+                                        <option value="REJEITADO">Rejeitar Solicitação</option>
+                                        <option value="CANCELADO">Cancelar Solicitação</option>
+                                    </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] font-black uppercase text-slate-500">Notas / Parecer Operacional</Label>
+                                    <textarea
+                                        placeholder="Descreva a ação tomada ou justificativa da transição de status..."
+                                        rows={3}
+                                        value={requestTransitionNotes}
+                                        onChange={(e) => setRequestTransitionNotes(e.target.value)}
+                                        className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 bg-white outline-none resize-none"
+                                    />
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    <DialogFooter className="pt-2 border-t border-slate-100">
-                        <Button type="button" variant="outline" onClick={() => setSelectedRequestForAction(null)} className="h-10 text-xs font-bold rounded-xl">Cancelar</Button>
+                    <DialogFooter className="pt-4 border-t border-slate-100">
+                        <Button type="button" variant="outline" onClick={() => setSelectedRequestForAction(null)} className="h-10 text-xs font-bold rounded-xl">Fechar</Button>
                         <Button
                             type="button"
                             disabled={transitioningRequestState}
