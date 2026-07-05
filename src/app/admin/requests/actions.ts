@@ -530,7 +530,10 @@ export async function getClientKpis(year: number) {
 
         const monthSubstitutions = assignments.filter(a => a.endDate && new Date(a.endDate).getUTCMonth() === index).length;
         const activeStaff = totalPostosCount > 0 ? totalPostosCount : 5;
-        const turnover = effectiveness > 0 ? (((index % 3) * 0.4 + 1.2) + ((monthSubstitutions / activeStaff) * 100)) : 0;
+        const turnover = activeStaff > 0 ? (monthSubstitutions / activeStaff) * 100 : 0;
+
+        const complaints = monthRequests.filter((r: any) => r.description?.toLowerCase().includes("reclam") || r.description?.toLowerCase().includes("queixa"));
+        const complaintsRate = monthRequests.length > 0 ? (complaints.length / monthRequests.length) * 100 : 0;
 
         return {
             monthIndex: index,
@@ -542,7 +545,8 @@ export async function getClientKpis(year: number) {
             npsCount: monthNps.length,
             avgNpsRating,
             contractScore,
-            turnover
+            turnover,
+            complaintsRate
         };
     });
 
@@ -1573,7 +1577,10 @@ export async function getAdminClientKpis(clientId: string, year: number) {
 
             const monthSubstitutions = assignments.filter((a: any) => a.endDate && new Date(a.endDate).getUTCMonth() === index).length;
             const activeStaff = totalPostosCount > 0 ? totalPostosCount : 5;
-            const turnover = effectiveness > 0 ? (((index % 3) * 0.4 + 1.2) + ((monthSubstitutions / activeStaff) * 100)) : 0;
+            const turnover = activeStaff > 0 ? (monthSubstitutions / activeStaff) * 100 : 0;
+
+            const complaints = monthRequests.filter((r: any) => r.description?.toLowerCase().includes("reclam") || r.description?.toLowerCase().includes("queixa"));
+            const complaintsRate = monthRequests.length > 0 ? (complaints.length / monthRequests.length) * 100 : 0;
 
             return {
                 monthIndex: index,
@@ -1585,7 +1592,8 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                 npsCount: monthNps.length,
                 avgNpsRating,
                 contractScore,
-                turnover
+                turnover,
+                complaintsRate
             };
         });
 

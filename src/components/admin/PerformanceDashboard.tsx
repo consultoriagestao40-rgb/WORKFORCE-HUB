@@ -3380,7 +3380,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                             // Calcular reclamações e rotatividade com base nos chamados reais do mês
                                                             const monthRequests = (detailedData?.requests || []).filter((r: any) => new Date(r.createdAt).getMonth() === mIndex);
                                                             const complaints = monthRequests.filter((r: any) => r.category === "RECLAMACOES" || r.type === "RECLAMACOES" || r.description?.toLowerCase().includes("reclam") || r.description?.toLowerCase().includes("queixa"));
-                                                            const complaintsRate = monthRequests.length > 0 ? (complaints.length / monthRequests.length) * 100 : 0;
+                                                            const complaintsRate = m.complaintsRate || 0;
 
                                                             const turnoverRate = m.turnover || 0;
 
@@ -3428,7 +3428,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                         {m.slaCompliance.toFixed(1)}%
                                                                     </TableCell>
                                                                     <TableCell 
-                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'complaints', complaintsRate)}
+                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'complaints', m.complaintsRate)}
                                                                         className="text-center font-bold text-xs text-red-500 py-3 cursor-pointer hover:bg-red-50 hover:scale-[1.03] transition-all select-none"
                                                                     >
                                                                         {complaintsRate > 0 ? `${complaintsRate.toFixed(1).replace('.', ',')}%` : "0,0%"}
