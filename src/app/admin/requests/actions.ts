@@ -942,7 +942,20 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                     gte: startOfMonth,
                     lte: endOfMonth
                 }
-            }
+            },
+            include: {
+                requester: { select: { id: true, name: true, clientIds: true } },
+                employee: {
+                    include: {
+                        assignments: {
+                            include: {
+                                posto: true
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
         });
 
         // 1. Calculate faturamento and postos/vagas for each client
@@ -1005,7 +1018,10 @@ export async function getConsolidatedPerformanceData(year: number, month: number
             const clientEffectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : 100;
 
             // Filter requests for this client
-            const clientReqs = requests.filter((r: any) => r.clientId === client.id);
+            const clientReqs = requests.filter((r: any) => 
+                r.requester?.clientIds?.includes(client.id) ||
+                r.employee?.assignments?.some((a: any) => a.posto?.clientId === client.id)
+            );
             const resolved = clientReqs.filter((r: any) => r.status === "CONCLUIDO" || r.status === "REJEITADO");
             const totalSlaOnTime = resolved.filter((r: any) => r.updatedAt && r.dueDate && r.updatedAt <= r.dueDate).length;
             const clientSlaCompliance = resolved.length > 0 ? (totalSlaOnTime / resolved.length) * 100 : 100;
@@ -1068,7 +1084,17 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                 npsRating: avgNpsRating,
                 npsCount: clientMonthNps.length,
                 visits: client.visits,
-                vacantPostosDetails
+                vacantPostosDetails,
+                recentRequests: clientReqs.map((r: any) => ({
+                    id: r.id,
+                    type: r.type,
+                    status: r.status,
+                    description: r.description,
+                    createdAt: r.createdAt.toISOString(),
+                    dueDate: r.dueDate.toISOString(),
+                    employeeName: r.employee?.name || null,
+                    requesterName: r.requester?.name || "Cliente"
+                }))
             };
         });
 
@@ -1194,7 +1220,25 @@ export async function getConsolidatedPerformanceData(year: number, month: number
             avgEffectivenessCombined,
             groupNpsScore,
             groupNpsCount,
-            clients: clientsWithABCAndVisits
+            clients: clientsWithABCAndVisits,
+            allRequests: requests.map((r: any) => {
+                const clientName = clients.find((c: any) => 
+                    r.requester?.clientIds?.includes(c.id) ||
+                    r.employee?.assignments?.some((a: any) => a.posto?.clientId === c.id)
+                )?.name || "Geral";
+
+                return {
+                    id: r.id,
+                    type: r.type,
+                    status: r.status,
+                    description: r.description,
+                    createdAt: r.createdAt.toISOString(),
+                    dueDate: r.dueDate.toISOString(),
+                    employeeName: r.employee?.name || null,
+                    requesterName: r.requester?.name || "Cliente",
+                    clientName
+                };
+            })
         };
 
     } catch (error) {

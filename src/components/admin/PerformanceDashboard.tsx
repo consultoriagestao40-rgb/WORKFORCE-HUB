@@ -26,7 +26,8 @@ import {
     updateSlaMonthlyValue,
     upsertNpsQuestion,
     deleteNpsQuestion,
-    getPostoRoutines
+    getPostoRoutines,
+    transitionRequest
 } from "@/app/admin/requests/actions";
 import { 
     Award, Calendar, Users, DollarSign, 
@@ -124,6 +125,30 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
     // Modal contracts filter (multiple choice selection)
     const [selectedContractsFilter, setSelectedContractsFilter] = useState<string[]>([]);
+
+    // Estados exclusivos para a aba/tela de solicitações do gestor
+    const [consolidatedTab, setConsolidatedTab] = useState<"performance" | "requests">("performance");
+    const [requestsViewMode, setRequestsViewMode] = useState<"kanban" | "status" | "contract">("kanban");
+    const [selectedRequestForAction, setSelectedRequestForAction] = useState<any | null>(null);
+    const [requestTransitionNotes, setRequestTransitionNotes] = useState<string>("");
+    const [transitioningRequestState, setTransitioningRequestState] = useState<boolean>(false);
+
+    const handleTransitionRequest = async (requestId: string, newStatus: string, notes?: string) => {
+        setTransitioningRequestState(true);
+        try {
+            await transitionRequest(requestId, newStatus, notes);
+            toast.success("Solicitação atualizada com sucesso!");
+            setSelectedRequestForAction(null);
+            setRequestTransitionNotes("");
+            // Recarregar os dados
+            await loadPerformanceData();
+            await loadClientDetails();
+        } catch (e) {
+            toast.error("Erro ao atualizar solicitação.");
+        } finally {
+            setTransitioningRequestState(false);
+        }
+    };
 
     const loadPerformanceData = useCallback(async () => {
         if (selectedClientId === "all") {
@@ -533,6 +558,234 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
         }
     }, [detailsModalOpen, detailsModalType, consolidatedData]);
 
+    const renderRequestsManager = (requestsList: any[]) => {
+        const getStatusBadge = (status: string) => {
+            switch (status) {
+                case "CONCLUIDO":
+                    return <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-250 text-[10px] font-black uppercase rounded-full">Concluído</Badge>;
+                case "PENDENTE":
+                    return <Badge className="bg-amber-50 text-amber-700 border border-amber-250 text-[10px] font-black uppercase rounded-full">Pendente</Badge>;
+                case "EM_ANDAMENTO":
+                case "EM_ANALISE_RH":
+                    return <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-250 text-[10px] font-black uppercase rounded-full">Em Execução</Badge>;
+                case "REJEITADO":
+                case "CANCELADO":
+                    return <Badge className="bg-red-50 text-red-700 border border-red-250 text-[10px] font-black uppercase rounded-full">Recusado / Cancelado</Badge>;
+                default:
+                    return <Badge className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-black uppercase rounded-full">{status}</Badge>;
+            }
+        };
+
+        const getTypeLabel = (type: string) => {
+            switch (type) {
+                case "MOVIMENTACAO":
+                    return "Movimentação de Pessoal";
+                case "UNIFORME":
+                    return "Solicitação de Uniforme";
+                default:
+                    return "Outros Serviços";
+            }
+        };
+
+        if (requestsViewMode === "kanban") {
+            const columns = [
+                {
+                    title: "Pendente / Aguardando",
+                    statuses: ["PENDENTE", "AGUARDANDO_APROVACAO"],
+                    bg: "bg-amber-50/30 border-amber-100/50",
+                    headerBg: "bg-amber-50 text-amber-800"
+                },
+                {
+                    title: "Em Execução / RH",
+                    statuses: ["EM_ANALISE_RH", "EM_ANDAMENTO"],
+                    bg: "bg-indigo-50/20 border-indigo-100/50",
+                    headerBg: "bg-indigo-50 text-indigo-850"
+                },
+                {
+                    title: "Concluídas",
+                    statuses: ["CONCLUIDO"],
+                    bg: "bg-emerald-50/20 border-emerald-100/50",
+                    headerBg: "bg-emerald-50 text-emerald-850"
+                },
+                {
+                    title: "Canceladas / Recusadas",
+                    statuses: ["REJEITADO", "CANCELADO"],
+                    bg: "bg-red-50/20 border-red-100/50",
+                    headerBg: "bg-red-50 text-red-850"
+                }
+            ];
+
+            return (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    {columns.map((col) => {
+                        const colRequests = requestsList.filter((r) => col.statuses.includes(r.status));
+                        return (
+                            <div key={col.title} className={`flex flex-col rounded-2xl border ${col.bg} p-3.5 min-h-[500px]`}>
+                                <div className={`flex items-center justify-between mb-3 px-3 py-1.5 rounded-xl ${col.headerBg} font-bold text-xs shrink-0`}>
+                                    <span>{col.title}</span>
+                                    <span className="bg-white/60 px-2 py-0.5 rounded-full text-[10px] font-black">{colRequests.length}</span>
+                                </div>
+                                <div className="flex-1 space-y-3 overflow-y-auto max-h-[600px] pr-1">
+                                    {colRequests.length === 0 ? (
+                                        <div className="text-center text-[11px] text-slate-400 italic py-8 bg-white/40 rounded-xl border border-dashed border-slate-200">
+                                            Nenhuma solicitação
+                                        </div>
+                                    ) : (
+                                        colRequests.map((r) => (
+                                            <Card key={r.id} className="border border-slate-200/50 hover:shadow-premium cursor-pointer transition-all duration-200 bg-white rounded-xl overflow-hidden p-3.5 space-y-3">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-slate-100 text-slate-700 max-w-[120px] truncate" title={r.clientName}>
+                                                        {r.clientName}
+                                                    </span>
+                                                    <span className="text-[9px] text-slate-400 font-bold">{new Date(r.createdAt).toLocaleDateString("pt-BR")}</span>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <h4 className="text-xs font-bold text-slate-850 line-clamp-2" title={r.description}>
+                                                        {r.description}
+                                                    </h4>
+                                                    <p className="text-[10px] text-slate-500 font-semibold italic">
+                                                        {getTypeLabel(r.type)}
+                                                    </p>
+                                                </div>
+                                                {r.employeeName && (
+                                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-655 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                                                        <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+                                                        <span className="truncate">{r.employeeName}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[10px] text-slate-400 gap-2">
+                                                    <span className="font-medium truncate max-w-[80px]">Por: {r.requesterName}</span>
+                                                    <Button
+                                                        type="button"
+                                                        onClick={() => setSelectedRequestForAction({ ...r })}
+                                                        size="sm"
+                                                        className="h-6 text-[9px] font-black uppercase rounded-md bg-slate-800 text-white hover:bg-slate-900 px-2 cursor-pointer"
+                                                    >
+                                                        Ações
+                                                    </Button>
+                                                </div>
+                                            </Card>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            );
+        }
+
+        if (requestsViewMode === "status") {
+            const statuses = ["PENDENTE", "EM_ANDAMENTO", "EM_ANALISE_RH", "CONCLUIDO", "REJEITADO", "CANCELADO"];
+            return (
+                <div className="space-y-6">
+                    {statuses.map((status) => {
+                        const statusRequests = requestsList.filter((r) => r.status === status);
+                        if (statusRequests.length === 0) return null;
+
+                        return (
+                            <Card key={status} className="border border-slate-200/50 shadow-sm bg-white rounded-2xl overflow-hidden">
+                                <div className="px-4 py-3 bg-slate-50 border-b border-slate-150 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        {getStatusBadge(status)}
+                                        <span className="text-[10px] font-black uppercase text-slate-400">({statusRequests.length} solicitações)</span>
+                                    </div>
+                                </div>
+                                <Table>
+                                    <TableHeader className="bg-slate-50/50">
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5 pl-6">Contrato</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Descrição</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Tipo</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Solicitante</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Criação</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Prazo SLA</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5 text-right pr-6">Ação</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {statusRequests.map((r) => (
+                                            <TableRow key={r.id} className="hover:bg-slate-50/50">
+                                                <TableCell className="text-xs font-bold text-slate-800 pl-6 py-2.5">{r.clientName}</TableCell>
+                                                <TableCell className="text-xs text-slate-700 py-2.5 font-medium max-w-xs truncate" title={r.description}>{r.description}</TableCell>
+                                                <TableCell className="text-xs text-slate-500 py-2.5 font-semibold">{getTypeLabel(r.type)}</TableCell>
+                                                <TableCell className="text-xs text-slate-655 font-bold py-2.5">{r.requesterName}</TableCell>
+                                                <TableCell className="text-xs text-slate-500 py-2.5">{new Date(r.createdAt).toLocaleDateString("pt-BR")}</TableCell>
+                                                <TableCell className="text-xs font-black text-slate-700 py-2.5">{new Date(r.dueDate).toLocaleDateString("pt-BR")}</TableCell>
+                                                <TableCell className="text-right pr-6 py-2.5">
+                                                    <Button
+                                                        type="button"
+                                                        onClick={() => setSelectedRequestForAction({ ...r })}
+                                                        size="sm"
+                                                        className="h-7 text-[10px] font-bold rounded-lg bg-slate-800 text-white hover:bg-slate-900 cursor-pointer"
+                                                    >
+                                                        Ações
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </Card>
+                        );
+                    })}
+                </div>
+            );
+        }
+
+        const uniqueClients = Array.from(new Set(requestsList.map((r) => r.clientName)));
+        return (
+            <div className="space-y-6">
+                {uniqueClients.map((clientName) => {
+                    const clientRequests = requestsList.filter((r) => r.clientName === clientName);
+                    return (
+                        <Card key={clientName} className="border border-slate-200/50 shadow-sm bg-white rounded-2xl overflow-hidden">
+                            <div className="px-4 py-3 bg-slate-50 border-b border-slate-150 flex items-center justify-between">
+                                <span className="text-xs font-black text-slate-800 uppercase">{clientName}</span>
+                                <Badge className="bg-slate-800 text-white text-[10px] font-extrabold">{clientRequests.length} solicitações</Badge>
+                            </div>
+                            <Table>
+                                <TableHeader className="bg-slate-50/50">
+                                    <TableRow>
+                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5 pl-6">Descrição</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5">Tipo</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5 text-center">Status</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5">Solicitante</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5">Criação</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5">Prazo SLA</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5 text-right pr-6">Ação</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {clientRequests.map((r) => (
+                                        <TableRow key={r.id} className="hover:bg-slate-50/50">
+                                            <TableCell className="text-xs font-bold text-slate-700 pl-6 py-2.5 max-w-xs truncate" title={r.description}>{r.description}</TableCell>
+                                            <TableCell className="text-xs text-slate-500 py-2.5 font-semibold">{getTypeLabel(r.type)}</TableCell>
+                                            <TableCell className="text-center py-2.5">{getStatusBadge(r.status)}</TableCell>
+                                            <TableCell className="text-xs text-slate-655 font-bold py-2.5">{r.requesterName}</TableCell>
+                                            <TableCell className="text-xs text-slate-500 py-2.5">{new Date(r.createdAt).toLocaleDateString("pt-BR")}</TableCell>
+                                            <TableCell className="text-xs font-black text-slate-700 py-2.5">{new Date(r.dueDate).toLocaleDateString("pt-BR")}</TableCell>
+                                            <TableCell className="text-right pr-6 py-2.5">
+                                                <Button
+                                                    type="button"
+                                                    onClick={() => setSelectedRequestForAction({ ...r })}
+                                                    size="sm"
+                                                    className="h-7 text-[10px] font-bold rounded-lg bg-slate-800 text-white hover:bg-slate-900 cursor-pointer"
+                                                >
+                                                    Ações
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </Card>
+                    );
+                })}
+            </div>
+        );
+    }
+
     if (selectedClientId === "all") {
         return (
             <div className="flex flex-col h-screen bg-slate-100 overflow-hidden font-sans w-full">
@@ -556,140 +809,203 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                     </div>
                 </header>
 
+                {/* Abas Executivas para alternar entre Performance e Solicitações Geral */}
+                <div className="bg-slate-900 border-b border-slate-800 px-6 py-2 flex items-center gap-4 text-white shrink-0">
+                    <button
+                        onClick={() => setConsolidatedTab("performance")}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                            consolidatedTab === "performance"
+                                ? "bg-primary text-slate-900 shadow-md font-black"
+                                : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                        }`}
+                    >
+                        Desempenho & Contratos
+                    </button>
+                    <button
+                        onClick={() => setConsolidatedTab("requests")}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                            consolidatedTab === "requests"
+                                ? "bg-primary text-slate-900 shadow-md font-black"
+                                : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                        }`}
+                    >
+                        Central de Solicitações (Todos)
+                    </button>
+                </div>
+
                 {/* Área de Conteúdo Executivo */}
                 <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4 max-w-7xl mx-auto w-full">
-                    <button
-                        onClick={() => window.location.href = "/admin/requests"}
-                        className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 transition-colors self-start mb-2"
-                    >
-                        <ChevronLeft className="w-4 h-4" />
-                        <span>Voltar ao Painel Admin</span>
-                    </button>
+                    {consolidatedTab === "performance" ? (
+                        <>
+                            {/* Metrics Cards Grid - Corrigindo a altura e adicionando padding elegante */}
+                            {consolidatedData && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <Card 
+                                        onClick={() => { setDetailsModalType("contracts"); setDetailsModalOpen(true); }}
+                                        className="border border-slate-200/50 shadow-premium bg-slate-900 text-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
+                                    >
+                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-300">Contratos Ativos</span>
+                                        <div className="flex items-center justify-between mt-2">
+                                            <span className="text-2xl font-black">{consolidatedData.totalContracts || 0}</span>
+                                            <Building className="w-6 h-6 text-blue-400 bg-white/10 p-1.5 rounded-xl" />
+                                        </div>
+                                    </Card>
 
-                    {/* Metrics Cards Grid - Corrigindo a altura e adicionando padding elegante */}
-                    {consolidatedData && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <Card 
-                                onClick={() => { setDetailsModalType("contracts"); setDetailsModalOpen(true); }}
-                                className="border border-slate-200/50 shadow-premium bg-slate-900 text-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
-                            >
-                                <span className="text-xs font-bold uppercase tracking-wide text-slate-300">Contratos Ativos</span>
-                                <div className="flex items-center justify-between mt-2">
-                                    <span className="text-2xl font-black">{consolidatedData.totalContracts || 0}</span>
-                                    <Building className="w-6 h-6 text-blue-400 bg-white/10 p-1.5 rounded-xl" />
-                                </div>
-                            </Card>
+                                    <Card 
+                                        onClick={() => { setDetailsModalType("employees"); setDetailsModalOpen(true); }}
+                                        className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
+                                    >
+                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Colaboradores</span>
+                                        <div className="flex items-center justify-between mt-2">
+                                            <span className="text-2xl font-black text-slate-800">{consolidatedData.activeHeadcount || 0}</span>
+                                            <Users className="w-6 h-6 text-indigo-600 bg-indigo-50 p-1.5 rounded-xl" />
+                                        </div>
+                                    </Card>
 
-                            <Card 
-                                onClick={() => { setDetailsModalType("employees"); setDetailsModalOpen(true); }}
-                                className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
-                            >
-                                <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Colaboradores</span>
-                                <div className="flex items-center justify-between mt-2">
-                                    <span className="text-2xl font-black text-slate-800">{consolidatedData.activeHeadcount || 0}</span>
-                                    <Users className="w-6 h-6 text-indigo-600 bg-indigo-50 p-1.5 rounded-xl" />
-                                </div>
-                            </Card>
+                                    <Card 
+                                        onClick={() => { setDetailsModalType("billing"); setDetailsModalOpen(true); }}
+                                        className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
+                                    >
+                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Faturamento Total Mensal</span>
+                                        <div className="flex items-center justify-between mt-2">
+                                            <span className="text-2xl font-black text-emerald-600">{formatCurrency(consolidatedData.totalBilling || 0)}</span>
+                                            <DollarSign className="w-6 h-6 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl" />
+                                        </div>
+                                    </Card>
 
-                            <Card 
-                                onClick={() => { setDetailsModalType("billing"); setDetailsModalOpen(true); }}
-                                className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
-                            >
-                                <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Faturamento Total Mensal</span>
-                                <div className="flex items-center justify-between mt-2">
-                                    <span className="text-2xl font-black text-emerald-600">{formatCurrency(consolidatedData.totalBilling || 0)}</span>
-                                    <DollarSign className="w-6 h-6 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl" />
+                                    <Card 
+                                        onClick={() => { setDetailsModalType("vacancies"); setDetailsModalOpen(true); }}
+                                        className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
+                                    >
+                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Vagas em Aberto</span>
+                                        <div className="flex items-center justify-between mt-2">
+                                            <span className="text-2xl font-black text-red-600">{consolidatedData.vacantSlotsCombined || 0}</span>
+                                            <Clock className="w-6 h-6 text-red-655 bg-red-50 p-1.5 rounded-xl" />
+                                        </div>
+                                    </Card>
                                 </div>
-                            </Card>
+                            )}
 
-                            <Card 
-                                onClick={() => { setDetailsModalType("vacancies"); setDetailsModalOpen(true); }}
-                                className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
-                            >
-                                <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Vagas em Aberto</span>
-                                <div className="flex items-center justify-between mt-2">
-                                    <span className="text-2xl font-black text-red-600">{consolidatedData.vacantSlotsCombined || 0}</span>
-                                    <Clock className="w-6 h-6 text-red-655 bg-red-50 p-1.5 rounded-xl" />
-                                </div>
+                            {/* Tabela de Contratos Consolidados */}
+                            <Card className="border-none shadow-premium bg-white overflow-hidden rounded-2xl">
+                                <Table>
+                                    <TableHeader className="bg-slate-50">
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-3.5 pl-6">#</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-3.5">Contrato / Cliente</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Qtd. Postos</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-right py-3.5">Faturamento</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Curva (ABC)</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Nota média de NPS</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">SLA</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Turnover</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Indice de cobertura</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {sortedClients.map((c: any, index: number) => {
+                                            const nameHash = c.name.charCodeAt(0) + (c.name.charCodeAt(1) || 0);
+                                            const turnover = ((nameHash % 4) + 1.2).toFixed(1) + "%";
+
+                                            return (
+                                                <TableRow key={c.id} className="hover:bg-slate-50/50 transition-colors">
+                                                    <TableCell className="py-3 pl-6 font-bold text-slate-550">
+                                                        {index + 1}
+                                                    </TableCell>
+                                                    <TableCell className="py-3">
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedClientId(c.id);
+                                                                setActiveTab("presence");
+                                                            }}
+                                                            className="text-xs font-bold text-slate-800 hover:text-blue-650 transition-colors text-left block"
+                                                        >
+                                                            {c.name}
+                                                        </button>
+                                                        <span className="text-[10px] text-slate-400 font-semibold">{c.companyName}</span>
+                                                    </TableCell>
+                                                    <TableCell className="text-center text-xs font-bold text-slate-700 py-3">
+                                                        {c.totalSlots || 0}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-xs font-black text-slate-800 py-3">
+                                                        {formatCurrency(c.billing)}
+                                                    </TableCell>
+                                                    <TableCell className="text-center py-3">
+                                                        <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black ${
+                                                            c.class === "A" ? "bg-emerald-50 text-emerald-700 border-emerald-250" :
+                                                            c.class === "B" ? "bg-amber-50 text-amber-700 border-amber-250" :
+                                                            "bg-slate-100 text-slate-700 border-slate-200"
+                                                        }`}>
+                                                            Classe {c.class}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="text-center text-xs font-bold text-slate-700 py-3">
+                                                        {c.npsCount > 0 ? `${c.npsRating.toFixed(1)}/10` : "-"}
+                                                    </TableCell>
+                                                    <TableCell className="text-center py-3">
+                                                        <span className={`px-2 py-0.5 rounded font-black text-xs ${
+                                                            c.slaCompliance >= 90 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-655"
+                                                        }`}>
+                                                            {c.slaCompliance.toFixed(1)}%
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="text-center text-xs font-semibold text-slate-660 py-3">
+                                                        {turnover}
+                                                    </TableCell>
+                                                    <TableCell className="text-center text-xs font-black text-blue-600 py-3">
+                                                        {c.effectiveness?.toFixed(1) || "100.0"}%
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
                             </Card>
+                        </>
+                    ) : (
+                        <div className="space-y-6">
+                            {/* Header de Visualizações para Solicitações Consolidadas */}
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
+                                <div className="space-y-1">
+                                    <h3 className="text-md font-bold text-slate-850">Central de Chamados (Todos os Contratos)</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Controle consolidado de solicitações de todos os clientes e contratos.</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                                        <button
+                                            onClick={() => setRequestsViewMode("kanban")}
+                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                requestsViewMode === "kanban" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
+                                            }`}
+                                        >
+                                            Kanban
+                                        </button>
+                                        <button
+                                            onClick={() => setRequestsViewMode("status")}
+                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                requestsViewMode === "status" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
+                                            }`}
+                                        >
+                                            Por Status
+                                        </button>
+                                        <button
+                                            onClick={() => setRequestsViewMode("contract")}
+                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                requestsViewMode === "contract" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
+                                            }`}
+                                        >
+                                            Por Contrato
+                                        </button>
+                                    </div>
+                                    <Button variant="ghost" size="icon" onClick={loadPerformanceData} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
+                                        <RefreshCw className="w-4 h-4 text-slate-500" />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {renderRequestsManager(consolidatedData?.allRequests || [])}
                         </div>
                     )}
-
-                    {/* Tabela de Contratos Consolidados */}
-                    <Card className="border-none shadow-premium bg-white overflow-hidden rounded-2xl">
-                        <Table>
-                            <TableHeader className="bg-slate-50">
-                                <TableRow>
-                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5 pl-6">#</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5">Contrato / Cliente</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Qtd. Postos</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-xs text-right py-3.5">Faturamento</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Curva (ABC)</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Nota média de NPS</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">SLA</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Turnover</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Indice de cobertura</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {sortedClients.map((c: any, index: number) => {
-                                    const nameHash = c.name.charCodeAt(0) + (c.name.charCodeAt(1) || 0);
-                                    const turnover = ((nameHash % 4) + 1.2).toFixed(1) + "%";
-
-                                    return (
-                                        <TableRow key={c.id} className="hover:bg-slate-50/50 transition-colors">
-                                            <TableCell className="py-3 pl-6 font-bold text-slate-550">
-                                                {index + 1}
-                                            </TableCell>
-                                            <TableCell className="py-3">
-                                                <button
-                                                    onClick={() => {
-                                                        setSelectedClientId(c.id);
-                                                        setActiveTab("presence");
-                                                    }}
-                                                    className="text-xs font-bold text-slate-800 hover:text-blue-650 transition-colors text-left block"
-                                                >
-                                                    {c.name}
-                                                </button>
-                                                <span className="text-[10px] text-slate-400 font-semibold">{c.companyName}</span>
-                                            </TableCell>
-                                            <TableCell className="text-center text-xs font-bold text-slate-700 py-3">
-                                                {c.totalSlots || 0}
-                                            </TableCell>
-                                            <TableCell className="text-right text-xs font-black text-slate-800 py-3">
-                                                {formatCurrency(c.billing)}
-                                            </TableCell>
-                                            <TableCell className="text-center py-3">
-                                                <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black ${
-                                                    c.class === "A" ? "bg-emerald-50 text-emerald-700 border-emerald-250" :
-                                                    c.class === "B" ? "bg-amber-50 text-amber-700 border-amber-250" :
-                                                    "bg-slate-100 text-slate-700 border-slate-200"
-                                                }`}>
-                                                    Classe {c.class}
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="text-center text-xs font-bold text-slate-700 py-3">
-                                                {c.npsCount > 0 ? `${c.npsRating.toFixed(1)}/10` : "-"}
-                                            </TableCell>
-                                            <TableCell className="text-center py-3">
-                                                <span className={`px-2 py-0.5 rounded font-black text-xs ${
-                                                    c.slaCompliance >= 90 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-655"
-                                                }`}>
-                                                    {c.slaCompliance.toFixed(1)}%
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="text-center text-xs font-semibold text-slate-600 py-3">
-                                                {turnover}
-                                            </TableCell>
-                                            <TableCell className="text-center text-xs font-black text-blue-600 py-3">
-                                                {c.effectiveness?.toFixed(1) || "100.0"}%
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
-                    </Card>
                 </main>
 
                 {/* Modals e Dialogs para a tela consolidada */}
@@ -1644,14 +1960,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                     </TableRow>
                                                                 );
                                                             })}
-                                                            {dailyAttendances.length === 0 && (
-                                                                <TableRow>
-                                                                    <TableCell colSpan={6} className="text-center text-slate-500 py-20 font-semibold">
-                                                                        Nenhum posto cadastrado neste contrato.
-                                                                    </TableCell>
-                                                                </TableRow>
-                                                            )}
-                                                        </TableBody>
+                                                </TableBody>
                                                     </Table>
                                                 );
                                             })()}
@@ -1665,7 +1974,6 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                     {/* TAB 2: CENTRAL DE CHAMADOS / SOLICITAÇÕES */}
                     {activeTab === "requests" && (
                         <div className="space-y-6">
-                            
                             {/* Card de Topo com Filtros Integrados */}
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
                                 <div className="space-y-1">
@@ -1673,99 +1981,44 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     <p className="text-xs text-slate-500 font-medium">Controle de solicitações, prazos e conformidade do SLA.</p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-3">
-                                    <select
-                                        value={selectedClientId}
-                                        onChange={(e) => setSelectedClientId(e.target.value)}
-                                        className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
-                                    >
-                                        <option value="all">Todos os Contratos</option>
-                                        {initialClients.map(c => (
-                                            <option key={c.id} value={c.id}>{c.name}</option>
-                                        ))}
-                                    </select>
+                                    <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                                        <button
+                                            onClick={() => setRequestsViewMode("kanban")}
+                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                requestsViewMode === "kanban" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
+                                            }`}
+                                        >
+                                            Kanban
+                                        </button>
+                                        <button
+                                            onClick={() => setRequestsViewMode("status")}
+                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                requestsViewMode === "status" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
+                                            }`}
+                                        >
+                                            Por Status
+                                        </button>
+                                        <button
+                                            onClick={() => setRequestsViewMode("contract")}
+                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                requestsViewMode === "contract" ? "bg-white text-slate-900 shadow-sm font-extrabold" : "text-slate-500 hover:text-slate-850"
+                                            }`}
+                                        >
+                                            Por Contrato
+                                        </button>
+                                    </div>
                                     <Button variant="ghost" size="icon" onClick={loadPerformanceData} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
                                         <RefreshCw className="w-4 h-4 text-slate-500" />
                                     </Button>
                                 </div>
                             </div>
 
-                            {/* Table of requests */}
-                            <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
-                                {selectedClientId === "all" ? (
-                                    consolidatedData && (
-                                        <Table>
-                                            <TableHeader className="bg-slate-50">
-                                                <TableRow>
-                                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5 pl-6">Contrato</TableHead>
-                                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5">Assunto</TableHead>
-                                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5 text-center">Status</TableHead>
-                                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5">Solicitante</TableHead>
-                                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5">Data</TableHead>
-                                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5">Prazo SLA</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {(consolidatedData?.clients || []).map((c: any) => 
-                                                    c.recentRequests?.map((r: any) => (
-                                                        <TableRow key={r.id} className="hover:bg-slate-50/50">
-                                                            <TableCell className="text-xs font-bold text-slate-800 pl-6 py-3">{c.name}</TableCell>
-                                                            <TableCell className="text-xs text-slate-655 py-3 truncate max-w-xs" title={r.description}>{r.description}</TableCell>
-                                                            <TableCell className="text-center py-3">
-                                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
-                                                                    r.status === "CONCLUIDO" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"
-                                                                }`}>{r.status}</span>
-                                                            </TableCell>
-                                                            <TableCell className="text-xs text-slate-650 font-semibold py-3">{r.requester?.name || "Cliente"}</TableCell>
-                                                            <TableCell className="text-xs text-slate-500 py-3">{new Date(r.createdAt).toLocaleDateString("pt-BR")}</TableCell>
-                                                            <TableCell className="text-xs font-bold text-slate-700 py-3">{new Date(r.dueDate).toLocaleDateString("pt-BR")}</TableCell>
-                                                        </TableRow>
-                                                    ))
-                                                )}
-                                            </TableBody>
-                                        </Table>
-                                    )
-                                ) : (
-                                    detailedData && (
-                                        detailedData.requests && detailedData.requests.length > 0 ? (
-                                            <Table>
-                                                <TableHeader className="bg-slate-50">
-                                                    <TableRow>
-                                                        <TableHead className="font-bold text-slate-800 text-xs py-3.5 pl-6">Assunto / Descrição</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-xs py-3.5">Tipo</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-xs py-3.5 text-center">Status</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-xs py-3.5">Solicitante</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-xs py-3.5">Data</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-xs py-3.5">Prazo SLA</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {detailedData.requests.map((r: any) => (
-                                                        <TableRow key={r.id} className="hover:bg-slate-50/50">
-                                                            <TableCell className="text-xs font-bold text-slate-700 py-3 pl-6 max-w-xs truncate" title={r.description}>{r.description}</TableCell>
-                                                            <TableCell className="text-xs text-slate-655 font-semibold py-3">
-                                                                {r.type === "MOVIMENTACAO" ? "Movimentação de Pessoal" : 
-                                                                 r.type === "UNIFORME" ? "Solicitação de Uniforme" : "Outros Serviços"}
-                                                            </TableCell>
-                                                            <TableCell className="text-center py-3">
-                                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
-                                                                    r.status === "CONCLUIDO" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                                                                    r.status === "PENDENTE" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                                                                    "bg-red-50 text-red-700 border-red-200"
-                                                                }`}>{r.status}</span>
-                                                            </TableCell>
-                                                            <TableCell className="text-xs text-slate-655 font-semibold py-3">{r.requesterName}</TableCell>
-                                                            <TableCell className="text-xs text-slate-500 py-3">{new Date(r.createdAt).toLocaleDateString("pt-BR")}</TableCell>
-                                                            <TableCell className="text-xs font-bold text-slate-700 py-3">{new Date(r.dueDate).toLocaleDateString("pt-BR")}</TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                </TableBody>
-                                            </Table>
-                                        ) : (
-                                            <div className="p-8 text-center text-slate-400 italic text-xs">Nenhum chamado aberto este mês.</div>
-                                        )
-                                    )
-                                )}
-                            </Card>
+                            {renderRequestsManager(
+                                (detailedData?.requests || []).map((r: any) => ({
+                                    ...r,
+                                    clientName: detailedData?.client?.name || "Contrato Atual"
+                                }))
+                            )}
                         </div>
                     )}
 
@@ -3107,6 +3360,75 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             className="h-10 text-xs font-bold rounded-xl"
                         >
                             Fechar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Dialog de Transição de Chamado */}
+            <Dialog open={selectedRequestForAction !== null} onOpenChange={(open) => { if (!open) setSelectedRequestForAction(null); }}>
+                <DialogContent className="sm:max-w-[480px] rounded-[24px]">
+                    <DialogHeader>
+                        <DialogTitle className="text-md font-bold text-slate-800">Atualizar Status da Solicitação</DialogTitle>
+                        <DialogDescription>
+                            Mude o status do chamado e adicione notas explicativas para o cliente.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {selectedRequestForAction && (
+                        <div className="space-y-4 py-2">
+                            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 space-y-1">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-black uppercase text-slate-400">Contrato:</span>
+                                    <span className="text-xs font-bold text-slate-800">{selectedRequestForAction.clientName}</span>
+                                </div>
+                                <div className="flex flex-col pt-1">
+                                    <span className="text-[10px] font-black uppercase text-slate-400">Descrição:</span>
+                                    <span className="text-xs text-slate-700 font-medium italic">"{selectedRequestForAction.description}"</span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <Label className="text-xs font-bold text-slate-655">Novo Status</Label>
+                                <select
+                                    value={selectedRequestForAction.nextStatus || selectedRequestForAction.status}
+                                    onChange={(e) => setSelectedRequestForAction({ ...selectedRequestForAction, nextStatus: e.target.value })}
+                                    className="w-full h-10 border border-slate-200 bg-white text-xs font-semibold px-3 outline-none rounded-xl cursor-pointer"
+                                >
+                                    <option value="PENDENTE">Aguardando (Pendente)</option>
+                                    <option value="EM_ANDAMENTO">Em Execução (Em Andamento)</option>
+                                    <option value="CONCLUIDO">Concluir Solicitação</option>
+                                    <option value="REJEITADO">Rejeitar Solicitação</option>
+                                    <option value="CANCELADO">Cancelar Solicitação</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-1">
+                                <Label className="text-xs font-bold text-slate-655">Notas / Parecer Operacional</Label>
+                                <textarea
+                                    placeholder="Ex: Novo funcionário escalado para início imediato no dia..."
+                                    rows={3}
+                                    value={requestTransitionNotes}
+                                    onChange={(e) => setRequestTransitionNotes(e.target.value)}
+                                    className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 outline-none resize-none"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter className="pt-2 border-t border-slate-100">
+                        <Button type="button" variant="outline" onClick={() => setSelectedRequestForAction(null)} className="h-10 text-xs font-bold rounded-xl">Cancelar</Button>
+                        <Button
+                            type="button"
+                            disabled={transitioningRequestState}
+                            onClick={() => handleTransitionRequest(
+                                selectedRequestForAction.id,
+                                selectedRequestForAction.nextStatus || selectedRequestForAction.status,
+                                requestTransitionNotes
+                            )}
+                            className="h-10 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+                        >
+                            Salvar Alteração
                         </Button>
                     </DialogFooter>
                 </DialogContent>
