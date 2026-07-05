@@ -31,7 +31,8 @@ import {
     updateRequestClient,
     updateRequestDetails,
     addRequestComment,
-    getRequestComments
+    getRequestComments,
+    deleteRequest
 } from "@/app/admin/requests/actions";
 import { 
     Award, Calendar, Users, DollarSign, 
@@ -136,6 +137,10 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [selectedRequestForAction, setSelectedRequestForAction] = useState<any | null>(null);
     const [requestTransitionNotes, setRequestTransitionNotes] = useState<string>("");
     const [transitioningRequestState, setTransitioningRequestState] = useState<boolean>(false);
+
+    // Controle de exclusão de chamados (Admin)
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [deletingRequest, setDeletingRequest] = useState<boolean>(false);
 
     // Comentários e Interatividade do Gestor nos chamados
     const [newCommentContent, setNewCommentContent] = useState<string>("");
@@ -285,6 +290,22 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
             toast.error("Erro ao salvar alterações da solicitação.");
         } finally {
             setSavingRequestDetails(false);
+        }
+    };
+
+    const handleDeleteRequest = async (id: string) => {
+        setDeletingRequest(true);
+        try {
+            await deleteRequest(id);
+            toast.success("Solicitação excluída com sucesso!");
+            setSelectedRequestForAction(null);
+            setConfirmDeleteId(null);
+            await loadPerformanceData();
+            await loadClientDetails();
+        } catch (err) {
+            toast.error("Erro ao excluir a solicitação.");
+        } finally {
+            setDeletingRequest(false);
         }
     };
 
@@ -1614,7 +1635,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 </Dialog>
 
                 {/* Dialog de Detalhes e Transição da Solicitação */}
-                <Dialog open={selectedRequestForAction !== null} onOpenChange={(open) => { if (!open) setSelectedRequestForAction(null); }}>
+                <Dialog open={selectedRequestForAction !== null} onOpenChange={(open) => { if (!open) { setSelectedRequestForAction(null); setConfirmDeleteId(null); } }}>
                     <DialogContent className="sm:max-w-[550px] rounded-[24px] overflow-hidden p-6 gap-0">
                         <DialogHeader className="pb-4 border-b border-slate-100">
                             <div className="flex items-center justify-between w-full">
@@ -1803,16 +1824,41 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             </div>
                         )}
 
-                        <DialogFooter className="pt-4 border-t border-slate-100">
-                            <Button type="button" variant="outline" onClick={() => setSelectedRequestForAction(null)} className="h-10 text-xs font-bold rounded-xl">Fechar</Button>
-                            <Button
-                                type="button"
-                                disabled={transitioningRequestState || savingRequestDetails}
-                                onClick={handleSaveRequestDetails}
-                                className="h-10 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700"
-                            >
-                                Salvar Alteração
-                            </Button>
+                        <DialogFooter className="pt-4 border-t border-slate-100 flex items-center justify-between w-full gap-2">
+                            <div>
+                                {userRole === "ADMIN" && selectedRequestForAction && (
+                                    confirmDeleteId === selectedRequestForAction.id ? (
+                                        <Button
+                                            type="button"
+                                            disabled={deletingRequest}
+                                            onClick={() => handleDeleteRequest(selectedRequestForAction.id)}
+                                            className="h-10 text-xs font-bold rounded-xl bg-red-600 hover:bg-red-700 text-white gap-1.5 animate-pulse"
+                                        >
+                                            <AlertCircle className="w-4 h-4" /> Confirmar Exclusão?
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => setConfirmDeleteId(selectedRequestForAction.id)}
+                                            className="h-10 text-xs font-bold rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 gap-1.5"
+                                        >
+                                            <Trash2 className="w-4 h-4" /> Excluir Solicitação
+                                        </Button>
+                                    )
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button type="button" variant="outline" onClick={() => { setSelectedRequestForAction(null); setConfirmDeleteId(null); }} className="h-10 text-xs font-bold rounded-xl">Fechar</Button>
+                                <Button
+                                    type="button"
+                                    disabled={transitioningRequestState || savingRequestDetails}
+                                    onClick={handleSaveRequestDetails}
+                                    className="h-10 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+                                >
+                                    Salvar Alteração
+                                </Button>
+                            </div>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
@@ -3997,16 +4043,41 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                         </div>
                     )}
 
-                    <DialogFooter className="pt-4 border-t border-slate-100">
-                        <Button type="button" variant="outline" onClick={() => setSelectedRequestForAction(null)} className="h-10 text-xs font-bold rounded-xl">Fechar</Button>
-                        <Button
-                            type="button"
-                            disabled={transitioningRequestState || savingRequestDetails}
-                            onClick={handleSaveRequestDetails}
-                            className="h-10 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700"
-                        >
-                            Salvar Alteração
-                        </Button>
+                    <DialogFooter className="pt-4 border-t border-slate-100 flex items-center justify-between w-full gap-2">
+                        <div>
+                            {userRole === "ADMIN" && selectedRequestForAction && (
+                                confirmDeleteId === selectedRequestForAction.id ? (
+                                    <Button
+                                        type="button"
+                                        disabled={deletingRequest}
+                                        onClick={() => handleDeleteRequest(selectedRequestForAction.id)}
+                                        className="h-10 text-xs font-bold rounded-xl bg-red-600 hover:bg-red-700 text-white gap-1.5 animate-pulse"
+                                    >
+                                        <AlertCircle className="w-4 h-4" /> Confirmar Exclusão?
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => setConfirmDeleteId(selectedRequestForAction.id)}
+                                        className="h-10 text-xs font-bold rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 gap-1.5"
+                                    >
+                                        <Trash2 className="w-4 h-4" /> Excluir Solicitação
+                                    </Button>
+                                )
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button type="button" variant="outline" onClick={() => { setSelectedRequestForAction(null); setConfirmDeleteId(null); }} className="h-10 text-xs font-bold rounded-xl">Fechar</Button>
+                            <Button
+                                type="button"
+                                disabled={transitioningRequestState || savingRequestDetails}
+                                onClick={handleSaveRequestDetails}
+                                className="h-10 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+                            >
+                                Salvar Alteração
+                            </Button>
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
