@@ -2551,7 +2551,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                         <TableRow key={a.id} className="hover:bg-slate-55/30 transition-colors">
                                                             <TableCell className="font-bold text-xs text-slate-800 pl-4">{new Date(a.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</TableCell>
                                                             <TableCell className="font-bold text-xs text-slate-700">{a.posto?.name || "Posto"} ({a.posto?.role?.name || "Posto"})</TableCell>
-                                                            <TableCell className="font-bold text-xs text-slate-900 max-w-[160px] break-words">{a.employee?.name || "Funcionário"}</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-900 max-w-[160px] whitespace-normal break-words">{a.employee?.name || "Funcionário"}</TableCell>
                                                             <TableCell className="py-2">
                                                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-red-100 text-red-700">Falta</span>
                                                             </TableCell>
@@ -2783,9 +2783,9 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                     <TableRow key={r.id} className="hover:bg-slate-55/30 transition-colors">
                                                         <TableCell className="font-bold text-xs text-slate-800 pl-4">{r.posto?.name || "Posto"}</TableCell>
                                                         <TableCell className="font-bold text-xs text-slate-600">{r.posto?.role?.name || "-"}</TableCell>
-                                                        <TableCell className="font-bold text-xs text-slate-900 max-w-[160px] break-words">{r.exitedEmployee?.name || "-"}</TableCell>
+                                                        <TableCell className="font-bold text-xs text-slate-900 max-w-[160px] whitespace-normal break-words">{r.exitedEmployee?.name || "-"}</TableCell>
                                                         <TableCell className="font-bold text-xs text-slate-550">{new Date(r.exitDate).toLocaleDateString('pt-BR')}</TableCell>
-                                                        <TableCell className="font-bold text-xs text-slate-900 max-w-[160px] break-words">{r.enteredEmployee?.name || "-"}</TableCell>
+                                                        <TableCell className="font-bold text-xs text-slate-900 max-w-[160px] whitespace-normal break-words">{r.enteredEmployee?.name || "-"}</TableCell>
                                                         <TableCell className="font-bold text-xs text-slate-800">{new Date(r.entryDate).toLocaleDateString('pt-BR')}</TableCell>
                                                         <TableCell className="font-bold text-xs text-blue-650 text-right pr-4">{r.diffDays} dias</TableCell>
                                                     </TableRow>
