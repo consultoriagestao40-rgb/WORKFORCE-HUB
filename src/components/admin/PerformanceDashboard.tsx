@@ -988,7 +988,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                         <Card 
                                             onClick={() => { setDetailsModalType("contracts"); setDetailsModalOpen(true); }}
-                                            className="border border-slate-200/50 shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between h-20 hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl"
+                                            className="border border-slate-200/50 shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between h-auto min-h-[96px] hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl"
                                         >
                                             <span className="text-xs font-bold uppercase tracking-wide text-slate-300">Contratos Ativos</span>
                                             <div className="flex items-center justify-between mt-1">
@@ -999,7 +999,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
                                         <Card 
                                             onClick={() => { setDetailsModalType("employees"); setDetailsModalOpen(true); }}
-                                            className="border border-slate-200/50 shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-20 hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl"
+                                            className="border border-slate-200/50 shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-auto min-h-[96px] hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl"
                                         >
                                             <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Colaboradores</span>
                                             <div className="flex items-center justify-between mt-1">
@@ -1010,7 +1010,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
                                         <Card 
                                             onClick={() => { setDetailsModalType("billing"); setDetailsModalOpen(true); }}
-                                            className="border border-slate-200/50 shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-20 hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl"
+                                            className="border border-slate-200/50 shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-auto min-h-[96px] hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl"
                                         >
                                             <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Faturamento Total Mensal</span>
                                             <div className="flex items-center justify-between mt-1">
@@ -1021,7 +1021,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
                                         <Card 
                                             onClick={() => { setDetailsModalType("vacancies"); setDetailsModalOpen(true); }}
-                                            className="border border-slate-200/50 shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-20 hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl"
+                                            className="border border-slate-200/50 shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-auto min-h-[96px] hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl"
                                         >
                                             <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Vagas em Aberto</span>
                                             <div className="flex items-center justify-between mt-1">
@@ -1463,21 +1463,21 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             {selectedClientId === "all" ? (
                                 consolidatedData && (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                                        <Card className="border-none shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between h-20">
+                                        <Card className="border-none shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                             <span className="text-[10px] font-black uppercase text-slate-350">Bruto Previsto (Mensal)</span>
                                             <span className="text-xl font-black mt-1">{formatCurrency(consolidatedData.totalBilling || 0)}</span>
                                         </Card>
-                                        <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-20">
+                                        <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                             <span className="text-[10px] font-black uppercase text-slate-550">Total de Glosas (Acumulado)</span>
                                             <span className="text-xl font-black mt-1 text-red-650">{formatCurrency(consolidatedData.totalGlosasCombined || 0)}</span>
                                         </Card>
-                                        <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-20">
+                                        <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                             <span className="text-[10px] font-black uppercase text-slate-550">Total Líquido (Acumulado)</span>
                                             <span className="text-xl font-black mt-1 text-emerald-600">
                                                 {formatCurrency(Math.max(0, (consolidatedData.totalBilling || 0) - (consolidatedData.totalGlosasCombined || 0)))}
                                             </span>
                                         </Card>
-                                        <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-20">
+                                        <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                             <span className="text-[10px] font-black uppercase text-slate-550">Efetividade Operacional</span>
                                             <span className="text-xl font-black mt-1 text-blue-650">{consolidatedData.avgEffectivenessCombined?.toFixed(1)}%</span>
                                         </Card>
@@ -1485,25 +1485,25 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 )
                             ) : (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                                    <Card className="border-none shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between h-20">
+                                    <Card className="border-none shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                         <span className="text-[10px] font-black uppercase text-slate-350">Bruto Previsto (Mensal)</span>
                                         <span className="text-xl font-black mt-1">
                                             {billingData[0]?.expectedBilling.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) || "R$ 0,00"}
                                         </span>
                                     </Card>
-                                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-20">
+                                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                         <span className="text-[10px] font-black uppercase text-slate-550">Total de Glosas (Acumulado)</span>
                                         <span className="text-xl font-black mt-1 text-red-650">
                                             {billingData.reduce((sum, m) => sum + m.glosas, 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                                         </span>
                                     </Card>
-                                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-20">
+                                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                         <span className="text-[10px] font-black uppercase text-slate-550">Total Líquido (Acumulado)</span>
                                         <span className="text-xl font-black mt-1 text-emerald-600">
                                             {billingData.reduce((sum, m) => sum + m.netBilling, 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                                         </span>
                                     </Card>
-                                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-20">
+                                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                         <span className="text-[10px] font-black uppercase text-slate-550">Efetividade Operacional</span>
                                         <span className="text-xl font-black mt-1 text-blue-650">
                                             {(billingData.length > 0 
@@ -1924,19 +1924,19 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             {selectedClientId === "all" ? (
                                 consolidatedData && (
                                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                                        <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-20">
+                                        <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                             <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Efetividade Escala Grupo</span>
                                             <span className="text-xl font-black mt-1 text-emerald-600">{consolidatedData.avgEffectivenessCombined?.toFixed(1)}%</span>
                                         </Card>
-                                        <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-20">
+                                        <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                             <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Cumprimento SLA</span>
                                             <span className="text-xl font-black mt-1 text-blue-600">{consolidatedData.avgSlaCombined?.toFixed(1)}%</span>
                                         </Card>
-                                        <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-20">
+                                        <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                             <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">NPS Consolidado</span>
                                             <span className="text-xl font-black mt-1 text-amber-500">{consolidatedData.groupNpsScore?.toFixed(0)}</span>
                                         </Card>
-                                        <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-20">
+                                        <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                             <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Absenteísmo Médio</span>
                                             <span className="text-xl font-black mt-1 text-red-500">{(100 - (consolidatedData.avgEffectivenessCombined || 100)).toFixed(1)}%</span>
                                         </Card>
@@ -1946,19 +1946,19 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 clientKpiData && (
                                     <div className="space-y-6">
                                         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                                            <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-20">
+                                            <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                                 <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Efetividade Escala</span>
                                                 <span className="text-xl font-black mt-1 text-emerald-600">{clientKpiData.summary?.effectiveness?.toFixed(1) || "100.0"}%</span>
                                             </Card>
-                                            <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-20">
+                                            <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                                 <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Cumprimento SLA</span>
                                                 <span className="text-xl font-black mt-1 text-blue-600">{clientKpiData.summary?.slaCompliance?.toFixed(1) || "100.0"}%</span>
                                             </Card>
-                                            <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-20">
+                                            <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                                 <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Nota NPS Média</span>
                                                 <span className="text-xl font-black mt-1 text-amber-500">{clientKpiData.summary?.npsRating?.toFixed(1) || "10.0"}/10</span>
                                             </Card>
-                                            <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-20">
+                                            <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                                 <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Nível Absenteísmo</span>
                                                 <span className="text-xl font-black mt-1 text-red-500">{clientKpiData.summary?.absenteism?.toFixed(1) || "0.0"}%</span>
                                             </Card>
