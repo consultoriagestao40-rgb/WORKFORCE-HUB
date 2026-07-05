@@ -425,9 +425,13 @@ export async function getClientKpis(year: number) {
         }),
         prisma.assignment.findMany({
             where: {
-                posto: { clientId: { in: clientIds } },
-                endDate: { gte: startDate, lte: endDate }
-            }
+                posto: { clientId: { in: clientIds } }
+            },
+            include: {
+                posto: { include: { role: true } },
+                employee: true
+            },
+            orderBy: { startDate: "asc" }
         }),
         prisma.posto.count({
             where: { clientId: { in: clientIds } }
@@ -1521,9 +1525,13 @@ export async function getAdminClientKpis(clientId: string, year: number) {
             }),
             prisma.assignment.findMany({
                 where: {
-                    posto: { clientId: { in: clientIds } },
-                    endDate: { gte: startDate, lte: endDate }
-                }
+                    posto: { clientId: { in: clientIds } }
+                },
+                include: {
+                    posto: { include: { role: true } },
+                    employee: true
+                },
+                orderBy: { startDate: "asc" }
             }),
             prisma.posto.count({
                 where: { clientId: { in: clientIds } }
