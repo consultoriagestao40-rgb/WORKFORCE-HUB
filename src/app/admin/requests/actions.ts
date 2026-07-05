@@ -471,7 +471,7 @@ export async function getClientKpis(year: number) {
         });
         const activeShifts = monthAtts.filter(a => a.status !== "FOLGA");
         const totalShifts = activeShifts.length;
-        const vacantShifts = activeShifts.filter(a => a.status === "FALTA" && !a.coveredById && !a.coverageType).length;
+        const vacantShifts = activeShifts.filter(a => a.status === "FALTA" && !a.coveredById).length;
         const totalAbsences = activeShifts.filter(a => a.status === "FALTA").length;
 
         const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : 100;
@@ -1520,7 +1520,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
         const monthlyData = monthNames.map((name: string, index: number) => {
             const monthAtts = attendances.filter((a: any) => new Date(a.date).getMonth() === index && a.status !== "FOLGA");
             const totalShifts = monthAtts.length;
-            const vacantShifts = monthAtts.filter((a: any) => a.status === "FALTA" && !a.coveredById && !a.coverageType).length;
+            const vacantShifts = monthAtts.filter((a: any) => a.status === "FALTA" && !a.coveredById).length;
             const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : 100;
 
             const totalAbsences = monthAtts.filter((a: any) => a.status === "FALTA").length;
