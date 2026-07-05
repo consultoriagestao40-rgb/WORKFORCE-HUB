@@ -649,7 +649,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
                 {/* Modals e Dialogs para a tela consolidada */}
                 <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
-                    <DialogContent className="sm:max-w-[640px]">
+                    <DialogContent className="max-w-[95vw] md:max-w-4xl lg:max-w-5xl">
                         <DialogHeader>
                             <DialogTitle className="text-md font-bold text-slate-800">
                                 {detailsModalType === "contracts" && "Detalhamento - Contratos Ativos"}
@@ -2643,7 +2643,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
             {/* Modal de Detalhamento dos Cards Consolidados */}
             <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
-                <DialogContent className="sm:max-w-[640px]">
+                <DialogContent className="max-w-[95vw] md:max-w-4xl lg:max-w-5xl">
                     <DialogHeader>
                         <DialogTitle className="text-md font-bold text-slate-800">
                             {detailsModalType === "contracts" && "Detalhamento - Contratos Ativos"}
