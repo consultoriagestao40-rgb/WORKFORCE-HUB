@@ -8,6 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -30,7 +33,7 @@ import {
     Plus, Clock, LogOut, Star, Info,
     Trash2, Edit3, Inbox, FileText, Smile, 
     BarChart2, ClipboardList, ChevronLeft, ChevronRight, RefreshCw, Download,
-    UserCheck, UserX, Building, Briefcase, AlertCircle
+    UserCheck, UserX, Building, Briefcase, AlertCircle, Filter, ChevronDown
 } from "lucide-react";
 
 interface PerformanceDashboardProps {
@@ -734,44 +737,77 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         </div>
                                     </div>
                                 </div>
-
-                                {/* Seletor de Contratos (Badges Clicáveis Multi-seleção) */}
-                                <div className="flex flex-wrap items-center gap-2 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                                    <span className="text-[10px] font-black uppercase text-slate-500 mr-1">Filtrar Contratos:</span>
-                                    {uniqueContractsWithVacancies.map((contractName) => {
-                                        const isSelected = selectedContractsFilter.includes(contractName);
-                                        return (
-                                            <button
-                                                key={contractName}
-                                                onClick={() => {
-                                                    if (isSelected) {
-                                                        setSelectedContractsFilter(selectedContractsFilter.filter(n => n !== contractName));
-                                                    } else {
-                                                        setSelectedContractsFilter([...selectedContractsFilter, contractName]);
-                                                    }
-                                                }}
-                                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all border ${
-                                                    isSelected
-                                                        ? "bg-slate-900 text-white border-slate-900 shadow-sm"
-                                                        : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
-                                                }`}
+                                {/* Seletor de Contratos (Dropdown Popover Multi-seleção) */}
+                                <div className="flex items-center gap-3 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                                    <span className="text-[10px] font-black uppercase text-slate-500">Filtrar Contratos:</span>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-9 px-3 w-[250px] justify-between text-xs font-semibold border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer shadow-premium rounded-xl"
                                             >
-                                                {contractName}
-                                            </button>
-                                        );
-                                    })}
-                                    <button
-                                        onClick={() => {
-                                            if (selectedContractsFilter.length === uniqueContractsWithVacancies.length) {
-                                                setSelectedContractsFilter([]);
-                                            } else {
-                                                setSelectedContractsFilter(uniqueContractsWithVacancies);
-                                            }
-                                        }}
-                                        className="ml-auto text-[9px] font-extrabold uppercase text-blue-650 hover:text-blue-800 transition-colors"
-                                    >
-                                        {selectedContractsFilter.length === uniqueContractsWithVacancies.length ? "Desmarcar Todos" : "Selecionar Todos"}
-                                    </button>
+                                                <div className="flex items-center gap-2 truncate">
+                                                    <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                    <span className="truncate">
+                                                        {selectedContractsFilter.length === uniqueContractsWithVacancies.length
+                                                            ? "Todos os Contratos"
+                                                            : selectedContractsFilter.length === 0
+                                                            ? "Nenhum Contrato"
+                                                            : `${selectedContractsFilter.length} Contratos Selecionados`
+                                                        }
+                                                    </span>
+                                                </div>
+                                                <ChevronDown className="w-3.5 h-3.5 ml-1 text-slate-400 shrink-0" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[280px] p-2 text-xs rounded-xl" align="start">
+                                            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+                                                <span className="font-bold text-slate-700">Filtrar Contratos</span>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedContractsFilter(uniqueContractsWithVacancies)}
+                                                        className="text-[10px] text-blue-600 hover:underline font-semibold cursor-pointer"
+                                                    >
+                                                        Marcar Todos
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedContractsFilter([])}
+                                                        className="text-[10px] text-red-650 hover:underline font-semibold cursor-pointer"
+                                                    >
+                                                        Desmarcar Todos
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <ScrollArea className="h-[200px] pr-2">
+                                                <div className="space-y-2">
+                                                    {uniqueContractsWithVacancies.map(contractName => {
+                                                        const isChecked = selectedContractsFilter.includes(contractName);
+                                                        return (
+                                                            <label
+                                                                key={contractName}
+                                                                className="flex items-center gap-2.5 p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer select-none"
+                                                            >
+                                                                <Checkbox
+                                                                    checked={isChecked}
+                                                                    onCheckedChange={() => {
+                                                                        if (isChecked) {
+                                                                            setSelectedContractsFilter(selectedContractsFilter.filter(n => n !== contractName));
+                                                                        } else {
+                                                                            setSelectedContractsFilter([...selectedContractsFilter, contractName]);
+                                                                        }
+                                                                    }}
+                                                                />
+                                                                <span className="font-semibold text-slate-655 truncate">{contractName}</span>
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </ScrollArea>
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
                             </div>
                         )}
@@ -1956,15 +1992,15 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                         </div>
                     )}
 
-                    {/* TAB 4: RELATÓRIO MENSAL */}
+{/* TAB 4: RELATÓRIO MENSAL */}
                     {activeTab === "monthly_report" && (
                         <div className="space-y-6">
                             
                             {/* Card de Topo com Filtros Integrados */}
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
                                 <div className="space-y-1">
-                                    <h3 className="text-md font-bold text-slate-850">Relatório Mensal de Lançamentos</h3>
-                                    <p className="text-xs text-slate-500 font-medium">Log completo de faltas e glosas do período.</p>
+                                    <h3 className="text-md font-bold text-slate-850">Relatório de Efetividade e Ocorrências</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Histórico completo de presenças, coberturas e faltas do mês selecionado.</p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-3">
                                     <select
@@ -1991,8 +2027,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         onChange={(e) => setSelectedYear(Number(e.target.value))}
                                         className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
                                     >
-                                        <option value={2026}>2026</option>
-                                        <option value={2025}>2025</option>
+                                        <option value={2026}>Ano 2026</option>
+                                        <option value={2025}>Ano 2025</option>
                                     </select>
                                     <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-1.5 h-10 shadow-premium border-slate-200">
                                         <Download className="w-4 h-4" /> Exportar Planilha
@@ -2002,6 +2038,52 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     </Button>
                                 </div>
                             </div>
+
+                            {/* Consolidated Stats (only when selectedClientId !== "all") */}
+                            {selectedClientId !== "all" && detailedData && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                    <Card className="border-none shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0">
+                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-300">Presenças Confirmadas</span>
+                                        <div className="flex items-baseline justify-between mt-1">
+                                            <span className="text-2xl font-black">
+                                                {detailedData.attendances.filter((r: any) => r.status === "PRESENTE_PONTO" || r.status === "PRESENTE_MANUAL").length}
+                                            </span>
+                                        </div>
+                                    </Card>
+
+                                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0 border border-slate-200/50">
+                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700 font-semibold">Faltas Cobertas</span>
+                                        <div className="flex items-center justify-between mt-1">
+                                            <span className="text-2xl font-black text-blue-600">
+                                                {detailedData.attendances.filter((r: any) => r.status === "FALTA" && (r.coveredById || r.coverageType)).length}
+                                            </span>
+                                        </div>
+                                    </Card>
+
+                                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0 border border-slate-200/50">
+                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700 font-semibold">Postos Vagos (Glosas)</span>
+                                        <div className="flex items-center justify-between mt-1">
+                                            <span className="text-2xl font-black text-red-650">
+                                                {detailedData.attendances.filter((r: any) => r.status === "FALTA" && !r.coveredById && !r.coverageType).length}
+                                            </span>
+                                        </div>
+                                    </Card>
+
+                                    <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between gap-1 h-auto min-h-0 border border-slate-200/50">
+                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700 font-semibold">Efetividade Geral</span>
+                                        <div className="flex items-center justify-between mt-1">
+                                            <span className="text-2xl font-black text-emerald-650">
+                                                {(() => {
+                                                    const active = detailedData.attendances.filter((r: any) => r.status !== "FOLGA");
+                                                    const total = active.length;
+                                                    const vacant = active.filter((r: any) => r.status === "FALTA" && !r.coveredById && !r.coverageType).length;
+                                                    return total > 0 ? ((total - vacant) / total * 100).toFixed(1) + "%" : "100.0%";
+                                                })()}
+                                            </span>
+                                        </div>
+                                    </Card>
+                                </div>
+                            )}
 
                             {/* Table */}
                             <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
@@ -2032,29 +2114,49 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             <TableHeader className="bg-slate-50">
                                                 <TableRow>
                                                     <TableHead className="font-bold text-slate-800 text-xs pl-6 py-3.5">Data</TableHead>
-                                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5">Posto</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5">Unidade</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5">Cargo / Função</TableHead>
                                                     <TableHead className="font-bold text-slate-800 text-xs py-3.5">Colaborador</TableHead>
-                                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5 text-center">Status</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Status</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5">Notas Operacionais</TableHead>
                                                     <TableHead className="font-bold text-slate-800 text-xs text-right pr-6 py-3.5">Valor da Glosa</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
                                                 {detailedData.attendances.map((a: any) => {
                                                     const isGlosa = a.status === "FALTA" && !a.coveredById && !a.coverageType;
-                                                    const glVal = isGlosa ? a.posto?.billingValue / 30 : 0;
+                                                    const glVal = isGlosa ? (a.posto?.billingValue || 0) / 30 : 0;
+                                                    
+                                                    let statusBadge = null;
+                                                    let rowBgClass = "";
+
+                                                    if (a.status === "PRESENTE_PONTO" || a.status === "PRESENTE_MANUAL") {
+                                                        statusBadge = <span className="px-2 py-0.5 rounded text-[10px] font-black border bg-emerald-50 text-emerald-700 border-emerald-250">● Confirmado</span>;
+                                                    } else if (a.status === "FALTA") {
+                                                        if (a.coveredByName || a.coveredBy?.name) {
+                                                            statusBadge = <span className="px-2 py-0.5 rounded text-[10px] font-black border bg-blue-50 text-blue-700 border-blue-200">● Falta Coberta: {a.coveredByName || a.coveredBy?.name}</span>;
+                                                        } else if (a.coverageType === "DIARISTA") {
+                                                            statusBadge = <span className="px-2 py-0.5 rounded text-[10px] font-black border bg-orange-50 text-orange-700 border-orange-200">● Coberto Diarista</span>;
+                                                        } else {
+                                                            rowBgClass = "bg-red-50/20";
+                                                            statusBadge = <span className="px-2 py-0.5 rounded text-[10px] font-black border bg-red-50 text-red-700 border-red-200 animate-pulse">▲ Posto Vago (Glosa)</span>;
+                                                        }
+                                                    } else if (a.status === "FOLGA") {
+                                                        rowBgClass = "opacity-75 bg-slate-100/40";
+                                                        statusBadge = <span className="px-2 py-0.5 rounded text-[10px] font-semibold border bg-slate-100 text-slate-500 border-slate-200/50">○ Folga</span>;
+                                                    } else {
+                                                        statusBadge = <span className="px-2 py-0.5 rounded text-[10px] font-semibold border bg-slate-150 text-slate-650 border-none">○ Aguardando</span>;
+                                                    }
+
                                                     return (
-                                                        <TableRow key={a.id} className="hover:bg-slate-50/50">
+                                                        <TableRow key={a.id} className={`hover:bg-slate-50/50 transition-colors ${rowBgClass}`}>
                                                             <TableCell className="text-xs text-slate-500 pl-6 py-3">{new Date(a.date).toLocaleDateString("pt-BR")}</TableCell>
-                                                            <TableCell className="text-xs font-bold text-slate-700 py-3">{a.posto?.role?.name}</TableCell>
-                                                            <TableCell className="text-xs text-slate-655 py-3">{a.employee?.name || "Vaga em Aberto"}</TableCell>
-                                                            <TableCell className="text-center py-3">
-                                                                <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
-                                                                    isGlosa ? "bg-red-50 text-red-700 border-red-200" : "bg-slate-100 text-slate-700 border-slate-200"
-                                                                }`}>
-                                                                    {a.status === "FALTA" ? (isGlosa ? "Glosa" : "Coberto") : a.status === "FOLGA" ? "Folga" : "Presente"}
-                                                                </span>
-                                                            </TableCell>
-                                                            <TableCell className="text-right pr-6 text-xs font-black text-red-650 py-3">
+                                                            <TableCell className="text-xs font-bold text-slate-800 py-3">{a.client?.name || detailedData.client?.name}</TableCell>
+                                                            <TableCell className="text-xs text-slate-700 font-semibold py-3">{a.posto?.role?.name}</TableCell>
+                                                            <TableCell className="text-xs text-slate-800 font-semibold py-3">{a.employee?.name || "Vaga em Aberto"}</TableCell>
+                                                            <TableCell className="text-center py-3">{statusBadge}</TableCell>
+                                                            <TableCell className="text-xs text-slate-500 font-medium italic py-3">{a.notes || "-"}</TableCell>
+                                                            <TableCell className="text-right pr-6 text-xs font-black text-red-655 py-3">
                                                                 {glVal > 0 ? `-${formatCurrency(glVal)}` : "R$ 0,00"}
                                                             </TableCell>
                                                         </TableRow>
@@ -2067,8 +2169,6 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             </Card>
                         </div>
                     )}
-
-                    {/* TAB 5: NPS / AVALIAÇÃO */}
                     {activeTab === "nps" && (
                         <div className="space-y-6">
                             
@@ -2801,43 +2901,78 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 </div>
                             </div>
 
-                            {/* Seletor de Contratos (Badges Clicáveis Multi-seleção) */}
-                            <div className="flex flex-wrap items-center gap-2 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                                <span className="text-[10px] font-black uppercase text-slate-500 mr-1">Filtrar Contratos:</span>
-                                {uniqueContractsWithVacancies.map((contractName) => {
-                                    const isSelected = selectedContractsFilter.includes(contractName);
-                                    return (
-                                        <button
-                                            key={contractName}
-                                            onClick={() => {
-                                                if (isSelected) {
-                                                    setSelectedContractsFilter(selectedContractsFilter.filter(n => n !== contractName));
-                                                } else {
-                                                    setSelectedContractsFilter([...selectedContractsFilter, contractName]);
-                                                }
-                                            }}
-                                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all border ${
-                                                isSelected
-                                                    ? "bg-slate-900 text-white border-slate-900 shadow-sm"
-                                                    : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
-                                            }`}
+
+                            {/* Seletor de Contratos (Dropdown Popover Multi-seleção) */}
+                            <div className="flex items-center gap-3 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                                <span className="text-[10px] font-black uppercase text-slate-500">Filtrar Contratos:</span>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-9 px-3 w-[250px] justify-between text-xs font-semibold border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer shadow-premium rounded-xl"
                                         >
-                                            {contractName}
-                                        </button>
-                                    );
-                                })}
-                                <button
-                                    onClick={() => {
-                                        if (selectedContractsFilter.length === uniqueContractsWithVacancies.length) {
-                                            setSelectedContractsFilter([]);
-                                        } else {
-                                            setSelectedContractsFilter(uniqueContractsWithVacancies);
-                                        }
-                                    }}
-                                    className="ml-auto text-[9px] font-extrabold uppercase text-blue-650 hover:text-blue-800 transition-colors"
-                                    >
-                                    {selectedContractsFilter.length === uniqueContractsWithVacancies.length ? "Desmarcar Todos" : "Selecionar Todos"}
-                                </button>
+                                            <div className="flex items-center gap-2 truncate">
+                                                <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                <span className="truncate">
+                                                    {selectedContractsFilter.length === uniqueContractsWithVacancies.length
+                                                        ? "Todos os Contratos"
+                                                        : selectedContractsFilter.length === 0
+                                                        ? "Nenhum Contrato"
+                                                        : `${selectedContractsFilter.length} Contratos Selecionados`
+                                                    }
+                                                </span>
+                                            </div>
+                                            <ChevronDown className="w-3.5 h-3.5 ml-1 text-slate-400 shrink-0" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[280px] p-2 text-xs rounded-xl" align="start">
+                                        <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+                                            <span className="font-bold text-slate-700">Filtrar Contratos</span>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedContractsFilter(uniqueContractsWithVacancies)}
+                                                    className="text-[10px] text-blue-600 hover:underline font-semibold cursor-pointer"
+                                                >
+                                                    Marcar Todos
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedContractsFilter([])}
+                                                    className="text-[10px] text-red-655 hover:underline font-semibold cursor-pointer"
+                                                >
+                                                    Desmarcar Todos
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <ScrollArea className="h-[200px] pr-2">
+                                            <div className="space-y-2">
+                                                {uniqueContractsWithVacancies.map(contractName => {
+                                                    const isChecked = selectedContractsFilter.includes(contractName);
+                                                    return (
+                                                        <label
+                                                            key={contractName}
+                                                            className="flex items-center gap-2.5 p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer select-none"
+                                                        >
+                                                            <Checkbox
+                                                                checked={isChecked}
+                                                                onCheckedChange={() => {
+                                                                    if (isChecked) {
+                                                                        setSelectedContractsFilter(selectedContractsFilter.filter(n => n !== contractName));
+                                                                    } else {
+                                                                        setSelectedContractsFilter([...selectedContractsFilter, contractName]);
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <span className="font-semibold text-slate-655 truncate">{contractName}</span>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        </ScrollArea>
+                                    </PopoverContent>
+                                </Popover>
                             </div>
                         </div>
                     )}
