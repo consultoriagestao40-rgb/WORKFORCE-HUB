@@ -3709,7 +3709,13 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                         <TableCell key={item.id} className="text-center text-xs py-3">
                                                                             {realVal !== null ? (
                                                                                 <div className="flex flex-col items-center">
-                                                                                    <span className="font-semibold text-slate-600">Real: {realVal.toFixed(1)}%</span>
+                                                                                    <span className="font-semibold text-slate-600">
+                                                                                        Real: {item.metricType === "RECLAMACOES" 
+                                                                                            ? `${realVal.toFixed(0)} chamados` 
+                                                                                            : item.metricType === "REPOSICAO"
+                                                                                            ? `${realVal.toFixed(1)} dias`
+                                                                                            : `${realVal.toFixed(1)}%`}
+                                                                                    </span>
                                                                                     <span className="text-[10px] font-black text-blue-650">Nota: {postFaixaVal !== null ? `${postFaixaVal.toFixed(1)}%` : "-"}</span>
                                                                                 </div>
                                                                             ) : (
@@ -4017,7 +4023,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     <option value="SLA_CHAMADOS">Automático: Chamados no Prazo</option>
                                     <option value="NPS">Automático: Nota NPS do Cliente</option>
                                     <option value="TURNOVER">Automático: Rotatividade (Turnover)</option>
-                                    <option value="RECLAMACOES">Automático: Índice de Reclamações</option>
+                                    <option value="RECLAMACOES">Automático: Chamados de Reclamação (Qtd)</option>
                                     <option value="REPOSICAO">Automático: SLA de Reposição (Média Dias)</option>
                                     <option value="MANUAL">Lançamento Manual pelo Gestor</option>
                                 </select>

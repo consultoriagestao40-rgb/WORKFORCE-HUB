@@ -533,7 +533,7 @@ export async function getClientKpis(year: number) {
                     metricValue = avgNpsRating !== null ? avgNpsRating * 10 : null;
                 } else if (config.metricType === "RECLAMACOES") {
                     const complaintsCount = monthRequests.filter(r => r.type !== "MOVIMENTACAO" && r.type !== "UNIFORME").length;
-                    metricValue = Math.max(0, 100 - complaintsCount * 20); // 0 reclamacoes = 100%, 5+ = 0%
+                    metricValue = complaintsCount; // 0 reclamacoes = 100%, 5+ = 0%
                 } else if (config.metricType === "MANUAL") {
                     const foundManual = config.monthlyValues.find(v => v.month === index && v.year === year);
                     metricValue = foundManual ? foundManual.value : config.targetValue;
@@ -672,7 +672,7 @@ export async function getClientKpis(year: number) {
                 metricValue = totalAvgNpsRating !== null ? totalAvgNpsRating * 10 : null;
             } else if (config.metricType === "RECLAMACOES") {
                 const complaintsCount = requests.filter(r => r.type !== "MOVIMENTACAO" && r.type !== "UNIFORME").length;
-                metricValue = Math.max(0, 100 - complaintsCount * 20);
+                metricValue = complaintsCount;
             } else if (config.metricType === "MANUAL") {
                 // Para o resumo anual, fazemos a média dos valores mensais existentes
                 const manualVals = config.monthlyValues.filter(v => v.year === year);
@@ -1675,7 +1675,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                         metricValue = avgNpsRating !== null ? avgNpsRating * 10 : null;
                     } else if (config.metricType === "RECLAMACOES") {
                         const complaintsCount = monthRequests.filter((r: any) => r.type !== "MOVIMENTACAO" && r.type !== "UNIFORME").length;
-                        metricValue = Math.max(0, 100 - complaintsCount * 20);
+                        metricValue = complaintsCount;
                     } else if (config.metricType === "MANUAL") {
                         const foundManual = config.monthlyValues.find((v: any) => v.month === index && v.year === year);
                         metricValue = foundManual ? foundManual.value : config.targetValue;
@@ -1812,7 +1812,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                     metricValue = totalAvgNpsRating !== null ? totalAvgNpsRating * 10 : null;
                 } else if (config.metricType === "RECLAMACOES") {
                     const complaintsCount = clientRequests.filter((r: any) => r.type !== "MOVIMENTACAO" && r.type !== "UNIFORME").length;
-                    metricValue = Math.max(0, 100 - complaintsCount * 20);
+                    metricValue = complaintsCount;
                 } else if (config.metricType === "MANUAL") {
                     const manualVals = config.monthlyValues.filter((v: any) => v.year === year);
                     metricValue = manualVals.length > 0
