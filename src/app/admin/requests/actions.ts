@@ -567,7 +567,7 @@ export async function getClientKpis(year: number) {
         });
 
         const monthRepositionTransitions = repositionTransitions.filter(t => 
-            t.entryDate.getMonth() === index && 
+            t.entryDate.getMonth() <= index && 
             t.entryDate.getFullYear() === year
         );
         const totalRepositionDays = monthRepositionTransitions.reduce((sum, t) => sum + t.diffDays, 0);
@@ -1656,7 +1656,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
             });
 
             const monthRepositionTransitions = repositionTransitions.filter(t => 
-                t.entryDate.getMonth() === index && 
+                t.entryDate.getMonth() <= index && 
                 t.entryDate.getFullYear() === year
             );
             const totalRepositionDays = monthRepositionTransitions.reduce((sum, t) => sum + t.diffDays, 0);
@@ -2082,14 +2082,56 @@ export async function getClientDetailedData(clientId: string, year: number, mont
 
         const assignments = await prisma.assignment.findMany({
             where: {
-                posto: { clientId },
-                endDate: { gte: startOfMonth, lte: endOfMonth }
+                posto: { clientId }
             },
             include: {
                 employee: true,
                 posto: { include: { role: true } }
+            },
+            orderBy: { startDate: "asc" }
+        });
+
+        // Calcular transições de reposição acumuladas até o mês selecionado (Year-to-Date)
+        const assignmentsByPosto: { [key: string]: any[] } = {};
+        assignments.forEach((a: any) => {
+            if (!assignmentsByPosto[a.postoId]) {
+                assignmentsByPosto[a.postoId] = [];
+            }
+            assignmentsByPosto[a.postoId].push(a);
+        });
+
+        const repositionTransitions: any[] = [];
+        Object.keys(assignmentsByPosto).forEach((postoId) => {
+            const list = assignmentsByPosto[postoId].sort((x, y) => new Date(x.startDate).getTime() - new Date(y.startDate).getTime());
+            for (let i = 0; i < list.length - 1; i++) {
+                const current = list[i];
+                const next = list[i + 1];
+                if (current.endDate) {
+                    const exitDate = new Date(current.endDate);
+                    const entryDate = new Date(next.startDate);
+                    if (entryDate >= exitDate) {
+                        const diffTime = Math.abs(entryDate.getTime() - exitDate.getTime());
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        repositionTransitions.push({
+                            id: `${current.id}-${next.id}`,
+                            postoId,
+                            posto: current.posto,
+                            exitedEmployee: current.employee,
+                            exitDate,
+                            enteredEmployee: next.employee,
+                            entryDate,
+                            diffDays
+                        });
+                    }
+                }
             }
         });
+
+        // Filtrar as transições acumuladas no ano até o mês selecionado (YTD)
+        const monthRepositionTransitions = repositionTransitions.filter(t => 
+            t.entryDate.getMonth() <= month && 
+            t.entryDate.getFullYear() === year
+        );
 
         return {
             success: true,
@@ -2098,7 +2140,8 @@ export async function getClientDetailedData(clientId: string, year: number, mont
             npsQuestions,
             npsResponses,
             attendances,
-            assignments,
+            assignments: assignments.filter(a => a.endDate && new Date(a.endDate).getMonth() === month && new Date(a.endDate).getFullYear() === year),
+            repositions: monthRepositionTransitions,
             requests: requests.map((r: any) => ({
                 id: r.id,
                 type: r.type,
