@@ -1979,6 +1979,17 @@ export async function getClientDetailedData(clientId: string, year: number, mont
             ))
         );
 
+        const assignments = await prisma.assignment.findMany({
+            where: {
+                posto: { clientId },
+                endDate: { gte: startOfMonth, lte: endOfMonth }
+            },
+            include: {
+                employee: true,
+                posto: { include: { role: true } }
+            }
+        });
+
         return {
             success: true,
             postos,
@@ -1986,6 +1997,7 @@ export async function getClientDetailedData(clientId: string, year: number, mont
             npsQuestions,
             npsResponses,
             attendances,
+            assignments,
             requests: requests.map((r: any) => ({
                 id: r.id,
                 type: r.type,

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
     Calendar, ChevronLeft, ChevronRight, Clock, UserCheck, UserX, 
     RefreshCw, LogOut, ShieldAlert, Award, FileText, Download,
@@ -29,7 +30,8 @@ import {
     getNpsQuestions,
     submitClientNpsAnswers,
     addRequestComment,
-    updateRequestDetails
+    updateRequestDetails,
+    getClientDetailedData
 } from "@/app/admin/requests/actions";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -127,6 +129,30 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
 
     // Service Plan Tab States
     const [selectedServicePlanPostoId, setSelectedServicePlanPostoId] = useState<string>("");
+
+    // KPI Modal States
+    const [kpiModalConfig, setKpiModalConfig] = useState<{ monthIndex: number; monthName: string; kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints' } | null>(null);
+    const [kpiModalData, setKpiModalData] = useState<any>(null);
+    const [loadingKpiModal, setLoadingKpiModal] = useState<boolean>(false);
+
+    const handleKpiCellClick = async (monthIndex: number, monthName: string, kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints') => {
+        const activeId = activeContractId || (contracts.length > 0 ? contracts[0].id : null);
+        if (!activeId) return;
+
+        setKpiModalConfig({ monthIndex, monthName, kpiType });
+        setLoadingKpiModal(true);
+        setKpiModalData(null);
+        try {
+            const res = await getClientDetailedData(activeId, slaYear, monthIndex);
+            if (res.success) {
+                setKpiModalData(res);
+            }
+        } catch (err) {
+            console.error("Erro ao buscar detalhes do KPI:", err);
+        } finally {
+            setLoadingKpiModal(false);
+        }
+    };
     const [servicePlanRoutines, setServicePlanRoutines] = useState<any[]>([]);
     const [loadingServicePlan, setLoadingServicePlan] = useState(false);
 
@@ -2299,15 +2325,34 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                         return (
                                                             <TableRow key={m.monthIndex} className="hover:bg-slate-50/50 transition-colors">
                                                                 <TableCell className="font-bold text-xs text-slate-900 pl-6 py-3">{m.name}</TableCell>
-                                                                <TableCell className="text-center font-bold text-xs text-emerald-600 py-3">{m.effectiveness.toFixed(1)}%</TableCell>
-                                                                <TableCell className="text-center font-bold text-xs text-blue-650 py-3">
+                                                                <TableCell 
+                                                                    onClick={() => handleKpiCellClick(mIndex, m.name, 'effectiveness')}
+                                                                    className="text-center font-bold text-xs text-emerald-600 py-3 cursor-pointer hover:bg-emerald-50 hover:scale-[1.03] transition-all select-none"
+                                                                >
+                                                                    {m.effectiveness.toFixed(1)}%
+                                                                </TableCell>
+                                                                <TableCell 
+                                                                    onClick={() => handleKpiCellClick(mIndex, m.name, 'nps')}
+                                                                    className="text-center font-bold text-xs text-blue-650 py-3 cursor-pointer hover:bg-blue-50 hover:scale-[1.03] transition-all select-none"
+                                                                >
                                                                     {m.npsCount > 0 ? `${(m.avgNpsRating * 10).toFixed(1).replace('.', ',')}%` : "-"}
                                                                 </TableCell>
-                                                                <TableCell className="text-center font-bold text-xs text-slate-700 py-3">
+                                                                <TableCell 
+                                                                    onClick={() => handleKpiCellClick(mIndex, m.name, 'turnover')}
+                                                                    className="text-center font-bold text-xs text-slate-700 py-3 cursor-pointer hover:bg-slate-100 hover:scale-[1.03] transition-all select-none"
+                                                                >
                                                                     {turnoverRate > 0 ? `${turnoverRate.toFixed(1).replace('.', ',')}%` : "0,0%"}
                                                                 </TableCell>
-                                                                <TableCell className="text-center font-bold text-xs text-blue-600 py-3">{m.slaCompliance.toFixed(1)}%</TableCell>
-                                                                <TableCell className="text-center font-bold text-xs text-red-500 py-3">
+                                                                <TableCell 
+                                                                    onClick={() => handleKpiCellClick(mIndex, m.name, 'sla')}
+                                                                    className="text-center font-bold text-xs text-blue-600 py-3 cursor-pointer hover:bg-blue-50 hover:scale-[1.03] transition-all select-none"
+                                                                >
+                                                                    {m.slaCompliance.toFixed(1)}%
+                                                                </TableCell>
+                                                                <TableCell 
+                                                                    onClick={() => handleKpiCellClick(mIndex, m.name, 'complaints')}
+                                                                    className="text-center font-bold text-xs text-red-500 py-3 cursor-pointer hover:bg-red-50 hover:scale-[1.03] transition-all select-none"
+                                                                >
                                                                     {complaintsRate > 0 ? `${complaintsRate.toFixed(1).replace('.', ',')}%` : "0,0%"}
                                                                 </TableCell>
                                                             </TableRow>
@@ -2425,6 +2470,308 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                     )}
                 </main>
             </div>
+        {/* Modal de Detalhamento de KPIs Operacionais (Auditoria Mensal) */}
+        <Dialog open={kpiModalConfig !== null} onOpenChange={(open) => { if (!open) setKpiModalConfig(null); }}>
+            <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto rounded-3xl p-6 bg-white border border-slate-100 shadow-premium">
+                <DialogHeader className="pb-4 border-b border-slate-100 flex flex-row items-center justify-between">
+                    <div>
+                        <DialogTitle className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                            <BarChart2 className="w-5 h-5 text-blue-600 animate-pulse" />
+                            Detalhamento Operacional: {kpiModalConfig?.monthName}
+                        </DialogTitle>
+                        <p className="text-xs text-slate-500 font-semibold mt-1">
+                            {kpiModalConfig?.kpiType === 'effectiveness' && "Auditoria de Efetividade de Escala e Plantões"}
+                            {kpiModalConfig?.kpiType === 'nps' && "Auditoria de Respostas Qualitativas de NPS (Satisfação)"}
+                            {kpiModalConfig?.kpiType === 'turnover' && "Auditoria de Rotatividade e Movimentações de Postos"}
+                            {kpiModalConfig?.kpiType === 'sla' && "Auditoria de SLA de Chamados Cumpridos no Prazo"}
+                            {kpiModalConfig?.kpiType === 'complaints' && "Auditoria de Reclamações Registradas"}
+                        </p>
+                    </div>
+                </DialogHeader>
+
+                {loadingKpiModal ? (
+                    <div className="py-20 flex flex-col items-center justify-center gap-3">
+                        <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
+                        <span className="text-xs font-black uppercase text-slate-400 tracking-wider">Carregando dados operacionais...</span>
+                    </div>
+                ) : kpiModalData ? (
+                    <div className="py-4 space-y-4">
+                        {/* KPI: EFICIÊNCIA OPERACIONAL (ESCALA) */}
+                        {kpiModalConfig?.kpiType === 'effectiveness' && (() => {
+                            const absences = (kpiModalData.attendances || []).filter((a: any) => a.status === 'FALTA');
+                            return (
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Total de Plantões</span>
+                                            <p className="text-2xl font-black text-slate-800 mt-1">{kpiModalData.attendances?.length || 0}</p>
+                                        </div>
+                                        <div className="p-4 bg-red-50 rounded-2xl border border-red-100/50">
+                                            <span className="text-[10px] font-black uppercase text-red-500 tracking-wider">Faltas Registradas</span>
+                                            <p className="text-2xl font-black text-red-650 mt-1">{absences.length}</p>
+                                        </div>
+                                        <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100/50">
+                                            <span className="text-[10px] font-black uppercase text-emerald-600 tracking-wider">Efetividade Escala</span>
+                                            <p className="text-2xl font-black text-emerald-700 mt-1">
+                                                {kpiModalData.attendances?.length > 0
+                                                    ? (((kpiModalData.attendances.length - absences.filter((a: any) => !a.coveredById).length) / kpiModalData.attendances.length) * 100).toFixed(1)
+                                                    : "100.0"}%
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="border border-slate-100 rounded-2xl overflow-hidden bg-white">
+                                        <Table>
+                                            <TableHeader className="bg-slate-50">
+                                                <TableRow>
+                                                    <TableHead className="font-bold text-xs text-slate-800 pl-4">Data</TableHead>
+                                                    <TableHead className="font-bold text-xs text-slate-800">Posto/Função</TableHead>
+                                                    <TableHead className="font-bold text-xs text-slate-800">Colaborador Titular</TableHead>
+                                                    <TableHead className="font-bold text-xs text-slate-800">Status</TableHead>
+                                                    <TableHead className="font-bold text-xs text-slate-800">Cobertura de Plantão</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {absences.length === 0 ? (
+                                                    <TableRow>
+                                                        <TableCell colSpan={5} className="text-center py-8 text-slate-400 font-semibold text-xs">
+                                                            100% de Efetividade! Nenhuma falta ou ocorrência de escala registrada neste mês.
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ) : (
+                                                    absences.map((a: any) => (
+                                                        <TableRow key={a.id} className="hover:bg-slate-55/30 transition-colors">
+                                                            <TableCell className="font-bold text-xs text-slate-800 pl-4">{new Date(a.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-700">{a.posto?.name || "Posto"} ({a.posto?.role?.name || "Posto"})</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-900">{a.employee?.name || "Funcionário"}</TableCell>
+                                                            <TableCell className="py-2">
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-red-100 text-red-700">Falta</span>
+                                                            </TableCell>
+                                                            <TableCell className="font-bold text-xs">
+                                                                {a.coveredBy ? (
+                                                                    <span className="text-emerald-600 flex items-center gap-1.5">
+                                                                        <UserCheck className="w-3.5 h-3.5" />
+                                                                        Coberto por {a.coveredBy.name}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-red-500 flex items-center gap-1.5">
+                                                                        <UserX className="w-3.5 h-3.5" />
+                                                                        Posto Descoberto
+                                                                    </span>
+                                                                )}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* KPI: NPS (SATISFAÇÃO) */}
+                        {kpiModalConfig?.kpiType === 'nps' && (
+                            <div className="space-y-4">
+                                <div className="border border-slate-100 rounded-2xl overflow-hidden bg-white p-4 space-y-4">
+                                    <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider">Avaliações e Respostas Qualitativas</h3>
+                                    {(kpiModalData.npsResponses || []).length === 0 ? (
+                                        <p className="text-center py-8 text-slate-400 font-semibold text-xs">Nenhuma resposta de NPS cadastrada neste mês.</p>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {(kpiModalData.npsResponses || []).map((resp: any) => {
+                                                let sum = 0;
+                                                resp.answers.forEach((ans: any) => sum += ans.score);
+                                                const avgScore = resp.answers.length > 0 ? (sum / resp.answers.length).toFixed(1) : "10.0";
+
+                                                return (
+                                                    <div key={resp.id} className="p-4 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all bg-white space-y-3">
+                                                        <div className="flex justify-between items-start">
+                                                            <div>
+                                                                <span className="text-[10px] font-black uppercase bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                                                                    {resp.answers.length > 0 ? `Média: ${avgScore}/10 (${(parseFloat(avgScore)*10).toFixed(0)}%)` : "NPS"}
+                                                                </span>
+                                                                <p className="text-[10px] font-bold text-slate-400 mt-1">Respondido em: {new Date(resp.createdAt).toLocaleDateString('pt-BR')}</p>
+                                                            </div>
+                                                        </div>
+                                                        {resp.feedback && (
+                                                            <p className="text-xs font-semibold text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                                                "${resp.feedback}"
+                                                            </p>
+                                                        )}
+                                                        <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+                                                            {resp.answers.map((ans: any) => (
+                                                                <div key={ans.id} className="flex justify-between items-center p-2 bg-slate-50/50 rounded-lg border border-slate-100/50">
+                                                                    <span className="text-slate-600 truncate max-w-[80%]">{ans.question?.text || "Pergunta"}</span>
+                                                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                                                        ans.score >= 8.5 ? "bg-emerald-100 text-emerald-700" :
+                                                                        ans.score >= 7.0 ? "bg-amber-100 text-amber-700" :
+                                                                        "bg-red-100 text-red-700"
+                                                                    }`}>{ans.score}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* KPI: ROTATIVIDADE (TURNOVER) */}
+                        {kpiModalConfig?.kpiType === 'turnover' && (
+                            <div className="space-y-4">
+                                <div className="border border-slate-100 rounded-2xl overflow-hidden bg-white">
+                                    <Table>
+                                        <TableHeader className="bg-slate-50">
+                                            <TableRow>
+                                                <TableHead className="font-bold text-xs text-slate-800 pl-4">Data Substituição</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800">Posto de Trabalho</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800">Função/Cargo</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800">Colaborador Substituído</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800">Motivo do Desligamento</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {(kpiModalData.assignments || []).length === 0 ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={5} className="text-center py-8 text-slate-400 font-semibold text-xs">
+                                                        Zero Rotatividade! Nenhuma substituição de funcionário ocorrida neste mês.
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : (
+                                                (kpiModalData.assignments || []).map((a: any) => (
+                                                    <TableRow key={a.id} className="hover:bg-slate-55/30 transition-colors">
+                                                        <TableCell className="font-bold text-xs text-slate-800 pl-4">{a.endDate ? new Date(a.endDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : "-"}</TableCell>
+                                                        <TableCell className="font-bold text-xs text-slate-800">{a.posto?.name || "Posto"}</TableCell>
+                                                        <TableCell className="font-bold text-xs text-slate-600">{a.posto?.role?.name || "-"}</TableCell>
+                                                        <TableCell className="font-bold text-xs text-slate-900">{a.employee?.name || "-"}</TableCell>
+                                                        <TableCell className="font-bold text-xs text-slate-500">{a.employee?.dismissalReason || "Troca Interna JVS"}</TableCell>
+                                                    </TableRow>
+                                                ))
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* KPI: CHAMADOS NO PRAZO (SLA) */}
+                        {kpiModalConfig?.kpiType === 'sla' && (
+                            <div className="space-y-4">
+                                <div className="border border-slate-100 rounded-2xl overflow-hidden bg-white">
+                                    <Table>
+                                        <TableHeader className="bg-slate-50">
+                                            <TableRow>
+                                                <TableHead className="font-bold text-xs text-slate-800 pl-4">ID Chamado</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800">Descrição do Chamado</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800">Abertura</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800">Prazo SLA</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800">Status</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800">SLA Geral</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {(kpiModalData.requests || []).length === 0 ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={6} className="text-center py-8 text-slate-400 font-semibold text-xs">
+                                                        Nenhum chamado operacional registrado neste mês.
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : (
+                                                (kpiModalData.requests || []).map((r: any) => {
+                                                    const isCompleted = r.status === "CONCLUIDO" || r.status === "REJEITADO";
+                                                    const isSlaOk = isCompleted ? (new Date(r.updatedAt) <= new Date(r.dueDate)) : (new Date() <= new Date(r.dueDate));
+                                                    return (
+                                                        <TableRow key={r.id} className="hover:bg-slate-55/30 transition-colors">
+                                                            <TableCell className="font-bold text-xs text-slate-500 pl-4 truncate max-w-[80px]">#${r.id.split('-')[0]}</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-900 max-w-[200px] truncate">{r.description}</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-600">{new Date(r.createdAt).toLocaleDateString('pt-BR')}</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-600">{new Date(r.dueDate).toLocaleDateString('pt-BR')}</TableCell>
+                                                            <TableCell>
+                                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                                                    r.status === "PENDENTE" ? "bg-amber-105 text-amber-700" :
+                                                                    r.status === "ANDAMENTO" ? "bg-blue-100 text-blue-700" :
+                                                                    "bg-emerald-100 text-emerald-700"
+                                                                }`}>{r.status}</span>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {isSlaOk ? (
+                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-750">No Prazo</span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-red-100 text-red-750">Atrasado</span>
+                                                                )}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* KPI: ÍNDICE DE RECLAMAÇÕES */}
+                        {kpiModalConfig?.kpiType === 'complaints' && (() => {
+                            const complaints = (kpiModalData.requests || []).filter((r: any) => r.type === "RECLAMACOES" || r.description?.toLowerCase().includes("reclam") || r.description?.toLowerCase().includes("queixa"));
+                            return (
+                                <div className="space-y-4">
+                                    <div className="border border-slate-100 rounded-2xl overflow-hidden bg-white">
+                                        <Table>
+                                            <TableHeader className="bg-slate-50">
+                                                <TableRow>
+                                                    <TableHead className="font-bold text-xs text-slate-800 pl-4">ID Reclamação</TableHead>
+                                                    <TableHead className="font-bold text-xs text-slate-800">Descrição da Reclamação</TableHead>
+                                                    <TableHead className="font-bold text-xs text-slate-800">Abertura</TableHead>
+                                                    <TableHead className="font-bold text-xs text-slate-800">Prazo Limite</TableHead>
+                                                    <TableHead className="font-bold text-xs text-slate-800">Status</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {complaints.length === 0 ? (
+                                                    <TableRow>
+                                                        <TableCell colSpan={5} className="text-center py-8 text-slate-400 font-semibold text-xs">
+                                                            Excelente! Nenhuma reclamação ou queixa operacional registrada neste mês.
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ) : (
+                                                    complaints.map((r: any) => (
+                                                        <TableRow key={r.id} className="hover:bg-slate-55/30 transition-colors">
+                                                            <TableCell className="font-bold text-xs text-slate-500 pl-4 truncate max-w-[80px]">#${r.id.split('-')[0]}</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-900 max-w-[250px] truncate">{r.description}</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-600">{new Date(r.createdAt).toLocaleDateString('pt-BR')}</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-600">{new Date(r.dueDate).toLocaleDateString('pt-BR')}</TableCell>
+                                                            <TableCell>
+                                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                                                    r.status === "PENDENTE" ? "bg-amber-105 text-amber-700" :
+                                                                    r.status === "ANDAMENTO" ? "bg-blue-100 text-blue-700" :
+                                                                    "bg-emerald-100 text-emerald-700"
+                                                                }`}>{r.status}</span>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </div>
+                ) : (
+                    <div className="py-20 flex flex-col items-center justify-center gap-2">
+                        <span className="text-xs font-bold text-slate-400">Falha ao carregar detalhes operacionais.</span>
+                    </div>
+                )}
+
+                <DialogFooter className="pt-4 border-t border-slate-100 flex items-center justify-end w-full">
+                    <Button type="button" onClick={() => setKpiModalConfig(null)} className="h-10 text-xs font-bold rounded-xl bg-slate-900 text-white hover:bg-slate-800 px-6 cursor-pointer">Fechar Relatório</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
         </div>
     );
 }
