@@ -127,6 +127,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [slaWeight, setSlaWeight] = useState<number>(1);
     const [slaTarget, setSlaTarget] = useState<number>(90);
     const [savingSla, setSavingSla] = useState<boolean>(false);
+    const [slaTab, setSlaTab] = useState<'resultado' | 'config'>('resultado');
     const [slaRanges, setSlaRanges] = useState<{ minVal: number; maxVal: number | null; resultVal: number; }[]>([]);
     const [newMinVal, setNewMinVal] = useState<string>("");
     const [newMaxVal, setNewMaxVal] = useState<string>("");
@@ -3538,84 +3539,265 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         </Table>
                                     </Card>
                                 )
-                            ) : (
-                                detailedData && (
+            ) : (
+                detailedData && (() => {
+                    const currentMonthData = detailedData.monthlyData.find((m: any) => m.monthIndex === selectedMonth);
+                    
+                    // Lógica local para obter o valor real de cada KPI
+                    const getSlaMetricRealVal = (item: any) => {
+                        if (item.metricType === "MANUAL") {
+                            const found = item.monthlyValues.find((v: any) => v.month === selectedMonth && v.year === selectedYear);
+                            return found ? found.value : null;
+                        }
+                        if (!currentMonthData) return null;
+                        if (item.metricType === "EFETIVIDADE") {
+                            return currentMonthData.effectiveness;
+                        }
+                        if (item.metricType === "SLA_CHAMADOS") {
+                            return currentMonthData.slaCompliance;
+                        }
+                        if (item.metricType === "NPS") {
+                            return currentMonthData.avgNpsRating !== null && currentMonthData.avgNpsRating !== undefined
+                                ? currentMonthData.avgNpsRating * 10 
+                                : null;
+                        }
+                        if (item.metricType === "RECLAMACOES") {
+                            return currentMonthData.complaintsRate;
+                        }
+                        return null;
+                    };
+
+                    // Lógica local de atingimento por faixas
+                    const calculateFrontAtingimento = (realVal: number | null, ranges: any[]) => {
+                        if (realVal === null || realVal === undefined) return null;
+                        if (!ranges || ranges.length === 0) return realVal;
+                        const sortedRanges = [...ranges].sort((x, y) => x.minVal - y.minVal);
+                        for (const r of sortedRanges) {
+                            const isAboveMin = realVal >= r.minVal;
+                            const isBelowMax = r.maxVal === null || r.maxVal === undefined || realVal <= r.maxVal;
+                            if (isAboveMin && isBelowMax) {
+                                return r.resultVal;
+                            }
+                        }
+                        return 0;
+                    };
+
+                    // Calcular nota final ponderada do SLA do mês
+                    let totalWeight = 0;
+                    let weightedScoreSum = 0;
+
+                    detailedData.slaConfigItems.forEach((item: any) => {
+                        let val = getSlaMetricRealVal(item);
+                        if (val !== null) {
+                            const postFaixaVal = calculateFrontAtingimento(val, item.ranges || []);
+                            if (postFaixaVal !== null) {
+                                weightedScoreSum += postFaixaVal * item.weight;
+                                totalWeight += item.weight;
+                            }
+                        }
+                    });
+
+                    const finalSlaScore = totalWeight > 0 ? (weightedScoreSum / totalWeight) : null;
+
+                    return (
+                        <div className="space-y-6">
+                            {/* Sub-Abas do SLA */}
+                            <div className="flex gap-2 p-1 bg-slate-100/80 rounded-xl w-fit border border-slate-200/40">
+                                <button
+                                    type="button"
+                                    onClick={() => setSlaTab('resultado')}
+                                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                        slaTab === 'resultado'
+                                            ? "bg-white text-slate-800 shadow-premium"
+                                            : "text-slate-500 hover:text-slate-800"
+                                    }`}
+                                >
+                                    📈 Resultado Mensal
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSlaTab('config')}
+                                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                        slaTab === 'config'
+                                            ? "bg-white text-slate-800 shadow-premium"
+                                            : "text-slate-500 hover:text-slate-800"
+                                    }`}
+                                >
+                                    ⚙️ Parametrização do SLA
+                                </button>
+                            </div>
+
+                            {slaTab === 'resultado' ? (
+                                <div className="space-y-6">
+                                    {/* Cards de Resumo de Topo */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <Card className="border border-slate-200/50 shadow-premium bg-white p-5 rounded-2xl flex flex-col justify-between">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nota SLA Geral do Contrato</span>
+                                            <span className="text-2xl font-black mt-2 text-blue-600">
+                                                {finalSlaScore !== null ? `${finalSlaScore.toFixed(1)}%` : "-"}
+                                            </span>
+                                        </Card>
+                                        <Card className="border border-slate-200/50 shadow-premium bg-white p-5 rounded-2xl flex flex-col justify-between">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Peso Total Parametrizado</span>
+                                            <span className="text-2xl font-black mt-2 text-slate-800">
+                                                {totalWeight.toFixed(1)}
+                                            </span>
+                                        </Card>
+                                        <Card className="border border-slate-200/50 shadow-premium bg-white p-5 rounded-2xl flex flex-col justify-between">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Status de Conformidade</span>
+                                            <span className={`text-sm font-black mt-2 rounded px-2.5 py-1 w-fit ${
+                                                finalSlaScore !== null && finalSlaScore >= 90
+                                                    ? "bg-emerald-50 text-emerald-600"
+                                                    : finalSlaScore !== null
+                                                    ? "bg-red-50 text-red-600"
+                                                    : "bg-slate-100 text-slate-400"
+                                            }`}>
+                                                {finalSlaScore !== null && finalSlaScore >= 90 ? "Conforme" : finalSlaScore !== null ? "Inconforme" : "Pendente"}
+                                            </span>
+                                        </Card>
+                                    </div>
+
+                                    {/* Tabela de Resultados Mensais */}
                                     <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
-                                        <CardHeader className="flex flex-row items-center justify-between">
-                                            <div>
-                                                <CardTitle className="text-sm font-black uppercase text-slate-850">Indicadores de SLA Parametrizados</CardTitle>
-                                            </div>
-                                            <Button 
-                                                size="sm"
-                                                onClick={() => {
-                                                    setEditingSlaItem(null);
-                                                    setSlaName("");
-                                                    setSlaMetricType("EFETIVIDADE");
-                                                    setSlaWeight(1);
-                                                    setSlaTarget(90);
-                                                    setSlaRanges([]);
-                                                    setSlaDialogOpen(true);
-                                                }}
-                                                className="gap-1 bg-slate-900 text-white font-bold text-xs rounded-xl"
-                                            >
-                                                <Plus className="w-3.5 h-3.5" /> Adicionar SLA
-                                            </Button>
+                                        <CardHeader>
+                                            <CardTitle className="text-sm font-black uppercase text-slate-850">Detalhamento de Conformidade do Mês</CardTitle>
                                         </CardHeader>
                                         <CardContent className="p-0 border-t border-slate-100">
                                             <Table>
                                                 <TableHeader className="bg-slate-50">
                                                     <TableRow>
                                                         <TableHead className="font-bold text-slate-800 text-xs pl-6 py-3">Indicador</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-xs py-3">Métrica</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-xs py-3">Métrica Base</TableHead>
                                                         <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Meta (%)</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Valor Real</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Atingimento (Pós-Faixas)</TableHead>
                                                         <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Peso</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-xs text-right pr-6 py-3">Nota Mensal</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Ações</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-xs text-right pr-6 py-3">Nota Ponderada</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    {detailedData.slaConfigItems.map((item: any) => {
-                                                        const mVal = item.monthlyValues[0]?.value;
-                                                        return (
-                                                            <TableRow key={item.id} className="hover:bg-slate-50/50">
-                                                                <TableCell className="text-xs font-bold text-slate-700 pl-6 py-3">{item.name}</TableCell>
-                                                                <TableCell className="text-xs text-slate-505 py-3">
-                                                                    {item.metricType === "MANUAL" ? "Lançamento Manual" : 
-                                                                     item.metricType === "EFETIVIDADE" ? "Efetividade Escala" :
-                                                                     item.metricType === "SLA_CHAMADOS" ? "Chamados no Prazo" : "Nota NPS"}
-                                                                </TableCell>
-                                                                <TableCell className="text-center text-xs font-bold py-3">{item.targetValue}%</TableCell>
-                                                                <TableCell className="text-center text-xs font-bold py-3">{item.weight}</TableCell>
-                                                                <TableCell className="text-right pr-6 py-3 text-xs">
-                                                                    {item.metricType === "MANUAL" ? (
-                                                                        editingSlaValueId === item.id ? (
-                                                                            <div className="flex justify-end items-center gap-1">
-                                                                                <Input type="number" value={manualSlaValue} onChange={(e) => setManualSlaValue(Number(e.target.value))} className="w-16 h-7 text-right" />
-                                                                                <Button size="sm" onClick={() => handleSaveManualSlaValue(item.id)} className="h-7 bg-emerald-600 text-white rounded">✓</Button>
-                                                                            </div>
-                                                                        ) : (
-                                                                            <div className="flex justify-end items-center gap-1.5 font-black text-slate-800">
-                                                                                <span>{mVal !== undefined ? `${mVal}%` : "Pendente"}</span>
-                                                                                <Button size="sm" variant="ghost" onClick={() => { setEditingSlaValueId(item.id); setManualSlaValue(mVal || item.targetValue); }} className="h-6 w-6 p-0 rounded">✏️</Button>
-                                                                            </div>
-                                                                        )
-                                                                    ) : <span className="text-slate-400 italic">Automático</span>}
-                                                                </TableCell>
-                                                                <TableCell className="text-center py-3">
-                                                                    <div className="flex justify-center gap-1">
-                                                                        <Button size="sm" variant="ghost" onClick={() => { setEditingSlaItem(item); setSlaName(item.name); setSlaMetricType(item.metricType); setSlaWeight(item.weight); setSlaTarget(item.targetValue); setSlaRanges(item.ranges || []); setSlaDialogOpen(true); }} className="h-7 w-7 p-0 rounded">✏️</Button>
-                                                                        <Button size="sm" variant="ghost" onClick={() => handleDeleteSlaItemClick(item.id)} className="h-7 w-7 p-0 rounded hover:bg-red-50">🗑️</Button>
-                                                                    </div>
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        );
-                                                    })}
+                                                    {detailedData.slaConfigItems.length > 0 ? (
+                                                        detailedData.slaConfigItems.map((item: any) => {
+                                                            const realVal = getSlaMetricRealVal(item);
+                                                            const postFaixaVal = calculateFrontAtingimento(realVal, item.ranges || []);
+                                                            const weightedVal = (postFaixaVal !== null && finalSlaScore !== null) 
+                                                                ? (postFaixaVal * item.weight) / totalWeight 
+                                                                : null;
+
+                                                            return (
+                                                                <TableRow key={item.id} className="hover:bg-slate-50/50">
+                                                                    <TableCell className="text-xs font-bold text-slate-700 pl-6 py-3">{item.name}</TableCell>
+                                                                    <TableCell className="text-xs text-slate-505 py-3">
+                                                                        {item.metricType === "MANUAL" ? "Lançamento Manual" : 
+                                                                         item.metricType === "EFETIVIDADE" ? "Efetividade Escala" :
+                                                                         item.metricType === "SLA_CHAMADOS" ? "Chamados no Prazo" : "Nota NPS"}
+                                                                    </TableCell>
+                                                                    <TableCell className="text-center text-xs font-bold py-3">{item.targetValue}%</TableCell>
+                                                                    <TableCell className="text-center text-xs font-semibold py-3 text-slate-600">
+                                                                        {realVal !== null ? `${realVal.toFixed(1)}%` : "-"}
+                                                                    </TableCell>
+                                                                    <TableCell className="text-center text-xs font-black py-3 text-blue-650">
+                                                                        {postFaixaVal !== null ? `${postFaixaVal.toFixed(1)}%` : "-"}
+                                                                    </TableCell>
+                                                                    <TableCell className="text-center text-xs font-bold py-3">{item.weight}</TableCell>
+                                                                    <TableCell className="text-right pr-6 py-3 text-xs font-black text-slate-800">
+                                                                        {weightedVal !== null ? `${(weightedVal).toFixed(1)}%` : "-"}
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            );
+                                                        })
+                                                    ) : (
+                                                        <TableRow>
+                                                            <TableCell colSpan={7} className="text-center py-6 text-xs text-slate-400 font-semibold italic">
+                                                                Nenhum indicador parametrizado para o SLA. Vá para a aba "Parametrização" para cadastrar.
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )}
                                                 </TableBody>
                                             </Table>
                                         </CardContent>
                                     </Card>
-                                )
+                                </div>
+                            ) : (
+                                <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
+                                    <CardHeader className="flex flex-row items-center justify-between">
+                                        <div>
+                                            <CardTitle className="text-sm font-black uppercase text-slate-855">Indicadores de SLA Parametrizados</CardTitle>
+                                        </div>
+                                        <Button 
+                                            size="sm"
+                                            onClick={() => {
+                                                setEditingSlaItem(null);
+                                                setSlaName("");
+                                                setSlaMetricType("EFETIVIDADE");
+                                                setSlaWeight(1);
+                                                setSlaTarget(90);
+                                                setSlaRanges([]);
+                                                setSlaDialogOpen(true);
+                                            }}
+                                            className="gap-1 bg-slate-900 text-white font-bold text-xs rounded-xl"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" /> Adicionar SLA
+                                        </Button>
+                                    </CardHeader>
+                                    <CardContent className="p-0 border-t border-slate-100">
+                                        <Table>
+                                            <TableHeader className="bg-slate-50">
+                                                <TableRow>
+                                                    <TableHead className="font-bold text-slate-800 text-xs pl-6 py-3">Indicador</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-xs py-3">Métrica</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Meta (%)</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Peso</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-xs text-right pr-6 py-3">Nota Mensal</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Ações</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {detailedData.slaConfigItems.map((item: any) => {
+                                                    const mVal = item.monthlyValues.find((v: any) => v.month === selectedMonth && v.year === selectedYear)?.value;
+                                                    return (
+                                                        <TableRow key={item.id} className="hover:bg-slate-50/50">
+                                                            <TableCell className="text-xs font-bold text-slate-700 pl-6 py-3">{item.name}</TableCell>
+                                                            <TableCell className="text-xs text-slate-505 py-3">
+                                                                {item.metricType === "MANUAL" ? "Lançamento Manual" : 
+                                                                 item.metricType === "EFETIVIDADE" ? "Efetividade Escala" :
+                                                                 item.metricType === "SLA_CHAMADOS" ? "Chamados no Prazo" : "Nota NPS"}
+                                                            </TableCell>
+                                                            <TableCell className="text-center text-xs font-bold py-3">{item.targetValue}%</TableCell>
+                                                            <TableCell className="text-center text-xs font-bold py-3">{item.weight}</TableCell>
+                                                            <TableCell className="text-right pr-6 py-3 text-xs">
+                                                                {item.metricType === "MANUAL" ? (
+                                                                    editingSlaValueId === item.id ? (
+                                                                        <div className="flex justify-end items-center gap-1">
+                                                                            <Input type="number" value={manualSlaValue} onChange={(e) => setManualSlaValue(Number(e.target.value))} className="w-16 h-7 text-right" />
+                                                                            <Button size="sm" onClick={() => handleSaveManualSlaValue(item.id)} className="h-7 bg-emerald-600 text-white rounded">✓</Button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="flex justify-end items-center gap-1.5 font-black text-slate-800">
+                                                                            <span>{mVal !== undefined ? `${mVal}%` : "Pendente"}</span>
+                                                                            <Button size="sm" variant="ghost" onClick={() => { setEditingSlaValueId(item.id); setManualSlaValue(mVal || item.targetValue); }} className="h-6 w-6 p-0 rounded">✏️</Button>
+                                                                        </div>
+                                                                    )
+                                                                ) : <span className="text-slate-400 italic">Automático</span>}
+                                                            </TableCell>
+                                                            <TableCell className="text-center py-3">
+                                                                <div className="flex justify-center gap-1">
+                                                                    <Button size="sm" variant="ghost" onClick={() => { setEditingSlaItem(item); setSlaName(item.name); setSlaMetricType(item.metricType); setSlaWeight(item.weight); setSlaTarget(item.targetValue); setSlaRanges(item.ranges || []); setSlaDialogOpen(true); }} className="h-7 w-7 p-0 rounded">✏️</Button>
+                                                                    <Button size="sm" variant="ghost" onClick={() => handleDeleteSlaItemClick(item.id)} className="h-7 w-7 p-0 rounded hover:bg-red-50">🗑️</Button>
+                                                                </div>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </CardContent>
+                                </Card>
                             )}
+                        </div>
+                    );
+                })()
+            )}
                         </div>
                     )}
 
