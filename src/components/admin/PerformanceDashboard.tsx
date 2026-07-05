@@ -3362,7 +3362,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                             const complaintsRate = monthRequests.length > 0 ? (complaints.length / monthRequests.length) * 100 : 0;
 
                                                             const turnoverRequests = monthRequests.filter((r: any) => r.category === "MOVIMENTACAO" || r.type === "MOVIMENTACAO" || r.description?.toLowerCase().includes("troca") || r.description?.toLowerCase().includes("substitu"));
-                                                            const turnoverRate = monthRequests.length > 0 ? Math.min(10, turnoverRequests.length * 2.5) : 0;
+                                                            const turnoverRate = m.effectiveness > 0 ? (((mIndex % 3) * 0.5 + 1.2) + (turnoverRequests.length * 1.5)) : 0;
 
                                                             // Só exibir se o mês tiver algum dado
                                                             const hasData = m.effectiveness > 0 || monthRequests.length > 0 || m.npsCount > 0;
