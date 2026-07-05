@@ -29,7 +29,8 @@ import {
     getPostoRoutines,
     transitionRequest,
     updateRequestClient,
-    updateRequestDetails
+    updateRequestDetails,
+    addRequestComment
 } from "@/app/admin/requests/actions";
 import { 
     Award, Calendar, Users, DollarSign, 
@@ -134,6 +135,10 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [selectedRequestForAction, setSelectedRequestForAction] = useState<any | null>(null);
     const [requestTransitionNotes, setRequestTransitionNotes] = useState<string>("");
     const [transitioningRequestState, setTransitioningRequestState] = useState<boolean>(false);
+
+    // Comentários e Interatividade do Gestor nos chamados
+    const [newCommentContent, setNewCommentContent] = useState<string>("");
+    const [submittingComment, setSubmittingComment] = useState<boolean>(false);
 
     // Filtros adicionais para a visão lista
     const [listSearchQuery, setListSearchQuery] = useState<string>("");
@@ -258,6 +263,53 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
             toast.error("Erro ao salvar alterações da solicitação.");
         } finally {
             setSavingRequestDetails(false);
+        }
+    };
+
+    const handleAddComment = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedRequestForAction || !newCommentContent.trim()) return;
+
+        setSubmittingComment(true);
+        try {
+            const res = await addRequestComment(selectedRequestForAction.id, newCommentContent);
+            if (res.success) {
+                toast.success("Mensagem enviada com sucesso!");
+                setNewCommentContent("");
+                
+                // Recarregar os dados para ter o histórico atualizado
+                await loadPerformanceData();
+                await loadClientDetails();
+
+                // Buscar a ocorrência atualizada localmente para atualizar o chat no modal sem fechá-lo
+                let updatedReq = null;
+                if (selectedClientId === "all") {
+                    const consolidatedRes = await getConsolidatedPerformanceData(selectedYear, selectedMonth);
+                    if (consolidatedRes.success) {
+                        setConsolidatedData(consolidatedRes);
+                        updatedReq = (consolidatedRes as any).allRequests?.find((r: any) => r.id === selectedRequestForAction.id);
+                    }
+                } else {
+                    const clientRes = await getAdminClientKpis(selectedClientId, selectedYear);
+                    if (clientRes.success) {
+                        setClientKpiData(clientRes);
+                        updatedReq = (clientRes as any).requests?.find((r: any) => r.id === selectedRequestForAction.id);
+                    }
+                }
+
+                if (updatedReq) {
+                    setSelectedRequestForAction({
+                        ...selectedRequestForAction,
+                        comments: updatedReq.comments
+                    });
+                }
+            } else {
+                toast.error("Erro ao enviar mensagem.");
+            }
+        } catch (err) {
+            toast.error("Erro de conexão ao enviar comentário.");
+        } finally {
+            setSubmittingComment(false);
         }
     };
 
@@ -1682,6 +1734,69 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 bg-white outline-none resize-none"
                                         />
                                     </div>
+                                </div>
+
+                                {/* Histórico e Chat de Comentários do Chamado */}
+                                <div className="space-y-2 pt-2 border-t border-slate-100">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block font-bold">Histórico de Mensagens / Respostas com o Cliente</span>
+                                    
+                                    {/* Chat de mensagens */}
+                                    <div className="space-y-2.5 max-h-[160px] overflow-y-auto pr-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                        {/* Parecer final da JVS se houver */}
+                                        {selectedRequestForAction.resolutionNotes && (
+                                            <div className="flex flex-col gap-1 items-start">
+                                                <div className="bg-slate-200 text-slate-800 p-2.5 rounded-2xl rounded-tl-none max-w-[85%] text-xs font-medium leading-relaxed">
+                                                    <span className="text-[9px] font-black uppercase text-slate-500 block mb-0.5">Operação JVS (Parecer de Resolução)</span>
+                                                    {selectedRequestForAction.resolutionNotes}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Comentários adicionais */}
+                                        {(selectedRequestForAction.comments || []).length === 0 && !selectedRequestForAction.resolutionNotes ? (
+                                            <div className="text-center text-[10px] font-medium text-slate-400 py-6 italic">Sem mensagens adicionais registradas neste chamado.</div>
+                                        ) : (
+                                            (selectedRequestForAction.comments || []).map((comm: any) => {
+                                                const isMyComment = comm.user?.role !== "CLIENTE";
+                                                return (
+                                                    <div key={comm.id} className={`flex flex-col gap-1 ${isMyComment ? "items-end" : "items-start"}`}>
+                                                        <div className={`p-2.5 rounded-2xl text-xs font-medium leading-relaxed max-w-[85%] ${
+                                                            isMyComment 
+                                                                ? "bg-blue-600 text-white rounded-tr-none" 
+                                                                : "bg-slate-200 text-slate-800 rounded-tl-none"
+                                                        }`}>
+                                                            <span className="text-[9px] font-black uppercase block opacity-70 mb-0.5">
+                                                                {isMyComment ? `Você (${comm.user?.name || "Operador"})` : "Cliente"}
+                                                            </span>
+                                                            {comm.content}
+                                                        </div>
+                                                        <span className="text-[8px] font-semibold text-slate-400 px-1">
+                                                            {comm.createdAt ? new Date(comm.createdAt).toLocaleString("pt-BR") : ""}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+
+                                    {/* Enviar novo comentário / resposta */}
+                                    <form onSubmit={handleAddComment} className="flex gap-2 pt-2 border-t border-slate-100/50">
+                                        <input
+                                            type="text"
+                                            placeholder="Digite uma mensagem/resposta para o cliente..."
+                                            value={newCommentContent}
+                                            onChange={(e) => setNewCommentContent(e.target.value)}
+                                            className="flex-1 h-9 border border-slate-200 bg-white rounded-xl text-xs font-semibold px-3 outline-none focus:border-blue-500 text-slate-800"
+                                            required
+                                        />
+                                        <Button 
+                                            type="submit" 
+                                            disabled={submittingComment || !newCommentContent.trim()}
+                                            className="h-9 text-[10px] font-black uppercase tracking-wider px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shrink-0 cursor-pointer"
+                                        >
+                                            {submittingComment ? "..." : "Enviar"}
+                                        </Button>
+                                    </form>
                                 </div>
                             </div>
                         )}
@@ -3819,6 +3934,69 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 bg-white outline-none resize-none"
                                     />
                                 </div>
+                            </div>
+
+                            {/* Histórico e Chat de Comentários do Chamado */}
+                            <div className="space-y-2 pt-2 border-t border-slate-100">
+                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block font-bold">Histórico de Mensagens / Respostas com o Cliente</span>
+                                
+                                {/* Chat de mensagens */}
+                                <div className="space-y-2.5 max-h-[160px] overflow-y-auto pr-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    {/* Parecer final da JVS se houver */}
+                                    {selectedRequestForAction.resolutionNotes && (
+                                        <div className="flex flex-col gap-1 items-start">
+                                            <div className="bg-slate-200 text-slate-800 p-2.5 rounded-2xl rounded-tl-none max-w-[85%] text-xs font-medium leading-relaxed">
+                                                <span className="text-[9px] font-black uppercase text-slate-500 block mb-0.5">Operação JVS (Parecer de Resolução)</span>
+                                                {selectedRequestForAction.resolutionNotes}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Comentários adicionais */}
+                                    {(selectedRequestForAction.comments || []).length === 0 && !selectedRequestForAction.resolutionNotes ? (
+                                        <div className="text-center text-[10px] font-medium text-slate-400 py-6 italic">Sem mensagens adicionais registradas neste chamado.</div>
+                                    ) : (
+                                        (selectedRequestForAction.comments || []).map((comm: any) => {
+                                            const isMyComment = comm.user?.role !== "CLIENTE";
+                                            return (
+                                                <div key={comm.id} className={`flex flex-col gap-1 ${isMyComment ? "items-end" : "items-start"}`}>
+                                                    <div className={`p-2.5 rounded-2xl text-xs font-medium leading-relaxed max-w-[85%] ${
+                                                        isMyComment 
+                                                            ? "bg-blue-600 text-white rounded-tr-none" 
+                                                            : "bg-slate-200 text-slate-800 rounded-tl-none"
+                                                    }`}>
+                                                        <span className="text-[9px] font-black uppercase block opacity-70 mb-0.5">
+                                                            {isMyComment ? `Você (${comm.user?.name || "Operador"})` : "Cliente"}
+                                                        </span>
+                                                        {comm.content}
+                                                    </div>
+                                                    <span className="text-[8px] font-semibold text-slate-400 px-1">
+                                                        {comm.createdAt ? new Date(comm.createdAt).toLocaleString("pt-BR") : ""}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+
+                                {/* Enviar novo comentário / resposta */}
+                                <form onSubmit={handleAddComment} className="flex gap-2 pt-2 border-t border-slate-100/50">
+                                    <input
+                                        type="text"
+                                        placeholder="Digite uma mensagem/resposta para o cliente..."
+                                        value={newCommentContent}
+                                        onChange={(e) => setNewCommentContent(e.target.value)}
+                                        className="flex-1 h-9 border border-slate-250 bg-white rounded-xl text-xs font-semibold px-3 outline-none focus:border-blue-500 text-slate-800"
+                                        required
+                                    />
+                                    <Button 
+                                        type="submit" 
+                                        disabled={submittingComment || !newCommentContent.trim()}
+                                        className="h-9 text-[10px] font-black uppercase tracking-wider px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shrink-0 cursor-pointer"
+                                    >
+                                        {submittingComment ? "..." : "Enviar"}
+                                    </Button>
+                                </form>
                             </div>
                         </div>
                     )}

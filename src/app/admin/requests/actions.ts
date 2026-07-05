@@ -1004,6 +1004,12 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                             }
                         }
                     }
+                },
+                comments: {
+                    include: {
+                        user: { select: { name: true, role: true } }
+                    },
+                    orderBy: { createdAt: 'asc' }
                 }
             },
             orderBy: { createdAt: 'desc' }
@@ -1391,6 +1397,12 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                                 }
                             }
                         }
+                    },
+                    comments: {
+                        include: {
+                            user: { select: { name: true, role: true } }
+                        },
+                        orderBy: { createdAt: 'asc' }
                     }
                 },
                 orderBy: { createdAt: "asc" }
