@@ -28,7 +28,8 @@ import {
     deleteNpsQuestion,
     getPostoRoutines,
     transitionRequest,
-    updateRequestClient
+    updateRequestClient,
+    updateRequestDetails
 } from "@/app/admin/requests/actions";
 import { 
     Award, Calendar, Users, DollarSign, 
@@ -223,6 +224,40 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
             toast.error("Erro ao atualizar solicitação.");
         } finally {
             setTransitioningRequestState(false);
+        }
+    };
+
+    const [savingRequestDetails, setSavingRequestDetails] = useState<boolean>(false);
+
+    const handleSaveRequestDetails = async () => {
+        if (!selectedRequestForAction) return;
+        setSavingRequestDetails(true);
+        try {
+            // 1. Atualizar detalhes no banco (descrição, colaborador, prazo)
+            await updateRequestDetails(selectedRequestForAction.id, {
+                description: selectedRequestForAction.description,
+                employeeId: selectedRequestForAction.employeeId === "" ? null : selectedRequestForAction.employeeId,
+                dueDate: selectedRequestForAction.dueDate
+            });
+
+            // 2. Mudar status se alterou no seletor
+            if (selectedRequestForAction.nextStatus && selectedRequestForAction.nextStatus !== selectedRequestForAction.status) {
+                await transitionRequest(
+                    selectedRequestForAction.id,
+                    selectedRequestForAction.nextStatus,
+                    requestTransitionNotes || `Status alterado no modal de detalhes por ${userName}`
+                );
+            }
+
+            toast.success("Solicitação salva e atualizada com sucesso!");
+            setSelectedRequestForAction(null);
+            setRequestTransitionNotes("");
+            await loadPerformanceData();
+            await loadClientDetails();
+        } catch (e) {
+            toast.error("Erro ao salvar alterações da solicitação.");
+        } finally {
+            setSavingRequestDetails(false);
         }
     };
 
@@ -3561,40 +3596,48 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     </span>
                                 </div>
                                 <div className="space-y-1">
-                                    <span className="text-[10px] font-black uppercase text-slate-400 block">Prazo SLA</span>
-                                    <span className="text-xs font-black text-slate-700 flex items-center gap-1.5">
-                                        {new Date(selectedRequestForAction.dueDate).toLocaleDateString("pt-BR")}
-                                        {(() => {
-                                            const dueDate = new Date(selectedRequestForAction.dueDate);
-                                            const now = new Date();
-                                            const isExpired = now > dueDate && selectedRequestForAction.status !== "CONCLUIDO" && selectedRequestForAction.status !== "REJEITADO" && selectedRequestForAction.status !== "CANCELADO";
-                                            return isExpired ? (
-                                                <Badge className="bg-red-50 text-red-600 border border-red-200 text-[9px] font-bold animate-pulse py-0 px-1">Expirado</Badge>
-                                            ) : (
-                                                <Badge className="bg-sky-50 text-sky-600 border border-sky-200 text-[9px] font-bold py-0 px-1">No Prazo</Badge>
-                                            );
-                                        })()}
-                                    </span>
+                                    <span className="text-[10px] font-black uppercase text-slate-400 block font-bold">Prazo SLA</span>
+                                    <input
+                                        type="date"
+                                        value={selectedRequestForAction.dueDate ? selectedRequestForAction.dueDate.split("T")[0] : ""}
+                                        onChange={(e) => setSelectedRequestForAction({ ...selectedRequestForAction, dueDate: e.target.value ? e.target.value + "T23:59:59.000Z" : selectedRequestForAction.dueDate })}
+                                        className="h-8 border border-slate-200 bg-white rounded-lg text-xs font-semibold px-2 outline-none w-full shadow-sm"
+                                    />
                                 </div>
                             </div>
 
-                            {/* Colaborador Relacionado (se houver) */}
-                            {selectedRequestForAction.employeeName && (
-                                <div className="space-y-1 bg-blue-50/40 p-3.5 rounded-xl border border-blue-100/50">
-                                    <span className="text-[10px] font-black uppercase text-blue-500 block">Colaborador Envolvido</span>
-                                    <span className="text-xs font-extrabold text-blue-900 flex items-center gap-1.5">
-                                        <Briefcase className="w-3.5 h-3.5 text-blue-400" />
-                                        {selectedRequestForAction.employeeName}
-                                    </span>
-                                </div>
-                            )}
+                            {/* Colaborador Relacionado (Editável) */}
+                            <div className="space-y-1 bg-blue-50/40 p-3.5 rounded-xl border border-blue-100/50">
+                                <span className="text-[10px] font-black uppercase text-blue-500 block font-bold">Colaborador Envolvido</span>
+                                <select
+                                    value={selectedRequestForAction.employeeId || ""}
+                                    onChange={(e) => {
+                                        const empId = e.target.value;
+                                        const empObj = (consolidatedData?.allEmployees || []).find((emp: any) => emp.id === empId);
+                                        setSelectedRequestForAction({
+                                            ...selectedRequestForAction,
+                                            employeeId: empId || null,
+                                            employeeName: empObj ? empObj.name : null
+                                        });
+                                    }}
+                                    className="w-full h-9 border border-blue-200 bg-white text-xs font-semibold px-2 outline-none rounded-lg cursor-pointer text-blue-900 shadow-sm"
+                                >
+                                    <option value="">Nenhum Colaborador</option>
+                                    {(consolidatedData?.allEmployees || []).map((emp: any) => (
+                                        <option key={emp.id} value={emp.id}>{emp.name}</option>
+                                    ))}
+                                </select>
+                            </div>
 
-                            {/* Descrição Completa */}
+                            {/* Descrição Completa (Editável) */}
                             <div className="space-y-1">
-                                <Label className="text-[10px] font-black uppercase text-slate-400">Descrição da Solicitação</Label>
-                                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 whitespace-pre-wrap leading-relaxed">
-                                    {selectedRequestForAction.description}
-                                </div>
+                                <Label className="text-[10px] font-black uppercase text-slate-400 font-bold">Descrição da Solicitação</Label>
+                                <textarea
+                                    value={selectedRequestForAction.description || ""}
+                                    onChange={(e) => setSelectedRequestForAction({ ...selectedRequestForAction, description: e.target.value })}
+                                    rows={3}
+                                    className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 outline-none resize-none bg-slate-50 focus:bg-white transition-all leading-relaxed shadow-sm"
+                                />
                             </div>
 
                             {/* Divider */}
@@ -3637,12 +3680,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                         <Button type="button" variant="outline" onClick={() => setSelectedRequestForAction(null)} className="h-10 text-xs font-bold rounded-xl">Fechar</Button>
                         <Button
                             type="button"
-                            disabled={transitioningRequestState}
-                            onClick={() => handleTransitionRequest(
-                                selectedRequestForAction.id,
-                                selectedRequestForAction.nextStatus || selectedRequestForAction.status,
-                                requestTransitionNotes
-                            )}
+                            disabled={transitioningRequestState || savingRequestDetails}
+                            onClick={handleSaveRequestDetails}
                             className="h-10 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700"
                         >
                             Salvar Alteração

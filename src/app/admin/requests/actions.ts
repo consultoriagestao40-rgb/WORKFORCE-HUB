@@ -79,6 +79,27 @@ export async function updateRequestClient(requestId: string, newClientId: string
     return { success: true };
 }
 
+export async function updateRequestDetails(id: string, data: { description?: string, employeeId?: string | null, dueDate?: string }) {
+    const user = await getCurrentUser();
+    if (!user || user.role === 'SUPERVISOR') throw new Error("Unauthorized");
+
+    const updateData: any = {};
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.employeeId !== undefined) updateData.employeeId = data.employeeId;
+    if (data.dueDate !== undefined) {
+        updateData.dueDate = new Date(data.dueDate);
+    }
+
+    await prisma.request.update({
+        where: { id },
+        data: updateData
+    });
+
+    revalidatePath("/admin/performance");
+    revalidatePath("/admin/requests");
+    return { success: true };
+}
+
 export async function deleteRequest(id: string) {
     const restriction = await getCurrentUserRole();
     if (restriction !== 'ADMIN') throw new Error("Unauthorized");
@@ -1242,6 +1263,11 @@ export async function getConsolidatedPerformanceData(year: number, month: number
             groupNpsScore = ((totalPromoters - totalDetractors) / groupNpsCount) * 100;
         }
 
+        // Carregar colaboradores para atribuição
+        const allEmployees = await prisma.employee.findMany({
+            select: { id: true, name: true }
+        });
+
         return {
             success: true,
             totalContracts,
@@ -1253,6 +1279,7 @@ export async function getConsolidatedPerformanceData(year: number, month: number
             groupNpsScore,
             groupNpsCount,
             clients: clientsWithABCAndVisits,
+            allEmployees,
             allRequests: requests.map((r: any) => {
                 const clientObj = clients.find((c: any) => c.id === r.clientId) || 
                                   clients.find((c: any) => 
@@ -1269,6 +1296,7 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                     description: r.description,
                     createdAt: r.createdAt.toISOString(),
                     dueDate: r.dueDate.toISOString(),
+                    employeeId: r.employeeId || null,
                     employeeName: r.employee?.name || null,
                     requesterName: r.requester?.name || "Cliente",
                     clientId,
