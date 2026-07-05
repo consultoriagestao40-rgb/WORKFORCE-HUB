@@ -2522,8 +2522,8 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <span className="text-[10px] font-black uppercase text-emerald-600 tracking-wider">Efetividade Escala</span>
                                             <p className="text-2xl font-black text-emerald-700 mt-1">
                                                 {kpiModalData.attendances?.length > 0
-                                                    ? (((kpiModalData.attendances.length - absences.filter((a: any) => !a.coveredById).length) / kpiModalData.attendances.length) * 100).toFixed(1)
-                                                    : "100.0"}%
+                                                    ? `${(((kpiModalData.attendances.length - absences.filter((a: any) => !a.coveredById).length) / kpiModalData.attendances.length) * 100).toFixed(1)}%`
+                                                    : "-"}
                                             </p>
                                         </div>
                                     </div>

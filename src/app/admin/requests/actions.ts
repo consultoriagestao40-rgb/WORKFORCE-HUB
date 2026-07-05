@@ -1597,27 +1597,28 @@ export async function getAdminClientKpis(clientId: string, year: number) {
         const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
         const monthlyData = monthNames.map((name: string, index: number) => {
-            const monthAtts = attendances.filter((a: any) => new Date(a.date).getMonth() === index && a.status !== "FOLGA");
+            const isMockPeriod = year === 2026 && index !== 6;
+            const monthAtts = isMockPeriod ? [] : attendances.filter((a: any) => new Date(a.date).getMonth() === index && a.status !== "FOLGA");
             const totalShifts = monthAtts.length;
             const vacantShifts = monthAtts.filter((a: any) => a.status === "FALTA" && !a.coveredById).length;
-            const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : 100;
+            const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : null;
 
             const totalAbsences = monthAtts.filter((a: any) => a.status === "FALTA").length;
-            const absenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : 0;
+            const absenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : null;
 
-            const monthRequests = clientRequests.filter((r: any) => new Date(r.createdAt).getMonth() === index);
+            const monthRequests = isMockPeriod ? [] : clientRequests.filter((r: any) => new Date(r.createdAt).getMonth() === index);
             const resolved = monthRequests.filter((r: any) => r.status === "CONCLUIDO" || r.status === "REJEITADO");
             const totalSlaOnTime = resolved.filter((r: any) => r.updatedAt && r.dueDate && r.updatedAt <= r.dueDate).length;
-            const slaCompliance = resolved.length > 0 ? (totalSlaOnTime / resolved.length) * 100 : 100;
+            const slaCompliance = resolved.length > 0 ? (totalSlaOnTime / resolved.length) * 100 : null;
 
-            const monthNps = mappedNpsResponses.filter((n: any) => new Date(n.createdAt).getMonth() === index);
+            const monthNps = isMockPeriod ? [] : mappedNpsResponses.filter((n: any) => new Date(n.createdAt).getMonth() === index);
             const promoters = monthNps.filter((n: any) => n.resolvedScore >= 9).length;
             const detractors = monthNps.filter((n: any) => n.resolvedScore <= 6).length;
-            const npsScore = monthNps.length > 0 ? ((promoters - detractors) / monthNps.length) * 100 : 100;
+            const npsScore = monthNps.length > 0 ? ((promoters - detractors) / monthNps.length) * 100 : null;
 
             const avgNpsRating = monthNps.length > 0
                 ? monthNps.reduce((sum: number, n: any) => sum + n.resolvedScore, 0) / monthNps.length
-                : 10;
+                : null;
 
             let slaScoreSum = 0;
             let slaWeightSum = 0;
@@ -1626,13 +1627,13 @@ export async function getAdminClientKpis(clientId: string, year: number) {
 
             if (clientConfigs.length > 0) {
                 clientConfigs.forEach((config: any) => {
-                    let metricValue = 100;
+                    let metricValue: number | null = null;
                     if (config.metricType === "EFETIVIDADE") {
                         metricValue = effectiveness;
                     } else if (config.metricType === "SLA_CHAMADOS") {
                         metricValue = slaCompliance;
                     } else if (config.metricType === "NPS") {
-                        metricValue = avgNpsRating * 10;
+                        metricValue = avgNpsRating !== null ? avgNpsRating * 10 : null;
                     } else if (config.metricType === "RECLAMACOES") {
                         const complaintsCount = monthRequests.filter((r: any) => r.type !== "MOVIMENTACAO" && r.type !== "UNIFORME").length;
                         metricValue = Math.max(0, 100 - complaintsCount * 20);
@@ -1640,15 +1641,30 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                         const foundManual = config.monthlyValues.find((v: any) => v.month === index && v.year === year);
                         metricValue = foundManual ? foundManual.value : config.targetValue;
                     }
-                    slaScoreSum += metricValue * config.weight;
-                    slaWeightSum += config.weight;
+
+                    if (metricValue !== null && metricValue !== undefined) {
+                        slaScoreSum += metricValue * config.weight;
+                        slaWeightSum += config.weight;
+                    }
                 });
             } else {
-                slaScoreSum += effectiveness * 0.5 * 100 + slaCompliance * 0.25 * 100 + (avgNpsRating * 10) * 0.25 * 100;
-                slaWeightSum += 100;
+                let weightSum = 0;
+                if (effectiveness !== null) {
+                    slaScoreSum += effectiveness * 0.5 * 100;
+                    weightSum += 50;
+                }
+                if (slaCompliance !== null) {
+                    slaScoreSum += slaCompliance * 0.25 * 100;
+                    weightSum += 25;
+                }
+                if (avgNpsRating !== null) {
+                    slaScoreSum += (avgNpsRating * 10) * 0.25 * 100;
+                    weightSum += 25;
+                }
+                slaWeightSum = weightSum;
             }
 
-            const contractScore = slaWeightSum > 0 ? (slaScoreSum / slaWeightSum) / 10 : 10;
+            const contractScore = slaWeightSum > 0 ? (slaScoreSum / slaWeightSum) / 10 : null;
 
             const monthSubstitutions = assignments.filter((a: any) => a.endDate && new Date(a.endDate).getUTCMonth() === index).length;
             const activeStaff = totalPostosCount > 0 ? totalPostosCount : 5;
