@@ -3335,41 +3335,70 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             </Card>
                                         </div>
 
-                                        {/* NPS Evolution */}
+                                        {/* Tabela de KPIs Comparativa Mensal */}
                                         <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
                                             <CardHeader>
-                                                <CardTitle className="text-sm font-black uppercase text-slate-850">Evolução NPS por Item Avaliado</CardTitle>
+                                                <CardTitle className="text-sm font-black uppercase text-slate-850">Indicadores Operacionais de Performance (KPIs)</CardTitle>
+                                                <CardDescription>Notas e percentuais consolidados dos principais indicadores operacionais do contrato, mês a mês.</CardDescription>
                                             </CardHeader>
-                                            <CardContent className="p-0 border-t border-slate-100">
-                                                {clientKpiData.npsEvolution && clientKpiData.npsEvolution.length > 0 ? (
-                                                    <Table>
-                                                        <TableHeader className="bg-slate-50">
-                                                            <TableRow>
-                                                                <TableHead className="font-bold text-slate-800 text-xs pl-6 py-3">Quesito / Pergunta</TableHead>
-                                                                {monthShortNames.map((m, i) => (
-                                                                    <TableHead key={i} className="font-bold text-slate-800 text-xs text-center py-3">{m}</TableHead>
-                                                                ))}
-                                                            </TableRow>
-                                                        </TableHeader>
-                                                        <TableBody>
-                                                            {clientKpiData.npsEvolution.map((item: any) => (
-                                                                <TableRow key={item.id} className="hover:bg-slate-50/50">
-                                                                    <TableCell className="text-xs font-bold text-slate-700 pl-6 py-3 max-w-[280px] truncate" title={item.text}>{item.text}</TableCell>
-                                                                    {item.monthlyScores.map((score: number | null, sIdx: number) => (
-                                                                        <TableCell key={sIdx} className="text-xs text-center py-3">
-                                                                            {score !== null ? (
-                                                                                <span className={`px-2 py-0.5 rounded font-black text-[11px] ${
-                                                                                    score >= 9 ? "bg-emerald-50 text-emerald-600" :
-                                                                                    score >= 7 ? "bg-amber-50 text-amber-600" : "bg-red-50 text-red-600"
-                                                                                }`}>{score.toFixed(1)}</span>
-                                                                            ) : <span className="text-slate-300">-</span>}
-                                                                        </TableCell>
-                                                                    ))}
+                                            <CardContent className="p-0 border-t border-slate-100 overflow-x-auto">
+                                                <Table className="min-w-[850px]">
+                                                    <TableHeader className="bg-slate-50">
+                                                        <TableRow>
+                                                            <TableHead className="font-bold text-slate-800 text-xs pl-6 py-3">Mês</TableHead>
+                                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Eficiência Operacional (Escala)</TableHead>
+                                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3">NPS (Satisfação)</TableHead>
+                                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Rotatividade (Turnover)</TableHead>
+                                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Chamados no Prazo (SLA)</TableHead>
+                                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Índice Reclamações</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {(clientKpiData.monthlyData || []).map((m: any) => {
+                                                            const mIndex = m.monthIndex;
+                                                            // Calcular reclamações e rotatividade com base nos chamados reais do mês
+                                                            const monthRequests = (detailedData?.requests || []).filter((r: any) => new Date(r.createdAt).getMonth() === mIndex);
+                                                            const complaints = monthRequests.filter((r: any) => r.category === "RECLAMACOES" || r.type === "RECLAMACOES" || r.description?.toLowerCase().includes("reclam") || r.description?.toLowerCase().includes("queixa"));
+                                                            const complaintsRate = monthRequests.length > 0 ? (complaints.length / monthRequests.length) * 100 : 0;
+
+                                                            const turnoverRequests = monthRequests.filter((r: any) => r.category === "MOVIMENTACAO" || r.type === "MOVIMENTACAO" || r.description?.toLowerCase().includes("troca") || r.description?.toLowerCase().includes("substitu"));
+                                                            const turnoverRate = monthRequests.length > 0 ? Math.min(10, turnoverRequests.length * 2.5) : 0;
+
+                                                            // Só exibir se o mês tiver algum dado
+                                                            const hasData = m.effectiveness > 0 || monthRequests.length > 0 || m.npsCount > 0;
+
+                                                            if (!hasData) {
+                                                                return (
+                                                                    <TableRow key={m.monthIndex} className="hover:bg-slate-50/30 transition-colors">
+                                                                        <TableCell className="font-bold text-xs text-slate-900 pl-6 py-3">{m.name}</TableCell>
+                                                                        <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
+                                                                        <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
+                                                                        <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
+                                                                        <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
+                                                                        <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
+                                                                    </TableRow>
+                                                                );
+                                                            }
+
+                                                            return (
+                                                                <TableRow key={m.monthIndex} className="hover:bg-slate-50/50 transition-colors">
+                                                                    <TableCell className="font-bold text-xs text-slate-900 pl-6 py-3">{m.name}</TableCell>
+                                                                    <TableCell className="text-center font-bold text-xs text-emerald-600 py-3">{m.effectiveness.toFixed(1)}%</TableCell>
+                                                                    <TableCell className="text-center font-bold text-xs text-blue-650 py-3">
+                                                                        {m.npsCount > 0 ? `${(m.avgNpsRating * 10).toFixed(1).replace('.', ',')}%` : "-"}
+                                                                    </TableCell>
+                                                                    <TableCell className="text-center font-bold text-xs text-slate-700 py-3">
+                                                                        {turnoverRate > 0 ? `${turnoverRate.toFixed(1).replace('.', ',')}%` : "0,0%"}
+                                                                    </TableCell>
+                                                                    <TableCell className="text-center font-bold text-xs text-blue-600 py-3">{m.slaCompliance.toFixed(1)}%</TableCell>
+                                                                    <TableCell className="text-center font-bold text-xs text-red-500 py-3">
+                                                                        {complaintsRate > 0 ? `${complaintsRate.toFixed(1).replace('.', ',')}%` : "0,0%"}
+                                                                    </TableCell>
                                                                 </TableRow>
-                                                            ))}
-                                                        </TableBody>
-                                                    </Table>
-                                                ) : <div className="text-center py-8 text-slate-400 italic text-xs">Sem evolução histórica.</div>}
+                                                            );
+                                                        })}
+                                                    </TableBody>
+                                                </Table>
                                             </CardContent>
                                         </Card>
                                     </div>
