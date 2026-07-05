@@ -948,7 +948,10 @@ export async function getConsolidatedPerformanceData(year: number, month: number
         const clientData = clients.map(client => {
             const billing = client.postos.reduce((sum: number, p: any) => sum + (p.billingValue || 0), 0);
             const totalSlots = client.postos.length;
-            const vacantSlots = client.postos.filter((p: any) => p.assignments.length === 0).length;
+            const vacantSlots = client.postos.filter((p: any) => {
+                const hasActiveAssignment = p.assignments.some((a: any) => !a.endDate || new Date(a.endDate) > new Date());
+                return !hasActiveAssignment;
+            }).length;
             const filledSlots = totalSlots - vacantSlots;
 
             // Filter attendances for this client
