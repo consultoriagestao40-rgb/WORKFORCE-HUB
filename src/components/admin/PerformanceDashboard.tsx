@@ -3541,28 +3541,27 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 )
             ) : (
                 detailedData && (() => {
-                    const currentMonthData = detailedData?.monthlyData?.find((m: any) => m.monthIndex === selectedMonth);
-                    
-                    // Lógica local para obter o valor real de cada KPI
-                    const getSlaMetricRealVal = (item: any) => {
+                    // Lógica local para obter o valor real de cada KPI em um mês arbitrário
+                    const getSlaMetricRealValForMonth = (item: any, monthIdx: number) => {
                         if (item.metricType === "MANUAL") {
-                            const found = item.monthlyValues?.find((v: any) => v.month === selectedMonth && v.year === selectedYear);
+                            const found = item.monthlyValues?.find((v: any) => v.month === monthIdx && v.year === selectedYear);
                             return found ? found.value : null;
                         }
-                        if (!currentMonthData) return null;
+                        const mData = detailedData.monthlyData?.find((m: any) => m.monthIndex === monthIdx);
+                        if (!mData) return null;
                         if (item.metricType === "EFETIVIDADE") {
-                            return currentMonthData.effectiveness;
+                            return mData.effectiveness;
                         }
                         if (item.metricType === "SLA_CHAMADOS") {
-                            return currentMonthData.slaCompliance;
+                            return mData.slaCompliance;
                         }
                         if (item.metricType === "NPS") {
-                            return currentMonthData.avgNpsRating !== null && currentMonthData.avgNpsRating !== undefined
-                                ? currentMonthData.avgNpsRating * 10 
+                            return mData.avgNpsRating !== null && mData.avgNpsRating !== undefined
+                                ? mData.avgNpsRating * 10 
                                 : null;
                         }
                         if (item.metricType === "RECLAMACOES") {
-                            return currentMonthData.complaintsRate;
+                            return mData.complaintsRate;
                         }
                         return null;
                     };
@@ -3582,22 +3581,38 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                         return 0;
                     };
 
-                    // Calcular nota final ponderada do SLA do mês
-                    let totalWeight = 0;
-                    let weightedScoreSum = 0;
-
-                    detailedData.slaConfigItems.forEach((item: any) => {
-                        let val = getSlaMetricRealVal(item);
-                        if (val !== null) {
-                            const postFaixaVal = calculateFrontAtingimento(val, item.ranges || []);
-                            if (postFaixaVal !== null) {
-                                weightedScoreSum += postFaixaVal * item.weight;
-                                totalWeight += item.weight;
+                    // Calcular nota ponderada de um mês específico
+                    const getMonthFinalSlaScore = (monthIdx: number) => {
+                        let totalWeight = 0;
+                        let weightedScoreSum = 0;
+                        
+                        detailedData.slaConfigItems.forEach((item: any) => {
+                            const val = getSlaMetricRealValForMonth(item, monthIdx);
+                            if (val !== null) {
+                                const postFaixaVal = calculateFrontAtingimento(val, item.ranges || []);
+                                if (postFaixaVal !== null) {
+                                    weightedScoreSum += postFaixaVal * item.weight;
+                                    totalWeight += item.weight;
+                                }
                             }
+                        });
+                        return totalWeight > 0 ? (weightedScoreSum / totalWeight) : null;
+                    };
+
+                    // Calcular a média anual consolidada do SLA do contrato (média dos meses válidos)
+                    let validMonthsCount = 0;
+                    let annualSlaSum = 0;
+                    let totalWeight = detailedData.slaConfigItems.reduce((sum: number, item: any) => sum + item.weight, 0);
+
+                    detailedData.monthlyData?.forEach((m: any) => {
+                        const mScore = getMonthFinalSlaScore(m.monthIndex);
+                        if (mScore !== null) {
+                            annualSlaSum += mScore;
+                            validMonthsCount++;
                         }
                     });
 
-                    const finalSlaScore = totalWeight > 0 ? (weightedScoreSum / totalWeight) : null;
+                    const annualSlaScore = validMonthsCount > 0 ? (annualSlaSum / validMonthsCount) : null;
 
                     return (
                         <div className="space-y-6">
@@ -3632,9 +3647,9 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     {/* Cards de Resumo de Topo */}
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <Card className="border border-slate-200/50 shadow-premium bg-white p-5 rounded-2xl flex flex-col justify-between">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nota SLA Geral do Contrato</span>
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Média SLA Anual do Contrato</span>
                                             <span className="text-2xl font-black mt-2 text-blue-600">
-                                                {finalSlaScore !== null ? `${finalSlaScore.toFixed(1)}%` : "-"}
+                                                {annualSlaScore !== null ? `${annualSlaScore.toFixed(1)}%` : "-"}
                                             </span>
                                         </Card>
                                         <Card className="border border-slate-200/50 shadow-premium bg-white p-5 rounded-2xl flex flex-col justify-between">
@@ -3644,75 +3659,79 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             </span>
                                         </Card>
                                         <Card className="border border-slate-200/50 shadow-premium bg-white p-5 rounded-2xl flex flex-col justify-between">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Status de Conformidade</span>
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Status Geral do SLA</span>
                                             <span className={`text-sm font-black mt-2 rounded px-2.5 py-1 w-fit ${
-                                                finalSlaScore !== null && finalSlaScore >= 90
+                                                annualSlaScore !== null && annualSlaScore >= 90
                                                     ? "bg-emerald-50 text-emerald-600"
-                                                    : finalSlaScore !== null
+                                                    : annualSlaScore !== null
                                                     ? "bg-red-50 text-red-600"
                                                     : "bg-slate-100 text-slate-400"
                                             }`}>
-                                                {finalSlaScore !== null && finalSlaScore >= 90 ? "Conforme" : finalSlaScore !== null ? "Inconforme" : "Pendente"}
+                                                {annualSlaScore !== null && annualSlaScore >= 90 ? "Conforme" : annualSlaScore !== null ? "Inconforme" : "Pendente"}
                                             </span>
                                         </Card>
                                     </div>
 
-                                    {/* Tabela de Resultados Mensais */}
+                                    {/* Tabela de Resultados Mensais da Composição */}
                                     <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
                                         <CardHeader>
-                                            <CardTitle className="text-sm font-black uppercase text-slate-850">Detalhamento de Conformidade do Mês</CardTitle>
+                                            <CardTitle className="text-sm font-black uppercase text-slate-855">Acompanhamento e Evolução do SLA (Mês a Mês)</CardTitle>
                                         </CardHeader>
                                         <CardContent className="p-0 border-t border-slate-100">
                                             <Table>
                                                 <TableHeader className="bg-slate-50">
                                                     <TableRow>
-                                                        <TableHead className="font-bold text-slate-800 text-xs pl-6 py-3">Indicador</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-xs py-3">Métrica Base</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Meta (%)</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Valor Real</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Atingimento (Pós-Faixas)</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Peso</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-xs text-right pr-6 py-3">Nota Ponderada</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-xs pl-6 py-3">Mês</TableHead>
+                                                        {detailedData.slaConfigItems.map((item: any) => (
+                                                            <TableHead key={item.id} className="font-bold text-slate-800 text-xs text-center py-3">
+                                                                {item.name} <span className="text-[10px] text-slate-400 font-medium">(Meta {item.targetValue}% / Peso {item.weight})</span>
+                                                            </TableHead>
+                                                        ))}
+                                                        <TableHead className="font-bold text-slate-800 text-xs text-right pr-6 py-3">Nota Final SLA</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    {detailedData.slaConfigItems.length > 0 ? (
-                                                        detailedData.slaConfigItems.map((item: any) => {
-                                                            const realVal = getSlaMetricRealVal(item);
-                                                            const postFaixaVal = calculateFrontAtingimento(realVal, item.ranges || []);
-                                                            const weightedVal = (postFaixaVal !== null && finalSlaScore !== null) 
-                                                                ? (postFaixaVal * item.weight) / totalWeight 
-                                                                : null;
+                                                    {detailedData.monthlyData?.map((m: any) => {
+                                                        const monthScore = getMonthFinalSlaScore(m.monthIndex);
+                                                        
+                                                        // Verificar se há dados nesse mês
+                                                        const hasSlaData = detailedData.slaConfigItems.some((item: any) => {
+                                                            return getSlaMetricRealValForMonth(item, m.monthIndex) !== null;
+                                                        });
 
-                                                            return (
-                                                                <TableRow key={item.id} className="hover:bg-slate-50/50">
-                                                                    <TableCell className="text-xs font-bold text-slate-700 pl-6 py-3">{item.name}</TableCell>
-                                                                    <TableCell className="text-xs text-slate-505 py-3">
-                                                                        {item.metricType === "MANUAL" ? "Lançamento Manual" : 
-                                                                         item.metricType === "EFETIVIDADE" ? "Efetividade Escala" :
-                                                                         item.metricType === "SLA_CHAMADOS" ? "Chamados no Prazo" : "Nota NPS"}
-                                                                    </TableCell>
-                                                                    <TableCell className="text-center text-xs font-bold py-3">{item.targetValue}%</TableCell>
-                                                                    <TableCell className="text-center text-xs font-semibold py-3 text-slate-600">
-                                                                        {realVal !== null ? `${realVal.toFixed(1)}%` : "-"}
-                                                                    </TableCell>
-                                                                    <TableCell className="text-center text-xs font-black py-3 text-blue-650">
-                                                                        {postFaixaVal !== null ? `${postFaixaVal.toFixed(1)}%` : "-"}
-                                                                    </TableCell>
-                                                                    <TableCell className="text-center text-xs font-bold py-3">{item.weight}</TableCell>
-                                                                    <TableCell className="text-right pr-6 py-3 text-xs font-black text-slate-800">
-                                                                        {weightedVal !== null ? `${(weightedVal).toFixed(1)}%` : "-"}
-                                                                    </TableCell>
-                                                                </TableRow>
-                                                            );
-                                                        })
-                                                    ) : (
-                                                        <TableRow>
-                                                            <TableCell colSpan={7} className="text-center py-6 text-xs text-slate-400 font-semibold italic">
-                                                                Nenhum indicador parametrizado para o SLA. Vá para a aba "Parametrização" para cadastrar.
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    )}
+                                                        return (
+                                                            <TableRow key={m.monthIndex} className="hover:bg-slate-50/50">
+                                                                <TableCell className="text-xs font-bold text-slate-700 pl-6 py-3">{m.name}</TableCell>
+                                                                {detailedData.slaConfigItems.map((item: any) => {
+                                                                    const realVal = getSlaMetricRealValForMonth(item, m.monthIndex);
+                                                                    const postFaixaVal = calculateFrontAtingimento(realVal, item.ranges || []);
+                                                                    return (
+                                                                        <TableCell key={item.id} className="text-center text-xs py-3">
+                                                                            {realVal !== null ? (
+                                                                                <div className="flex flex-col items-center">
+                                                                                    <span className="font-semibold text-slate-600">Real: {realVal.toFixed(1)}%</span>
+                                                                                    <span className="text-[10px] font-black text-blue-650">Nota: {postFaixaVal !== null ? `${postFaixaVal.toFixed(1)}%` : "-"}</span>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span className="text-slate-400">-</span>
+                                                                            )}
+                                                                        </TableCell>
+                                                                    );
+                                                                })}
+                                                                <TableCell className="text-right pr-6 py-3 text-xs font-black text-slate-800">
+                                                                    {hasSlaData && monthScore !== null ? (
+                                                                        <span className={`px-2 py-0.5 rounded ${
+                                                                            monthScore >= 90 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+                                                                        }`}>
+                                                                            {monthScore.toFixed(1)}%
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-slate-400">-</span>
+                                                                    )}
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        );
+                                                    })}
                                                 </TableBody>
                                             </Table>
                                         </CardContent>
@@ -3798,8 +3817,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                     );
                 })()
             )}
-                        </div>
-                    )}
+        </div>
+    )}
 
                     {/* TAB 8: PLANO DE SERVIÇOS */}
                     {activeTab === "service_plan" && (
