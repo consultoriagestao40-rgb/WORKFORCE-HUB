@@ -940,16 +940,6 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                         </button>
                     </div>
                     <button
-                        onClick={() => setSelectedClientId("all")}
-                        className={`w-full flex items-center rounded-xl text-xs font-bold uppercase tracking-wider text-slate-350 hover:bg-slate-800 hover:text-white transition-all ${
-                            sidebarCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
-                        }`}
-                        title={sidebarCollapsed ? "Voltar ao Consolidado" : undefined}
-                    >
-                        <ChevronLeft className="w-5 h-5 shrink-0" />
-                        {!sidebarCollapsed && <span>Voltar ao Consolidado</span>}
-                    </button>
-                    <button
                         onClick={() => window.location.href = "/admin/requests"}
                         className={`w-full flex items-center rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:bg-red-550/10 transition-all ${
                             sidebarCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
@@ -965,10 +955,19 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col overflow-hidden">
                 {/* Top Header - Idêntica ao portal do cliente (sem seletores no cabeçalho) */}
-                <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 md:px-8 shrink-0 text-white shadow-md">
-                    <h2 className="text-sm md:text-base font-black tracking-widest text-slate-100 uppercase">
-                        {initialClients.find(c => c.id === selectedClientId)?.name || "CONTRATO / CLIENTE"}
-                    </h2>
+                <header className="h-20 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 md:px-8 shrink-0 text-white shadow-md">
+                    <div className="flex flex-col gap-1">
+                        <h2 className="text-sm md:text-base font-black tracking-widest text-slate-100 uppercase leading-tight">
+                            {initialClients.find(c => c.id === selectedClientId)?.name || "CONTRATO / CLIENTE"}
+                        </h2>
+                        <button
+                            onClick={() => setSelectedClientId("all")}
+                            className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-colors self-start"
+                        >
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                            <span>Voltar ao Consolidado</span>
+                        </button>
+                    </div>
 
                     <div className="flex items-center gap-4">
                         <div className="text-right hidden sm:block">
