@@ -939,16 +939,6 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             )}
                         </button>
                     </div>
-                    <button
-                        onClick={() => window.location.href = "/admin/requests"}
-                        className={`w-full flex items-center rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:bg-red-550/10 transition-all ${
-                            sidebarCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
-                        }`}
-                        title={sidebarCollapsed ? "Voltar ao Admin" : undefined}
-                    >
-                        <LogOut className="w-5 h-5 shrink-0" />
-                        {!sidebarCollapsed && <span>Voltar ao Admin</span>}
-                    </button>
                 </div>
             </aside>
 
