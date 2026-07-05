@@ -2330,7 +2330,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                     onClick={() => handleKpiCellClick(mIndex, m.name, 'effectiveness', m.effectiveness)}
                                                                     className="text-center font-bold text-xs text-emerald-600 py-3 cursor-pointer hover:bg-emerald-50 hover:scale-[1.03] transition-all select-none"
                                                                 >
-                                                                    {m.effectiveness.toFixed(1)}%
+                                                                    {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(1)}%` : "-"}
                                                                 </TableCell>
                                                                 <TableCell 
                                                                     onClick={() => handleKpiCellClick(mIndex, m.name, 'nps', m.npsCount > 0 ? m.avgNpsRating * 10 : undefined)}
