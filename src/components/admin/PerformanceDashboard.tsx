@@ -4381,7 +4381,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
             {/* Modal de Detalhamento de KPIs Operacionais (Auditoria Mensal) */}
             <Dialog open={kpiModalConfig !== null} onOpenChange={(open) => { if (!open) setKpiModalConfig(null); }}>
-                <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[85vh] overflow-y-auto overflow-x-hidden rounded-3xl p-6 bg-white border border-slate-100 shadow-premium">
+                <DialogContent className="w-[95vw] sm:max-w-4xl h-[85vh] max-h-[85vh] flex flex-col rounded-3xl p-6 bg-white border border-slate-100 shadow-premium overflow-hidden">
                     <DialogHeader className="pb-4 border-b border-slate-100 flex flex-row items-center justify-between">
                         <div>
                             <DialogTitle className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
@@ -4405,7 +4405,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             <span className="text-xs font-black uppercase text-slate-400 tracking-wider">Carregando dados operacionais...</span>
                         </div>
                     ) : kpiModalData ? (
-                        <div className="py-4 space-y-4">
+                        <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
                             {/* KPI: EFICIÊNCIA OPERACIONAL (ESCALA) */}
                             {kpiModalConfig?.kpiType === 'effectiveness' && (() => {
                                 const absences = (kpiModalData.attendances || []).filter((a: any) => a.status === 'FALTA');
@@ -4453,7 +4453,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                             <TableRow key={a.id} className="hover:bg-slate-55/30 transition-colors">
                                                                 <TableCell className="font-bold text-xs text-slate-800 pl-4">{new Date(a.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</TableCell>
                                                                 <TableCell className="font-bold text-xs text-slate-700">{a.posto?.name || "Posto"} ({a.posto?.role?.name || "Posto"})</TableCell>
-                                                                <TableCell className="font-bold text-xs text-slate-900">{a.employee?.name || "Funcionário"}</TableCell>
+                                                                <TableCell className="font-bold text-xs text-slate-900 max-w-[160px] break-words">{a.employee?.name || "Funcionário"}</TableCell>
                                                                 <TableCell className="py-2">
                                                                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-red-100 text-red-700">Falta</span>
                                                                 </TableCell>
@@ -4685,9 +4685,9 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                         <TableRow key={r.id} className="hover:bg-slate-55/30 transition-colors">
                                                             <TableCell className="font-bold text-xs text-slate-800 pl-4">{r.posto?.name || "Posto"}</TableCell>
                                                             <TableCell className="font-bold text-xs text-slate-600">{r.posto?.role?.name || "-"}</TableCell>
-                                                            <TableCell className="font-bold text-xs text-slate-900">{r.exitedEmployee?.name || "-"}</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-900 max-w-[160px] break-words">{r.exitedEmployee?.name || "-"}</TableCell>
                                                             <TableCell className="font-bold text-xs text-slate-550">{new Date(r.exitDate).toLocaleDateString('pt-BR')}</TableCell>
-                                                            <TableCell className="font-bold text-xs text-slate-900">{r.enteredEmployee?.name || "-"}</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-900 max-w-[160px] break-words">{r.enteredEmployee?.name || "-"}</TableCell>
                                                             <TableCell className="font-bold text-xs text-slate-800">{new Date(r.entryDate).toLocaleDateString('pt-BR')}</TableCell>
                                                             <TableCell className="font-bold text-xs text-blue-650">{r.diffDays} dias</TableCell>
                                                         </TableRow>
