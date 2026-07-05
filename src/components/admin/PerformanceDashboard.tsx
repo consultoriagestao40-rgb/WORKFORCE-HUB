@@ -2910,16 +2910,27 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     <p className="text-xs text-slate-500 font-medium">Controle de pesquisas e feedbacks quantitativos e qualitativos.</p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-3">
-                                    <select
-                                        value={selectedClientId}
-                                        onChange={(e) => setSelectedClientId(e.target.value)}
-                                        className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
-                                    >
-                                        <option value="all">Todos os Contratos</option>
-                                        {initialClients.map(c => (
-                                            <option key={c.id} value={c.id}>{c.name}</option>
-                                        ))}
-                                    </select>
+                                    {selectedClientId === "all" ? (
+                                        <select
+                                            value={selectedClientId}
+                                            onChange={(e) => setSelectedClientId(e.target.value)}
+                                            className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
+                                        >
+                                            <option value="all">Todos os Contratos</option>
+                                            {initialClients.map(c => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <div className="bg-slate-50 border border-slate-200/60 rounded-xl px-4 py-1.5 flex flex-col items-center justify-center shrink-0 shadow-sm">
+                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Média Geral Acumulada (Ano)</span>
+                                            <span className="text-sm font-black text-blue-650 mt-0.5">
+                                                {clientKpiData?.summary?.avgNpsRating 
+                                                    ? `${(clientKpiData.summary.avgNpsRating * 10).toFixed(1).replace('.', ',')}%` 
+                                                    : "100,0%"}
+                                            </span>
+                                        </div>
+                                    )}
                                     <Button variant="ghost" size="icon" onClick={loadPerformanceData} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
                                         <RefreshCw className="w-4 h-4 text-slate-500" />
                                     </Button>
@@ -2986,31 +2997,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
                                         {npsSubTab === "results" ? (
                                             <div className="space-y-6">
-                                                {/* Card de Média Acumulada no Topo */}
-                                                {(() => {
-                                                    let totalScoreSum = 0;
-                                                    let totalResponsesCount = detailedData?.npsResponses?.length || 0;
-                                                    (detailedData?.npsResponses || []).forEach((r: any) => {
-                                                        let sumS = 0; let sumW = 0;
-                                                        r.answers.forEach((an: any) => {
-                                                            const w = an.question?.weight || 1.0;
-                                                            sumS += an.score * w; sumW += w;
-                                                        });
-                                                        const finalNpsVal = sumW > 0 ? sumS / sumW : 10;
-                                                        totalScoreSum += finalNpsVal;
-                                                    });
-                                                    const overallAverage = totalResponsesCount > 0 ? totalScoreSum / totalResponsesCount : 10;
 
-                                                    return (
-                                                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                                                            <div className="border border-slate-200/60 bg-white p-4 rounded-2xl flex flex-col items-center justify-center text-center shadow-premium">
-                                                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Média Acumulada Geral</span>
-                                                                <span className="text-3xl font-black text-blue-650 mt-1">{overallAverage.toFixed(2)}/10</span>
-                                                                <span className="text-[10px] text-slate-400 mt-0.5">Baseado em {totalResponsesCount} avaliações deste mês</span>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })()}
 
                                                 {/* Tabela de Notas Evolutivas nos 12 meses */}
                                                 <Card className="border border-slate-200/50 shadow-premium bg-white rounded-2xl overflow-hidden">
