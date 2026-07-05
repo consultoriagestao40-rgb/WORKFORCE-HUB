@@ -1903,6 +1903,12 @@ export async function getClientDetailedData(clientId: string, year: number, mont
                             }
                         }
                     }
+                },
+                comments: {
+                    include: {
+                        user: { select: { name: true, role: true } }
+                    },
+                    orderBy: { createdAt: 'asc' }
                 }
             },
             orderBy: { createdAt: "desc" }
@@ -1931,7 +1937,10 @@ export async function getClientDetailedData(clientId: string, year: number, mont
                 createdAt: r.createdAt.toISOString(),
                 dueDate: r.dueDate.toISOString(),
                 employeeName: r.employee?.name || null,
-                requesterName: r.requester?.name || "Cliente"
+                employeeId: r.employeeId || null,
+                requesterName: r.requester?.name || "Cliente",
+                resolutionNotes: r.resolutionNotes || null,
+                comments: r.comments || []
             }))
         };
 
