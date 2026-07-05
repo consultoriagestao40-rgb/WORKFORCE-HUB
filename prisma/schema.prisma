@@ -73,6 +73,7 @@ model Client {
   npsResponses        NpsResponse[]
   npsQuestions        NpsQuestion[]
   slaConfigItems      SlaConfigItem[]
+  visits              ContractVisit[]
 
   @@index([companyId])
 }
@@ -561,4 +562,17 @@ model WorkRoutine {
   posto     Posto    @relation(fields: [postoId], references: [id], onDelete: Cascade)
 
   @@index([postoId])
+}
+
+model ContractVisit {
+  id          String   @id @default(uuid())
+  clientId    String
+  visitorRole String
+  visitorName String
+  visitDate   DateTime
+  notes       String?
+  createdAt   DateTime @default(now())
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
 }

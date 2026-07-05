@@ -871,3 +871,576 @@ export async function submitClientNpsAnswers(
     }
 }
 
+export async function getConsolidatedPerformanceData(year: number, month: number) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR')) {
+            throw new Error("Unauthorized");
+        }
+
+        const startOfMonth = new Date(year, month, 1);
+        const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59);
+
+        // Fetch all clients
+        const clients = await prisma.client.findMany({
+            include: {
+                company: true,
+                postos: {
+                    include: {
+                        assignments: true
+                    }
+                },
+                visits: {
+                    orderBy: { visitDate: "desc" }
+                },
+                npsResponses: {
+                    where: {
+                        createdAt: {
+                            gte: startOfMonth,
+                            lte: endOfMonth
+                        }
+                    },
+                    include: {
+                        answers: {
+                            include: {
+                                question: true
+                            }
+                        }
+                    }
+                },
+                slaConfigItems: {
+                    include: {
+                        monthlyValues: {
+                            where: {
+                                year,
+                                month
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Fetch attendances for that month
+        const attendances = await prisma.attendance.findMany({
+            where: {
+                date: {
+                    gte: startOfMonth,
+                    lte: endOfMonth
+                }
+            },
+            include: {
+                posto: true
+            }
+        });
+
+        // Fetch requests for that month
+        const requests = await prisma.request.findMany({
+            where: {
+                createdAt: {
+                    gte: startOfMonth,
+                    lte: endOfMonth
+                }
+            }
+        });
+
+        // 1. Calculate faturamento and postos/vagas for each client
+        const clientData = clients.map(client => {
+            const billing = client.postos.reduce((sum: number, p: any) => sum + (p.billingValue || 0), 0);
+            const totalSlots = client.postos.length;
+            const vacantSlots = client.postos.filter((p: any) => p.assignments.length === 0).length;
+            const filledSlots = totalSlots - vacantSlots;
+
+            // Filter attendances for this client
+            const clientAtts = attendances.filter((a: any) => a.posto?.clientId === client.id && a.status !== "FOLGA");
+            const totalShifts = clientAtts.length;
+            const vacantShifts = clientAtts.filter((a: any) => a.status === "FALTA" && !a.coveredById && !a.coverageType).length;
+            const clientEffectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : 100;
+
+            // Filter requests for this client
+            const clientReqs = requests.filter((r: any) => r.clientId === client.id);
+            const resolved = clientReqs.filter((r: any) => r.status === "CONCLUIDO" || r.status === "REJEITADO");
+            const totalSlaOnTime = resolved.filter((r: any) => r.updatedAt && r.dueDate && r.updatedAt <= r.dueDate).length;
+            const clientSlaCompliance = resolved.length > 0 ? (totalSlaOnTime / resolved.length) * 100 : 100;
+
+            // Calculate NPS for this client in the month
+            const clientMonthNps = client.npsResponses;
+            let avgNpsRating = 10;
+            if (clientMonthNps.length > 0) {
+                const resolvedScores = clientMonthNps.map((resp: any) => {
+                    let totalScore = 0;
+                    let totalWeight = 0;
+                    resp.answers.forEach((ans: any) => {
+                        const w = ans.question?.weight || 1.0;
+                        totalScore += ans.score * w;
+                        totalWeight += w;
+                    });
+                    return totalWeight > 0 ? totalScore / totalWeight : 10;
+                });
+                avgNpsRating = resolvedScores.reduce((sum: number, s: number) => sum + s, 0) / resolvedScores.length;
+            }
+
+            // Calculate monthly SLA score
+            let slaScoreSum = 0;
+            let slaWeightSum = 0;
+            if (client.slaConfigItems.length > 0) {
+                client.slaConfigItems.forEach((config: any) => {
+                    let val = 100;
+                    if (config.metricType === "EFETIVIDADE") {
+                        val = clientEffectiveness;
+                    } else if (config.metricType === "SLA_CHAMADOS") {
+                        val = clientSlaCompliance;
+                    } else if (config.metricType === "NPS") {
+                        val = avgNpsRating * 10;
+                    } else if (config.metricType === "RECLAMACOES") {
+                        const complaints = clientReqs.filter((r: any) => r.type !== "MOVIMENTACAO" && r.type !== "UNIFORME").length;
+                        val = Math.max(0, 100 - complaints * 20);
+                    } else if (config.metricType === "MANUAL") {
+                        const found = config.monthlyValues[0];
+                        val = found ? found.value : config.targetValue;
+                    }
+                    slaScoreSum += val * config.weight;
+                    slaWeightSum += config.weight;
+                });
+            } else {
+                slaScoreSum += clientEffectiveness * 0.5 * 100 + clientSlaCompliance * 0.25 * 100 + (avgNpsRating * 10) * 0.25 * 100;
+                slaWeightSum += 100;
+            }
+            const finalSla = slaWeightSum > 0 ? slaScoreSum / slaWeightSum : 100;
+
+            return {
+                id: client.id,
+                name: client.name,
+                companyName: client.company?.name || "Grupo",
+                billing,
+                totalSlots,
+                filledSlots,
+                vacantSlots,
+                effectiveness: clientEffectiveness,
+                slaCompliance: finalSla,
+                npsRating: avgNpsRating,
+                npsCount: clientMonthNps.length,
+                visits: client.visits
+            };
+        });
+
+        // 2. Compute ABC Curve Classification
+        const sortedByBilling = [...clientData].sort((a: any, b: any) => b.billing - a.billing);
+        const totalBilling = sortedByBilling.reduce((sum: number, c: any) => sum + c.billing, 0);
+
+        let cumulative = 0;
+        const abcMap = new Map<string, "A" | "B" | "C" >();
+        sortedByBilling.forEach((c: any) => {
+            cumulative += c.billing;
+            const ratio = totalBilling > 0 ? cumulative / totalBilling : 0;
+            if (ratio <= 0.70 || abcMap.size === 0) {
+                abcMap.set(c.id, "A");
+            } else if (ratio <= 0.90) {
+                abcMap.set(c.id, "B");
+            } else {
+                abcMap.set(c.id, "C");
+            }
+        });
+
+        // 3. Compute Visits Compliance Status for each client
+        const now = new Date();
+        const clientsWithABCAndVisits = clientData.map((c: any) => {
+            const classification = abcMap.get(c.id) || "C";
+            
+            // Get last visits per role
+            const supervisorVisit = c.visits.find((v: any) => v.visitorRole === "SUPERVISOR");
+            const gerenteVisit = c.visits.find((v: any) => v.visitorRole === "GERENTE");
+            const diretorVisit = c.visits.find((v: any) => v.visitorRole === "DIRETOR");
+
+            const getDaysDiff = (date?: Date) => {
+                if (!date) return 9999;
+                const diffMs = now.getTime() - new Date(date).getTime();
+                return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            };
+
+            const supDays = getDaysDiff(supervisorVisit?.visitDate);
+            const gerDays = getDaysDiff(gerenteVisit?.visitDate);
+            const dirDays = getDaysDiff(diretorVisit?.visitDate);
+
+            // Set limits based on classification
+            const limits = {
+                A: { sup: 7, ger: 30, dir: 90 },
+                B: { sup: 15, ger: 45, dir: 120 },
+                C: { sup: 30, ger: 90, dir: 180 }
+            }[classification];
+
+            const getStatus = (days: number, limit: number) => {
+                if (days <= limit) return "OK";
+                if (days <= limit * 1.5) return "WARNING";
+                return "CRITICAL";
+            };
+
+            return {
+                ...c,
+                class: classification,
+                visitCompliance: {
+                    supervisor: {
+                        lastVisit: supervisorVisit ? supervisorVisit.visitDate : null,
+                        days: supDays,
+                        status: getStatus(supDays, limits.sup)
+                      },
+                      gerente: {
+                          lastVisit: gerenteVisit ? gerenteVisit.visitDate : null,
+                          days: gerDays,
+                          status: getStatus(gerDays, limits.ger)
+                      },
+                      diretor: {
+                          lastVisit: diretorVisit ? diretorVisit.visitDate : null,
+                          days: dirDays,
+                          status: getStatus(dirDays, limits.dir)
+                      }
+                }
+            };
+        });
+
+        // 4. Calculate Group Consolidated KPIs
+        const totalContracts = clientsWithABCAndVisits.length;
+        const totalSlotsCombined = clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + c.totalSlots, 0);
+        const vacantSlotsCombined = clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + c.vacantSlots, 0);
+        const activeHeadcount = totalSlotsCombined - vacantSlotsCombined;
+
+        const avgSlaCombined = totalContracts > 0
+            ? clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + c.slaCompliance, 0) / totalContracts
+            : 100;
+
+        const avgEffectivenessCombined = totalContracts > 0
+            ? clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + c.effectiveness, 0) / totalContracts
+            : 100;
+
+        // Aggregated NPS score for all reviews in this month
+        let groupNpsScore = 100;
+        let groupNpsCount = 0;
+        let totalPromoters = 0;
+        let totalDetractors = 0;
+        clients.forEach((c: any) => {
+            c.npsResponses.forEach((resp: any) => {
+                groupNpsCount++;
+                let totalScore = 0;
+                let totalWeight = 0;
+                resp.answers.forEach((ans: any) => {
+                    const w = ans.question?.weight || 1.0;
+                    totalScore += ans.score * w;
+                    totalWeight += w;
+                });
+                const finalRating = totalWeight > 0 ? totalScore / totalWeight : 10;
+                if (finalRating >= 9) totalPromoters++;
+                else if (finalRating <= 6) totalDetractors++;
+            });
+        });
+        if (groupNpsCount > 0) {
+            groupNpsScore = ((totalPromoters - totalDetractors) / groupNpsCount) * 100;
+        }
+
+        return {
+            success: true,
+            totalContracts,
+            totalBilling,
+            activeHeadcount,
+            vacantSlotsCombined,
+            avgSlaCombined,
+            avgEffectivenessCombined,
+            groupNpsScore,
+            groupNpsCount,
+            clients: clientsWithABCAndVisits
+        };
+
+    } catch (error) {
+        console.error("Erro ao carregar dados consolidados de performance:", error);
+        return { success: false, error: "Erro de servidor ao computar dados." };
+    }
+}
+
+export async function createContractVisit(data: {
+    clientId: string;
+    visitorRole: string;
+    visitorName: string;
+    visitDate: string;
+    notes?: string;
+}) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR')) {
+            throw new Error("Unauthorized");
+        }
+
+        const visit = await prisma.contractVisit.create({
+            data: {
+                clientId: data.clientId,
+                visitorRole: data.visitorRole,
+                visitorName: data.visitorName,
+                visitDate: new Date(data.visitDate),
+                notes: data.notes || null
+            }
+        });
+
+        revalidatePath("/admin/performance");
+        return { success: true, visit };
+    } catch (error) {
+        console.error("Erro ao registrar visita de relacionamento:", error);
+        return { success: false, error: "Erro ao registrar visita." };
+    }
+}
+
+export async function getAdminClientKpis(clientId: string, year: number) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR')) {
+            throw new Error("Unauthorized");
+        }
+
+        const clientIds = [clientId];
+        const startDate = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+        const endDate = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
+
+        const [attendances, requests, npsResponses, npsQuestions, slaConfigs] = await Promise.all([
+            prisma.attendance.findMany({
+                where: {
+                    posto: { clientId: { in: clientIds } },
+                    date: { gte: startDate, lte: endDate }
+                },
+                orderBy: { date: "asc" }
+            }),
+            prisma.request.findMany({
+                where: {
+                    createdAt: { gte: startDate, lte: endDate }
+                },
+                include: {
+                    requester: true,
+                    employee: {
+                        include: {
+                            assignments: {
+                                include: {
+                                    posto: true
+                                }
+                            }
+                        }
+                    }
+                },
+                orderBy: { createdAt: "asc" }
+            }),
+            prisma.npsResponse.findMany({
+                where: {
+                    clientId: { in: clientIds },
+                    createdAt: { gte: startDate, lte: endDate }
+                },
+                include: {
+                    answers: {
+                        include: {
+                            question: true
+                        }
+                    }
+                },
+                orderBy: { createdAt: "desc" }
+            }),
+            prisma.npsQuestion.findMany({
+                where: { clientId: { in: clientIds } },
+                orderBy: { createdAt: "asc" }
+            }),
+            prisma.slaConfigItem.findMany({
+                where: { clientId: { in: clientIds } },
+                include: { monthlyValues: true },
+                orderBy: { createdAt: "asc" }
+            })
+        ]);
+
+        const clientRequests = requests.filter((r: any) => 
+            r.requester?.clientIds?.some((id: string) => clientIds.includes(id)) ||
+            r.employee?.assignments?.some((a: any) => clientIds.includes(a.posto?.clientId))
+        );
+
+        const mappedNpsResponses = npsResponses.map((resp: any) => {
+            let totalScore = 0;
+            let totalWeight = 0;
+            resp.answers.forEach((ans: any) => {
+                const w = ans.question?.weight || 1.0;
+                totalScore += ans.score * w;
+                totalWeight += w;
+            });
+            const resolvedScore = totalWeight > 0 ? totalScore / totalWeight : 10;
+            return {
+                ...resp,
+                resolvedScore
+            };
+        });
+
+        const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+        const monthlyData = monthNames.map((name: string, index: number) => {
+            const monthAtts = attendances.filter((a: any) => new Date(a.date).getUTCMonth() === index && a.status !== "FOLGA");
+            const totalShifts = monthAtts.length;
+            const vacantShifts = monthAtts.filter((a: any) => a.status === "FALTA" && !a.coveredById && !a.coverageType).length;
+            const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : 100;
+
+            const totalAbsences = monthAtts.filter((a: any) => a.status === "FALTA").length;
+            const absenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : 0;
+
+            const monthRequests = clientRequests.filter((r: any) => new Date(r.createdAt).getUTCMonth() === index);
+            const resolved = monthRequests.filter((r: any) => r.status === "CONCLUIDO" || r.status === "REJEITADO");
+            const totalSlaOnTime = resolved.filter((r: any) => r.updatedAt && r.dueDate && r.updatedAt <= r.dueDate).length;
+            const slaCompliance = resolved.length > 0 ? (totalSlaOnTime / resolved.length) * 100 : 100;
+
+            const monthNps = mappedNpsResponses.filter((n: any) => new Date(n.createdAt).getUTCMonth() === index);
+            const promoters = monthNps.filter((n: any) => n.resolvedScore >= 9).length;
+            const detractors = monthNps.filter((n: any) => n.resolvedScore <= 6).length;
+            const npsScore = monthNps.length > 0 ? ((promoters - detractors) / monthNps.length) * 100 : 100;
+
+            const avgNpsRating = monthNps.length > 0
+                ? monthNps.reduce((sum: number, n: any) => sum + n.resolvedScore, 0) / monthNps.length
+                : 10;
+
+            let slaScoreSum = 0;
+            let slaWeightSum = 0;
+
+            const clientConfigs = slaConfigs.filter((cfg: any) => clientIds.includes(cfg.clientId));
+
+            if (clientConfigs.length > 0) {
+                clientConfigs.forEach((config: any) => {
+                    let metricValue = 100;
+                    if (config.metricType === "EFETIVIDADE") {
+                        metricValue = effectiveness;
+                    } else if (config.metricType === "SLA_CHAMADOS") {
+                        metricValue = slaCompliance;
+                    } else if (config.metricType === "NPS") {
+                        metricValue = avgNpsRating * 10;
+                    } else if (config.metricType === "RECLAMACOES") {
+                        const complaintsCount = monthRequests.filter((r: any) => r.type !== "MOVIMENTACAO" && r.type !== "UNIFORME").length;
+                        metricValue = Math.max(0, 100 - complaintsCount * 20);
+                    } else if (config.metricType === "MANUAL") {
+                        const foundManual = config.monthlyValues.find((v: any) => v.month === index && v.year === year);
+                        metricValue = foundManual ? foundManual.value : config.targetValue;
+                    }
+                    slaScoreSum += metricValue * config.weight;
+                    slaWeightSum += config.weight;
+                });
+            } else {
+                slaScoreSum += effectiveness * 0.5 * 100 + slaCompliance * 0.25 * 100 + (avgNpsRating * 10) * 0.25 * 100;
+                slaWeightSum += 100;
+            }
+
+            const contractScore = slaWeightSum > 0 ? (slaScoreSum / slaWeightSum) / 10 : 10;
+
+            return {
+                monthIndex: index,
+                name,
+                effectiveness,
+                absenteeism,
+                slaCompliance,
+                npsScore,
+                npsCount: monthNps.length,
+                avgNpsRating,
+                contractScore
+            };
+        });
+
+        const activeAtts = attendances.filter((a: any) => a.status !== "FOLGA");
+        const totalShifts = activeAtts.length;
+        const vacantShifts = activeAtts.filter((a: any) => a.status === "FALTA" && !a.coveredById && !a.coverageType).length;
+        const totalAbsences = activeAtts.filter((a: any) => a.status === "FALTA").length;
+
+        const totalEffectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : 100;
+        const totalAbsenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : 0;
+
+        const resolved = clientRequests.filter((r: any) => r.status === "CONCLUIDO" || r.status === "REJEITADO");
+        const totalSlaOnTime = resolved.filter((r: any) => r.updatedAt && r.dueDate && r.updatedAt <= r.dueDate).length;
+        const totalSlaCompliance = resolved.length > 0 ? (totalSlaOnTime / resolved.length) * 100 : 100;
+
+        const totalMonthNps = mappedNpsResponses;
+        const totalPromoters = totalMonthNps.filter((n: any) => n.resolvedScore >= 9).length;
+        const totalDetractors = totalMonthNps.filter((n: any) => n.resolvedScore <= 6).length;
+        const totalNpsScore = totalMonthNps.length > 0 ? ((totalPromoters - totalDetractors) / totalMonthNps.length) * 100 : 100;
+
+        const totalAvgNpsRating = totalMonthNps.length > 0
+            ? totalMonthNps.reduce((sum: number, n: any) => sum + n.resolvedScore, 0) / totalMonthNps.length
+            : 10;
+
+        let summaryWeightSum = 0;
+        let summaryScoreSum = 0;
+
+        const clientConfigs = slaConfigs.filter((cfg: any) => clientIds.includes(cfg.clientId));
+
+        if (clientConfigs.length > 0) {
+            clientConfigs.forEach((config: any) => {
+                let metricValue = 100;
+                if (config.metricType === "EFETIVIDADE") {
+                    metricValue = totalEffectiveness;
+                } else if (config.metricType === "SLA_CHAMADOS") {
+                    metricValue = totalSlaCompliance;
+                } else if (config.metricType === "NPS") {
+                    metricValue = totalAvgNpsRating * 10;
+                } else if (config.metricType === "RECLAMACOES") {
+                    const complaintsCount = clientRequests.filter((r: any) => r.type !== "MOVIMENTACAO" && r.type !== "UNIFORME").length;
+                    metricValue = Math.max(0, 100 - complaintsCount * 20);
+                } else if (config.metricType === "MANUAL") {
+                    const manualVals = config.monthlyValues.filter((v: any) => v.year === year);
+                    metricValue = manualVals.length > 0
+                        ? manualVals.reduce((sum: number, v: any) => sum + v.value, 0) / manualVals.length
+                        : config.targetValue;
+                }
+                summaryScoreSum += metricValue * config.weight;
+                summaryWeightSum += config.weight;
+            });
+        } else {
+            summaryScoreSum += totalEffectiveness * 0.5 * 100 + totalSlaCompliance * 0.25 * 100 + (totalAvgNpsRating * 10) * 0.25 * 100;
+            summaryWeightSum += 100;
+        }
+
+        const totalContractScore = summaryWeightSum > 0 ? (summaryScoreSum / summaryWeightSum) / 10 : 10;
+
+        const activeQuestions = npsQuestions.length > 0 ? npsQuestions : [
+            { id: "def-1", text: "Como você avalia a pontualidade e assiduidade dos colaboradores?" },
+            { id: "def-2", text: "Como você avalia a qualidade da execução dos serviços e rotinas?" },
+            { id: "def-3", text: "Como você avalia o atendimento da nossa mesa de operações?" },
+            { id: "def-4", text: "Como você avalia a postura e apresentação pessoal da equipe?" },
+            { id: "def-5", text: "Qual a probabilidade de recomendar nossos serviços a um parceiro?" }
+        ];
+
+        const npsEvolution = activeQuestions.map((q: any) => {
+            const monthlyScores = monthNames.map((_, index: number) => {
+                const monthResponses = mappedNpsResponses.filter((n: any) => new Date(n.createdAt).getUTCMonth() === index);
+                const answers = monthResponses.flatMap((n: any) => n.answers.filter((a: any) => a.questionId === q.id));
+                if (answers.length > 0) {
+                    return parseFloat((answers.reduce((sum: number, a: any) => sum + a.score, 0) / answers.length).toFixed(1));
+                }
+                return null;
+            });
+            return {
+                id: q.id,
+                text: q.text,
+                monthlyScores
+            };
+        });
+
+        const resolvedWithTimes = resolved.filter((r: any) => r.createdAt && r.updatedAt);
+        let totalHours = 0;
+        resolvedWithTimes.forEach((r: any) => {
+            const diffMs = r.updatedAt.getTime() - r.createdAt.getTime();
+            totalHours += diffMs / (1000 * 60 * 60);
+        });
+        const avgMttr = resolvedWithTimes.length > 0 ? totalHours / resolvedWithTimes.length : 0;
+
+        return {
+            success: true,
+            monthlyData,
+            npsEvolution,
+            summary: {
+                effectiveness: totalEffectiveness,
+                absenteeism: totalAbsenteeism,
+                slaCompliance: totalSlaCompliance,
+                npsScore: totalNpsScore,
+                mttrHours: avgMttr,
+                avgNpsRating: totalAvgNpsRating,
+                contractScore: totalContractScore
+            }
+        };
+
+    } catch (e) {
+        console.error("Erro no getAdminClientKpis:", e);
+        return { success: false, error: "Erro de servidor ao buscar KPIs do cliente." };
+    }
+}
+

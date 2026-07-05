@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Users, Building, ClipboardList, LayoutDashboard, History, Clock, Calendar, Building2, ShieldAlert, Briefcase, DollarSign, LogOut, Inbox, AlertCircle, BarChart, UserPlus } from "lucide-react";
+import { Users, Building, ClipboardList, LayoutDashboard, History, Clock, Calendar, Building2, ShieldAlert, Briefcase, DollarSign, LogOut, Inbox, AlertCircle, BarChart, UserPlus, Landmark } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -64,6 +64,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
 
                 <NavLink href="/admin/companies" icon={Building2} label="Minhas Empresas" />
                 <NavLink href="/admin/clients" icon={Building} label="Cliente & Contrato" />
+                <NavLink href="/admin/performance" icon={Landmark} label="Gestão de Contratos" />
 
                 {role === 'ADMIN' && (
                     <NavLink href="/admin/users" icon={ShieldAlert} label="Gestão de Acessos" colorClass="text-indigo-400" />
