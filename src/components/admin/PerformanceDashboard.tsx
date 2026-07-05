@@ -2986,82 +2986,49 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         {npsSubTab === "results" ? (
                                             <div className="space-y-6">
                                                 {/* Tabela de Notas Evolutivas nos 12 meses */}
-                                                {(() => {
-                                                    const npsResponses = clientKpiData?.npsResponses || [];
-                                                    const questions = detailedData?.npsQuestions || [];
-
-                                                    const monthlyScoresByQuestion = questions.map((q: any) => {
-                                                        const scoresByMonth = Array.from({ length: 12 }, (_, monthIdx) => {
-                                                            const monthResponses = npsResponses.filter((r: any) => {
-                                                                const date = new Date(r.createdAt);
-                                                                return date.getMonth() === monthIdx;
-                                                            });
-
-                                                            const scores: number[] = [];
-                                                            monthResponses.forEach((r: any) => {
-                                                                const matchAnswer = r.answers?.find((a: any) => a.questionId === q.id || a.question?.text === q.text);
-                                                                if (matchAnswer && matchAnswer.score !== undefined) {
-                                                                    scores.push(matchAnswer.score);
-                                                                }
-                                                            });
-
-                                                            if (scores.length === 0) return null;
-                                                            return scores.reduce((sum, val) => sum + val, 0) / scores.length;
-                                                        });
-
-                                                        return {
-                                                            questionId: q.id,
-                                                            text: q.text,
-                                                            scoresByMonth
-                                                        };
-                                                    });
-
-                                                    return (
-                                                        <Card className="border border-slate-200/50 shadow-premium bg-white rounded-2xl overflow-hidden">
-                                                            <CardHeader>
-                                                                <CardTitle className="text-sm font-black uppercase text-slate-850">Notas do NPS (Evolução 12 Meses)</CardTitle>
-                                                                <CardDescription>Notas médias por quesito avaliado, mês a mês.</CardDescription>
-                                                            </CardHeader>
-                                                            <CardContent className="p-0 border-t border-slate-100 overflow-x-auto">
-                                                                <Table className="min-w-[900px]">
-                                                                    <TableHeader className="bg-slate-50">
-                                                                        <TableRow>
-                                                                            <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Quesito</TableHead>
-                                                                            {monthShortNames.map((m, idx) => (
-                                                                                <TableHead key={idx} className="font-bold text-slate-800 text-xs text-center w-14 py-2.5">{m}</TableHead>
-                                                                            ))}
-                                                                        </TableRow>
-                                                                    </TableHeader>
-                                                                    <TableBody>
-                                                                        {monthlyScoresByQuestion.map((row: any) => (
-                                                                            <TableRow key={row.questionId} className="hover:bg-slate-50/50">
-                                                                                <TableCell className="text-xs font-bold text-slate-700 pl-6 py-3">{row.text}</TableCell>
-                                                                                {row.scoresByMonth.map((score: number | null, mIdx: number) => (
-                                                                                    <TableCell key={mIdx} className="text-center text-xs font-black py-3">
-                                                                                        {score !== null ? (
-                                                                                            <span className={score >= 8.5 ? "text-emerald-600 font-extrabold" : score >= 7.0 ? "text-amber-600 font-extrabold" : "text-red-500 font-extrabold"}>
-                                                                                                {score.toFixed(1)}
-                                                                                            </span>
-                                                                                        ) : (
-                                                                                            <span className="text-slate-300">-</span>
-                                                                                        )}
-                                                                                    </TableCell>
-                                                                                ))}
-                                                                            </TableRow>
+                                                <Card className="border border-slate-200/50 shadow-premium bg-white rounded-2xl overflow-hidden">
+                                                    <CardHeader>
+                                                        <CardTitle className="text-sm font-black uppercase text-slate-850">Notas do NPS (Evolução 12 Meses)</CardTitle>
+                                                        <CardDescription>Notas médias por quesito avaliado, mês a mês.</CardDescription>
+                                                    </CardHeader>
+                                                    <CardContent className="p-0 border-t border-slate-100 overflow-x-auto">
+                                                        <Table className="min-w-[900px]">
+                                                            <TableHeader className="bg-slate-50">
+                                                                <TableRow>
+                                                                    <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Quesito / Indicador</TableHead>
+                                                                    {monthShortNames.map((m, idx) => (
+                                                                        <TableHead key={idx} className="font-bold text-slate-800 text-xs text-center w-14 py-2.5">{m}</TableHead>
+                                                                    ))}
+                                                                </TableRow>
+                                                            </TableHeader>
+                                                            <TableBody>
+                                                                {(clientKpiData?.npsEvolution || []).map((row: any) => (
+                                                                    <TableRow key={row.id} className="hover:bg-slate-50/50">
+                                                                        <TableCell className="text-xs font-bold text-slate-700 pl-6 py-3">{row.text}</TableCell>
+                                                                        {row.monthlyScores.map((score: number | null, mIdx: number) => (
+                                                                            <TableCell key={mIdx} className="text-center text-xs font-black py-3">
+                                                                                {score !== null ? (
+                                                                                    <span className={score >= 8.5 ? "text-emerald-600 font-extrabold" : score >= 7.0 ? "text-amber-600 font-extrabold" : "text-red-500 font-extrabold"}>
+                                                                                        {score.toFixed(1)}
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="text-slate-300">-</span>
+                                                                                )}
+                                                                            </TableCell>
                                                                         ))}
-                                                                        {monthlyScoresByQuestion.length === 0 && (
-                                                                            <TableRow>
-                                                                                <TableCell colSpan={13} className="text-center py-6 text-slate-400 italic text-xs">
-                                                                                    Nenhum quesito cadastrado.
-                                                                                    </TableCell>
-                                                                            </TableRow>
-                                                                        )}
-                                                                    </TableBody>
-                                                                </Table>
-                                                            </CardContent>
-                                                        </Card>
-                                                    );
-                                                })()}
+                                                                    </TableRow>
+                                                                ))}
+                                                                {(clientKpiData?.npsEvolution || []).length === 0 && (
+                                                                    <TableRow>
+                                                                        <TableCell colSpan={13} className="text-center py-6 text-slate-400 italic text-xs">
+                                                                            Nenhum quesito cadastrado.
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                )}
+                                                            </TableBody>
+                                                        </Table>
+                                                    </CardContent>
+                                                </Card>
 
                                                 {/* NPS Response History */}
                                                 <Card className="border border-slate-200/50 shadow-premium bg-white rounded-2xl">
