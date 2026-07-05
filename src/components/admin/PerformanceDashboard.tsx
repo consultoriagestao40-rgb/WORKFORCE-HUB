@@ -108,6 +108,10 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [npsQWeight, setNpsQWeight] = useState<number>(1);
     const [savingNpsQ, setSavingNpsQ] = useState<boolean>(false);
 
+    // Dynamic daily presence data for individual view
+    const [dailyAttendances, setDailyAttendances] = useState<any[]>([]);
+    const [loadingDaily, setLoadingDaily] = useState<boolean>(false);
+
     // Card Details Modal State
     const [detailsModalOpen, setDetailsModalOpen] = useState<boolean>(false);
     const [detailsModalType, setDetailsModalType] = useState<"contracts" | "employees" | "billing" | "vacancies">("contracts");
@@ -205,11 +209,36 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
         }
     }, [selectedPostoId, selectedClientId]);
 
+    const loadDailyAttendances = useCallback(async () => {
+        if (selectedClientId === "all") {
+            setDailyAttendances([]);
+            return;
+        }
+        setLoadingDaily(true);
+        try {
+            const res = await fetch(`/api/admin/operations/attendance?date=${date}&clientId=${selectedClientId}`);
+            const data = await res.json();
+            if (data.success && data.items) {
+                setDailyAttendances(data.items);
+            } else {
+                setDailyAttendances([]);
+            }
+        } catch (e) {
+            setDailyAttendances([]);
+        } finally {
+            setLoadingDaily(false);
+        }
+    }, [selectedClientId, date]);
+
     useEffect(() => {
         loadPerformanceData();
         loadClientDetails();
         loadBillingData();
     }, [loadPerformanceData, loadClientDetails, loadBillingData]);
+
+    useEffect(() => {
+        loadDailyAttendances();
+    }, [loadDailyAttendances]);
 
     useEffect(() => {
         loadRoutines();
@@ -1035,9 +1064,19 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 /* INDIVIDUAL METRICS CARDS */
                                 detailedData && (
                                     (() => {
-                                        const dailyAtts = detailedData.attendances.filter((a: any) => 
-                                            format(new Date(a.date), "yyyy-MM-dd") === date
-                                        );
+                                        const dailyAtts = dailyAttendances.map((item: any) => ({
+                                            id: item.id,
+                                            posto: {
+                                                role: { name: item.role },
+                                                schedule: item.schedule,
+                                                startTime: item.startTime,
+                                                endTime: item.endTime
+                                            },
+                                            employee: item.employee,
+                                            status: item.attendance.status,
+                                            coveredBy: item.attendance.coveredBy,
+                                            coverageType: item.attendance.coverageType
+                                        }));
                                         const scaleCount = dailyAtts.filter((a: any) => a.status !== "FOLGA").length;
                                         const presCount = dailyAtts.filter((a: any) => a.status === "PRESENTE_PONTO" || a.status === "PRESENTE_MANUAL").length;
                                         const lateCount = dailyAtts.filter((a: any) => a.status === "ATRASADO" || a.status === "AGUARDANDO").length;
@@ -1253,9 +1292,28 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     <div className="space-y-6">
                                         <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
                                             {(() => {
-                                                const dailyAtts = detailedData.attendances.filter((a: any) => 
-                                                    format(new Date(a.date), "yyyy-MM-dd") === date
-                                                );
+                                                const dailyAtts = dailyAttendances.map((item: any) => ({
+                                                    id: item.id,
+                                                    posto: {
+                                                        role: { name: item.role },
+                                                        schedule: item.schedule,
+                                                        startTime: item.startTime,
+                                                        endTime: item.endTime
+                                                    },
+                                                    employee: item.employee,
+                                                    status: item.attendance.status,
+                                                    coveredBy: item.attendance.coveredBy,
+                                                    coverageType: item.attendance.coverageType
+                                                }));
+
+                                                if (loadingDaily) {
+                                                    return (
+                                                        <div className="text-center py-12 text-slate-450 font-semibold italic text-xs flex items-center justify-center gap-2">
+                                                            <RefreshCw className="w-4 h-4 animate-spin text-blue-650" />
+                                                            Carregando presenças do dia...
+                                                        </div>
+                                                    );
+                                                }
 
                                                 if (dailyAtts.length === 0) {
                                                     return (
