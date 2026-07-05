@@ -508,18 +508,19 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             <p className="text-xs font-bold text-slate-200">Olá, {userName}</p>
                             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Acesso Gestor</p>
                         </div>
-                        <button
-                            onClick={() => window.location.href = "/admin/requests"}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:bg-red-550/10 transition-colors border border-red-500/20"
-                        >
-                            <LogOut className="w-4 h-4" />
-                            <span>Voltar ao Admin</span>
-                        </button>
                     </div>
                 </header>
 
                 {/* Área de Conteúdo Executivo */}
-                <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
+                <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4 max-w-7xl mx-auto w-full">
+                    <button
+                        onClick={() => window.location.href = "/admin/requests"}
+                        className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 transition-colors self-start mb-2"
+                    >
+                        <ChevronLeft className="w-4 h-4" />
+                        <span>Voltar ao Painel Admin</span>
+                    </button>
+
                     {/* Metrics Cards Grid - Corrigindo a altura e adicionando padding elegante */}
                     {consolidatedData && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
