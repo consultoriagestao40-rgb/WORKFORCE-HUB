@@ -899,7 +899,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 {/* Top Header - Idêntica ao portal do cliente (sem seletores no cabeçalho) */}
                 <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 md:px-8 shrink-0 text-white shadow-md">
                     <h2 className="text-sm md:text-base font-black tracking-widest text-slate-100 uppercase">
-                        {menuItems.find(m => m.id === activeTab)?.label}
+                        {initialClients.find(c => c.id === selectedClientId)?.name || "CONTRATO / CLIENTE"}
                     </h2>
 
                     <div className="flex items-center gap-4">
