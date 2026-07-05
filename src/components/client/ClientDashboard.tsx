@@ -89,6 +89,11 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     const [newRequestEmployeeId, setNewRequestEmployeeId] = useState("");
     const [submittingRequest, setSubmittingRequest] = useState(false);
 
+    // Segmentações das solicitações do cliente
+    const [requestCategory, setRequestCategory] = useState<"solicitacao" | "elogio_sugestao" | "reclamacao">("solicitacao");
+    const [solicitacaoSubtype, setSolicitacaoSubtype] = useState<"troca_colaborador" | "uniformes_produtos" | "servicos_extras">("troca_colaborador");
+    const [reclamacaoCategory, setReclamacaoCategory] = useState<"qualidade_servicos" | "visita_supervisao" | "falta_sem_cobertura" | "atraso_recorrente" | "postura_uniforme" | "problemas_epi" | "outras">("qualidade_servicos");
+
     // Billing Tab States
     const [billingYear, setBillingYear] = useState(new Date().getFullYear());
     const [billingData, setBillingData] = useState<any[]>([]);
@@ -226,15 +231,51 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     const handleCreateRequest = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newRequestDescription.trim()) {
-            toast.error("Por favor, descreva sua solicitação.");
+            toast.error("Por favor, descreva detalhadamente a ocorrência.");
             return;
+        }
+
+        let type = "OUTROS";
+        let finalDescription = newRequestDescription;
+
+        if (requestCategory === "solicitacao") {
+            if (solicitacaoSubtype === "troca_colaborador") {
+                type = "MOVIMENTACAO";
+                if (!newRequestEmployeeId) {
+                    toast.error("Para solicitações de troca, é obrigatório selecionar o colaborador na lista.");
+                    return;
+                }
+                finalDescription = `[SOLICITAÇÃO - Troca de Colaborador] ${newRequestDescription}`;
+            } else if (solicitacaoSubtype === "uniformes_produtos") {
+                type = "UNIFORME";
+                finalDescription = `[SOLICITAÇÃO - Uniformes / EPIs / Produtos] ${newRequestDescription}`;
+            } else if (solicitacaoSubtype === "servicos_extras") {
+                type = "HORARIO";
+                finalDescription = `[SOLICITAÇÃO - Serviços Extras] ${newRequestDescription}`;
+            }
+        } else if (requestCategory === "elogio_sugestao") {
+            type = "OUTROS";
+            finalDescription = `[ELOGIO / SUGESTÃO] ${newRequestDescription}`;
+        } else if (requestCategory === "reclamacao") {
+            type = "OUTROS";
+            const catLabels: Record<string, string> = {
+                qualidade_servicos: "Qualidade dos serviços",
+                visita_supervisao: "Visitas da supervisão",
+                falta_sem_cobertura: "Falta sem cobertura",
+                atraso_recorrente: "Atraso recorrente",
+                postura_uniforme: "Postura / Uniformização inadequada",
+                problemas_epi: "Problemas com EPI / Equipamento",
+                outras: "Outras Reclamações"
+            };
+            const label = catLabels[reclamacaoCategory] || "Reclamação Geral";
+            finalDescription = `[RECLAMAÇÃO - ${label}] ${newRequestDescription}`;
         }
 
         setSubmittingRequest(true);
         try {
             const res = await createClientRequest({
-                type: newRequestType,
-                description: newRequestDescription,
+                type,
+                description: finalDescription,
                 employeeId: newRequestEmployeeId || undefined
             });
 
@@ -243,6 +284,10 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                 setShowNewRequestModal(false);
                 setNewRequestDescription("");
                 setNewRequestEmployeeId("");
+                // resetar estados auxiliares
+                setRequestCategory("solicitacao");
+                setSolicitacaoSubtype("troca_colaborador");
+                setReclamacaoCategory("qualidade_servicos");
                 fetchRequests();
             } else {
                 toast.error("Erro ao enviar solicitação.");
@@ -1126,48 +1171,149 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-955/50 backdrop-blur-sm">
                                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200">
                                         <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
-                                            <h3 className="text-sm font-black uppercase tracking-wider">Nova Solicitação</h3>
+                                            <h3 className="text-sm font-black uppercase tracking-wider">Nova Ocorrência / Chamado</h3>
                                             <Button variant="ghost" size="icon" onClick={() => setShowNewRequestModal(false)} className="text-slate-400 hover:text-white">
                                                 <X className="w-5 h-5" />
                                             </Button>
                                         </div>
                                         <form onSubmit={handleCreateRequest} className="p-6 space-y-4">
+                                            {/* Abas Superiores de Categoria Principal */}
                                             <div className="space-y-1">
-                                                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Tipo de Solicitação</label>
-                                                <select
-                                                    value={newRequestType}
-                                                    onChange={(e) => setNewRequestType(e.target.value)}
-                                                    className="w-full h-10 border border-slate-200 bg-white rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary"
-                                                >
-                                                    <option value="MOVIMENTACAO">Movimentação de Colaboradores (Troca/Afastamento)</option>
-                                                    <option value="UNIFORME">Solicitar Materiais / EPIs / Uniformes</option>
-                                                    <option value="HORARIO">Mudança de Horários / Escala de Posto</option>
-                                                    <option value="OUTROS">Outros (Elogio / Reclamação / Manutenção / Dúvida)</option>
-                                                </select>
+                                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Categoria de Ocorrência</label>
+                                                <div className="grid grid-cols-3 gap-2 p-1 bg-slate-100 rounded-xl border border-slate-200/50">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setRequestCategory("solicitacao"); setNewRequestEmployeeId(""); }}
+                                                        className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${requestCategory === "solicitacao" ? "bg-white text-slate-900 shadow-sm" : "text-slate-550 hover:text-slate-900"}`}
+                                                    >
+                                                        Solicitação
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setRequestCategory("elogio_sugestao"); setNewRequestEmployeeId(""); }}
+                                                        className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${requestCategory === "elogio_sugestao" ? "bg-white text-slate-900 shadow-sm" : "text-slate-550 hover:text-slate-900"}`}
+                                                    >
+                                                        Elogio/Sugestão
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setRequestCategory("reclamacao"); setNewRequestEmployeeId(""); }}
+                                                        className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${requestCategory === "reclamacao" ? "bg-white text-slate-900 shadow-sm" : "text-slate-550 hover:text-slate-900"}`}
+                                                    >
+                                                        Reclamação
+                                                    </button>
+                                                </div>
                                             </div>
 
-                                            <div className="space-y-1">
-                                                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Colaborador Relacionado (Opcional)</label>
-                                                <select
-                                                    value={newRequestEmployeeId}
-                                                    onChange={(e) => setNewRequestEmployeeId(e.target.value)}
-                                                    className="w-full h-10 border border-slate-200 bg-white rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary"
-                                                >
-                                                    <option value="">Não Relacionado a Colaborador Específico</option>
-                                                    {employees.map(emp => (
-                                                        <option key={emp.id} value={emp.id}>{emp.name}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
+                                            {/* Subformulários baseados na Categoria */}
+                                            {requestCategory === "solicitacao" && (
+                                                <div className="space-y-4">
+                                                    <div className="space-y-1">
+                                                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">O que deseja solicitar?</label>
+                                                        <select
+                                                            value={solicitacaoSubtype}
+                                                            onChange={(e) => {
+                                                                setSolicitacaoSubtype(e.target.value as any);
+                                                                setNewRequestEmployeeId("");
+                                                            }}
+                                                            className="w-full h-10 border border-slate-200 bg-white rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary cursor-pointer"
+                                                        >
+                                                            <option value="troca_colaborador">Pedir troca de colaboradores</option>
+                                                            <option value="uniformes_produtos">Solicitar materiais / EPIs / Uniformes / Produtos</option>
+                                                            <option value="servicos_extras">Solicitar serviços extras</option>
+                                                        </select>
+                                                    </div>
+
+                                                    {solicitacaoSubtype === "troca_colaborador" ? (
+                                                        <div className="space-y-1">
+                                                            <label className="text-xs font-bold text-slate-650 uppercase tracking-wider flex items-center justify-between">
+                                                                <span>Colaborador Relacionado *</span>
+                                                                <span className="text-[9px] font-black uppercase text-red-500 bg-red-50 px-2 py-0.5 rounded-md border border-red-200/50">Obrigatório</span>
+                                                            </label>
+                                                            <select
+                                                                value={newRequestEmployeeId}
+                                                                onChange={(e) => setNewRequestEmployeeId(e.target.value)}
+                                                                className="w-full h-10 border border-slate-200 bg-white rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary cursor-pointer text-slate-800"
+                                                                required
+                                                            >
+                                                                <option value="">-- Selecione o colaborador para a troca --</option>
+                                                                {employees.map(emp => (
+                                                                    <option key={emp.id} value={emp.id}>{emp.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-1">
+                                                            <label className="text-xs font-bold text-slate-655 uppercase tracking-wider">Colaborador Relacionado (Opcional)</label>
+                                                            <select
+                                                                value={newRequestEmployeeId}
+                                                                onChange={(e) => setNewRequestEmployeeId(e.target.value)}
+                                                                className="w-full h-10 border border-slate-200 bg-white rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary cursor-pointer text-slate-800"
+                                                            >
+                                                                <option value="">Não Relacionado a Colaborador Específico</option>
+                                                                {employees.map(emp => (
+                                                                    <option key={emp.id} value={emp.id}>{emp.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {requestCategory === "reclamacao" && (
+                                                <div className="space-y-4">
+                                                    <div className="space-y-1">
+                                                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Motivo da Reclamação</label>
+                                                        <select
+                                                            value={reclamacaoCategory}
+                                                            onChange={(e) => setReclamacaoCategory(e.target.value as any)}
+                                                            className="w-full h-10 border border-slate-200 bg-white rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary cursor-pointer text-slate-800"
+                                                        >
+                                                            <option value="qualidade_servicos">Qualidade dos serviços</option>
+                                                            <option value="visita_supervisao">Visitas da supervisão</option>
+                                                            <option value="falta_sem_cobertura">Falta sem cobertura</option>
+                                                            <option value="atraso_recorrente">Atraso recorrente</option>
+                                                            <option value="postura_uniforme">Postura / Uniformização inadequada</option>
+                                                            <option value="problemas_epi">Problemas com EPI / Equipamento</option>
+                                                            <option value="outras">Outras Reclamações</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div className="space-y-1">
+                                                        <label className="text-xs font-bold text-slate-655 uppercase tracking-wider">Colaborador Envolvido (Opcional)</label>
+                                                        <select
+                                                            value={newRequestEmployeeId}
+                                                            onChange={(e) => setNewRequestEmployeeId(e.target.value)}
+                                                            className="w-full h-10 border border-slate-200 bg-white rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary cursor-pointer text-slate-800"
+                                                        >
+                                                            <option value="">Não Relacionado a Colaborador Específico</option>
+                                                            {employees.map(emp => (
+                                                                <option key={emp.id} value={emp.id}>{emp.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {requestCategory === "elogio_sugestao" && (
+                                                <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100/50 text-[11px] text-emerald-800 font-semibold leading-relaxed">
+                                                    💡 Use este canal para compartilhar sugestões de melhoria ou elogiar o desempenho da nossa equipe. Suas mensagens serão enviadas diretamente à nossa gerência.
+                                                </div>
+                                            )}
 
                                             <div className="space-y-1">
-                                                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Descrição Detalhada</label>
+                                                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Descrição Detalhada *</label>
                                                 <textarea
                                                     value={newRequestDescription}
                                                     onChange={(e) => setNewRequestDescription(e.target.value)}
-                                                    placeholder="Descreva detalhadamente sua solicitação, reclamação ou necessidade..."
+                                                    placeholder={
+                                                        requestCategory === "solicitacao" ? "Descreva detalhadamente sua solicitação, quantidades, tamanhos ou detalhes operacionais..." :
+                                                        requestCategory === "reclamacao" ? "Descreva a ocorrência com detalhes, datas e observações importantes..." :
+                                                        "Escreva aqui sua sugestão ou elogio..."
+                                                    }
                                                     rows={4}
-                                                    className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 outline-none focus:border-primary resize-none"
+                                                    className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 outline-none focus:border-primary resize-none text-slate-800"
+                                                    required
                                                 />
                                             </div>
 
@@ -1175,8 +1321,8 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                 <Button type="button" variant="outline" onClick={() => setShowNewRequestModal(false)} className="h-10 text-xs font-bold uppercase tracking-wider px-4 rounded-xl">
                                                     Cancelar
                                                 </Button>
-                                                <Button type="submit" disabled={submittingRequest} className="h-10 text-xs font-bold uppercase tracking-wider px-4 bg-primary text-slate-900 hover:bg-primary/95 rounded-xl">
-                                                    {submittingRequest ? "Enviando..." : "Enviar Solicitação"}
+                                                <Button type="submit" disabled={submittingRequest} className="h-10 text-xs font-bold uppercase tracking-wider px-4 bg-primary text-slate-900 hover:bg-primary/95 rounded-xl shadow-sm">
+                                                    {submittingRequest ? "Enviando..." : "Registrar Chamado"}
                                                 </Button>
                                             </div>
                                         </form>
