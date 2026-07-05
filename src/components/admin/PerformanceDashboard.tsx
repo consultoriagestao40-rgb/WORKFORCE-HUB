@@ -3583,6 +3583,12 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
                     // Calcular nota ponderada de um mês específico
                     const getMonthFinalSlaScore = (monthIdx: number) => {
+                        // Se o mês não possui Efetividade de Escala real, a nota de SLA é nula
+                        const mData = clientKpiData?.monthlyData?.find((m: any) => m.monthIndex === monthIdx);
+                        if (!mData || mData.effectiveness === null || mData.effectiveness === undefined) {
+                            return null;
+                        }
+
                         let totalWeight = 0;
                         let weightedScoreSum = 0;
                         

@@ -498,6 +498,7 @@ export async function getClientKpis(year: number) {
 
         const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : null;
         const absenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : null;
+        let contractScore: number | null = null;
 
         const monthRequests = isMockPeriod ? [] : requests.filter(r => new Date(r.createdAt).getMonth() === index);
         const resolvedRequests = monthRequests.filter(r => r.status === "CONCLUIDO" || r.status === "REJEITADO");
@@ -521,7 +522,9 @@ export async function getClientKpis(year: number) {
         // Se houver configurações de SLA definidas para algum dos clientes do usuário, calcula ponderado
         const clientConfigs = slaConfigs.filter(cfg => clientIds.includes(cfg.clientId));
 
-        if (clientConfigs.length > 0) {
+        if (effectiveness === null || effectiveness === undefined) {
+            contractScore = null;
+        } else if (clientConfigs.length > 0) {
             clientConfigs.forEach(config => {
                 let metricValue = null;
 
@@ -570,7 +573,10 @@ export async function getClientKpis(year: number) {
             slaWeightSum = weightSum;
         }
 
-        const contractScore = slaWeightSum > 0 ? (slaScoreSum / slaWeightSum) / 10 : null;
+        const calculatedScore = slaWeightSum > 0 ? (slaScoreSum / slaWeightSum) / 10 : null;
+        if (effectiveness !== null && effectiveness !== undefined) {
+            contractScore = calculatedScore;
+        }
 
         const monthSubstitutions = assignments.filter(a => a.endDate && new Date(a.endDate).getUTCMonth() === index).length;
         const activeStaff = totalPostosCount > 0 ? totalPostosCount : 5;
@@ -1644,6 +1650,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
 
             const totalAbsences = monthAtts.filter((a: any) => a.status === "FALTA").length;
             const absenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : null;
+            let contractScore: number | null = null;
 
             const monthRequests = isMockPeriod ? [] : clientRequests.filter((r: any) => new Date(r.createdAt).getMonth() === index);
             const resolved = monthRequests.filter((r: any) => r.status === "CONCLUIDO" || r.status === "REJEITADO");
@@ -1664,7 +1671,9 @@ export async function getAdminClientKpis(clientId: string, year: number) {
 
             const clientConfigs = slaConfigs.filter((cfg: any) => clientIds.includes(cfg.clientId));
 
-            if (clientConfigs.length > 0) {
+            if (effectiveness === null || effectiveness === undefined) {
+                contractScore = null;
+            } else if (clientConfigs.length > 0) {
                 clientConfigs.forEach((config: any) => {
                     let metricValue: number | null = null;
                     if (config.metricType === "EFETIVIDADE") {
@@ -1711,7 +1720,10 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                 slaWeightSum = weightSum;
             }
 
-            const contractScore = slaWeightSum > 0 ? (slaScoreSum / slaWeightSum) / 10 : null;
+            const calculatedScore = slaWeightSum > 0 ? (slaScoreSum / slaWeightSum) / 10 : null;
+            if (effectiveness !== null && effectiveness !== undefined) {
+                contractScore = calculatedScore;
+            }
 
             const monthSubstitutions = assignments.filter((a: any) => a.endDate && new Date(a.endDate).getUTCMonth() === index).length;
             const activeStaff = totalPostosCount > 0 ? totalPostosCount : 5;
