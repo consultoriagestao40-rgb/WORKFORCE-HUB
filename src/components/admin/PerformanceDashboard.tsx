@@ -3541,12 +3541,12 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 )
             ) : (
                 detailedData && (() => {
-                    const currentMonthData = detailedData.monthlyData.find((m: any) => m.monthIndex === selectedMonth);
+                    const currentMonthData = detailedData?.monthlyData?.find((m: any) => m.monthIndex === selectedMonth);
                     
                     // Lógica local para obter o valor real de cada KPI
                     const getSlaMetricRealVal = (item: any) => {
                         if (item.metricType === "MANUAL") {
-                            const found = item.monthlyValues.find((v: any) => v.month === selectedMonth && v.year === selectedYear);
+                            const found = item.monthlyValues?.find((v: any) => v.month === selectedMonth && v.year === selectedYear);
                             return found ? found.value : null;
                         }
                         if (!currentMonthData) return null;
@@ -3754,7 +3754,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             </TableHeader>
                                             <TableBody>
                                                 {detailedData.slaConfigItems.map((item: any) => {
-                                                    const mVal = item.monthlyValues.find((v: any) => v.month === selectedMonth && v.year === selectedYear)?.value;
+                                                    const mVal = item.monthlyValues?.find((v: any) => v.month === selectedMonth && v.year === selectedYear)?.value;
                                                     return (
                                                         <TableRow key={item.id} className="hover:bg-slate-50/50">
                                                             <TableCell className="text-xs font-bold text-slate-700 pl-6 py-3">{item.name}</TableCell>
