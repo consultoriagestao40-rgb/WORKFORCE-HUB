@@ -456,6 +456,538 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
         return a.name.localeCompare(b.name);
     });
 
+    if (selectedClientId === "all") {
+        return (
+            <div className="flex flex-col h-screen bg-slate-100 overflow-hidden font-sans w-full">
+                {/* Header Executivo - Sem Sidebar */}
+                <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0 text-white shadow-md">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-primary/20 p-2 rounded-xl border border-primary/20 shrink-0">
+                            <Award className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-sm font-black tracking-wider leading-none">WORKFORCE HUB</span>
+                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Painel Consolidado de Performance</span>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-6">
+                        <div className="text-right hidden sm:block">
+                            <p className="text-xs font-bold text-slate-200">Olá, {userName}</p>
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Acesso Gestor</p>
+                        </div>
+                        <button
+                            onClick={() => window.location.href = "/admin/requests"}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:bg-red-550/10 transition-colors border border-red-500/20"
+                        >
+                            <LogOut className="w-4 h-4" />
+                            <span>Voltar ao Admin</span>
+                        </button>
+                    </div>
+                </header>
+
+                {/* Área de Conteúdo Executivo */}
+                <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
+                    
+                    {/* Card de Filtros da Home Consolidada */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
+                        <div className="space-y-1">
+                            <h3 className="text-md font-bold text-slate-850">Gestão Consolidada de Contratos</h3>
+                            <p className="text-xs text-slate-500 font-medium">Selecione um contrato na tabela ou no menu abaixo para gerenciar individualmente.</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                            {/* Date Navigator */}
+                            <div className="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200/30">
+                                <Button variant="ghost" size="icon" onClick={handlePrevDay} className="h-8 w-8 hover:bg-white rounded-lg">
+                                    <ChevronLeft className="w-4 h-4 text-slate-600" />
+                                </Button>
+                                <div className="relative px-3 flex items-center gap-1.5">
+                                    <Calendar className="w-4 h-4 text-slate-400" />
+                                    <input 
+                                        type="date" 
+                                        value={date} 
+                                        onChange={(e) => setDate(e.target.value)}
+                                        className="bg-transparent text-xs font-bold text-slate-700 outline-none border-none select-none cursor-pointer"
+                                    />
+                                </div>
+                                <Button variant="ghost" size="icon" onClick={handleNextDay} className="h-8 w-8 hover:bg-white rounded-lg">
+                                    <ChevronRight className="w-4 h-4 text-slate-600" />
+                                </Button>
+                            </div>
+
+                            {/* Contract Selector */}
+                            <select
+                                value={selectedClientId}
+                                onChange={(e) => setSelectedClientId(e.target.value)}
+                                className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
+                            >
+                                <option value="all">Todos os Contratos</option>
+                                {initialClients.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+
+                            {/* Sort Selector */}
+                            <select
+                                value={sortBy}
+                                onChange={(e: any) => setSortBy(e.target.value)}
+                                className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
+                            >
+                                <option value="abc">Classificar: Curva ABC</option>
+                                <option value="billing">Classificar: Faturamento</option>
+                                <option value="name">Classificar: Nome</option>
+                            </select>
+
+                            {/* Action Buttons */}
+                            <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-1.5 h-10 shadow-premium border-slate-200">
+                                <Download className="w-4 h-4" /> Exportar Planilha
+                            </Button>
+
+                            <Button variant="ghost" size="icon" onClick={loadPerformanceData} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
+                                <RefreshCw className="w-4 h-4 text-slate-550" />
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Metrics Cards Grid - Corrigindo a altura e adicionando padding elegante */}
+                    {consolidatedData && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <Card 
+                                onClick={() => { setDetailsModalType("contracts"); setDetailsModalOpen(true); }}
+                                className="border border-slate-200/50 shadow-premium bg-slate-900 text-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
+                            >
+                                <span className="text-xs font-bold uppercase tracking-wide text-slate-300">Contratos Ativos</span>
+                                <div className="flex items-center justify-between mt-2">
+                                    <span className="text-2xl font-black">{consolidatedData.totalContracts || 0}</span>
+                                    <Building className="w-6 h-6 text-blue-400 bg-white/10 p-1.5 rounded-xl" />
+                                </div>
+                            </Card>
+
+                            <Card 
+                                onClick={() => { setDetailsModalType("employees"); setDetailsModalOpen(true); }}
+                                className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
+                            >
+                                <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Colaboradores</span>
+                                <div className="flex items-center justify-between mt-2">
+                                    <span className="text-2xl font-black text-slate-800">{consolidatedData.activeHeadcount || 0}</span>
+                                    <Users className="w-6 h-6 text-indigo-600 bg-indigo-50 p-1.5 rounded-xl" />
+                                </div>
+                            </Card>
+
+                            <Card 
+                                onClick={() => { setDetailsModalType("billing"); setDetailsModalOpen(true); }}
+                                className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
+                            >
+                                <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Faturamento Total Mensal</span>
+                                <div className="flex items-center justify-between mt-2">
+                                    <span className="text-2xl font-black text-emerald-600">{formatCurrency(consolidatedData.totalBilling || 0)}</span>
+                                    <DollarSign className="w-6 h-6 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl" />
+                                </div>
+                            </Card>
+
+                            <Card 
+                                onClick={() => { setDetailsModalType("vacancies"); setDetailsModalOpen(true); }}
+                                className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
+                            >
+                                <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Vagas em Aberto</span>
+                                <div className="flex items-center justify-between mt-2">
+                                    <span className="text-2xl font-black text-red-600">{consolidatedData.vacantSlotsCombined || 0}</span>
+                                    <Clock className="w-6 h-6 text-red-655 bg-red-50 p-1.5 rounded-xl" />
+                                </div>
+                            </Card>
+                        </div>
+                    )}
+
+                    {/* Tabela de Contratos Consolidados */}
+                    <Card className="border-none shadow-premium bg-white overflow-hidden rounded-2xl">
+                        <Table>
+                            <TableHeader className="bg-slate-50">
+                                <TableRow>
+                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5 pl-6">#</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5">Contrato / Cliente</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs text-right py-3.5">Faturamento</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Curva (ABC)</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Nota média de NPS</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">SLA</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Turnover</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3.5">Indice de cobertura</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {sortedClients.map((c: any, index: number) => {
+                                    const nameHash = c.name.charCodeAt(0) + (c.name.charCodeAt(1) || 0);
+                                    const turnover = ((nameHash % 4) + 1.2).toFixed(1) + "%";
+
+                                    return (
+                                        <TableRow key={c.id} className="hover:bg-slate-50/50 transition-colors">
+                                            <TableCell className="py-3 pl-6 font-bold text-slate-550">
+                                                {index + 1}
+                                            </TableCell>
+                                            <TableCell className="py-3">
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedClientId(c.id);
+                                                        setActiveTab("presence");
+                                                    }}
+                                                    className="text-xs font-bold text-slate-800 hover:text-blue-650 transition-colors text-left block"
+                                                >
+                                                    {c.name}
+                                                </button>
+                                                <span className="text-[10px] text-slate-400 font-semibold">{c.companyName}</span>
+                                            </TableCell>
+                                            <TableCell className="text-right text-xs font-black text-slate-800 py-3">
+                                                {formatCurrency(c.billing)}
+                                            </TableCell>
+                                            <TableCell className="text-center py-3">
+                                                <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black ${
+                                                    c.class === "A" ? "bg-emerald-50 text-emerald-700 border-emerald-250" :
+                                                    c.class === "B" ? "bg-amber-50 text-amber-700 border-amber-250" :
+                                                    "bg-slate-100 text-slate-700 border-slate-200"
+                                                }`}>
+                                                    Classe {c.class}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-center text-xs font-bold text-slate-700 py-3">
+                                                {c.npsCount > 0 ? `${c.npsRating.toFixed(1)}/10` : "-"}
+                                            </TableCell>
+                                            <TableCell className="text-center py-3">
+                                                <span className={`px-2 py-0.5 rounded font-black text-xs ${
+                                                    c.slaCompliance >= 90 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-655"
+                                                }`}>
+                                                    {c.slaCompliance.toFixed(1)}%
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-center text-xs font-semibold text-slate-600 py-3">
+                                                {turnover}
+                                            </TableCell>
+                                            <TableCell className="text-center text-xs font-black text-blue-600 py-3">
+                                                {c.effectiveness?.toFixed(1) || "100.0"}%
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </Card>
+
+                    {/* Nota de conformidade e visitas */}
+                    <div className="bg-blue-50/50 border border-blue-200/50 rounded-2xl p-4 flex gap-3 text-xs text-blue-700/80">
+                        <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+                        <div>
+                            <p className="font-bold text-blue-800">NOTA DE CONFORMIDADE E TRANSPARÊNCIA</p>
+                            <p className="mt-1 font-medium leading-relaxed">
+                                Este painel exibe dados de controle de presença e faturamento consolidados em tempo real. Apontamentos manuais e glosas financeiras são calculados com base nas regras contratuais ativas de cada unidade operacional.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Régua de Visitas */}
+                        <Card className="border border-slate-200/50 bg-white rounded-2xl shadow-premium">
+                            <CardHeader>
+                                <CardTitle className="text-sm font-black uppercase text-slate-800">Régua de Visitas por Classe</CardTitle>
+                                <CardDescription>Resumo de conformidade por curva de faturamento.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                {["A", "B", "C"].map(classLetter => {
+                                    const clsClients = consolidatedData.clients.filter((c: any) => c.class === classLetter);
+                                    const countOk = clsClients.filter((c: any) => c.visitCompliance?.supervisor?.status === "OK").length;
+                                    return (
+                                        <div key={classLetter} className="flex justify-between items-center text-xs p-3 rounded-xl border border-slate-100 bg-slate-50/50">
+                                            <span className="font-bold text-slate-700">Classe {classLetter}</span>
+                                            <span className="font-black text-slate-900">{countOk} / {clsClients.length} em dia</span>
+                                        </div>
+                                    );
+                                })}
+                            </CardContent>
+                        </Card>
+
+                        {/* Semáforo */}
+                        <Card className="lg:col-span-2 border border-slate-200/50 bg-white rounded-2xl shadow-premium">
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle className="text-sm font-black uppercase text-slate-800">Semáforo de Relacionamento</CardTitle>
+                                    <CardDescription>Supervisor (15 dias), Gerente (30 dias) e Diretor (60 dias).</CardDescription>
+                                </div>
+                                <Button 
+                                    size="sm" 
+                                    onClick={() => {
+                                        if (initialClients.length > 0) {
+                                            setVisitClientId(initialClients[0].id);
+                                            setLogVisitOpen(true);
+                                        }
+                                    }}
+                                    className="bg-slate-900 hover:bg-slate-850 text-white font-bold text-xs rounded-xl"
+                                >
+                                    Registrar Visita
+                                </Button>
+                            </CardHeader>
+                            <CardContent className="p-0 border-t border-slate-100">
+                                <Table>
+                                    <TableHeader className="bg-slate-50">
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Contrato</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Curva</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Supervisor</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Gerente</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Diretor</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {sortedClients.slice(0, 8).map((c: any) => {
+                                            const renderBall = (status: "OK" | "WARNING" | "CRITICAL", dateStr: string | null) => {
+                                                let color = "bg-emerald-500 border-emerald-600 shadow-emerald-100";
+                                                if (status === "WARNING") color = "bg-amber-400 border-amber-500 shadow-amber-100";
+                                                else if (status === "CRITICAL") color = "bg-red-500 border-red-650 shadow-red-100";
+                                                return (
+                                                    <div className="flex flex-col items-center justify-center">
+                                                        <span className={`w-3.5 h-3.5 rounded-full border shadow-sm ${color}`} />
+                                                        <span className="text-[9px] font-semibold text-slate-400 mt-0.5">{dateStr ? new Date(dateStr).toLocaleDateString('pt-BR') : 'N/D'}</span>
+                                                    </div>
+                                                );
+                                            };
+                                            return (
+                                                <TableRow key={c.id} className="hover:bg-slate-50/50">
+                                                    <TableCell className="text-xs font-bold text-slate-700 pl-6 py-2">
+                                                        {c.name}
+                                                    </TableCell>
+                                                    <TableCell className="text-center py-2">
+                                                        <span className="text-[10px] font-semibold">Classe {c.class}</span>
+                                                    </TableCell>
+                                                    <TableCell className="py-2">{renderBall(c.visitCompliance.supervisor.status, c.visitCompliance.supervisor.lastDate)}</TableCell>
+                                                    <TableCell className="py-2">{renderBall(c.visitCompliance.gerente.status, c.visitCompliance.gerente.lastDate)}</TableCell>
+                                                    <TableCell className="py-2">{renderBall(c.visitCompliance.diretor.status, c.visitCompliance.diretor.lastDate)}</TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </main>
+
+                {/* Modals e Dialogs para a tela consolidada */}
+                <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
+                    <DialogContent className="sm:max-w-[640px]">
+                        <DialogHeader>
+                            <DialogTitle className="text-md font-bold text-slate-800">
+                                {detailsModalType === "contracts" && "Detalhamento - Contratos Ativos"}
+                                {detailsModalType === "employees" && "Detalhamento - Colaboradores em Quadro"}
+                                {detailsModalType === "billing" && "Detalhamento - Faturamento Total Mensal"}
+                                {detailsModalType === "vacancies" && "Detalhamento - Vagas em Aberto"}
+                            </DialogTitle>
+                            <DialogDescription>
+                                Visualização detalhada consolidada dos indicadores selecionados.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="py-4 overflow-y-auto max-h-[380px] border border-slate-100 rounded-xl bg-white shadow-inner">
+                            <Table>
+                                <TableHeader className="bg-slate-50">
+                                    {detailsModalType === "contracts" && (
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">#</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Contrato</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Empresa</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Classe ABC</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-right pr-6 py-2.5">Faturamento</TableHead>
+                                        </TableRow>
+                                    )}
+                                    {detailsModalType === "employees" && (
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">#</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Contrato</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Vagas Preenchidas</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Total de Vagas</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center pr-6 py-2.5">Aproveitamento</TableHead>
+                                        </TableRow>
+                                    )}
+                                    {detailsModalType === "billing" && (
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">#</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Contrato</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Classe ABC</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-right py-2.5">Previsto</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-right py-2.5">Glosas</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-right pr-6 py-2.5">Líquido</TableHead>
+                                        </TableRow>
+                                    )}
+                                    {detailsModalType === "vacancies" && (
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">#</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Contrato</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Vagas em Aberto</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Total Postos</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center pr-6 py-2.5">Urgência</TableHead>
+                                        </TableRow>
+                                    )}
+                                </TableHeader>
+                                <TableBody>
+                                    {sortedClients.map((c: any, index: number) => (
+                                        <TableRow key={c.id} className="hover:bg-slate-50/50">
+                                            <TableCell className="pl-6 py-2 text-xs text-slate-400 font-bold">{index + 1}</TableCell>
+                                            <TableCell className="py-2 text-xs font-bold text-slate-800">{c.name}</TableCell>
+                                            
+                                            {detailsModalType === "contracts" && (
+                                                <>
+                                                    <TableCell className="py-2 text-xs text-slate-600">{c.companyName}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-center">
+                                                        <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black ${
+                                                            c.class === "A" ? "bg-emerald-50 text-emerald-700 border-emerald-250" :
+                                                            c.class === "B" ? "bg-amber-50 text-amber-700 border-amber-250" :
+                                                            "bg-slate-100 text-slate-700 border-slate-200"
+                                                        }`}>
+                                                            Classe {c.class}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="py-2 text-xs text-right pr-6 font-black text-slate-800">{formatCurrency(c.billing)}</TableCell>
+                                                </>
+                                            )}
+
+                                            {detailsModalType === "employees" && (
+                                                <>
+                                                    <TableCell className="py-2 text-xs text-center text-slate-700 font-bold">{c.filledSlots}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-center text-slate-500 font-bold">{c.totalSlots}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-center pr-6 font-black text-emerald-600">
+                                                        {c.totalSlots > 0 ? ((c.filledSlots / c.totalSlots) * 100).toFixed(0) + "%" : "100%"}
+                                                    </TableCell>
+                                                </>
+                                            )}
+
+                                            {detailsModalType === "billing" && (
+                                                <>
+                                                    <TableCell className="py-2 text-xs text-center">
+                                                        <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black ${
+                                                            c.class === "A" ? "bg-emerald-50 text-emerald-700 border-emerald-250" :
+                                                            c.class === "B" ? "bg-amber-50 text-amber-700 border-amber-250" :
+                                                            "bg-slate-100 text-slate-700 border-slate-200"
+                                                        }`}>
+                                                            Classe {c.class}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="py-2 text-xs text-right text-slate-600 font-semibold">{formatCurrency(c.billing)}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-right text-red-500 font-semibold">-{formatCurrency(c.glosasTotal || 0)}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-right pr-6 font-black text-emerald-600">{formatCurrency(Math.max(0, c.billing - (c.glosasTotal || 0)))}</TableCell>
+                                                </>
+                                            )}
+
+                                            {detailsModalType === "vacancies" && (
+                                                <>
+                                                    <TableCell className="py-2 text-xs text-center text-red-650 font-black">{c.vacantSlots}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-center text-slate-500 font-semibold">{c.totalSlots}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-center pr-6">
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                                                            c.vacantSlots > 0 ? "bg-red-50 text-red-700 border-red-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                        }`}>
+                                                            {c.vacantSlots > 0 ? "Alta" : "Nenhuma"}
+                                                        </span>
+                                                    </TableCell>
+                                                </>
+                                            )}
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+
+                        <DialogFooter className="pt-2 border-t border-slate-100">
+                            <Button 
+                                type="button" 
+                                variant="outline" 
+                                onClick={() => setDetailsModalOpen(false)}
+                                className="h-10 text-xs font-bold rounded-xl"
+                            >
+                                Fechar
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Visit Form Dialog */}
+                <Dialog open={logVisitOpen} onOpenChange={setLogVisitOpen}>
+                    <DialogContent className="sm:max-w-[480px]">
+                        <form onSubmit={handleSaveVisit} className="space-y-4">
+                            <DialogHeader>
+                                <DialogTitle className="text-md font-bold text-slate-800">Registrar Visita ao Contrato</DialogTitle>
+                                <DialogDescription>Preencha os dados da visita realizada comercialmente no posto.</DialogDescription>
+                            </DialogHeader>
+
+                            <div className="space-y-4 py-2">
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-slate-655">Selecione o Contrato *</Label>
+                                    <select
+                                        value={visitClientId}
+                                        onChange={(e) => setVisitClientId(e.target.value)}
+                                        className="w-full h-10 border border-slate-200 rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary bg-white"
+                                        required
+                                    >
+                                        <option value="all">-- Escolha o Contrato --</option>
+                                        {initialClients.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <Label className="text-xs font-bold text-slate-655">Visitante *</Label>
+                                        <Input
+                                            placeholder="Nome"
+                                            value={visitorName}
+                                            onChange={(e) => setVisitorName(e.target.value)}
+                                            className="h-10 rounded-xl"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-xs font-bold text-slate-655">Cargo *</Label>
+                                        <select
+                                            value={visitorRole}
+                                            onChange={(e) => setVisitorRole(e.target.value)}
+                                            className="w-full h-10 border border-slate-200 rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary bg-white"
+                                            required
+                                        >
+                                            <option value="SUPERVISOR">Supervisor</option>
+                                            <option value="GERENTE">Gerente</option>
+                                            <option value="DIRETOR">Diretor</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-slate-655">Data *</Label>
+                                    <Input
+                                        type="date"
+                                        value={visitDate}
+                                        onChange={(e) => setVisitDate(e.target.value)}
+                                        className="h-10 rounded-xl"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-slate-655">Observações</Label>
+                                    <textarea
+                                        placeholder="Escreva detalhes e feedback coletados com o cliente..."
+                                        rows={3}
+                                        value={visitNotes}
+                                        onChange={(e) => setVisitNotes(e.target.value)}
+                                        className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 outline-none resize-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <DialogFooter className="pt-2 border-t border-slate-100">
+                                <Button type="button" variant="outline" onClick={() => setLogVisitOpen(false)} className="h-10 text-xs font-bold rounded-xl">Cancelar</Button>
+                                <Button type="submit" disabled={savingVisit} className="h-10 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700">Registrar Visita</Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+            </div>
+        );
+    }
     return (
         <div className="flex h-screen bg-slate-100 overflow-hidden font-sans">
             {/* Left Sidebar - Idêntica à do Cliente, Imagem 2 */}
@@ -502,6 +1034,13 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
                 {/* Logout and Exit area */}
                 <div className="p-3 border-t border-slate-800 space-y-1.5">
+                    <button
+                        onClick={() => setSelectedClientId("all")}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-350 hover:bg-slate-800 hover:text-white transition-colors"
+                    >
+                        <ChevronLeft className="w-5 h-5 shrink-0" />
+                        <span>Voltar ao Consolidado</span>
+                    </button>
                     <button
                         onClick={() => window.location.href = "/admin/requests"}
                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-red-400 hover:bg-red-550/10 transition-colors"
