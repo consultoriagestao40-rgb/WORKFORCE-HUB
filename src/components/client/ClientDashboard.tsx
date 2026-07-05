@@ -2520,7 +2520,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                         </div>
                                     </div>
 
-                                    <div className="border border-slate-100 rounded-2xl overflow-hidden bg-white">
+                                    <div className="border border-slate-100 rounded-2xl overflow-x-auto bg-white">
                                         <Table>
                                             <TableHeader className="bg-slate-50">
                                                 <TableRow>
@@ -2623,7 +2623,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                         {/* KPI: ROTATIVIDADE (TURNOVER) */}
                         {kpiModalConfig?.kpiType === 'turnover' && (
                             <div className="space-y-4">
-                                <div className="border border-slate-100 rounded-2xl overflow-hidden bg-white">
+                                <div className="border border-slate-100 rounded-2xl overflow-x-auto bg-white">
                                     <Table>
                                         <TableHeader className="bg-slate-50">
                                             <TableRow>
@@ -2661,7 +2661,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                         {/* KPI: CHAMADOS NO PRAZO (SLA) */}
                         {kpiModalConfig?.kpiType === 'sla' && (
                             <div className="space-y-4">
-                                <div className="border border-slate-100 rounded-2xl overflow-hidden bg-white">
+                                <div className="border border-slate-100 rounded-2xl overflow-x-auto bg-white">
                                     <Table>
                                         <TableHeader className="bg-slate-50">
                                             <TableRow>
@@ -2719,7 +2719,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                             const complaints = (kpiModalData.requests || []).filter((r: any) => r.type === "RECLAMACOES" || r.description?.toLowerCase().includes("reclam") || r.description?.toLowerCase().includes("queixa"));
                             return (
                                 <div className="space-y-4">
-                                    <div className="border border-slate-100 rounded-2xl overflow-hidden bg-white">
+                                    <div className="border border-slate-100 rounded-2xl overflow-x-auto bg-white">
                                         <Table>
                                             <TableHeader className="bg-slate-50">
                                                 <TableRow>

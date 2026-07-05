@@ -1488,6 +1488,12 @@ export async function getAdminClientKpis(clientId: string, year: number) {
             })
         ]);
 
+        console.log(`[getAdminClientKpis] clientId: ${clientId}, year: ${year}`);
+        console.log(`[getAdminClientKpis] attendances count: ${attendances.length}`);
+        const julAtts = attendances.filter((a: any) => new Date(a.date).getMonth() === 6);
+        console.log(`[getAdminClientKpis] Julho attendances count: ${julAtts.length}`);
+        console.log(`[getAdminClientKpis] Julho absences count: ${julAtts.filter((a: any) => a.status === 'FALTA').length}`);
+
         const clientRequests = requests.filter((r: any) => 
             (r.clientId && clientIds.includes(r.clientId)) ||
             r.requester?.clientIds?.some((id: string) => clientIds.includes(id)) ||
@@ -1945,6 +1951,9 @@ export async function getClientDetailedData(clientId: string, year: number, mont
             },
             orderBy: { date: 'asc' }
         });
+
+        console.log(`[getClientDetailedData] clientId: ${clientId}, year: ${year}, month: ${month}`);
+        console.log(`[getClientDetailedData] attendances count: ${attendances.length}`);
 
         const allRequests = await prisma.request.findMany({
             where: {
