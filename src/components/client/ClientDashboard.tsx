@@ -2521,7 +2521,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                     </div>
 
                                     <div className="border border-slate-100 rounded-2xl overflow-x-auto bg-white">
-                                        <Table>
+                                        <Table className="min-w-[700px]">
                                             <TableHeader className="bg-slate-50">
                                                 <TableRow>
                                                     <TableHead className="font-bold text-xs text-slate-800 pl-4">Data</TableHead>
@@ -2720,7 +2720,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                             return (
                                 <div className="space-y-4">
                                     <div className="border border-slate-100 rounded-2xl overflow-x-auto bg-white">
-                                        <Table>
+                                        <Table className="min-w-[700px]">
                                             <TableHeader className="bg-slate-50">
                                                 <TableRow>
                                                     <TableHead className="font-bold text-xs text-slate-800 pl-4">ID Reclamação</TableHead>
