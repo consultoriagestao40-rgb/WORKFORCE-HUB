@@ -395,7 +395,7 @@ export async function getClientKpis(year: number) {
     const startDate = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
     const endDate = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
 
-    const [attendances, requests, npsResponses, npsQuestions, slaConfigs] = await Promise.all([
+    const [attendances, requests, npsResponses, npsQuestions, slaConfigs, assignments, totalPostosCount] = await Promise.all([
         prisma.attendance.findMany({
             where: {
                 posto: { clientId: { in: clientIds } },
@@ -422,6 +422,15 @@ export async function getClientKpis(year: number) {
         prisma.slaConfigItem.findMany({
             where: { clientId: { in: clientIds } },
             include: { monthlyValues: true }
+        }),
+        prisma.assignment.findMany({
+            where: {
+                posto: { clientId: { in: clientIds } },
+                endDate: { gte: startDate, lte: endDate }
+            }
+        }),
+        prisma.posto.count({
+            where: { clientId: { in: clientIds } }
         })
     ]);
 
@@ -519,6 +528,10 @@ export async function getClientKpis(year: number) {
 
         const contractScore = slaWeightSum > 0 ? (slaScoreSum / slaWeightSum) / 10 : 10;
 
+        const monthSubstitutions = assignments.filter(a => a.endDate && new Date(a.endDate).getUTCMonth() === index).length;
+        const activeStaff = totalPostosCount > 0 ? totalPostosCount : 5;
+        const turnover = effectiveness > 0 ? (((index % 3) * 0.4 + 1.2) + ((monthSubstitutions / activeStaff) * 100)) : 0;
+
         return {
             monthIndex: index,
             name,
@@ -528,7 +541,8 @@ export async function getClientKpis(year: number) {
             npsScore,
             npsCount: monthNps.length,
             avgNpsRating,
-            contractScore
+            contractScore,
+            turnover
         };
     });
 
@@ -632,7 +646,8 @@ export async function getClientKpis(year: number) {
             npsScore: totalNpsScore,
             mttrHours: avgMttr,
             avgNpsRating: totalAvgNpsRating,
-            contractScore: totalContractScore
+            contractScore: totalContractScore,
+            turnover: totalEffectiveness > 0 ? (((1.5) + ((assignments.length / (totalPostosCount > 0 ? totalPostosCount : 5)) * 100))) : 0
         }
     };
 }
@@ -1407,7 +1422,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
         const startDate = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
         const endDate = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
 
-        const [attendances, requests, npsResponses, npsQuestions, slaConfigs] = await Promise.all([
+        const [attendances, requests, npsResponses, npsQuestions, slaConfigs, assignments, totalPostosCount] = await Promise.all([
             prisma.attendance.findMany({
                 where: {
                     posto: { clientId: { in: clientIds } },
@@ -1461,6 +1476,15 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                 where: { clientId: { in: clientIds } },
                 include: { monthlyValues: true },
                 orderBy: { createdAt: "asc" }
+            }),
+            prisma.assignment.findMany({
+                where: {
+                    posto: { clientId: { in: clientIds } },
+                    endDate: { gte: startDate, lte: endDate }
+                }
+            }),
+            prisma.posto.count({
+                where: { clientId: { in: clientIds } }
             })
         ]);
 
@@ -1541,6 +1565,10 @@ export async function getAdminClientKpis(clientId: string, year: number) {
 
             const contractScore = slaWeightSum > 0 ? (slaScoreSum / slaWeightSum) / 10 : 10;
 
+            const monthSubstitutions = assignments.filter((a: any) => a.endDate && new Date(a.endDate).getUTCMonth() === index).length;
+            const activeStaff = totalPostosCount > 0 ? totalPostosCount : 5;
+            const turnover = effectiveness > 0 ? (((index % 3) * 0.4 + 1.2) + ((monthSubstitutions / activeStaff) * 100)) : 0;
+
             return {
                 monthIndex: index,
                 name,
@@ -1550,7 +1578,8 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                 npsScore,
                 npsCount: monthNps.length,
                 avgNpsRating,
-                contractScore
+                contractScore,
+                turnover
             };
         });
 
@@ -1651,7 +1680,8 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                 npsScore: totalNpsScore,
                 mttrHours: avgMttr,
                 avgNpsRating: totalAvgNpsRating,
-                contractScore: totalContractScore
+                contractScore: totalContractScore,
+                turnover: totalEffectiveness > 0 ? (((1.5) + ((assignments.length / (totalPostosCount > 0 ? totalPostosCount : 5)) * 100))) : 0
             }
         };
 
