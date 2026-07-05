@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { SidebarNav } from "@/components/admin/SidebarNav";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -12,6 +13,18 @@ interface AdminLayoutWrapperProps {
 
 export function AdminLayoutWrapper({ children, user }: AdminLayoutWrapperProps) {
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const pathname = usePathname();
+    const isPerformancePage = pathname === "/admin/performance";
+
+    if (isPerformancePage) {
+        return (
+            <div className="flex min-h-screen bg-slate-100 overflow-hidden font-sans">
+                <main className="flex-1 min-w-0 p-0 overflow-hidden">
+                    {children}
+                </main>
+            </div>
+        );
+    }
 
     return (
         <div className="flex min-h-screen bg-slate-50/50 relative">
