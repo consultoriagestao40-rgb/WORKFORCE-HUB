@@ -1696,7 +1696,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                 m.effectiveness >= 90 ? 'bg-amber-50 text-amber-700' :
                                                                 'bg-red-50 text-red-700'
                                                             } hover:opacity-100 font-bold`}>
-                                                                {m.effectiveness.toFixed(1)}%
+                                                                {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(1)}%` : "-"}
                                                             </Badge>
                                                         </TableCell>
                                                         <TableCell className="text-center text-xs font-semibold text-slate-505">
@@ -2172,7 +2172,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                     m.slaCompliance >= 80 ? 'bg-amber-50 text-amber-700' :
                                                                     'bg-red-50 text-red-755'
                                                                 } font-bold hover:opacity-100`}>
-                                                                    {m.slaCompliance.toFixed(1)}%
+                                                                    {m.slaCompliance !== null && m.slaCompliance !== undefined ? `${m.slaCompliance.toFixed(1)}%` : "-"}
                                                                 </Badge>
                                                             </TableCell>
                                                             <TableCell className="text-center">
@@ -2308,7 +2308,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
 
                                                         const turnoverRate = m.turnover || 0;
 
-                                                        const hasData = m.effectiveness > 0 || monthRequests.length > 0 || m.npsCount > 0;
+                                                        const hasData = (m.effectiveness !== null && m.effectiveness !== undefined) || monthRequests.length > 0 || m.npsCount > 0;
 
                                                         if (!hasData) {
                                                             return (

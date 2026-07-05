@@ -478,23 +478,23 @@ export async function getClientKpis(year: number) {
         const vacantShifts = activeShifts.filter(a => a.status === "FALTA" && !a.coveredById).length;
         const totalAbsences = activeShifts.filter(a => a.status === "FALTA").length;
 
-        const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : 100;
-        const absenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : 0;
+        const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : null;
+        const absenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : null;
 
         const monthRequests = requests.filter(r => new Date(r.createdAt).getMonth() === index);
         const resolvedRequests = monthRequests.filter(r => r.status === "CONCLUIDO" || r.status === "REJEITADO");
         
         const slaOnTime = resolvedRequests.filter(r => r.updatedAt <= r.dueDate).length;
-        const slaCompliance = resolvedRequests.length > 0 ? (slaOnTime / resolvedRequests.length) * 100 : 100;
+        const slaCompliance = resolvedRequests.length > 0 ? (slaOnTime / resolvedRequests.length) * 100 : null;
 
         const monthNps = mappedNpsResponses.filter(n => new Date(n.createdAt).getMonth() === index);
         const promoters = monthNps.filter(n => n.resolvedScore >= 9).length;
         const detractors = monthNps.filter(n => n.resolvedScore <= 6).length;
-        const npsScore = monthNps.length > 0 ? ((promoters - detractors) / monthNps.length) * 100 : 100;
+        const npsScore = monthNps.length > 0 ? ((promoters - detractors) / monthNps.length) * 100 : null;
         
         const avgNpsRating = monthNps.length > 0
             ? monthNps.reduce((sum, n) => sum + n.resolvedScore, 0) / monthNps.length
-            : 10;
+            : null;
 
         // Nota do Contrato (0 a 10) baseada na configuração de SLA ou pesos padrão
         let slaWeightSum = 0;
@@ -505,14 +505,14 @@ export async function getClientKpis(year: number) {
 
         if (clientConfigs.length > 0) {
             clientConfigs.forEach(config => {
-                let metricValue = 100;
+                let metricValue = null;
 
                 if (config.metricType === "EFETIVIDADE") {
                     metricValue = effectiveness;
                 } else if (config.metricType === "SLA_CHAMADOS") {
                     metricValue = slaCompliance;
                 } else if (config.metricType === "NPS") {
-                    metricValue = avgNpsRating * 10;
+                    metricValue = avgNpsRating !== null ? avgNpsRating * 10 : null;
                 } else if (config.metricType === "RECLAMACOES") {
                     const complaintsCount = monthRequests.filter(r => r.type !== "MOVIMENTACAO" && r.type !== "UNIFORME").length;
                     metricValue = Math.max(0, 100 - complaintsCount * 20); // 0 reclamacoes = 100%, 5+ = 0%
@@ -521,16 +521,30 @@ export async function getClientKpis(year: number) {
                     metricValue = foundManual ? foundManual.value : config.targetValue;
                 }
 
-                slaScoreSum += metricValue * config.weight;
-                slaWeightSum += config.weight;
+                if (metricValue !== null && metricValue !== undefined) {
+                    slaScoreSum += metricValue * config.weight;
+                    slaWeightSum += config.weight;
+                }
             });
         } else {
             // Fallback padrão: 50% Efetividade, 25% SLA Chamados, 25% NPS
-            slaScoreSum += effectiveness * 0.5 * 100 + slaCompliance * 0.25 * 100 + (avgNpsRating * 10) * 0.25 * 100;
-            slaWeightSum += 100;
+            let weightSum = 0;
+            if (effectiveness !== null) {
+                slaScoreSum += effectiveness * 0.5 * 100;
+                weightSum += 50;
+            }
+            if (slaCompliance !== null) {
+                slaScoreSum += slaCompliance * 0.25 * 100;
+                weightSum += 25;
+            }
+            if (avgNpsRating !== null) {
+                slaScoreSum += (avgNpsRating * 10) * 0.25 * 100;
+                weightSum += 25;
+            }
+            slaWeightSum = weightSum;
         }
 
-        const contractScore = slaWeightSum > 0 ? (slaScoreSum / slaWeightSum) / 10 : 10;
+        const contractScore = slaWeightSum > 0 ? (slaScoreSum / slaWeightSum) / 10 : null;
 
         const monthSubstitutions = assignments.filter(a => a.endDate && new Date(a.endDate).getUTCMonth() === index).length;
         const activeStaff = totalPostosCount > 0 ? totalPostosCount : 5;
@@ -597,21 +611,21 @@ export async function getClientKpis(year: number) {
     const vacantShifts = activeAtts.filter(a => a.status === "FALTA" && !a.coveredById && !a.coverageType).length;
     const totalAbsences = activeAtts.filter(a => a.status === "FALTA").length;
 
-    const totalEffectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : 100;
-    const totalAbsenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : 0;
+    const totalEffectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : null;
+    const totalAbsenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : null;
 
     const resolved = requests.filter(r => r.status === "CONCLUIDO" || r.status === "REJEITADO");
     const totalSlaOnTime = resolved.filter(r => r.updatedAt <= r.dueDate).length;
-    const totalSlaCompliance = resolved.length > 0 ? (totalSlaOnTime / resolved.length) * 100 : 100;
+    const totalSlaCompliance = resolved.length > 0 ? (totalSlaOnTime / resolved.length) * 100 : null;
 
     const totalMonthNps = mappedNpsResponses;
     const totalPromoters = totalMonthNps.filter(n => n.resolvedScore >= 9).length;
     const totalDetractors = totalMonthNps.filter(n => n.resolvedScore <= 6).length;
-    const totalNpsScore = totalMonthNps.length > 0 ? ((totalPromoters - totalDetractors) / totalMonthNps.length) * 100 : 100;
+    const totalNpsScore = totalMonthNps.length > 0 ? ((totalPromoters - totalDetractors) / totalMonthNps.length) * 100 : null;
 
     const totalAvgNpsRating = totalMonthNps.length > 0
         ? totalMonthNps.reduce((sum, n) => sum + n.resolvedScore, 0) / totalMonthNps.length
-        : 10;
+        : null;
 
     let summaryWeightSum = 0;
     let summaryScoreSum = 0;
@@ -620,14 +634,14 @@ export async function getClientKpis(year: number) {
 
     if (clientConfigs.length > 0) {
         clientConfigs.forEach(config => {
-            let metricValue = 100;
+            let metricValue: number | null = 100;
 
             if (config.metricType === "EFETIVIDADE") {
                 metricValue = totalEffectiveness;
             } else if (config.metricType === "SLA_CHAMADOS") {
                 metricValue = totalSlaCompliance;
             } else if (config.metricType === "NPS") {
-                metricValue = totalAvgNpsRating * 10;
+                metricValue = totalAvgNpsRating !== null ? totalAvgNpsRating * 10 : null;
             } else if (config.metricType === "RECLAMACOES") {
                 const complaintsCount = requests.filter(r => r.type !== "MOVIMENTACAO" && r.type !== "UNIFORME").length;
                 metricValue = Math.max(0, 100 - complaintsCount * 20);
@@ -639,12 +653,26 @@ export async function getClientKpis(year: number) {
                     : config.targetValue;
             }
 
-            summaryScoreSum += metricValue * config.weight;
-            summaryWeightSum += config.weight;
+            if (metricValue !== null && metricValue !== undefined) {
+                summaryScoreSum += metricValue * config.weight;
+                summaryWeightSum += config.weight;
+            }
         });
     } else {
-        summaryScoreSum += totalEffectiveness * 0.5 * 100 + totalSlaCompliance * 0.25 * 100 + (totalAvgNpsRating * 10) * 0.25 * 100;
-        summaryWeightSum += 100;
+        let weightSum = 0;
+        if (totalEffectiveness !== null) {
+            summaryScoreSum += totalEffectiveness * 0.5 * 100;
+            weightSum += 50;
+        }
+        if (totalSlaCompliance !== null) {
+            summaryScoreSum += totalSlaCompliance * 0.25 * 100;
+            weightSum += 25;
+        }
+        if (totalAvgNpsRating !== null) {
+            summaryScoreSum += (totalAvgNpsRating * 10) * 0.25 * 100;
+            weightSum += 25;
+        }
+        summaryWeightSum = weightSum;
     }
 
     const totalContractScore = summaryWeightSum > 0 ? (summaryScoreSum / summaryWeightSum) / 10 : 10;
@@ -693,7 +721,7 @@ export async function getClientKpis(year: number) {
             mttrHours: avgMttr,
             avgNpsRating: totalAvgNpsRating,
             contractScore: totalContractScore,
-            turnover: totalEffectiveness > 0 ? (((1.5) + ((assignments.length / (totalPostosCount > 0 ? totalPostosCount : 5)) * 100))) : 0
+            turnover: (totalEffectiveness !== null && totalEffectiveness > 0) ? (((1.5) + ((assignments.length / (totalPostosCount > 0 ? totalPostosCount : 5)) * 100))) : 0
         }
     };
 }
@@ -1729,8 +1757,20 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                 summaryWeightSum += config.weight;
             });
         } else {
-            summaryScoreSum += totalEffectiveness * 0.5 * 100 + totalSlaCompliance * 0.25 * 100 + (totalAvgNpsRating * 10) * 0.25 * 100;
-            summaryWeightSum += 100;
+            let weightSum = 0;
+            if (totalEffectiveness !== null) {
+                summaryScoreSum += totalEffectiveness * 0.5 * 100;
+                weightSum += 50;
+            }
+            if (totalSlaCompliance !== null) {
+                summaryScoreSum += totalSlaCompliance * 0.25 * 100;
+                weightSum += 25;
+            }
+            if (totalAvgNpsRating !== null) {
+                summaryScoreSum += (totalAvgNpsRating * 10) * 0.25 * 100;
+                weightSum += 25;
+            }
+            summaryWeightSum = weightSum;
         }
 
         const totalContractScore = summaryWeightSum > 0 ? (summaryScoreSum / summaryWeightSum) / 10 : 10;
@@ -1779,7 +1819,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                 mttrHours: avgMttr,
                 avgNpsRating: totalAvgNpsRating,
                 contractScore: totalContractScore,
-                turnover: totalEffectiveness > 0 ? (((1.5) + ((assignments.length / (totalPostosCount > 0 ? totalPostosCount : 5)) * 100))) : 0
+                turnover: (totalEffectiveness !== null && totalEffectiveness > 0) ? (((1.5) + ((assignments.length / (totalPostosCount > 0 ? totalPostosCount : 5)) * 100))) : 0
             }
         };
 

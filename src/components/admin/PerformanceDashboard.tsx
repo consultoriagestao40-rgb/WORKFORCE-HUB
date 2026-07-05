@@ -2700,7 +2700,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                     <TableCell className="text-right pr-6 text-xs text-slate-700 font-semibold py-3">{formatCurrency(m.expectedBilling)}</TableCell>
                                                     <TableCell className="text-right pr-6 text-xs text-red-650 font-semibold py-3">-{formatCurrency(m.glosas)}</TableCell>
                                                     <TableCell className="text-right pr-6 text-xs text-emerald-600 font-black py-3">{formatCurrency(m.netBilling)}</TableCell>
-                                                    <TableCell className="text-center text-xs font-black text-blue-600 py-3">{m.effectiveness.toFixed(1)}%</TableCell>
+                                                    <TableCell className="text-center text-xs font-black text-blue-600 py-3">{m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(1)}%` : "-"}</TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>
@@ -3337,37 +3337,32 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             ) : (
                                 clientKpiData && (
                                     <div className="space-y-6">
-                                        {(() => {
-                                            const currentMonthData = clientKpiData.monthlyData?.find((m: any) => m.monthIndex === selectedMonth);
-                                            return (
-                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                                    <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
-                                                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Efetividade Escala</span>
-                                                        <span className="text-xl font-black mt-1 text-emerald-600">
-                                                            {currentMonthData?.effectiveness !== undefined && currentMonthData?.effectiveness !== null 
-                                                                ? `${currentMonthData.effectiveness.toFixed(1)}%` 
-                                                                : "100.0%"}
-                                                        </span>
-                                                    </Card>
-                                                    <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
-                                                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Cumprimento SLA</span>
-                                                        <span className="text-xl font-black mt-1 text-blue-600">
-                                                            {currentMonthData?.slaCompliance !== undefined && currentMonthData?.slaCompliance !== null 
-                                                                ? `${currentMonthData.slaCompliance.toFixed(1)}%` 
-                                                                : "100.0%"}
-                                                        </span>
-                                                    </Card>
-                                                    <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
-                                                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Nota NPS Média</span>
-                                                        <span className="text-xl font-black mt-1 text-amber-500">
-                                                            {currentMonthData?.avgNpsRating 
-                                                                ? `${(currentMonthData.avgNpsRating * 10).toFixed(1).replace('.', ',')}%` 
-                                                                : "100,0%"}
-                                                        </span>
-                                                    </Card>
-                                                </div>
-                                            );
-                                        })()}
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                            <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
+                                                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Efetividade Escala</span>
+                                                <span className="text-xl font-black mt-1 text-emerald-600">
+                                                    {clientKpiData.summary?.effectiveness !== undefined && clientKpiData.summary?.effectiveness !== null 
+                                                        ? `${clientKpiData.summary.effectiveness.toFixed(1)}%` 
+                                                        : "-"}
+                                                </span>
+                                            </Card>
+                                            <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
+                                                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Cumprimento SLA</span>
+                                                <span className="text-xl font-black mt-1 text-blue-600">
+                                                    {clientKpiData.summary?.slaCompliance !== undefined && clientKpiData.summary?.slaCompliance !== null 
+                                                        ? `${clientKpiData.summary.slaCompliance.toFixed(1)}%` 
+                                                        : "-"}
+                                                </span>
+                                            </Card>
+                                            <Card className="border border-slate-200 bg-white shadow-sm p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
+                                                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Nota NPS Média</span>
+                                                <span className="text-xl font-black mt-1 text-amber-500">
+                                                    {clientKpiData.summary?.avgNpsRating 
+                                                        ? `${(clientKpiData.summary.avgNpsRating * 10).toFixed(1).replace('.', ',')}%` 
+                                                        : "-"}
+                                                </span>
+                                            </Card>
+                                        </div>
 
                                         {/* Tabela de KPIs Comparativa Mensal */}
                                         <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
@@ -3399,7 +3394,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                             const turnoverRate = m.turnover || 0;
 
                                                             // Só exibir se o mês tiver algum dado
-                                                            const hasData = m.effectiveness > 0 || monthRequests.length > 0 || m.npsCount > 0;
+                                                            const hasData = (m.effectiveness !== null && m.effectiveness !== undefined) || monthRequests.length > 0 || m.npsCount > 0;
 
                                                             if (!hasData) {
                                                                 return (
@@ -3439,7 +3434,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                         onClick={() => handleKpiCellClick(mIndex, m.name, 'sla', m.slaCompliance)}
                                                                         className="text-center font-bold text-xs text-blue-600 py-3 cursor-pointer hover:bg-blue-50 hover:scale-[1.03] transition-all select-none"
                                                                     >
-                                                                        {m.slaCompliance.toFixed(1)}%
+                                                                        {m.slaCompliance !== null && m.slaCompliance !== undefined ? `${m.slaCompliance.toFixed(1)}%` : "-"}
                                                                     </TableCell>
                                                                     <TableCell 
                                                                         onClick={() => handleKpiCellClick(mIndex, m.name, 'complaints', m.complaintsRate)}
