@@ -690,7 +690,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             </CardHeader>
                             <CardContent className="space-y-3">
                                 {["A", "B", "C"].map(classLetter => {
-                                    const clsClients = consolidatedData.clients.filter((c: any) => c.class === classLetter);
+                                    const clsClients = (consolidatedData?.clients || []).filter((c: any) => c.class === classLetter);
                                     const countOk = clsClients.filter((c: any) => c.visitCompliance?.supervisor?.status === "OK").length;
                                     return (
                                         <div key={classLetter} className="flex justify-between items-center text-xs p-3 rounded-xl border border-slate-100 bg-slate-50/50">
@@ -1339,7 +1339,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                 </CardHeader>
                                                 <CardContent className="space-y-3">
                                                     {["A", "B", "C"].map(classLetter => {
-                                                        const clsClients = consolidatedData.clients.filter((c: any) => c.class === classLetter);
+                                                        const clsClients = (consolidatedData?.clients || []).filter((c: any) => c.class === classLetter);
                                                         const countOk = clsClients.filter((c: any) => c.visitCompliance?.supervisor?.status === "OK").length;
                                                         return (
                                                             <div key={classLetter} className="flex justify-between items-center text-xs p-3 rounded-xl border border-slate-100 bg-slate-50/50">
@@ -1538,7 +1538,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {consolidatedData.clients.map((c: any) => 
+                                                {(consolidatedData?.clients || []).map((c: any) => 
                                                     c.recentRequests?.map((r: any) => (
                                                         <TableRow key={r.id} className="hover:bg-slate-50/50">
                                                             <TableCell className="text-xs font-bold text-slate-800 pl-6 py-3">{c.name}</TableCell>
