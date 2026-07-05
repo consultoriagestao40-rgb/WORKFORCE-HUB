@@ -3806,7 +3806,26 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                             <Button size="sm" variant="ghost" onClick={() => { setEditingSlaValueId(item.id); setManualSlaValue(mVal || item.targetValue); }} className="h-6 w-6 p-0 rounded">✏️</Button>
                                                                         </div>
                                                                     )
-                                                                ) : <span className="text-slate-400 italic">Automático</span>}
+                                                                ) : (
+                                                                    (() => {
+                                                                        const realVal = getSlaMetricRealValForMonth(item, selectedMonth);
+                                                                        const postFaixaVal = calculateFrontAtingimento(realVal, item.ranges || []);
+                                                                        return (
+                                                                            <div className="flex flex-col items-end pr-2 select-none">
+                                                                                <span className="font-bold text-slate-700">
+                                                                                    {item.metricType === "RECLAMACOES" 
+                                                                                        ? `${realVal !== null ? realVal.toFixed(0) : "-"} chamados` 
+                                                                                        : item.metricType === "REPOSICAO"
+                                                                                        ? `${realVal !== null ? realVal.toFixed(1) : "-"} dias`
+                                                                                        : `${realVal !== null ? realVal.toFixed(1) : "-"}%`}
+                                                                                </span>
+                                                                                {realVal !== null && item.ranges && item.ranges.length > 0 && (
+                                                                                    <span className="text-[10px] font-black text-blue-650">Nota: {postFaixaVal !== null ? `${postFaixaVal.toFixed(1)}%` : "-"}</span>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })()
+                                                                )}
                                                             </TableCell>
                                                             <TableCell className="text-center py-3">
                                                                 <div className="flex justify-center gap-1">
