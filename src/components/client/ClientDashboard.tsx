@@ -2025,187 +2025,311 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                         </div>
                     )}
 
-                    {activeTab === "sla" && (
-                        /* TAB 6: SLA (Performance e Acordo de Nível de Serviço) */
-                        <div className="space-y-6">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
-                                <div className="space-y-1">
-                                    <h3 className="text-md font-bold text-slate-850">Performance e SLA do Contrato</h3>
-                                    <p className="text-xs text-slate-500 font-medium">Controle de conformidade de SLA e satisfação geral gerando a nota de desempenho mensal do contrato.</p>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <select
-                                        value={slaYear}
-                                        onChange={(e) => setSlaYear(Number(e.target.value))}
-                                        className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
-                                    >
-                                        <option value={2026}>Ano 2026</option>
-                                        <option value={2025}>Ano 2025</option>
-                                    </select>
-                                    <Button variant="ghost" size="icon" onClick={() => fetchSlaData(slaYear)} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
-                                        <RefreshCw className={`w-4 h-4 text-slate-500 ${loadingSla ? 'animate-spin' : ''}`} />
-                                    </Button>
-                                </div>
-                            </div>
+                    {activeTab === "sla" && (() => {
+                        const getSlaMetricRealValForMonth = (item: any, monthIdx: number) => {
+                            if (item.metricType === "MANUAL") {
+                                const found = item.monthlyValues?.find((v: any) => v.month === monthIdx && v.year === slaYear);
+                                return found ? found.value : null;
+                            }
+                            const mData = slaData?.monthlyData?.find((m: any) => m.monthIndex === monthIdx);
+                            if (!mData) return null;
+                            if (item.metricType === "EFETIVIDADE") return mData.effectiveness;
+                            if (item.metricType === "SLA_CHAMADOS") return mData.slaCompliance;
+                            if (item.metricType === "NPS") return mData.avgNpsRating !== null ? mData.avgNpsRating * 10 : null;
+                            if (item.metricType === "RECLAMACOES") return mData.complaintsRate;
+                            if (item.metricType === "VISITAS") return mData.visitsScore;
+                            if (item.metricType === "TURNOVER") return mData.turnover;
+                            if (item.metricType === "REPOSICAO") return mData.avgRepositionDays;
+                            return null;
+                        };
 
-                            {loadingSla || !slaData ? (
-                                <div className="flex flex-col items-center justify-center py-20 gap-3">
-                                    <RefreshCw className="w-8 h-8 text-primary animate-spin" />
-                                    <span className="text-xs text-slate-500 font-semibold">Calculando índices de SLA...</span>
+                        const calculateFrontAtingimento = (realVal: number | null, ranges: any[]) => {
+                            if (realVal === null || realVal === undefined) return null;
+                            if (!ranges || ranges.length === 0) return realVal;
+                            const sortedRanges = [...ranges].sort((x, y) => x.minVal - y.minVal);
+                            for (const r of sortedRanges) {
+                                const isAboveMin = realVal >= r.minVal;
+                                const isBelowMax = r.maxVal === null || r.maxVal === undefined || realVal <= r.maxVal;
+                                if (isAboveMin && isBelowMax) return r.resultVal;
+                            }
+                            return 0;
+                        };
+
+                        // Obter o último mês ativo com dados da simulação (Julho) para popular os cards do topo de forma síncrona com a tabela
+                        const activeMonths = (slaData?.monthlyData || []).filter((m: any) => m.effectiveness !== null && m.effectiveness !== undefined);
+                        const currentMonthData = activeMonths[activeMonths.length - 1];
+
+                        // Nota obtida do mês ativo
+                        const activeScore = currentMonthData ? (currentMonthData.contractScore * 10) : (slaData?.summary?.contractScore ? (slaData.summary.contractScore * 10) : 0);
+
+                        return (
+                            /* TAB 6: SLA (Performance e Acordo de Nível de Serviço) */
+                            <div className="space-y-6">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
+                                    <div className="space-y-1">
+                                        <h3 className="text-md font-bold text-slate-850">Performance e SLA do Contrato</h3>
+                                        <p className="text-xs text-slate-500 font-medium">Controle de conformidade de SLA e satisfação geral gerando a nota de desempenho mensal do contrato.</p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <select
+                                            value={slaYear}
+                                            onChange={(e) => setSlaYear(Number(e.target.value))}
+                                            className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
+                                        >
+                                            <option value={2026}>Ano 2026</option>
+                                            <option value={2025}>Ano 2025</option>
+                                        </select>
+                                        <Button variant="ghost" size="icon" onClick={() => fetchSlaData(slaYear)} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
+                                            <RefreshCw className={`w-4 h-4 text-slate-500 ${loadingSla ? 'animate-spin' : ''}`} />
+                                        </Button>
+                                    </div>
                                 </div>
-                            ) : (
-                                <div className="space-y-6">
-                                    {/* Main SLA Contract Rating Panel */}
-                                    <Card className="border-none shadow-premium bg-slate-900 text-white p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                        <div className="space-y-3">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Índice de Performance Consolidado</span>
-                                            <h4 className="text-2xl font-black tracking-tight">Nota do Contrato (Mês Atual)</h4>
-                                            <p className="text-xs text-slate-350 leading-relaxed max-w-xl">
-                                                A nota consolidada mensal do contrato é uma média ponderada calculada a partir dos indicadores de:
-                                                <strong className="text-slate-200"> Efetividade Operacional (50%)</strong>,
-                                                <strong className="text-slate-200"> Conformidade de Chamados SLA (25%)</strong> e
-                                                <strong className="text-slate-200"> Avaliação de Satisfação NPS (25%)</strong>.
-                                            </p>
-                                            <div className="text-[10px] bg-slate-800/50 p-2.5 rounded-lg border border-slate-700/30 text-slate-400 font-bold uppercase tracking-wider inline-block select-none">
-                                                Meta Mínima Contratual: <strong className="text-primary font-black">{(slaData?.contractTargetScore !== undefined ? slaData.contractTargetScore : 90.0).toFixed(2).replace('.', ',')}%</strong>
+
+                                {loadingSla || !slaData ? (
+                                    <div className="flex flex-col items-center justify-center py-20 gap-3">
+                                        <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                                        <span className="text-xs text-slate-500 font-semibold">Calculando índices de SLA...</span>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6">
+                                        {/* Main SLA Contract Rating Panel */}
+                                        <Card className="border-none shadow-premium bg-slate-900 text-white p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                            <div className="space-y-3">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Índice de Performance Consolidado</span>
+                                                <h4 className="text-2xl font-black tracking-tight">Nota do Contrato (Mês Atual)</h4>
+                                                <p className="text-xs text-slate-350 leading-relaxed max-w-xl">
+                                                    {slaData?.slaConfigItems && slaData.slaConfigItems.length > 0 ? (
+                                                        `A nota consolidada mensal do contrato é uma média ponderada calculada a partir dos indicadores: ${slaData.slaConfigItems.map((item: any) => ` ${item.name} (Peso ${item.weight})`).join(', ')}.`
+                                                    ) : (
+                                                        "A nota consolidada mensal do contrato é uma média ponderada calculada a partir dos indicadores de: Efetividade Operacional (50%), Conformidade de Chamados SLA (25%) e Avaliação de Satisfação NPS (25%)."
+                                                    )}
+                                                </p>
+                                                <div className="text-[10px] bg-slate-800/50 p-2.5 rounded-lg border border-slate-700/30 text-slate-400 font-bold uppercase tracking-wider inline-block select-none">
+                                                    Meta Mínima Contratual: <strong className="text-primary font-black">{(slaData?.contractTargetScore !== undefined ? slaData.contractTargetScore : 90.0).toFixed(2).replace('.', ',')}%</strong>
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <div className="flex flex-col items-center justify-center bg-slate-950/65 border border-slate-800 p-6 px-8 rounded-2xl shrink-0 text-center gap-2 select-none shadow-inner">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nota Obtida</span>
-                                            <span className="text-4xl font-black text-primary tracking-tight">
-                                                {slaData.summary.contractScore !== null && slaData.summary.contractScore !== undefined ? (slaData.summary.contractScore * 10).toFixed(2).replace('.', ',') + '%' : '0,00%'}
-                                            </span>
-                                            {slaData.summary.contractScore !== null && slaData.summary.contractScore !== undefined && (slaData.summary.contractScore * 10) >= (slaData?.contractTargetScore ?? 90.0) ? (
-                                                <Badge className="bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 font-black text-[10px] uppercase hover:opacity-100 mt-1 select-none">
-                                                    ✓ CONFORME (SLA OK)
-                                                </Badge>
+                                            <div className="flex flex-col items-center justify-center bg-slate-950/65 border border-slate-800 p-6 px-8 rounded-2xl shrink-0 text-center gap-2 select-none shadow-inner">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nota Obtida</span>
+                                                <span className="text-4xl font-black text-primary tracking-tight">
+                                                    {activeScore !== null && activeScore !== undefined ? activeScore.toFixed(2).replace('.', ',') + '%' : '0,00%'}
+                                                </span>
+                                                {activeScore !== null && activeScore !== undefined && activeScore >= (slaData?.contractTargetScore ?? 90.0) ? (
+                                                    <Badge className="bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 font-black text-[10px] uppercase hover:opacity-100 mt-1 select-none">
+                                                        ✓ CONFORME (SLA OK)
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 font-black text-[10px] uppercase hover:opacity-100 mt-1 select-none animate-pulse">
+                                                        ▲ NÃO CONFORME
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        </Card>
+
+                                        {/* KPI Sub-Metrics Summary Grid */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            {slaData?.slaConfigItems && slaData.slaConfigItems.length > 0 ? (
+                                                slaData.slaConfigItems.map((item: any) => {
+                                                    let rawValue = null;
+                                                    if (currentMonthData) {
+                                                        rawValue = getSlaMetricRealValForMonth(item, currentMonthData.monthIndex);
+                                                    } else {
+                                                        if (item.metricType === "EFETIVIDADE") rawValue = slaData.summary.effectiveness;
+                                                        else if (item.metricType === "SLA_CHAMADOS") rawValue = slaData.summary.slaCompliance;
+                                                        else if (item.metricType === "NPS") rawValue = slaData.summary.avgNpsRating !== null ? slaData.summary.avgNpsRating * 10 : null;
+                                                        else if (item.metricType === "VISITAS") rawValue = slaData.summary.visitsScore;
+                                                        else if (item.metricType === "TURNOVER") rawValue = slaData.summary.turnover;
+                                                        else if (item.metricType === "REPOSICAO") rawValue = slaData.summary.avgRepositionDays;
+                                                        else if (item.metricType === "RECLAMACOES") rawValue = slaData.summary.complaintsRate;
+                                                    }
+
+                                                    const finalValue = (rawValue !== null && item.ranges && item.ranges.length > 0)
+                                                        ? calculateFrontAtingimento(rawValue, item.ranges)
+                                                        : rawValue;
+
+                                                    let displayVal = "-";
+                                                    if (finalValue !== null && finalValue !== undefined) {
+                                                        displayVal = item.metricType === "REPOSICAO"
+                                                            ? `${finalValue.toFixed(1).replace('.', ',')} dias`
+                                                            : `${finalValue.toFixed(2).replace('.', ',')}%`;
+                                                    }
+
+                                                    return (
+                                                        <Card key={item.id} className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
+                                                            <div className="flex items-start justify-between">
+                                                                <div className="space-y-1">
+                                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">{item.name} (Peso {item.weight})</span>
+                                                                    <span className="text-2xl font-black text-slate-850">{displayVal}</span>
+                                                                </div>
+                                                                <UserCheck className="w-8 h-8 text-blue-600 bg-blue-50 p-1.5 rounded-xl border border-blue-100" />
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Meta exigida: {item.targetValue}% (Peso: {item.weight}).</p>
+                                                        </Card>
+                                                    );
+                                                })
                                             ) : (
-                                                <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 font-black text-[10px] uppercase hover:opacity-100 mt-1 select-none animate-pulse">
-                                                    ▲ NÃO CONFORME
-                                                </Badge>
+                                                <>
+                                                    <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
+                                                        <div className="flex items-start justify-between">
+                                                            <div className="space-y-1">
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Efetividade (Peso 50%)</span>
+                                                                <span className="text-2xl font-black text-slate-850">{slaData.summary.effectiveness !== null && slaData.summary.effectiveness !== undefined ? `${slaData.summary.effectiveness.toFixed(2).replace('.', ',')}%` : '0,00%'}</span>
+                                                            </div>
+                                                            <UserCheck className="w-8 h-8 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl border border-emerald-100" />
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-500 leading-normal font-semibold">Cumprimento de postos titulares e coberturas de faltas.</p>
+                                                    </Card>
+
+                                                    <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
+                                                        <div className="flex items-start justify-between">
+                                                            <div className="space-y-1">
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">SLA Chamados (Peso 25%)</span>
+                                                                <span className="text-2xl font-black text-slate-850">{slaData.summary.slaCompliance !== null && slaData.summary.slaCompliance !== undefined ? `${slaData.summary.slaCompliance.toFixed(2).replace('.', ',')}%` : '0,00%'}</span>
+                                                            </div>
+                                                            <Clock className="w-8 h-8 text-blue-600 bg-blue-50 p-1.5 rounded-xl border border-blue-100" />
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-500 leading-normal font-semibold">Tempo de resposta e solução de chamados operacionais.</p>
+                                                    </Card>
+
+                                                    <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
+                                                        <div className="flex items-start justify-between">
+                                                            <div className="space-y-1">
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Satisfação NPS (Peso 25%)</span>
+                                                                <span className="text-2xl font-black text-slate-850">
+                                                                    {slaData.summary.avgNpsRating !== null && slaData.summary.avgNpsRating !== undefined ? (slaData.summary.avgNpsRating * 10).toFixed(2).replace('.', ',') + '%' : '0,00%'}
+                                                                </span>
+                                                            </div>
+                                                            <Smile className="w-8 h-8 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl border border-emerald-100" />
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-500 leading-normal font-semibold">Nota média das pesquisas mensais de satisfação do cliente.</p>
+                                                    </Card>
+
+                                                    <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
+                                                        <div className="flex items-start justify-between">
+                                                            <div className="space-y-1">
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">MTTR Operacional</span>
+                                                                <span className="text-2xl font-black text-slate-850">
+                                                                    {slaData.summary.mttrHours ? slaData.summary.mttrHours.toFixed(1) + " h" : "0.0 h"}
+                                                                </span>
+                                                            </div>
+                                                            <RefreshCw className="w-8 h-8 text-orange-600 bg-orange-50 p-1.5 rounded-xl border border-orange-100" />
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-500 leading-normal font-semibold">Tempo médio decorrido até a resolução completa dos chamados.</p>
+                                                    </Card>
+                                                </>
                                             )}
                                         </div>
-                                    </Card>
 
-                                    {/* KPI Sub-Metrics Summary Grid */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                        <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
-                                            <div className="flex items-start justify-between">
-                                                <div className="space-y-1">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Efetividade (Peso 50%)</span>
-                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.effectiveness !== null && slaData.summary.effectiveness !== undefined ? `${slaData.summary.effectiveness.toFixed(2).replace('.', ',')}%` : '0,00%'}</span>
-                                                </div>
-                                                <UserCheck className="w-8 h-8 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl border border-emerald-100" />
-                                            </div>
-                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Cumprimento de postos titulares e coberturas de faltas.</p>
-                                        </Card>
+                                        {/* Monthly KPI comparative table */}
+                                        <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
+                                            <div className="w-full overflow-x-auto">
+                                                <Table>
+                                                    <TableHeader className="bg-slate-50">
+                                                        <TableRow>
+                                                            <TableHead className="font-bold text-slate-800 pl-6 py-3">Mês</TableHead>
+                                                            {slaData?.slaConfigItems && slaData.slaConfigItems.length > 0 ? (
+                                                                slaData.slaConfigItems.map((item: any) => (
+                                                                    <TableHead key={item.id} className="font-bold text-slate-800 text-center py-3">{item.name} (Peso {item.weight})</TableHead>
+                                                                ))
+                                                            ) : (
+                                                                <>
+                                                                    <TableHead className="font-bold text-slate-800 text-center py-3">Efetividade Operacional (50%)</TableHead>
+                                                                    <TableHead className="font-bold text-slate-800 text-center py-3">Conformidade SLA (25%)</TableHead>
+                                                                    <TableHead className="font-bold text-slate-800 text-center py-3">Média NPS (25%)</TableHead>
+                                                                </>
+                                                            )}
+                                                            <TableHead className="font-bold text-slate-800 text-center py-3">Nota do Contrato</TableHead>
+                                                            <TableHead className="font-bold text-slate-800 text-center py-3">Status SLA</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {slaData.monthlyData.map((m: any) => {
+                                                            const hasActiveOperations = m.effectiveness !== null && m.effectiveness !== undefined;
+                                                            return (
+                                                                <TableRow key={m.monthIndex} className="hover:bg-slate-50/50 transition-colors">
+                                                                    <TableCell className="font-bold text-xs text-slate-900 pl-6 py-3">{m.name}</TableCell>
+                                                                    {slaData?.slaConfigItems && slaData.slaConfigItems.length > 0 ? (
+                                                                        slaData.slaConfigItems.map((item: any) => {
+                                                                            const realVal = getSlaMetricRealValForMonth(item, m.monthIndex);
+                                                                            const atingimentoVal = (realVal !== null && item.ranges && item.ranges.length > 0)
+                                                                                ? calculateFrontAtingimento(realVal, item.ranges)
+                                                                                : realVal;
 
-                                        <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
-                                            <div className="flex items-start justify-between">
-                                                <div className="space-y-1">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">SLA Chamados (Peso 25%)</span>
-                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.slaCompliance !== null && slaData.summary.slaCompliance !== undefined ? `${slaData.summary.slaCompliance.toFixed(2).replace('.', ',')}%` : '0,00%'}</span>
-                                                </div>
-                                                <Clock className="w-8 h-8 text-blue-600 bg-blue-50 p-1.5 rounded-xl border border-blue-100" />
+                                                                            return (
+                                                                                <TableCell key={item.id} className="text-center py-3">
+                                                                                    {!hasActiveOperations ? (
+                                                                                        <span className="text-slate-400">-</span>
+                                                                                    ) : (
+                                                                                        <Badge className={`${
+                                                                                            atingimentoVal !== null && atingimentoVal >= item.targetValue ? 'bg-emerald-50 text-emerald-700' :
+                                                                                            atingimentoVal !== null && atingimentoVal >= (item.targetValue - 10) ? 'bg-amber-50 text-amber-700' :
+                                                                                            'bg-red-50 text-red-755'
+                                                                                        } font-bold hover:opacity-100`}>
+                                                                                            {atingimentoVal !== null && atingimentoVal !== undefined ? `${atingimentoVal.toFixed(2).replace('.', ',')}%` : "0,00%"}
+                                                                                        </Badge>
+                                                                                    )}
+                                                                                </TableCell>
+                                                                            );
+                                                                        })
+                                                                    ) : (
+                                                                        <>
+                                                                            <TableCell className="text-center py-3">
+                                                                                {!hasActiveOperations ? <span className="text-slate-400">-</span> : (
+                                                                                    <Badge className="font-bold hover:opacity-100">
+                                                                                        {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(2).replace('.', ',')}%` : "0,00%"}
+                                                                                    </Badge>
+                                                                                )}
+                                                                            </TableCell>
+                                                                            <TableCell className="text-center py-3">
+                                                                                {!hasActiveOperations ? <span className="text-slate-400">-</span> : (
+                                                                                    <Badge className="font-bold hover:opacity-100">
+                                                                                        {m.slaCompliance !== null && m.slaCompliance !== undefined ? `${m.slaCompliance.toFixed(2).replace('.', ',')}%` : "0,00%"}
+                                                                                    </Badge>
+                                                                                )}
+                                                                            </TableCell>
+                                                                            <TableCell className="text-center py-3">
+                                                                                {!hasActiveOperations ? <span className="text-slate-400">-</span> : (
+                                                                                    <Badge className="font-bold hover:opacity-100">
+                                                                                        {m.avgNpsRating !== null && m.avgNpsRating !== undefined ? `${(m.avgNpsRating * 10).toFixed(2).replace('.', ',')}%` : "0,00%"}
+                                                                                    </Badge>
+                                                                                )}
+                                                                            </TableCell>
+                                                                        </>
+                                                                    )}
+                                                                    <TableCell className="text-center font-black text-xs text-slate-900 py-3">
+                                                                        {!hasActiveOperations ? (
+                                                                            <span className="text-slate-400">-</span>
+                                                                        ) : (
+                                                                            m.contractScore !== null && m.contractScore !== undefined ? `${(m.contractScore * 10).toFixed(2).replace('.', ',')}%` : '0,00%'
+                                                                        )}
+                                                                    </TableCell>
+                                                                    <TableCell className="text-center py-3">
+                                                                        {!hasActiveOperations ? (
+                                                                            <span className="text-slate-400 font-bold">Pendente</span>
+                                                                        ) : (
+                                                                            m.contractScore !== null && m.contractScore !== undefined && (m.contractScore * 10) >= (slaData?.contractTargetScore ?? 90.0) ? (
+                                                                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-250 font-black uppercase hover:opacity-100">
+                                                                                    Conforme
+                                                                                </Badge>
+                                                                            ) : (
+                                                                                <Badge className="bg-red-50 text-red-700 border-red-200 font-black uppercase hover:opacity-100 animate-pulse">
+                                                                                    Abaixo Meta
+                                                                                </Badge>
+                                                                            )
+                                                                        )}
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            );
+                                                        })}
+                                                    </TableBody>
+                                                </Table>
                                             </div>
-                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Tempo de resposta e solução de chamados operacionais.</p>
-                                        </Card>
-
-                                        <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
-                                            <div className="flex items-start justify-between">
-                                                <div className="space-y-1">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Satisfação NPS (Peso 25%)</span>
-                                                    <span className="text-2xl font-black text-slate-850">
-                                                        {slaData.summary.avgNpsRating !== null && slaData.summary.avgNpsRating !== undefined ? (slaData.summary.avgNpsRating * 10).toFixed(2).replace('.', ',') + '%' : '0,00%'}
-                                                    </span>
-                                                </div>
-                                                <Smile className="w-8 h-8 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl border border-emerald-100" />
-                                            </div>
-                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Nota média das pesquisas mensais de satisfação do cliente.</p>
-                                        </Card>
-
-                                        <Card className="border-none shadow-premium bg-white p-5 flex flex-col justify-between gap-3">
-                                            <div className="flex items-start justify-between">
-                                                <div className="space-y-1">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">MTTR Operacional</span>
-                                                    <span className="text-2xl font-black text-slate-850">
-                                                        {slaData.summary.mttrHours ? slaData.summary.mttrHours.toFixed(1) + " h" : "0.0 h"}
-                                                    </span>
-                                                </div>
-                                                <RefreshCw className="w-8 h-8 text-orange-600 bg-orange-50 p-1.5 rounded-xl border border-orange-100" />
-                                            </div>
-                                            <p className="text-[10px] text-slate-500 leading-normal font-semibold">Tempo médio decorrido até a resolução completa dos chamados.</p>
                                         </Card>
                                     </div>
-
-                                    {/* Monthly KPI comparative table */}
-                                    <Card className="border-none shadow-premium bg-white overflow-hidden">
-                                        <div className="w-full overflow-x-auto">
-                                            <Table>
-                                                <TableHeader className="bg-slate-50">
-                                                    <TableRow>
-                                                        <TableHead className="font-bold text-slate-800">Mês</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-center">Efetividade Operacional (50%)</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-center">Conformidade SLA (25%)</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-center">Média NPS (25%)</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-center">Nota do Contrato</TableHead>
-                                                        <TableHead className="font-bold text-slate-800 text-center">Status SLA</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {slaData.monthlyData.map((m: any) => (
-                                                        <TableRow key={m.monthIndex} className="hover:bg-slate-50/50 transition-colors">
-                                                            <TableCell className="font-bold text-xs text-slate-900">{m.name}</TableCell>
-                                                            <TableCell className="text-center">
-                                                                <Badge className={`${
-                                                                    m.effectiveness >= 95 ? 'bg-emerald-50 text-emerald-700' :
-                                                                    m.effectiveness >= 90 ? 'bg-amber-50 text-amber-700' :
-                                                                    'bg-red-50 text-red-755'
-                                                                } font-bold hover:opacity-100`}>
-                                                                    {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(2).replace('.', ',')}%` : "0,00%"}
-                                                                </Badge>
-                                                            </TableCell>
-                                                            <TableCell className="text-center">
-                                                                <Badge className={`${
-                                                                    m.slaCompliance >= 90 ? 'bg-emerald-50 text-emerald-700' :
-                                                                    m.slaCompliance >= 80 ? 'bg-amber-50 text-amber-700' :
-                                                                    'bg-red-50 text-red-755'
-                                                                } font-bold hover:opacity-100`}>
-                                                                    {m.slaCompliance !== null && m.slaCompliance !== undefined ? `${m.slaCompliance.toFixed(2).replace('.', ',')}%` : "0,00%"}
-                                                                </Badge>
-                                                            </TableCell>
-                                                            <TableCell className="text-center">
-                                                                <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold hover:opacity-100">
-                                                                    {m.avgNpsRating !== null && m.avgNpsRating !== undefined ? `${(m.avgNpsRating * 10).toFixed(2).replace('.', ',')}%` : "0,00%"}
-                                                                </Badge>
-                                                            </TableCell>
-                                                            <TableCell className="text-center font-black text-xs text-slate-900">
-                                                                {m.contractScore !== null && m.contractScore !== undefined ? `${(m.contractScore * 10).toFixed(2).replace('.', ',')}%` : '0,00%'}
-                                                            </TableCell>
-                                                            <TableCell className="text-center">
-                                                                {m.contractScore !== null && m.contractScore !== undefined && (m.contractScore * 10) >= (slaData?.contractTargetScore ?? 90.0) ? (
-                                                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-250 font-black uppercase hover:opacity-100">
-                                                                        Conforme
-                                                                    </Badge>
-                                                                ) : (
-                                                                    <Badge className="bg-red-50 text-red-700 border-red-200 font-black uppercase hover:opacity-100 animate-pulse">
-                                                                        Abaixo Meta
-                                                                    </Badge>
-                                                                )}
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                </TableBody>
-                                            </Table>
-                                        </div>
-                                    </Card>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === "kpis" && (
+                                )}
+                            </div>
+                        );
+                    })()}{activeTab === "kpis" && (
                         /* TAB 7: KPIS (Indicadores de Performance) */
                         <div className="space-y-6">
                             <div className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">

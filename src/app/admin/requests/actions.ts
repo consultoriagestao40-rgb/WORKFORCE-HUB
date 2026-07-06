@@ -526,6 +526,54 @@ export async function getClientKpis(year: number) {
         }
 
         const visitsScore = activeRolesCount > 0 ? (visitAtingimentoSum / activeRolesCount) : null;
+
+        // 2. Turnover
+        const monthSubstitutions = assignments.filter(a => a.endDate && new Date(a.endDate).getUTCMonth() === index).length;
+        const activeStaff = totalPostosCount > 0 ? totalPostosCount : 5;
+        const turnover = activeStaff > 0 ? (monthSubstitutions / activeStaff) * 100 : 0;
+
+        // 3. SLA de Reposição (Média de dias decorridos para reposição)
+        const assignmentsByPosto: { [key: string]: any[] } = {};
+        assignments.forEach((a: any) => {
+            if (!assignmentsByPosto[a.postoId]) {
+                assignmentsByPosto[a.postoId] = [];
+            }
+            assignmentsByPosto[a.postoId].push(a);
+        });
+
+        const repositionTransitions: any[] = [];
+        Object.keys(assignmentsByPosto).forEach((postoId) => {
+            const list = assignmentsByPosto[postoId].sort((x, y) => new Date(x.startDate).getTime() - new Date(y.startDate).getTime());
+            for (let i = 0; i < list.length - 1; i++) {
+                const current = list[i];
+                const next = list[i + 1];
+                if (current.endDate) {
+                    const exitDate = new Date(current.endDate);
+                    const entryDate = new Date(next.startDate);
+                    if (entryDate >= exitDate) {
+                        const diffTime = Math.abs(entryDate.getTime() - exitDate.getTime());
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        repositionTransitions.push({
+                            entryDate,
+                            diffDays
+                        });
+                    }
+                }
+            }
+        });
+
+        const monthRepositionTransitions = repositionTransitions.filter(t => 
+            t.entryDate.getMonth() <= index && 
+            t.entryDate.getFullYear() === year
+        );
+        const totalRepositionDays = monthRepositionTransitions.reduce((sum, t) => sum + t.diffDays, 0);
+        const avgRepositionDays = monthRepositionTransitions.length > 0 ? parseFloat((totalRepositionDays / monthRepositionTransitions.length).toFixed(1)) : null;
+
+        // 4. Reclamações
+        const monthRequests = isMockPeriod ? [] : requests.filter(r => new Date(r.createdAt).getMonth() === index && r.requester?.role === 'CLIENTE');
+        const complaints = monthRequests.filter((r: any) => r.description?.toLowerCase().includes("reclam") || r.description?.toLowerCase().includes("queixa"));
+        const complaintsRate = monthRequests.length > 0 ? (complaints.length / monthRequests.length) * 100 : 0;
+
         const monthAtts = isMockPeriod ? [] : attendances.filter(a => {
             const d = new Date(a.date);
             return d.getMonth() === index;
@@ -537,9 +585,6 @@ export async function getClientKpis(year: number) {
 
         const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : null;
         const absenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : null;
-        let contractScore: number | null = null;
-
-        const monthRequests = isMockPeriod ? [] : requests.filter(r => new Date(r.createdAt).getMonth() === index && r.requester?.role === 'CLIENTE');
         const resolvedRequests = monthRequests.filter(r => r.status === "CONCLUIDO" || r.status === "REJEITADO");
         
         const slaOnTime = resolvedRequests.filter(r => r.updatedAt <= r.dueDate).length;
@@ -555,6 +600,7 @@ export async function getClientKpis(year: number) {
             : null;
 
         // Nota do Contrato (0 a 10) baseada na configuração de SLA ou pesos padrão
+        let contractScore: number | null = null;
         let slaWeightSum = 0;
         let slaScoreSum = 0;
 
@@ -619,49 +665,7 @@ export async function getClientKpis(year: number) {
             contractScore = calculatedScore;
         }
 
-        const monthSubstitutions = assignments.filter(a => a.endDate && new Date(a.endDate).getUTCMonth() === index).length;
-        const activeStaff = totalPostosCount > 0 ? totalPostosCount : 5;
-        const turnover = activeStaff > 0 ? (monthSubstitutions / activeStaff) * 100 : 0;
 
-        // SLA de Reposição (Média de dias decorridos para reposição)
-        const assignmentsByPosto: { [key: string]: any[] } = {};
-        assignments.forEach((a: any) => {
-            if (!assignmentsByPosto[a.postoId]) {
-                assignmentsByPosto[a.postoId] = [];
-            }
-            assignmentsByPosto[a.postoId].push(a);
-        });
-
-        const repositionTransitions: any[] = [];
-        Object.keys(assignmentsByPosto).forEach((postoId) => {
-            const list = assignmentsByPosto[postoId].sort((x, y) => new Date(x.startDate).getTime() - new Date(y.startDate).getTime());
-            for (let i = 0; i < list.length - 1; i++) {
-                const current = list[i];
-                const next = list[i + 1];
-                if (current.endDate) {
-                    const exitDate = new Date(current.endDate);
-                    const entryDate = new Date(next.startDate);
-                    if (entryDate >= exitDate) {
-                        const diffTime = Math.abs(entryDate.getTime() - exitDate.getTime());
-                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        repositionTransitions.push({
-                            entryDate,
-                            diffDays
-                        });
-                    }
-                }
-            }
-        });
-
-        const monthRepositionTransitions = repositionTransitions.filter(t => 
-            t.entryDate.getMonth() <= index && 
-            t.entryDate.getFullYear() === year
-        );
-        const totalRepositionDays = monthRepositionTransitions.reduce((sum, t) => sum + t.diffDays, 0);
-        const avgRepositionDays = monthRepositionTransitions.length > 0 ? parseFloat((totalRepositionDays / monthRepositionTransitions.length).toFixed(1)) : null;
-
-        const complaints = monthRequests.filter((r: any) => r.description?.toLowerCase().includes("reclam") || r.description?.toLowerCase().includes("queixa"));
-        const complaintsRate = monthRequests.length > 0 ? (complaints.length / monthRequests.length) * 100 : 0;
 
         return {
             monthIndex: index,
@@ -733,6 +737,8 @@ export async function getClientKpis(year: number) {
             } else if (config.metricType === "REPOSICAO") {
                 const validRep = monthlyData.filter(m => m.avgRepositionDays !== null && m.avgRepositionDays !== undefined);
                 metricValue = validRep.length > 0 ? validRep.reduce((sum, m) => sum + m.avgRepositionDays!, 0) / validRep.length : null;
+            } else if (config.metricType === "VISITAS") {
+                metricValue = totalVisitsScore;
             }
 
             if (metricValue !== null && metricValue !== undefined) {
