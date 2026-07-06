@@ -2337,7 +2337,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                     onClick={() => handleKpiCellClick(mIndex, m.name, 'nps', m.npsCount > 0 ? m.avgNpsRating * 10 : undefined)}
                                                                     className="text-center font-bold text-xs text-blue-650 py-3 cursor-pointer hover:bg-blue-50 hover:scale-[1.03] transition-all select-none"
                                                                 >
-                                                                    {m.npsCount > 0 ? `${(m.avgNpsRating * 10).toFixed(1).replace('.', ',')}%` : "-"}
+                                                                    {m.npsCount > 0 && m.avgNpsRating !== null && m.avgNpsRating !== undefined ? `${(m.avgNpsRating * 10).toFixed(1).replace('.', ',')}%` : "-"}
                                                                 </TableCell>
                                                                 <TableCell 
                                                                     onClick={() => handleKpiCellClick(mIndex, m.name, 'turnover', turnoverRate)}
