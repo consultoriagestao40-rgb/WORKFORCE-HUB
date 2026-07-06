@@ -1234,6 +1234,7 @@ export async function getConsolidatedPerformanceData(year: number, month: number
 
         // Fetch all clients
         const clients = await prisma.client.findMany({
+            where: { monitorInOperations: true },
             include: {
                 company: true,
                 postos: {
