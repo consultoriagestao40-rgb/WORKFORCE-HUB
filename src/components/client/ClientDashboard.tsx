@@ -2163,7 +2163,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                     m.effectiveness >= 90 ? 'bg-amber-50 text-amber-700' :
                                                                     'bg-red-50 text-red-755'
                                                                 } font-bold hover:opacity-100`}>
-                                                                    {m.effectiveness.toFixed(1)}%
+                                                                    {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(1)}%` : "-"}
                                                                 </Badge>
                                                             </TableCell>
                                                             <TableCell className="text-center">
