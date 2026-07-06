@@ -340,6 +340,23 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: "Tipo de cobertura é obrigatório" }, { status: 400 });
             }
 
+            const reembolsoUrl = process.env.DATABASE_URL_REEMBOLSO || "postgresql://neondb_owner:npg_FAXvef5z2oLN@ep-lingering-poetry-ahaduz92-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require";
+
+            let finalNotes = notes;
+            if (coverageType === "DIARISTA" && diaristaId && reembolsoUrl) {
+                const tempPrisma = new PrismaClient({ datasources: { db: { url: reembolsoUrl } } });
+                try {
+                    const dbDiaristas = await tempPrisma.$queryRawUnsafe('SELECT nome FROM "Diarista" WHERE id = $1 LIMIT 1', diaristaId) as any[];
+                    if (dbDiaristas && dbDiaristas.length > 0) {
+                        finalNotes = `${dbDiaristas[0].nome}${notes ? ' | ' + notes : ''}`;
+                    }
+                } catch (err: any) {
+                    console.error("Erro ao buscar nome da diarista:", (err as any).message);
+                } finally {
+                    await tempPrisma.$disconnect();
+                }
+            }
+
             const attendance = await prisma.attendance.upsert({
                 where: {
                     postoId_date: { postoId, date: targetDate }
@@ -349,7 +366,7 @@ export async function POST(request: Request) {
                     employeeId: finalEmployeeId,
                     coveredById: coveredById || null,
                     coverageType,
-                    notes
+                    notes: finalNotes
                 },
                 create: {
                     postoId,
@@ -358,7 +375,7 @@ export async function POST(request: Request) {
                     status: "FALTA",
                     coveredById: coveredById || null,
                     coverageType,
-                    notes
+                    notes: finalNotes
                 }
             });
 
@@ -387,7 +404,6 @@ export async function POST(request: Request) {
                 }
 
                 // INTEGRAÇÃO: Lançar diária automaticamente no Reembolso Fácil
-                const reembolsoUrl = process.env.DATABASE_URL_REEMBOLSO || "postgresql://neondb_owner:npg_FAXvef5z2oLN@ep-lingering-poetry-ahaduz92-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require";
                 if (reembolsoUrl) {
                     const prismaReembolso = new PrismaClient({
                         datasources: {
