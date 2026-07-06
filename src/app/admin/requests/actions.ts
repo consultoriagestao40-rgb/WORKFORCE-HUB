@@ -711,6 +711,11 @@ export async function getClientKpis(year: number) {
     const totalDetractors = 0;
     const totalNpsScore = null;
 
+    const validVisits = monthlyData.filter(m => m.visitsScore !== null && m.visitsScore !== undefined);
+    const totalVisitsScore = validVisits.length > 0
+        ? validVisits.reduce((sum, m) => sum + m.visitsScore!, 0) / validVisits.length
+        : null;
+
     let summaryWeightSum = 0;
     let summaryScoreSum = 0;
 
@@ -806,11 +811,6 @@ export async function getClientKpis(year: number) {
             monthlyScores
         };
     });
-
-    const validVisits = monthlyData.filter(m => m.visitsScore !== null && m.visitsScore !== undefined);
-    const totalVisitsScore = validVisits.length > 0
-        ? validVisits.reduce((sum, m) => sum + m.visitsScore!, 0) / validVisits.length
-        : null;
 
     return {
         success: true,
