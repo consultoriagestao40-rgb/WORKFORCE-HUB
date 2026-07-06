@@ -2188,6 +2188,17 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                     </div>
 
                     <div className="flex items-center gap-4">
+                        <Button 
+                            size="sm" 
+                            onClick={() => {
+                                setVisitClientId(selectedClientId);
+                                setLogVisitOpen(true);
+                            }}
+                            className="h-9 px-4 bg-slate-800 border border-slate-700 text-white hover:bg-slate-700 font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-premium shrink-0"
+                            title="Registrar Visita de Relacionamento"
+                        >
+                            Registrar Visita
+                        </Button>
                         <div className="text-right hidden sm:block">
                             <p className="text-xs font-bold text-slate-200">Olá, {userName}</p>
                             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Acesso Gestor</p>
