@@ -86,7 +86,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [loadingDetails, setLoadingDetails] = useState<boolean>(false);
 
     // KPI Modal States
-    const [kpiModalConfig, setKpiModalConfig] = useState<{ monthIndex: number; monthName: string; kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints' | 'reposition'; value?: number } | null>(null);
+    const [kpiModalConfig, setKpiModalConfig] = useState<{ monthIndex: number; monthName: string; kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints' | 'reposition' | 'visits'; value?: number } | null>(null);
     const [kpiModalData, setKpiModalData] = useState<any>(null);
     const [loadingKpiModal, setLoadingKpiModal] = useState<boolean>(false);
     const [generalSlaTarget, setGeneralSlaTarget] = useState<number>(90.0);
@@ -168,7 +168,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
         }
     };
 
-    const handleKpiCellClick = async (monthIndex: number, monthName: string, kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints' | 'reposition', value?: number) => {
+    const handleKpiCellClick = async (monthIndex: number, monthName: string, kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints' | 'reposition' | 'visits', value?: number) => {
         setKpiModalConfig({ monthIndex, monthName, kpiType, value });
         setLoadingKpiModal(true);
         setKpiModalData(null);
@@ -3567,6 +3567,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                             <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Rotatividade (Turnover)</TableHead>
                                                             <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Chamados no Prazo (SLA)</TableHead>
                                                             <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Índice Reclamações</TableHead>
+                                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Visitas de Liderança</TableHead>
                                                     <TableHead className="font-bold text-xs text-slate-800">SLA de Contratação (Média Dias)</TableHead>
                                                         </TableRow>
                                                     </TableHeader>
@@ -3587,6 +3588,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                 return (
                                                                     <TableRow key={m.monthIndex} className="hover:bg-slate-50/30 transition-colors">
                                                                         <TableCell className="font-bold text-xs text-slate-900 pl-6 py-3">{m.name}</TableCell>
+                                                                        <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
                                                                         <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
                                                                         <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
                                                                         <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
@@ -3629,6 +3631,13 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                     >
                                                                         {m.complaintsRate !== undefined && m.complaintsRate !== null ? `${m.complaintsRate.toFixed(1).replace('.', ',')}%` : "0,0%"}
                                                                     </TableCell>
+                                                                    <TableCell 
+                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'visits', m.visitsScore)}
+                                                                        className="text-center font-bold text-xs text-purple-600 py-3 cursor-pointer hover:bg-purple-50 hover:scale-[1.03] transition-all select-none"
+                                                                    >
+                                                                        {m.visitsScore !== null && m.visitsScore !== undefined ? `${m.visitsScore.toFixed(2).replace('.', ',')}%` : "0,00%"}
+                                                                    </TableCell>
+
                                                                     <TableCell 
                                                                         onClick={() => handleKpiCellClick(mIndex, m.name, 'reposition', m.avgRepositionDays)}
                                                                         className="text-center font-bold text-xs text-blue-500 py-3 cursor-pointer hover:bg-blue-50 hover:scale-[1.03] transition-all select-none"
@@ -5105,6 +5114,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 {kpiModalConfig?.kpiType === 'sla' && "Auditoria de SLA de Chamados Cumpridos no Prazo"}
                                 {kpiModalConfig?.kpiType === 'complaints' && "Auditoria de Reclamações Registradas"}
                             {kpiModalConfig?.kpiType === 'reposition' && "Auditoria de SLA de Contratação de Vagas"}
+                            {kpiModalConfig?.kpiType === 'visits' && "Auditoria de Cumprimento de Visitas de Liderança"}
                             </p>
                         </div>
                     </DialogHeader>
@@ -5189,6 +5199,53 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     </div>
                                 );
                             })()}
+
+                            {/* KPI: VISITAS DE LIDERANÇA */}
+                            {kpiModalConfig?.kpiType === 'visits' && (
+                                <div className="space-y-4">
+                                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex flex-col gap-1.5 select-none">
+                                        <span className="text-xs font-bold text-slate-800">Metas e Auditoria de Visitas</span>
+                                        <p className="text-[11px] text-slate-500 font-medium">Abaixo estão listadas as visitas de supervisão, coordenação, gerência e diretoria registradas para este contrato no mês selecionado.</p>
+                                    </div>
+                                    <div className="w-full max-w-full border border-slate-100 rounded-2xl overflow-x-auto bg-white">
+                                        <Table className="min-w-[700px]">
+                                            <TableHeader className="bg-slate-50">
+                                                <TableRow>
+                                                    <TableHead className="font-bold text-xs text-slate-800 pl-4 py-3">Cargo Liderança</TableHead>
+                                                    <TableHead className="font-bold text-xs text-slate-800">Visitante</TableHead>
+                                                    <TableHead className="font-bold text-xs text-slate-800">Data da Visita</TableHead>
+                                                    <TableHead className="font-bold text-xs text-slate-800">Observações Operacionais</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {(() => {
+                                                    const monthVisits = (detailedData?.visits || []).filter((v: any) => {
+                                                        const d = new Date(v.visitDate);
+                                                        return d.getMonth() === kpiModalConfig.monthIndex && d.getFullYear() === selectedYear;
+                                                    });
+                                                    if (monthVisits.length === 0) {
+                                                        return (
+                                                            <TableRow>
+                                                                <TableCell colSpan={4} className="text-center py-8 text-slate-400 font-semibold text-xs">
+                                                                    Nenhuma visita de liderança registrada para este contrato no mês selecionado.
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        );
+                                                    }
+                                                    return monthVisits.map((v: any) => (
+                                                        <TableRow key={v.id} className="hover:bg-slate-50/50 transition-colors">
+                                                            <TableCell className="font-black text-xs text-slate-800 pl-4 py-3">{v.visitorRole}</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-900">{v.visitorName}</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-600">{new Date(v.visitDate).toLocaleDateString('pt-BR')}</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-500 max-w-[300px] truncate" title={v.notes || ""}>{v.notes || "-"}</TableCell>
+                                                        </TableRow>
+                                                    ));
+                                                })()}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* KPI: NPS (SATISFAÇÃO) */}
                             {kpiModalConfig?.kpiType === 'nps' && (

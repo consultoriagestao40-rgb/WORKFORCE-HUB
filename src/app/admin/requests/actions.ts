@@ -2460,6 +2460,14 @@ export async function getClientDetailedData(clientId: string, year: number, mont
             ))
         );
 
+        const visits = await prisma.contractVisit.findMany({
+            where: {
+                clientId,
+                visitDate: { gte: startOfMonth, lte: endOfMonth }
+            },
+            orderBy: { visitDate: 'desc' }
+        });
+
         const assignments = await prisma.assignment.findMany({
             where: {
                 posto: { clientId }
@@ -2522,6 +2530,7 @@ export async function getClientDetailedData(clientId: string, year: number, mont
             attendances,
             assignments: assignments.filter(a => a.endDate && new Date(a.endDate).getMonth() === month && new Date(a.endDate).getFullYear() === year),
             repositions: monthRepositionTransitions,
+            visits,
             requests: requests.map((r: any) => ({
                 id: r.id,
                 type: r.type,
