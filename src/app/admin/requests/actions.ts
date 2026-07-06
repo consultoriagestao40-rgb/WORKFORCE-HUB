@@ -1692,6 +1692,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
             }),
             prisma.request.findMany({
                 where: {
+                    clientId: { in: clientIds },
                     createdAt: { gte: startDate, lte: endDate }
                 },
                 include: {
@@ -1759,9 +1760,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
         console.log(`[getAdminClientKpis] Julho absences count: ${julAtts.filter((a: any) => a.status === 'FALTA').length}`);
 
         const clientRequests = requests.filter((r: any) => 
-            (r.clientId && clientIds.includes(r.clientId)) ||
-            r.requester?.clientIds?.some((id: string) => clientIds.includes(id)) ||
-            r.employee?.assignments?.some((a: any) => clientIds.includes(a.posto?.clientId))
+            r.clientId && clientIds.includes(r.clientId)
         );
 
         const mappedNpsResponses = npsResponses.map((resp: any) => {
