@@ -543,14 +543,18 @@ export async function getClientKpis(year: number) {
 
         const repositionTransitions: any[] = [];
         Object.keys(assignmentsByPosto).forEach((postoId) => {
-            const list = assignmentsByPosto[postoId].sort((x, y) => new Date(x.startDate).getTime() - new Date(y.startDate).getTime());
+            const list = assignmentsByPosto[postoId].sort((x, y) => {
+                const tx = x.startDate ? new Date(x.startDate).getTime() : 0;
+                const ty = y.startDate ? new Date(y.startDate).getTime() : 0;
+                return tx - ty;
+            });
             for (let i = 0; i < list.length - 1; i++) {
                 const current = list[i];
                 const next = list[i + 1];
-                if (current.endDate) {
+                if (current && current.endDate && next && next.startDate) {
                     const exitDate = new Date(current.endDate);
                     const entryDate = new Date(next.startDate);
-                    if (entryDate >= exitDate) {
+                    if (!isNaN(exitDate.getTime()) && !isNaN(entryDate.getTime()) && entryDate >= exitDate) {
                         const diffTime = Math.abs(entryDate.getTime() - exitDate.getTime());
                         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                         repositionTransitions.push({
@@ -2033,8 +2037,9 @@ export async function getAdminClientKpis(clientId: string, year: number) {
             });
 
             const monthRepositionTransitions = repositionTransitions.filter(t => 
-                t.entryDate.getMonth() <= index && 
-                t.entryDate.getFullYear() === year
+                t.entryDate && !isNaN(new Date(t.entryDate).getTime()) &&
+                new Date(t.entryDate).getMonth() <= index && 
+                new Date(t.entryDate).getFullYear() === year
             );
             const totalRepositionDays = monthRepositionTransitions.reduce((sum, t) => sum + t.diffDays, 0);
             const avgRepositionDays = monthRepositionTransitions.length > 0 ? parseFloat((totalRepositionDays / monthRepositionTransitions.length).toFixed(1)) : null;

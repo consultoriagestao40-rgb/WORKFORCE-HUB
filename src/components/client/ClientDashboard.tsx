@@ -2026,6 +2026,16 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                     )}
 
                     {activeTab === "sla" && (() => {
+                        // Blindagem contra estado nulo de carregamento antes do fetch completar
+                        if (!slaData) {
+                            return (
+                                <div className="flex flex-col items-center justify-center py-20 gap-3 bg-white rounded-2xl border border-slate-200/50 shadow-premium">
+                                    <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                                    <span className="text-xs text-slate-500 font-semibold">Calculando índices de SLA...</span>
+                                </div>
+                            );
+                        }
+
                         const getSlaMetricRealValForMonth = (item: any, monthIdx: number) => {
                             if (item.metricType === "MANUAL") {
                                 const found = item.monthlyValues?.find((v: any) => v.month === monthIdx && v.year === slaYear);
