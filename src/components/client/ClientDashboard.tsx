@@ -2074,7 +2074,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                         <div className="flex flex-col items-center justify-center bg-slate-950/65 border border-slate-800 p-6 px-8 rounded-2xl shrink-0 text-center gap-2 select-none shadow-inner">
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nota Obtida</span>
                                             <span className="text-4xl font-black text-primary tracking-tight">
-                                                {slaData.summary.contractScore !== null && slaData.summary.contractScore !== undefined ? slaData.summary.contractScore.toFixed(2).replace('.', ',') : '0,00'} <span className="text-sm font-bold text-slate-500">/ 10</span>
+                                                {slaData.summary.contractScore !== null && slaData.summary.contractScore !== undefined ? (slaData.summary.contractScore * 10).toFixed(2).replace('.', ',') + '%' : '0,00%'}
                                             </span>
                                             {slaData.summary.contractScore >= 9.0 ? (
                                                 <Badge className="bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 font-black text-[10px] uppercase hover:opacity-100 mt-1 select-none">
@@ -2117,7 +2117,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                 <div className="space-y-1">
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Satisfação NPS (Peso 25%)</span>
                                                     <span className="text-2xl font-black text-slate-850">
-                                                        {slaData.summary.avgNpsRating !== null && slaData.summary.avgNpsRating !== undefined ? slaData.summary.avgNpsRating.toFixed(2).replace('.', ',') : '0,00'} <span className="text-xs font-semibold text-slate-400">/ 10</span>
+                                                        {slaData.summary.avgNpsRating !== null && slaData.summary.avgNpsRating !== undefined ? (slaData.summary.avgNpsRating * 10).toFixed(2).replace('.', ',') + '%' : '0,00%'}
                                                     </span>
                                                 </div>
                                                 <Smile className="w-8 h-8 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl border border-emerald-100" />
@@ -2177,11 +2177,11 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                             </TableCell>
                                                             <TableCell className="text-center">
                                                                 <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold hover:opacity-100">
-                                                                    {m.avgNpsRating !== null && m.avgNpsRating !== undefined ? `${m.avgNpsRating.toFixed(2).replace('.', ',')} / 10` : "0,00 / 10"}
+                                                                    {m.avgNpsRating !== null && m.avgNpsRating !== undefined ? `${(m.avgNpsRating * 10).toFixed(2).replace('.', ',')}%` : "0,00%"}
                                                                 </Badge>
                                                             </TableCell>
                                                             <TableCell className="text-center font-black text-xs text-slate-900">
-                                                                {m.contractScore !== null && m.contractScore !== undefined ? `${m.contractScore.toFixed(2).replace('.', ',')} / 10` : '0,00 / 10'}
+                                                                {m.contractScore !== null && m.contractScore !== undefined ? `${(m.contractScore * 10).toFixed(2).replace('.', ',')}%` : '0,00%'}
                                                             </TableCell>
                                                             <TableCell className="text-center">
                                                                 {m.contractScore !== null && m.contractScore !== undefined && m.contractScore >= 9.0 ? (

@@ -1356,7 +1356,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                         </span>
                                                     </TableCell>
                                                     <TableCell className="text-center text-xs font-bold text-slate-700 py-3">
-                                                        {c.npsCount > 0 ? `${c.npsRating.toFixed(1)}/10` : "-"}
+                                                        {c.npsCount > 0 ? `${(c.npsRating * 10).toFixed(2).replace('.', ',')}%` : "0,00%"}
                                                     </TableCell>
                                                     <TableCell className="text-center py-3">
                                                         <span className={`px-2 py-0.5 rounded font-black text-xs ${
@@ -2361,7 +2361,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                     </span>
                                                                 </TableCell>
                                                                 <TableCell className="text-center text-xs font-bold text-slate-700 py-3">
-                                                                    {c.npsCount > 0 ? `${c.npsRating.toFixed(1)}/10` : "-"}
+                                                                    {c.npsCount > 0 ? `${(c.npsRating * 10).toFixed(2).replace('.', ',')}%` : "0,00%"}
                                                                 </TableCell>
                                                                 <TableCell className="text-center py-3">
                                                                     <span className={`px-2 py-0.5 rounded font-black text-xs ${
@@ -3101,7 +3101,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                     {sortedClients.map((c: any) => (
                                                         <TableRow key={c.id} className="hover:bg-slate-50/50">
                                                             <TableCell className="text-xs font-bold text-slate-700 pl-6 py-2.5">{c.name}</TableCell>
-                                                            <TableCell className="text-center text-xs font-black py-2.5">{c.npsCount > 0 ? `${c.npsRating.toFixed(1)}/10` : "Pendente"}</TableCell>
+                                                            <TableCell className="text-center text-xs font-black py-2.5">{c.npsCount > 0 ? `${(c.npsRating * 10).toFixed(2).replace('.', ',')}%` : "0,00%"}</TableCell>
                                                             <TableCell className="text-center text-xs font-bold text-slate-400 py-2.5">{c.npsCount} respostas</TableCell>
                                                         </TableRow>
                                                     ))}
@@ -3278,7 +3278,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                                         )
                                                                                     )}
                                                                                     <span className="font-black text-blue-655 text-xs sm:text-sm bg-blue-50/50 px-2.5 py-1 rounded-lg border border-blue-100">
-                                                                                        Nota Geral: {finalNpsVal.toFixed(1)}/10
+                                                                                        Nota Geral: {(finalNpsVal * 10).toFixed(2).replace('.', ',')}%
                                                                                     </span>
                                                                                 </div>
                                                                             </div>
@@ -3307,7 +3307,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                                                                 ? "bg-amber-50 text-amber-700 border border-amber-100" 
                                                                                                                 : "bg-red-50 text-red-700 border border-red-100"
                                                                                                     }`}>
-                                                                                                        {score.toFixed(1)}/10
+                                                                                                        {(score * 10).toFixed(2).replace('.', ',')}%
                                                                                                     </span>
                                                                                                 </div>
                                                                                             );
