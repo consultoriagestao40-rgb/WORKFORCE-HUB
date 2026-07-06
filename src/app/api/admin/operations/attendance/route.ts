@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
+import { PrismaClient } from "@prisma/client";
 import { startOfDay, addMinutes } from "date-fns";
 import { generateRoster } from "@/lib/scheduling";
 
@@ -244,7 +246,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { action, postoId, date, employeeId, coveredById, coverageType, notes, diaristaCost } = body;
+        const { action, postoId, date, employeeId, coveredById, coverageType, notes, diaristaCost, diaristaId } = body;
 
         if (!postoId || !date) {
             return NextResponse.json({ error: "Parâmetros obrigatórios ausentes" }, { status: 400 });
@@ -382,6 +384,135 @@ export async function POST(request: Request) {
                             paymentStatus: "A_FATURAR"
                         }
                     });
+                }
+
+                // INTEGRAÇÃO: Lançar diária automaticamente no Reembolso Fácil
+                if (process.env.DATABASE_URL_REEMBOLSO) {
+                    const prismaReembolso = new PrismaClient({
+                        datasources: {
+                            db: {
+                                url: process.env.DATABASE_URL_REEMBOLSO
+                            }
+                        }
+                    });
+
+                    try {
+                        const localPosto = await prisma.posto.findUnique({
+                            where: { id: postoId },
+                            include: {
+                                client: true
+                            }
+                        });
+
+                        if (localPosto) {
+                            const clientName = localPosto.client.name;
+
+                            // 1. Buscar ou criar o Posto (Cliente) no Reembolso Fácil
+                            const reembolsoPosto = await prismaReembolso.$queryRawUnsafe(
+                                'SELECT id FROM "Posto" WHERE nome = $1 LIMIT 1',
+                                clientName
+                            ) as any[];
+
+                            let reembolsoPostoId = "";
+                            if (reembolsoPosto && reembolsoPosto.length > 0) {
+                                reembolsoPostoId = reembolsoPosto[0].id;
+                            } else {
+                                const newPostoId = crypto.randomUUID();
+                                await prismaReembolso.$executeRawUnsafe(
+                                    'INSERT INTO "Posto" (id, nome, ativo) VALUES ($1, $2, $3)',
+                                    newPostoId,
+                                    clientName,
+                                    true
+                                );
+                                reembolsoPostoId = newPostoId;
+                            }
+
+                            // 2. Buscar ou criar a Reserva (Titular que faltou) no Reembolso Fácil
+                            let titularName = "Banco de Reservas";
+                            if (finalEmployeeId) {
+                                const emp = await prisma.employee.findUnique({
+                                    where: { id: finalEmployeeId }
+                                });
+                                if (emp) titularName = emp.name;
+                            }
+
+                            const reembolsoReserva = await prismaReembolso.$queryRawUnsafe(
+                                'SELECT id FROM "Reserva" WHERE nome = $1 LIMIT 1',
+                                titularName
+                            ) as any[];
+
+                            let reembolsoReservaId = "";
+                            if (reembolsoReserva && reembolsoReserva.length > 0) {
+                                reembolsoReservaId = reembolsoReserva[0].id;
+                            } else {
+                                const newReservaId = crypto.randomUUID();
+                                await prismaReembolso.$executeRawUnsafe(
+                                    'INSERT INTO "Reserva" (id, nome, cpf, ativo) VALUES ($1, $2, $3, $4)',
+                                    newReservaId,
+                                    titularName,
+                                    "000.000.000-00",
+                                    true
+                                );
+                                reembolsoReservaId = newReservaId;
+                            }
+
+                            // 3. Mapear o motivo
+                            let motivoId = "db8bec65-1a90-41bf-ba13-0ead0232541f"; // Falta Injustificada padrão
+                            if (titularName === "Banco de Reservas") {
+                                motivoId = "58af1a1c-bf0d-40dc-9e0e-d83f303673dc"; // Vaga em Aberto
+                            }
+
+                            // 4. Mapear Carga Horária
+                            let cargaHorariaId = "39fd40ff-6e1b-438c-8944-952091081d6b"; // 08:00
+                            const normSchedule = localPosto.schedule.replace(/\s+/g, '').toLowerCase();
+                            if (normSchedule.includes("12x36")) {
+                                cargaHorariaId = "a0a9e2f1-b581-4447-b60c-ed746e790d22"; // 12:00
+                            }
+
+                            // 5. Meio de pagamento padrão: PIX
+                            const meioPagamentoSolicitadoId = "0dc4e244-096e-47dc-9448-64d3cc0925a0"; // PIX
+
+                            // 6. Buscar supervisor correspondente pelo e-mail do usuário autenticado no Workforce
+                            const currentUser = await getCurrentUser();
+                            let supervisorId = "a2c4b8a1-76ea-4369-bcd8-e29116287af7"; // Fallback: Maria Rosa Vargas
+                            if (currentUser && currentUser.email) {
+                                const foundSupervisor = await prismaReembolso.$queryRawUnsafe(
+                                    'SELECT id FROM "User" WHERE email = $1 LIMIT 1',
+                                    currentUser.email
+                                ) as any[];
+                                if (foundSupervisor && foundSupervisor.length > 0) {
+                                    supervisorId = foundSupervisor[0].id;
+                                }
+                            }
+
+                            // 7. Inserir a Cobertura (Diária) no Reembolso Fácil
+                            const newCoberturaId = crypto.randomUUID();
+                            await prismaReembolso.$executeRawUnsafe(
+                                `INSERT INTO "Cobertura" (
+                                    id, data, valor, status, "postoId", "diaristaId", "reservaId", "motivoId", 
+                                    "cargaHorariaId", "meioPagamentoSolicitadoId", "supervisorId", observacao
+                                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+                                newCoberturaId,
+                                targetDate,
+                                finalCost,
+                                "PENDENTE",
+                                reembolsoPostoId,
+                                diaristaId,
+                                reembolsoReservaId,
+                                motivoId,
+                                cargaHorariaId,
+                                meioPagamentoSolicitadoId,
+                                supervisorId,
+                                notes || "Lançado automaticamente via Mesa de Operações do Workforce Hub"
+                            );
+
+                            console.log("Diária integrada criada no Reembolso Fácil! ID:", newCoberturaId);
+                        }
+                    } catch (err) {
+                        console.error("Erro ao registrar diária no Reembolso Fácil:", (err as any).message);
+                    } finally {
+                        await prismaReembolso.$disconnect();
+                    }
                 }
             } else {
                 await prisma.coverage.deleteMany({

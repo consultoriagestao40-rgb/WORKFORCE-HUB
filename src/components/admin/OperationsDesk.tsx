@@ -89,6 +89,9 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
     const [selectedReservaId, setSelectedReservaId] = useState<string>("");
     const [diaristaCost, setDiaristaCost] = useState<string>("");
     const [notes, setNotes] = useState<string>("");
+    const [diaristas, setDiaristas] = useState<Array<{ id: string; nome: string }>>([]);
+    const [loadingDiaristas, setLoadingDiaristas] = useState<boolean>(false);
+    const [selectedDiaristaId, setSelectedDiaristaId] = useState<string>("");
     const [actionLoading, setActionLoading] = useState<boolean>(false);
 
     // Dialog state for viewing active metrics cards details
@@ -203,6 +206,27 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    const fetchDiaristas = useCallback(async () => {
+        setLoadingDiaristas(true);
+        try {
+            const res = await fetch("/api/admin/operations/diaristas");
+            const data = await res.json();
+            if (data.success) {
+                setDiaristas(data.diaristas || []);
+            } else {
+                console.error("Erro ao buscar diaristas:", data.error);
+            }
+        } catch (e) {
+            console.error("Erro ao conectar diaristas:", e);
+        } finally {
+            setLoadingDiaristas(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchDiaristas();
+    }, [fetchDiaristas]);
 
     const handleDateChange = (newDate: string) => {
         startTransition(() => {
@@ -337,6 +361,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
         setSelectedReservaId(reservaList[0]?.id || "");
         setDiaristaCost((item.billingValue / 30).toFixed(2));
         setNotes("");
+        setSelectedDiaristaId("");
         setOpenDialog(true);
     };
 
@@ -363,7 +388,13 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                 }
                 payload.coveredById = selectedReservaId;
             } else if (coverageType === "DIARISTA") {
+                if (!selectedDiaristaId) {
+                    toast.error("Por favor, selecione uma diarista.");
+                    setActionLoading(false);
+                    return;
+                }
                 payload.diaristaCost = parseFloat(diaristaCost) || 0;
+                payload.diaristaId = selectedDiaristaId;
             } else if (coverageType === "VAGO") {
                 payload.action = "COBERTURA";
                 payload.coverageType = "VAGO";
@@ -1300,18 +1331,42 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                         )}
 
                         {coverageType === "DIARISTA" && (
-                            <div className="flex flex-col gap-2">
-                                <label className="text-xs font-black text-slate-700 uppercase">Valor da Diária (R$)</label>
-                                <Input
-                                    type="number"
-                                    step="0.01"
-                                    value={diaristaCost}
-                                    onChange={(e) => setDiaristaCost(e.target.value)}
-                                    className="h-10 text-xs border-slate-200"
-                                    placeholder="Valor pago à diarista"
-                                />
-                                <span className="text-[10px] text-slate-400 italic">Sugerido (Faturamento Pro-Rata): R$ {(selectedItem ? selectedItem.billingValue / 30 : 0).toFixed(2)}</span>
-                            </div>
+                            <>
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-xs font-black text-slate-700 uppercase">Escolher Diarista Externa</label>
+                                    {loadingDiaristas ? (
+                                        <span className="text-xs text-slate-400 font-semibold animate-pulse">Carregando diaristas...</span>
+                                    ) : diaristas.length > 0 ? (
+                                        <select
+                                            value={selectedDiaristaId}
+                                            onChange={(e) => setSelectedDiaristaId(e.target.value)}
+                                            className="h-10 rounded-md border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer"
+                                        >
+                                            <option value="">Selecione uma Diarista...</option>
+                                            {diaristas.map(d => (
+                                                <option key={d.id} value={d.id}>{d.nome}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <div className="text-xs text-amber-600 bg-amber-50 p-3 rounded-lg flex items-center gap-2 border border-amber-100 font-semibold">
+                                            <AlertTriangle className="w-4 h-4 shrink-0" />
+                                            Nenhuma diarista ativa disponível na base do Reembolso Fácil.
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-xs font-black text-slate-700 uppercase">Valor da Diária (R$)</label>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={diaristaCost}
+                                        onChange={(e) => setDiaristaCost(e.target.value)}
+                                        className="h-10 text-xs border-slate-200"
+                                        placeholder="Valor pago à diarista"
+                                    />
+                                    <span className="text-[10px] text-slate-400 italic">Sugerido (Faturamento Pro-Rata): R$ {(selectedItem ? selectedItem.billingValue / 30 : 0).toFixed(2)}</span>
+                                </div>
+                            </>
                         )}
 
                         <div className="flex flex-col gap-2">
