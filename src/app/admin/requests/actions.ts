@@ -18,6 +18,7 @@ function calculateAtingimentoVal(realVal: number | null, ranges: any[]): number 
 
 
 import { prisma } from "@/lib/db";
+import { generateRoster } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
 import { getCurrentUserRole, getCurrentUser } from "@/lib/auth";
 
@@ -473,6 +474,15 @@ export async function getClientKpis(year: number) {
         })
     ]);
 
+    const postos = await prisma.posto.findMany({
+        where: { clientId: { in: clientIds } },
+        include: {
+            assignments: {
+                orderBy: { startDate: "desc" }
+            }
+        }
+    });
+
     // Mapear respostas do NPS para suas notas médias ponderadas
     const mappedNpsResponses = npsResponses.map(n => {
         const clientQuestions = npsQuestions.filter(q => q.clientId === n.clientId);
@@ -578,14 +588,87 @@ export async function getClientKpis(year: number) {
         const complaints = monthRequests.filter((r: any) => r.description?.toLowerCase().includes("reclam") || r.description?.toLowerCase().includes("queixa"));
         const complaintsRate = monthRequests.length > 0 ? (complaints.length / monthRequests.length) * 100 : 0;
 
-        const monthAtts = isMockPeriod ? [] : attendances.filter(a => {
-            const d = new Date(a.date);
-            return d.getMonth() === index;
-        });
-        const activeShifts = monthAtts.filter(a => a.status !== "FOLGA");
-        const totalShifts = activeShifts.length;
-        const vacantShifts = activeShifts.filter(a => a.status === "FALTA" && !a.coveredById).length;
-        const totalAbsences = activeShifts.filter(a => a.status === "FALTA").length;
+        let totalShifts = 0;
+        let vacantShifts = 0;
+        let totalAbsences = 0;
+
+        if (!isMockPeriod) {
+            const daysInMonth = [];
+            const startOfThisMonth = new Date(year, index, 1);
+            const endOfThisMonth = new Date(year, index + 1, 0);
+            
+            const today = new Date();
+            const maxDate = (today.getFullYear() === year && today.getMonth() === index) ? today : endOfThisMonth;
+            
+            for (let d = new Date(startOfThisMonth); d <= maxDate; d.setDate(d.getDate() + 1)) {
+                daysInMonth.push(new Date(d));
+            }
+
+            daysInMonth.forEach(dayDate => {
+                const dayDateStr = dayDate.toISOString().split("T")[0];
+                const targetDate = new Date(dayDateStr + "T00:00:00Z");
+
+                postos.forEach(posto => {
+                    const assignment = posto.assignments.find(a => {
+                        const start = new Date(a.startDate);
+                        const end = a.endDate ? new Date(a.endDate) : null;
+                        return start <= targetDate && (!end || end >= targetDate);
+                    });
+
+                    let shouldWork = false;
+                    if (!assignment) {
+                        const dayOfWeek = targetDate.getDay();
+                        const normSchedule = posto.schedule.replace(/\s+/g, '').toLowerCase();
+                        shouldWork = true;
+                        if (normSchedule.includes('segasex') || normSchedule.includes('mondaytofriday')) {
+                            if (dayOfWeek === 0 || dayOfWeek === 6) shouldWork = false;
+                        } else if (normSchedule.includes('segasab') || normSchedule.includes('mondaytosaturday')) {
+                            if (dayOfWeek === 0) shouldWork = false;
+                        }
+                    } else {
+                        const roster = generateRoster(posto.schedule, new Date(assignment.startDate), [targetDate]);
+                        shouldWork = roster[0]?.status === 'Trabalho';
+                    }
+
+                    if (shouldWork) {
+                        totalShifts++;
+
+                        const att = attendances.find(a => 
+                            a.postoId === posto.id && 
+                            new Date(a.date).toISOString().split("T")[0] === dayDateStr
+                        );
+
+                        if (att) {
+                            if (att.status === "FALTA") {
+                                totalAbsences++;
+                                if (!att.coveredById && att.coverageType !== "DIARISTA" && att.coverageType !== "RESERVA_TECNICA") {
+                                    vacantShifts++;
+                                }
+                            }
+                        } else {
+                            const todayStr = today.toISOString().split("T")[0];
+                            const isPastDay = targetDate.getTime() < new Date(todayStr + "T00:00:00Z").getTime();
+                            let isEndedToday = false;
+
+                            if (today.getFullYear() === year && today.getMonth() === index && today.getDate() === dayDate.getDate()) {
+                                const [endHour, endMinute] = posto.endTime.split(":").map(Number);
+                                const shiftEnd = new Date(dayDate);
+                                shiftEnd.setHours(endHour, endMinute, 0, 0);
+                                const nowInBrazil = new Date(new Date().getTime() - 3 * 60 * 60 * 1000);
+                                if (nowInBrazil > shiftEnd) {
+                                    isEndedToday = true;
+                                }
+                            }
+
+                            if (isPastDay || isEndedToday) {
+                                vacantShifts++;
+                                totalAbsences++;
+                            }
+                        }
+                    }
+                });
+            });
+        }
 
         const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : null;
         const absenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : null;
@@ -2488,6 +2571,107 @@ export async function getClientDetailedData(clientId: string, year: number, mont
             orderBy: { date: 'asc' }
         });
 
+        // Simular postos previstos e enriquecer com faltas virtuais (para auditoria)
+        const clientPostos = await prisma.posto.findMany({
+            where: { clientId },
+            include: {
+                assignments: {
+                    include: { employee: true },
+                    orderBy: { startDate: 'desc' }
+                },
+                role: true
+            }
+        });
+
+        const enrichedAttendances = [...attendances];
+        const daysInMonth = [];
+        const today = new Date();
+        const maxDate = (today.getFullYear() === year && today.getMonth() === month) ? today : endOfMonth;
+
+        for (let d = new Date(startOfMonth); d <= maxDate; d.setDate(d.getDate() + 1)) {
+            daysInMonth.push(new Date(d));
+        }
+
+        daysInMonth.forEach(dayDate => {
+            const dayDateStr = dayDate.toISOString().split("T")[0];
+            const targetDate = new Date(dayDateStr + "T00:00:00Z");
+
+            clientPostos.forEach(posto => {
+                const assignment = posto.assignments.find(a => {
+                    const start = new Date(a.startDate);
+                    const end = a.endDate ? new Date(a.endDate) : null;
+                    return start <= targetDate && (!end || end >= targetDate);
+                });
+
+                let shouldWork = false;
+                if (!assignment) {
+                    const dayOfWeek = targetDate.getDay();
+                    const normSchedule = posto.schedule.replace(/\s+/g, '').toLowerCase();
+                    shouldWork = true;
+                    if (normSchedule.includes('segasex') || normSchedule.includes('mondaytofriday')) {
+                        if (dayOfWeek === 0 || dayOfWeek === 6) shouldWork = false;
+                    } else if (normSchedule.includes('segasab') || normSchedule.includes('mondaytosaturday')) {
+                        if (dayOfWeek === 0) shouldWork = false;
+                    }
+                } else {
+                    const roster = generateRoster(posto.schedule, new Date(assignment.startDate), [targetDate]);
+                    shouldWork = roster[0]?.status === 'Trabalho';
+                }
+
+                if (shouldWork) {
+                    const hasPhysical = attendances.some(a => 
+                        a.postoId === posto.id && 
+                        new Date(a.date).toISOString().split("T")[0] === dayDateStr
+                    );
+
+                    if (!hasPhysical) {
+                        const todayStr = today.toISOString().split("T")[0];
+                        const isPastDay = targetDate.getTime() < new Date(todayStr + "T00:00:00Z").getTime();
+                        let isEndedToday = false;
+
+                        if (today.getFullYear() === year && today.getMonth() === month && today.getDate() === dayDate.getDate()) {
+                            const [endHour, endMinute] = posto.endTime.split(":").map(Number);
+                            const shiftEnd = new Date(dayDate);
+                            shiftEnd.setHours(endHour, endMinute, 0, 0);
+                            const nowInBrazil = new Date(new Date().getTime() - 3 * 60 * 60 * 1000);
+                            if (nowInBrazil > shiftEnd) {
+                                isEndedToday = true;
+                            }
+                        }
+
+                        if (isPastDay || isEndedToday) {
+                            enrichedAttendances.push({
+                                id: `virtual-${posto.id}-${dayDateStr}`,
+                                postoId: posto.id,
+                                employeeId: assignment?.employeeId || null,
+                                date: targetDate,
+                                status: "FALTA",
+                                clockInTime: null,
+                                coveredById: null,
+                                coverageType: null,
+                                notes: "Falta não tratada (sem registro de ponto)",
+                                posto: {
+                                    id: posto.id,
+                                    name: posto.role?.name || "Posto",
+                                    startTime: posto.startTime,
+                                    endTime: posto.endTime,
+                                    schedule: posto.schedule,
+                                    billingValue: posto.billingValue,
+                                    clientId: posto.clientId,
+                                    roleId: posto.roleId,
+                                    role: posto.role
+                                },
+                                employee: assignment?.employee || null,
+                                coveredBy: null
+                            } as any);
+                        }
+                    }
+                }
+            });
+        });
+
+        enrichedAttendances.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
         console.log(`[getClientDetailedData] clientId: ${clientId}, year: ${year}, month: ${month}`);
         console.log(`[getClientDetailedData] attendances count: ${attendances.length}`);
 
@@ -2591,7 +2775,7 @@ export async function getClientDetailedData(clientId: string, year: number, mont
             slaConfigItems,
             npsQuestions,
             npsResponses,
-            attendances,
+            attendances: enrichedAttendances,
             assignments: assignments.filter(a => a.endDate && new Date(a.endDate).getMonth() === month && new Date(a.endDate).getFullYear() === year),
             repositions: monthRepositionTransitions,
             visits,
