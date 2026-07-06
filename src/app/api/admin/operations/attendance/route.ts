@@ -446,11 +446,15 @@ export async function POST(request: Request) {
 
                             // 2. Buscar ou criar a Reserva (Titular que faltou) no Reembolso Fácil
                             let titularName = "Banco de Reservas";
+                            let titularCpf: string | null = null;
                             if (finalEmployeeId) {
                                 const emp = await prisma.employee.findUnique({
                                     where: { id: finalEmployeeId }
                                 });
-                                if (emp) titularName = emp.name;
+                                if (emp) {
+                                    titularName = emp.name;
+                                    titularCpf = emp.cpf;
+                                }
                             }
 
                             const reembolsoReserva = await prismaReembolso.$queryRawUnsafe(
@@ -467,7 +471,7 @@ export async function POST(request: Request) {
                                     'INSERT INTO "Reserva" (id, nome, cpf, ativo) VALUES ($1, $2, $3, $4)',
                                     newReservaId,
                                     titularName,
-                                    "000.000.000-00",
+                                    titularCpf,
                                     true
                                 );
                                 reembolsoReservaId = newReservaId;
@@ -512,8 +516,8 @@ export async function POST(request: Request) {
                             await prismaReembolso.$executeRawUnsafe(
                                 `INSERT INTO "Cobertura" (
                                     id, data, valor, status, "postoId", "diaristaId", "reservaId", "motivoId", 
-                                    "cargaHorariaId", "meioPagamentoSolicitadoId", "supervisorId", observacao, "updatedAt"
-                                ) VALUES ($1, $2, $3, CAST($4 AS "StatusCobertura"), $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                                    "cargaHorariaId", "meioPagamentoSolicitadoId", "supervisorId", observacao, "createdAt", "updatedAt"
+                                ) VALUES ($1, $2, $3, CAST($4 AS "StatusCobertura"), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
                                 newCoberturaId,
                                 targetDate,
                                 finalCost,
@@ -526,6 +530,7 @@ export async function POST(request: Request) {
                                 meioPagamentoSolicitadoId,
                                 supervisorId,
                                 observacaoFinal,
+                                new Date(),
                                 new Date()
                             );
 
