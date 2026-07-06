@@ -3567,7 +3567,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                             <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Rotatividade (Turnover)</TableHead>
                                                             <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Chamados no Prazo (SLA)</TableHead>
                                                             <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Índice Reclamações</TableHead>
-                                                    <TableHead className="font-bold text-xs text-slate-800">SLA Reposição (Média Dias)</TableHead>
+                                                    <TableHead className="font-bold text-xs text-slate-800">SLA de Contratação (Média Dias)</TableHead>
                                                         </TableRow>
                                                     </TableHeader>
                                                     <TableBody>
@@ -3743,6 +3743,9 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                         }
                         if (item.metricType === "RECLAMACOES") {
                             return mData.complaintsRate;
+                        }
+                        if (item.metricType === "VISITAS") {
+                            return mData.visitsScore;
                         }
                         return null;
                     };
@@ -4053,7 +4056,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                  item.metricType === "SLA_CHAMADOS" ? "Chamados no Prazo" :
                                                                  item.metricType === "NPS" ? "Nota NPS" :
                                                                  item.metricType === "TURNOVER" ? "Rotatividade (Turnover)" :
-                                                                 item.metricType === "RECLAMACOES" ? "Índice Reclamações" : "SLA Reposição"}
+                                                                 item.metricType === "RECLAMACOES" ? "Índice Reclamações" : 
+                                                                 item.metricType === "VISITAS" ? "Visitas de Liderança" : "SLA de Contratação"}
                                                             </TableCell>
                                                             <TableCell className="text-center text-xs font-bold py-3">{item.targetValue}%</TableCell>
                                                             <TableCell className="text-center text-xs font-bold py-3">{item.weight}</TableCell>
@@ -4418,7 +4422,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     <option value="NPS">Automático: Nota NPS do Cliente</option>
                                     <option value="TURNOVER">Automático: Rotatividade (Turnover)</option>
                                     <option value="RECLAMACOES">Automático: Chamados de Reclamação (Qtd)</option>
-                                    <option value="REPOSICAO">Automático: SLA de Reposição (Média Dias)</option>
+                                    <option value="REPOSICAO">Automático: SLA de Contratação (Média Dias)</option>
+                                    <option value="VISITAS">Automático: Visitas de Liderança</option>
                                     <option value="MANUAL">Lançamento Manual pelo Gestor</option>
                                 </select>
                             </div>
@@ -5099,7 +5104,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 {kpiModalConfig?.kpiType === 'turnover' && "Auditoria de Rotatividade e Movimentações de Postos"}
                                 {kpiModalConfig?.kpiType === 'sla' && "Auditoria de SLA de Chamados Cumpridos no Prazo"}
                                 {kpiModalConfig?.kpiType === 'complaints' && "Auditoria de Reclamações Registradas"}
-                            {kpiModalConfig?.kpiType === 'reposition' && "Auditoria de SLA de Reposição de Vagas"}
+                            {kpiModalConfig?.kpiType === 'reposition' && "Auditoria de SLA de Contratação de Vagas"}
                             </p>
                         </div>
                     </DialogHeader>
@@ -5346,7 +5351,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 </div>
                             )}
 
-                            {/* KPI: SLA DE REPOSIÇÃO */}
+                            {/* KPI: SLA DE CONTRATAÇÃO */}
                             {kpiModalConfig?.kpiType === 'reposition' && (
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-3 gap-4">
@@ -5359,7 +5364,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             <p className="text-2xl font-black text-slate-800 mt-1">{(kpiModalData.repositions || []).reduce((sum: number, r: any) => sum + r.diffDays, 0)} dias</p>
                                         </div>
                                         <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100/50">
-                                            <span className="text-[10px] font-black uppercase text-blue-600 tracking-wider">Média de Reposição</span>
+                                            <span className="text-[10px] font-black uppercase text-blue-600 tracking-wider">Média de Contratação</span>
                                             <p className="text-2xl font-black text-blue-700 mt-1">
                                                 {kpiModalConfig.value !== undefined && kpiModalConfig.value !== null ? `${kpiModalConfig.value.toFixed(1).replace('.', ',')} dias` : "-"}
                                             </p>
@@ -5382,7 +5387,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                 {(kpiModalData.repositions || []).length === 0 ? (
                                                     <TableRow>
                                                         <TableCell colSpan={7} className="text-center py-8 text-slate-400 font-semibold text-xs">
-                                                            Nenhuma reposição de funcionário concluída neste mês.
+                                                            Nenhuma contratação de funcionário concluída neste mês.
                                                         </TableCell>
                                                     </TableRow>
                                                 ) : (
