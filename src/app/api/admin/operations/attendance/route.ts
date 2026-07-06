@@ -568,10 +568,57 @@ export async function POST(request: Request) {
             const existing = await prisma.attendance.findUnique({
                 where: {
                     postoId_date: { postoId, date: targetDate }
+                },
+                include: {
+                    posto: {
+                        include: {
+                            client: true
+                        }
+                    }
                 }
             });
 
             if (existing) {
+                // INTEGRAÇÃO: Se a cobertura anterior era de Diarista, deleta a diária pendente correspondente no Reembolso Fácil!
+                if (existing.coverageType === "DIARISTA" && existing.posto) {
+                    const reembolsoUrl = process.env.DATABASE_URL_REEMBOLSO || "postgresql://neondb_owner:npg_FAXvef5z2oLN@ep-lingering-poetry-ahaduz92-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require";
+                    if (reembolsoUrl) {
+                        const prismaReembolso = new PrismaClient({
+                            datasources: {
+                                db: {
+                                    url: reembolsoUrl
+                                }
+                            }
+                        });
+
+                        try {
+                            const clientName = existing.posto.client.name;
+
+                            // 1. Buscar o ID do posto correspondente no Reembolso Fácil
+                            const reembolsoPosto = await prismaReembolso.$queryRawUnsafe(
+                                'SELECT id FROM "Posto" WHERE nome = $1 LIMIT 1',
+                                clientName
+                            ) as any[];
+
+                            if (reembolsoPosto && reembolsoPosto.length > 0) {
+                                const reembolsoPostoId = reembolsoPosto[0].id;
+
+                                // 2. Deletar a cobertura no Reembolso Fácil apenas se ainda estiver no status "PENDENTE"!
+                                await prismaReembolso.$executeRawUnsafe(
+                                    'DELETE FROM "Cobertura" WHERE "postoId" = $1 AND data = $2 AND status = CAST($3 AS "StatusCobertura")',
+                                    reembolsoPostoId,
+                                    targetDate,
+                                    "PENDENTE"
+                                );
+                                console.log("Diária integrada pendente removida com sucesso no Reembolso Fácil!");
+                            }
+                        } catch (err: any) {
+                            console.error("Erro ao remover diária integrada no Reembolso Fácil:", err.message);
+                        } finally {
+                            await prismaReembolso.$disconnect();
+                        }
+                    }
+                }
                 if (existing.clockInTime) {
                     const attendance = await prisma.attendance.update({
                         where: { id: existing.id },
