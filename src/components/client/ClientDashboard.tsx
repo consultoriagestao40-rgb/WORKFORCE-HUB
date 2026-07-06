@@ -2067,7 +2067,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                 <strong className="text-slate-200"> Avaliação de Satisfação NPS (25%)</strong>.
                                             </p>
                                             <div className="text-[10px] bg-slate-800/50 p-2.5 rounded-lg border border-slate-700/30 text-slate-400 font-bold uppercase tracking-wider inline-block select-none">
-                                                Meta Mínima Contratual: <strong className="text-primary font-black">9.0 / 10</strong>
+                                                Meta Mínima Contratual: <strong className="text-primary font-black">{(slaData?.contractTargetScore !== undefined ? slaData.contractTargetScore : 90.0).toFixed(2).replace('.', ',')}%</strong>
                                             </div>
                                         </div>
 
@@ -2076,7 +2076,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <span className="text-4xl font-black text-primary tracking-tight">
                                                 {slaData.summary.contractScore !== null && slaData.summary.contractScore !== undefined ? (slaData.summary.contractScore * 10).toFixed(2).replace('.', ',') + '%' : '0,00%'}
                                             </span>
-                                            {slaData.summary.contractScore >= 9.0 ? (
+                                            {slaData.summary.contractScore !== null && slaData.summary.contractScore !== undefined && (slaData.summary.contractScore * 10) >= (slaData?.contractTargetScore ?? 90.0) ? (
                                                 <Badge className="bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 font-black text-[10px] uppercase hover:opacity-100 mt-1 select-none">
                                                     ✓ CONFORME (SLA OK)
                                                 </Badge>
@@ -2184,7 +2184,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                 {m.contractScore !== null && m.contractScore !== undefined ? `${(m.contractScore * 10).toFixed(2).replace('.', ',')}%` : '0,00%'}
                                                             </TableCell>
                                                             <TableCell className="text-center">
-                                                                {m.contractScore !== null && m.contractScore !== undefined && m.contractScore >= 9.0 ? (
+                                                                {m.contractScore !== null && m.contractScore !== undefined && (m.contractScore * 10) >= (slaData?.contractTargetScore ?? 90.0) ? (
                                                                     <Badge className="bg-emerald-50 text-emerald-700 border-emerald-250 font-black uppercase hover:opacity-100">
                                                                         Conforme
                                                                     </Badge>

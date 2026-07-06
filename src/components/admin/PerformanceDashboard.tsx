@@ -18,6 +18,7 @@ import {
     getConsolidatedPerformanceData, 
     createContractVisit, 
     getAdminClientKpis,
+    saveContractTargetScore,
     getClientDetailedData,
     getAdminClientBilling,
     updatePostoBilling,
@@ -86,6 +87,38 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [kpiModalConfig, setKpiModalConfig] = useState<{ monthIndex: number; monthName: string; kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints' | 'reposition'; value?: number } | null>(null);
     const [kpiModalData, setKpiModalData] = useState<any>(null);
     const [loadingKpiModal, setLoadingKpiModal] = useState<boolean>(false);
+    const [generalSlaTarget, setGeneralSlaTarget] = useState<number>(90.0);
+    const [isSavingSlaTarget, setIsSavingSlaTarget] = useState<boolean>(false);
+
+    useEffect(() => {
+        if (clientKpiData && clientKpiData.contractTargetScore !== undefined) {
+            setGeneralSlaTarget(clientKpiData.contractTargetScore);
+        }
+    }, [clientKpiData]);
+
+    const handleSaveGeneralSlaTarget = async () => {
+        if (!selectedClientId || selectedClientId === "all") return;
+        setIsSavingSlaTarget(true);
+        try {
+            const res = await saveContractTargetScore(selectedClientId, generalSlaTarget);
+            if (res.success) {
+                toast.success("Meta global de SLA atualizada com sucesso!");
+                setClientKpiData((prev: any) => {
+                    if (!prev) return prev;
+                    return {
+                        ...prev,
+                        contractTargetScore: generalSlaTarget
+                    };
+                });
+            } else {
+                toast.error(res.error || "Erro ao salvar a meta.");
+            }
+        } catch (e) {
+            toast.error("Erro de conexão ao salvar a meta.");
+        } finally {
+            setIsSavingSlaTarget(false);
+        }
+    };
 
     const handleKpiCellClick = async (monthIndex: number, monthName: string, kpiType: 'effectiveness' | 'nps' | 'turnover' | 'sla' | 'complaints' | 'reposition', value?: number) => {
         setKpiModalConfig({ monthIndex, monthName, kpiType, value });
@@ -3764,13 +3797,13 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         <Card className="border border-slate-200/50 shadow-premium bg-white p-5 rounded-2xl flex flex-col justify-between">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Status Geral do SLA</span>
                                             <span className={`text-sm font-black mt-2 rounded px-2.5 py-1 w-fit ${
-                                                annualSlaScore !== null && annualSlaScore >= 90
+                                                annualSlaScore !== null && annualSlaScore >= (clientKpiData?.contractTargetScore ?? 90.0)
                                                     ? "bg-emerald-50 text-emerald-600"
                                                     : annualSlaScore !== null
                                                     ? "bg-red-50 text-red-600"
                                                     : "bg-slate-100 text-slate-400"
                                             }`}>
-                                                {annualSlaScore !== null && annualSlaScore >= 90 ? "Conforme" : annualSlaScore !== null ? "Inconforme" : "Pendente"}
+                                                {annualSlaScore !== null && annualSlaScore >= (clientKpiData?.contractTargetScore ?? 90.0) ? "Conforme" : annualSlaScore !== null ? "Inconforme" : "Pendente"}
                                             </span>
                                         </Card>
                                     </div>
@@ -3830,7 +3863,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                 <TableCell className="text-right pr-6 py-3 text-xs font-black text-slate-800">
                                                                     {hasSlaData && monthScore !== null ? (
                                                                         <span className={`px-2 py-0.5 rounded ${
-                                                                            monthScore >= 90 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+                                                                            monthScore >= (clientKpiData?.contractTargetScore ?? 90.0) ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
                                                                         }`}>
                                                                             {monthScore.toFixed(1)}%
                                                                         </span>
@@ -3847,6 +3880,38 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     </Card>
                                 </div>
                             ) : (
+                                <>
+                                {/* Card de Configuração da Meta Mínima Geral do Contrato */}
+                                <Card className="border border-slate-200/50 shadow-premium bg-white rounded-2xl p-5 mb-6">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                        <div className="space-y-1">
+                                            <h4 className="text-sm font-black uppercase text-slate-855">Meta Mínima Consolidada do Contrato</h4>
+                                            <p className="text-xs text-slate-500 font-medium">Define a meta de SLA global (Nota Final Consolidada) exigida para este contrato.</p>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                                                <input
+                                                    type="number"
+                                                    step="0.1"
+                                                    min="0"
+                                                    max="100"
+                                                    value={generalSlaTarget}
+                                                    onChange={(e) => setGeneralSlaTarget(parseFloat(e.target.value) || 0)}
+                                                    className="w-16 h-7 text-center text-sm font-black bg-transparent outline-none text-slate-850"
+                                                />
+                                                <span className="text-xs font-bold text-slate-500">%</span>
+                                            </div>
+                                            <Button
+                                                onClick={handleSaveGeneralSlaTarget}
+                                                disabled={isSavingSlaTarget}
+                                                className="h-10 px-5 rounded-xl bg-slate-900 text-white font-bold text-xs shadow-premium hover:bg-slate-800 transition-all cursor-pointer"
+                                            >
+                                                {isSavingSlaTarget ? "Salvando..." : "Salvar Meta"}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </Card>
+
                                 <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
                                     <CardHeader className="flex flex-row items-center justify-between">
                                         <div>
@@ -3943,6 +4008,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         </Table>
                                     </CardContent>
                                 </Card>
+                                </>
                             )}
                         </div>
                     );

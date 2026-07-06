@@ -393,6 +393,12 @@ export async function getClientKpis(year: number) {
     if (!user || user.role !== 'CLIENTE') throw new Error("Unauthorized");
 
     const clientIds = user.clientIds || [];
+    const firstClientId = clientIds[0];
+    const clientRecord = firstClientId ? await prisma.client.findUnique({
+        where: { id: firstClientId },
+        select: { contractTargetScore: true }
+    }) : null;
+    const contractTargetScore = clientRecord?.contractTargetScore ?? 90.0;
     if (clientIds.length === 0) {
         return {
             success: true,
@@ -757,6 +763,7 @@ export async function getClientKpis(year: number) {
 
     return {
         success: true,
+        contractTargetScore,
         monthlyData,
         npsEvolution,
         summary: {
@@ -1664,6 +1671,12 @@ export async function getAdminClientKpis(clientId: string, year: number) {
             throw new Error("Unauthorized");
         }
 
+        const clientRecord = await prisma.client.findUnique({
+            where: { id: clientId },
+            select: { contractTargetScore: true }
+        });
+        const contractTargetScore = clientRecord?.contractTargetScore ?? 90.0;
+
         const clientIds = [clientId];
         const startDate = new Date(year, 0, 1, 0, 0, 0);
         const endDate = new Date(year, 11, 31, 23, 59, 59);
@@ -2025,6 +2038,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
 
         return {
             success: true,
+            contractTargetScore,
             monthlyData,
             npsEvolution,
             summary: {
@@ -2524,6 +2538,25 @@ export async function getAdminClientBilling(clientId: string, year: number) {
     } catch (e) {
         console.error("Erro ao buscar faturamento administrativo:", e);
         return { success: false, error: "Erro ao buscar faturamento." };
+    }
+}
+
+export async function saveContractTargetScore(clientId: string, targetScore: number) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR')) {
+            return { success: false, error: "Não autorizado" };
+        }
+
+        await prisma.client.update({
+            where: { id: clientId },
+            data: { contractTargetScore: targetScore }
+        });
+
+        return { success: true };
+    } catch (e: any) {
+        console.error("Erro ao salvar contractTargetScore:", e);
+        return { success: false, error: e.message || "Erro de servidor ao salvar meta contratual" };
     }
 }
 
