@@ -3816,8 +3816,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                                         Real: {item.metricType === "RECLAMACOES" 
                                                                                             ? `${realVal.toFixed(0)} chamados` 
                                                                                             : item.metricType === "REPOSICAO"
-                                                                                            ? `${realVal.toFixed(1)} dias`
-                                                                                            : `${realVal.toFixed(1)}%`}
+                                                                                            ? `${realVal.toFixed(2).replace('.', ',')} dias`
+                                                                                            : `${realVal.toFixed(2).replace('.', ',')}%`}
                                                                                     </span>
                                                                                     <span className="text-[10px] font-black text-blue-650">Nota: {postFaixaVal !== null ? `${postFaixaVal.toFixed(1)}%` : "-"}</span>
                                                                                 </div>

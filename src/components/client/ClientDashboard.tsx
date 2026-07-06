@@ -926,72 +926,57 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {groupedContracts.map((contract) => (
-                                                    <TableRow 
-                                                        key={contract.id} 
-                                                        className="hover:bg-slate-50/50 transition-colors cursor-pointer"
-                                                        onClick={() => {
-                                                            setActiveContractId(contract.id);
-                                                            setSelectedContractId(contract.id);
-                                                        }}
-                                                    >
-                                                        <TableCell className="font-bold text-slate-900 text-sm">
-                                                            <div className="flex flex-col gap-0.5">
-                                                                <span className="font-black text-slate-850">{contract.name}</span>
-                                                                <span className="text-[9px] text-primary font-bold uppercase tracking-widest">{contract.companyName}</span>
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="text-slate-500 text-xs max-w-[300px] truncate">
-                                                            {contract.address}
-                                                        </TableCell>
-                                                        <TableCell className="text-center">
-                                                            <div className="flex flex-col items-center">
-                                                                <span className="text-sm font-bold text-slate-800">{contract.totalContractPostos} Postos</span>
-                                                                <span className="text-[10px] text-slate-400 font-medium">{contract.total} em escala hoje</span>
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="text-center">
-                                                            <div className="flex justify-center items-center gap-1.5 flex-wrap">
-                                                                {contract.present > 0 && (
-                                                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50 text-[10px] font-bold">
-                                                                        {contract.present} Presentes
-                                                                    </Badge>
-                                                                )}
-                                                                {contract.late > 0 && (
-                                                                    <Badge className="bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-50 text-[10px] font-bold">
-                                                                        {contract.late} Atrasados
-                                                                    </Badge>
-                                                                )}
-                                                                {contract.covered > 0 && (
-                                                                    <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 text-[10px] font-bold">
-                                                                        {contract.covered} Cobertos
-                                                                    </Badge>
-                                                                )}
-                                                                {contract.vacant > 0 && (
-                                                                    <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-50 text-[10px] font-bold">
-                                                                        {contract.vacant} Vagos
-                                                                    </Badge>
-                                                                )}
-                                                                {contract.present === 0 && contract.late === 0 && contract.covered === 0 && contract.vacant === 0 && (
-                                                                    <span className="text-xs text-slate-400 italic">Nenhuma escala ativa</span>
-                                                                )}
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="text-right pr-6">
-                                                            <Button variant="ghost" size="sm" className="text-xs font-semibold text-primary hover:text-primary/80">
-                                                                Ver Detalhes →
-                                                            </Button>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                                {groupedContracts.length === 0 && (
-                                                    <TableRow>
-                                                        <TableCell colSpan={5} className="text-center text-slate-500 py-20 font-semibold">
-                                                            Nenhum contrato ativo sob sua gestão na data selecionada.
-                                                        </TableCell>
-                                                    </TableRow>
-                                                )}
-                                            </TableBody>
+                                                     {slaData.monthlyData.map((m: any) => {
+                                                         const effVal = m.effectiveness !== null && m.effectiveness !== undefined ? m.effectiveness.toFixed(2).replace('.', ',') : "0,00";
+                                                         const slaVal = m.slaCompliance !== null && m.slaCompliance !== undefined ? m.slaCompliance.toFixed(2).replace('.', ',') : "0,00";
+                                                         const npsVal = m.avgNpsRating !== null && m.avgNpsRating !== undefined ? m.avgNpsRating.toFixed(2).replace('.', ',') : "0,00";
+                                                         const scoreVal = m.contractScore !== null && m.contractScore !== undefined ? m.contractScore.toFixed(2).replace('.', ',') : "0,00";
+                                                         const isConforme = m.contractScore !== null && m.contractScore !== undefined && m.contractScore >= 9.0;
+
+                                                         return (
+                                                             <TableRow key={m.monthIndex} className="hover:bg-slate-50/50 transition-colors">
+                                                                 <TableCell className="font-bold text-xs text-slate-900">{m.name}</TableCell>
+                                                                 <TableCell className="text-center">
+                                                                     <Badge className={`${
+                                                                         (m.effectiveness || 0) >= 95 ? 'bg-emerald-50 text-emerald-700' :
+                                                                         (m.effectiveness || 0) >= 90 ? 'bg-amber-50 text-amber-700' :
+                                                                         'bg-red-50 text-red-755'
+                                                                     } font-bold hover:opacity-100`}>
+                                                                         {effVal}%
+                                                                     </Badge>
+                                                                 </TableCell>
+                                                                 <TableCell className="text-center">
+                                                                     <Badge className={`${
+                                                                         (m.slaCompliance || 0) >= 90 ? 'bg-emerald-50 text-emerald-700' :
+                                                                         (m.slaCompliance || 0) >= 80 ? 'bg-amber-50 text-amber-700' :
+                                                                         'bg-red-50 text-red-755'
+                                                                     } font-bold hover:opacity-100`}>
+                                                                         {slaVal}%
+                                                                     </Badge>
+                                                                 </TableCell>
+                                                                 <TableCell className="text-center">
+                                                                     <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold hover:opacity-100">
+                                                                         {npsVal} / 10
+                                                                     </Badge>
+                                                                 </TableCell>
+                                                                 <TableCell className="text-center font-black text-xs text-slate-900">
+                                                                     {scoreVal} / 10
+                                                                 </TableCell>
+                                                                 <TableCell className="text-center">
+                                                                     {isConforme ? (
+                                                                         <Badge className="bg-emerald-50 text-emerald-700 border-emerald-250 font-black uppercase hover:opacity-100">
+                                                                             Conforme
+                                                                         </Badge>
+                                                                     ) : (
+                                                                         <Badge className="bg-red-50 text-red-700 border-red-200 font-black uppercase hover:opacity-100 animate-pulse">
+                                                                             Abaixo Meta
+                                                                         </Badge>
+                                                                     )}
+                                                                 </TableCell>
+                                                             </TableRow>
+                                                         );
+                                                     })}
+                                                 </TableBody>
                                         </Table>
                                     ) : (
                                         /* Contract Detailed View of Posts (First Column removed) */
@@ -2074,7 +2059,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                         <div className="flex flex-col items-center justify-center bg-slate-950/65 border border-slate-800 p-6 px-8 rounded-2xl shrink-0 text-center gap-2 select-none shadow-inner">
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nota Obtida</span>
                                             <span className="text-4xl font-black text-primary tracking-tight">
-                                                {slaData.summary.contractScore !== null && slaData.summary.contractScore !== undefined ? slaData.summary.contractScore.toFixed(1) : '-'} <span className="text-sm font-bold text-slate-500">/ 10</span>
+                                                {slaData.summary.contractScore !== null && slaData.summary.contractScore !== undefined ? slaData.summary.contractScore.toFixed(2).replace('.', ',') : '0,00'} <span className="text-sm font-bold text-slate-500">/ 10</span>
                                             </span>
                                             {slaData.summary.contractScore >= 9.0 ? (
                                                 <Badge className="bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 font-black text-[10px] uppercase hover:opacity-100 mt-1 select-none">
@@ -2094,7 +2079,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <div className="flex items-start justify-between">
                                                 <div className="space-y-1">
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Efetividade (Peso 50%)</span>
-                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.effectiveness !== null && slaData.summary.effectiveness !== undefined ? `${slaData.summary.effectiveness.toFixed(1)}%` : '-'}</span>
+                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.effectiveness !== null && slaData.summary.effectiveness !== undefined ? `${slaData.summary.effectiveness.toFixed(2).replace('.', ',')}%` : '0,00%'}</span>
                                                 </div>
                                                 <UserCheck className="w-8 h-8 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl border border-emerald-100" />
                                             </div>
@@ -2105,7 +2090,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <div className="flex items-start justify-between">
                                                 <div className="space-y-1">
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">SLA Chamados (Peso 25%)</span>
-                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.slaCompliance !== null && slaData.summary.slaCompliance !== undefined ? `${slaData.summary.slaCompliance.toFixed(1)}%` : '-'}</span>
+                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.slaCompliance !== null && slaData.summary.slaCompliance !== undefined ? `${slaData.summary.slaCompliance.toFixed(2).replace('.', ',')}%` : '0,00%'}</span>
                                                 </div>
                                                 <Clock className="w-8 h-8 text-blue-600 bg-blue-50 p-1.5 rounded-xl border border-blue-100" />
                                             </div>
@@ -2117,7 +2102,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                 <div className="space-y-1">
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Satisfação NPS (Peso 25%)</span>
                                                     <span className="text-2xl font-black text-slate-850">
-                                                        {slaData.summary.avgNpsRating !== null && slaData.summary.avgNpsRating !== undefined ? slaData.summary.avgNpsRating.toFixed(1) : '-'} <span className="text-xs font-semibold text-slate-400">/ 10</span>
+                                                        {slaData.summary.avgNpsRating !== null && slaData.summary.avgNpsRating !== undefined ? slaData.summary.avgNpsRating.toFixed(2).replace('.', ',') : '0,00'} <span className="text-xs font-semibold text-slate-400">/ 10</span>
                                                     </span>
                                                 </div>
                                                 <Smile className="w-8 h-8 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl border border-emerald-100" />
@@ -2262,7 +2247,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <div className="flex items-start justify-between">
                                                 <div className="space-y-1">
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Absenteísmo</span>
-                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.absenteeism !== null && slaData.summary.absenteeism !== undefined ? `${slaData.summary.absenteeism.toFixed(1)}%` : '-'}</span>
+                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.absenteeism !== null && slaData.summary.absenteeism !== undefined ? `${slaData.summary.absenteeism.toFixed(2).replace('.', ',')}%` : '0,00%'}</span>
                                                 </div>
                                                 <UserX className="w-8 h-8 text-red-655 bg-red-50 p-1.5 rounded-xl border border-red-100" />
                                             </div>
