@@ -1696,7 +1696,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                 m.effectiveness !== null && m.effectiveness !== undefined && m.effectiveness >= 90 ? 'bg-amber-50 text-amber-700' :
                                                                 'bg-red-50 text-red-700'
                                                             } hover:opacity-100 font-bold`}>
-                                                                {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(1)}%` : '-'}` : "-"}
+                                                                {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(1)}%` : '-'}` : '-'}` : "-"}
                                                             </Badge>
                                                         </TableCell>
                                                         <TableCell className="text-center text-xs font-semibold text-slate-505">
@@ -2074,7 +2074,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                         <div className="flex flex-col items-center justify-center bg-slate-950/65 border border-slate-800 p-6 px-8 rounded-2xl shrink-0 text-center gap-2 select-none shadow-inner">
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nota Obtida</span>
                                             <span className="text-4xl font-black text-primary tracking-tight">
-                                                {slaData.summary.contractScore.toFixed(1)} <span className="text-sm font-bold text-slate-500">/ 10</span>
+                                                {slaData.summary.contractScore !== null && slaData.summary.contractScore !== undefined ? slaData.summary.contractScore.toFixed(1) : '-'} <span className="text-sm font-bold text-slate-500">/ 10</span>
                                             </span>
                                             {slaData.summary.contractScore >= 9.0 ? (
                                                 <Badge className="bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 font-black text-[10px] uppercase hover:opacity-100 mt-1 select-none">
@@ -2094,7 +2094,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <div className="flex items-start justify-between">
                                                 <div className="space-y-1">
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Efetividade (Peso 50%)</span>
-                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.effectiveness.toFixed(1)}%</span>
+                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.effectiveness !== null && slaData.summary.effectiveness !== undefined ? `${slaData.summary.effectiveness.toFixed(1)}%` : '-'}</span>
                                                 </div>
                                                 <UserCheck className="w-8 h-8 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl border border-emerald-100" />
                                             </div>
@@ -2105,7 +2105,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <div className="flex items-start justify-between">
                                                 <div className="space-y-1">
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">SLA Chamados (Peso 25%)</span>
-                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.slaCompliance.toFixed(1)}%</span>
+                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.slaCompliance !== null && slaData.summary.slaCompliance !== undefined ? `${slaData.summary.slaCompliance.toFixed(1)}%` : '-'}</span>
                                                 </div>
                                                 <Clock className="w-8 h-8 text-blue-600 bg-blue-50 p-1.5 rounded-xl border border-blue-100" />
                                             </div>
@@ -2117,7 +2117,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                 <div className="space-y-1">
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Satisfação NPS (Peso 25%)</span>
                                                     <span className="text-2xl font-black text-slate-850">
-                                                        {slaData.summary.avgNpsRating ? slaData.summary.avgNpsRating.toFixed(1) : "10.0"} <span className="text-xs font-semibold text-slate-400">/ 10</span>
+                                                        {slaData.summary.avgNpsRating !== null && slaData.summary.avgNpsRating !== undefined ? slaData.summary.avgNpsRating.toFixed(1) : '-'} <span className="text-xs font-semibold text-slate-400">/ 10</span>
                                                     </span>
                                                 </div>
                                                 <Smile className="w-8 h-8 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl border border-emerald-100" />
@@ -2172,7 +2172,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                     m.slaCompliance >= 80 ? 'bg-amber-50 text-amber-700' :
                                                                     'bg-red-50 text-red-755'
                                                                 } font-bold hover:opacity-100`}>
-                                                                    {m.slaCompliance !== null && m.slaCompliance !== undefined ? `${m.slaCompliance.toFixed(1)}%` : "-"}
+                                                                    {m.slaCompliance !== null && m.slaCompliance !== undefined ? `${m.slaCompliance !== null && m.slaCompliance !== undefined ? `${m.slaCompliance.toFixed(1)}%` : '-'}` : "-"}
                                                                 </Badge>
                                                             </TableCell>
                                                             <TableCell className="text-center">
@@ -2240,7 +2240,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <div className="flex items-start justify-between">
                                                 <div className="space-y-1">
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Efetividade</span>
-                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.effectiveness.toFixed(1)}%</span>
+                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.effectiveness !== null && slaData.summary.effectiveness !== undefined ? `${slaData.summary.effectiveness.toFixed(1)}%` : '-'}</span>
                                                 </div>
                                                 <UserCheck className="w-8 h-8 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl border border-emerald-100" />
                                             </div>
@@ -2251,7 +2251,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <div className="flex items-start justify-between">
                                                 <div className="space-y-1">
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Conformidade SLA</span>
-                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.slaCompliance.toFixed(1)}%</span>
+                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.slaCompliance !== null && slaData.summary.slaCompliance !== undefined ? `${slaData.summary.slaCompliance.toFixed(1)}%` : '-'}</span>
                                                 </div>
                                                 <Clock className="w-8 h-8 text-blue-600 bg-blue-50 p-1.5 rounded-xl border border-blue-100" />
                                             </div>
@@ -2262,7 +2262,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <div className="flex items-start justify-between">
                                                 <div className="space-y-1">
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Absenteísmo</span>
-                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.absenteeism.toFixed(1)}%</span>
+                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.absenteeism !== null && slaData.summary.absenteeism !== undefined ? `${slaData.summary.absenteeism.toFixed(1)}%` : '-'}</span>
                                                 </div>
                                                 <UserX className="w-8 h-8 text-red-655 bg-red-50 p-1.5 rounded-xl border border-red-100" />
                                             </div>
