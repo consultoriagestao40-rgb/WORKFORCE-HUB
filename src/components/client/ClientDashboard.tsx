@@ -1692,11 +1692,11 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                         </TableCell>
                                                         <TableCell className="text-center">
                                                             <Badge className={`${
-                                                                m.effectiveness >= 95 ? 'bg-emerald-50 text-emerald-700' :
-                                                                m.effectiveness >= 90 ? 'bg-amber-50 text-amber-700' :
+                                                                m.effectiveness !== null && m.effectiveness !== undefined && m.effectiveness >= 95 ? 'bg-emerald-50 text-emerald-700' :
+                                                                m.effectiveness !== null && m.effectiveness !== undefined && m.effectiveness >= 90 ? 'bg-amber-50 text-amber-700' :
                                                                 'bg-red-50 text-red-700'
                                                             } hover:opacity-100 font-bold`}>
-                                                                {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(1)}%` : "-"}
+                                                                {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(1)}%` : '-'}` : "-"}
                                                             </Badge>
                                                         </TableCell>
                                                         <TableCell className="text-center text-xs font-semibold text-slate-505">
@@ -2177,14 +2177,14 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                             </TableCell>
                                                             <TableCell className="text-center">
                                                                 <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold hover:opacity-100">
-                                                                    {m.avgNpsRating ? m.avgNpsRating.toFixed(1) : "10.0"} / 10
+                                                                    {m.avgNpsRating !== null && m.avgNpsRating !== undefined ? `${m.avgNpsRating.toFixed(1)} / 10` : "-"}
                                                                 </Badge>
                                                             </TableCell>
                                                             <TableCell className="text-center font-black text-xs text-slate-900">
-                                                                {m.contractScore.toFixed(1)} / 10
+                                                                {m.contractScore !== null && m.contractScore !== undefined ? `${m.contractScore.toFixed(1)} / 10` : '-'}
                                                             </TableCell>
                                                             <TableCell className="text-center">
-                                                                {m.contractScore >= 9.0 ? (
+                                                                {m.contractScore !== null && m.contractScore !== undefined && m.contractScore >= 9.0 ? (
                                                                     <Badge className="bg-emerald-50 text-emerald-700 border-emerald-250 font-black uppercase hover:opacity-100">
                                                                         Conforme
                                                                     </Badge>
@@ -2314,6 +2314,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                             return (
                                                                 <TableRow key={m.monthIndex} className="hover:bg-slate-50/30 transition-colors">
                                                                     <TableCell className="font-bold text-xs text-slate-900 pl-6 py-3">{m.name}</TableCell>
+                                                                    <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
                                                                     <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
                                                                     <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
                                                                     <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
