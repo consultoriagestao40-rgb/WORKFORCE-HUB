@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { 
     getConsolidatedPerformanceData, 
-    createContractVisit, 
+    createContractVisit, updateContractVisit, deleteContractVisit, 
     getAdminClientKpis,
     saveContractTargetScore,
     getVisitRequirements,
@@ -222,6 +222,18 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [visitorName, setVisitorName] = useState<string>("Cristiano Magalhães");
     const [visitorRole, setVisitorRole] = useState<string>("SUPERVISOR");
     const [customVisitorRole, setCustomVisitorRole] = useState<string>("");
+    const [availableRoles, setAvailableRoles] = useState<string[]>(["SUPERVISOR", "COORDENADOR", "GERENTE", "DIRETOR"]);
+    const [visitEvidenceUrl, setVisitEvidenceUrl] = useState<string>("");
+
+    // Estados de edição de visita
+    const [editingVisit, setEditingVisit] = useState<any | null>(null);
+    const [editVisitOpen, setEditVisitOpen] = useState<boolean>(false);
+    const [editVisitorRole, setEditVisitorRole] = useState<string>("");
+    const [editVisitorName, setEditVisitorName] = useState<string>("");
+    const [editVisitDate, setEditVisitDate] = useState<string>("");
+    const [editVisitNotes, setEditVisitNotes] = useState<string>("");
+    const [editVisitEvidenceUrl, setEditVisitEvidenceUrl] = useState<string>("");
+    const [editCustomVisitorRole, setEditCustomVisitorRole] = useState<string>("");
     const [visitDate, setVisitDate] = useState<string>(new Date().toISOString().substring(0, 10));
     const [visitNotes, setVisitNotes] = useState<string>("");
     const [savingVisit, setSavingVisit] = useState<boolean>(false);
@@ -238,7 +250,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [slaWeight, setSlaWeight] = useState<number>(1);
     const [slaTarget, setSlaTarget] = useState<number>(90);
     const [savingSla, setSavingSla] = useState<boolean>(false);
-    const [slaTab, setSlaTab] = useState<'resultado' | 'config'>('resultado');
+    const [slaTab, setSlaTab] = useState<'resultado' | 'config' | 'visitas'>('resultado');
     const [slaRanges, setSlaRanges] = useState<{ minVal: number; maxVal: number | null; resultVal: number; }[]>([]);
     const [newMinVal, setNewMinVal] = useState<string>("");
     const [newMaxVal, setNewMaxVal] = useState<string>("");
@@ -717,13 +729,15 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 visitorRole: roleToSend,
                 visitorName,
                 visitDate,
-                notes: visitNotes
+                notes: visitNotes,
+                evidenceUrl: visitEvidenceUrl
             });
             if (res.success) {
                 toast.success("Visita de relacionamento registrada!");
                 setLogVisitOpen(false);
                 setVisitorName("Cristiano Magalhães");
                 setVisitNotes("");
+                setVisitEvidenceUrl("");
                 loadPerformanceData();
                 loadClientDetails();
             } else {
@@ -733,6 +747,78 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
             toast.error("Erro de conexão.");
         } finally {
             setSavingVisit(false);
+        }
+    };
+
+    const handleEditVisitClick = (visit: any) => {
+        setEditingVisit(visit);
+        const isStandard = availableRoles.includes(visit.visitorRole);
+        if (isStandard) {
+            setEditVisitorRole(visit.visitorRole);
+            setEditCustomVisitorRole("");
+        } else {
+            setEditVisitorRole("OUTRO");
+            setEditCustomVisitorRole(visit.visitorRole);
+            if (!availableRoles.includes(visit.visitorRole)) {
+                setAvailableRoles(prev => [...prev, visit.visitorRole]);
+            }
+        }
+        setEditVisitorName(visit.visitorName);
+        const d = new Date(visit.visitDate);
+        const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const dd = String(d.getUTCDate()).padStart(2, '0');
+        setEditVisitDate(`${d.getUTCFullYear()}-${mm}-${dd}`);
+        setEditVisitNotes(visit.notes || "");
+        setEditVisitEvidenceUrl(visit.evidenceUrl || "");
+        setEditVisitOpen(true);
+    };
+
+    const handleUpdateVisit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingVisit) return;
+        const roleToSend = editVisitorRole === "OUTRO" ? editCustomVisitorRole.trim().toUpperCase() : editVisitorRole;
+        if (!roleToSend) {
+            toast.error("Preencha o nome do cargo.");
+            return;
+        }
+        setSavingVisit(true);
+        try {
+            const res = await updateContractVisit(editingVisit.id, {
+                visitorRole: roleToSend,
+                visitorName: editVisitorName,
+                visitDate: editVisitDate,
+                notes: editVisitNotes,
+                evidenceUrl: editVisitEvidenceUrl
+            });
+            if (res.success) {
+                toast.success("Visita updated!");
+                setEditVisitOpen(false);
+                setEditingVisit(null);
+                loadPerformanceData();
+                loadClientDetails();
+            } else {
+                toast.error("Erro ao atualizar visita.");
+            }
+        } catch (e) {
+            toast.error("Erro ao atualizar visita.");
+        } finally {
+            setSavingVisit(false);
+        }
+    };
+
+    const handleDeleteVisit = async (visitId: string) => {
+        if (!confirm("Deseja realmente excluir este registro de visita? Isso atualizará a nota de KPI imediatamente.")) return;
+        try {
+            const res = await deleteContractVisit(visitId);
+            if (res.success) {
+                toast.success("Visita excluída!");
+                loadPerformanceData();
+                loadClientDetails();
+            } else {
+                toast.error("Erro ao excluir visita.");
+            }
+        } catch (e) {
+            toast.error("Erro ao excluir visita.");
         }
     };
 
@@ -1827,21 +1913,39 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     </div>
                                     <div className="space-y-1">
                                         <Label className="text-xs font-bold text-slate-655">Cargo *</Label>
-                                        <select
-                                            value={visitorRole}
-                                            onChange={(e) => {
-                                                setVisitorRole(e.target.value);
-                                                if (e.target.value !== "OUTRO") setCustomVisitorRole("");
-                                            }}
-                                            className="w-full h-10 border border-slate-200 rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary bg-white"
-                                            required
-                                        >
-                                            <option value="SUPERVISOR">Supervisor</option>
-                                            <option value="COORDENADOR">Coordenador</option>
-                                            <option value="GERENTE">Gerente</option>
-                                            <option value="DIRETOR">Diretor</option>
-                                            <option value="OUTRO">Outro cargo...</option>
-                                        </select>
+                                        <div className="flex items-center gap-1.5">
+                                            <select
+                                                value={visitorRole}
+                                                onChange={(e) => {
+                                                    setVisitorRole(e.target.value);
+                                                    if (e.target.value !== "OUTRO") setCustomVisitorRole("");
+                                                }}
+                                                className="flex-1 h-10 border border-slate-200 rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary bg-white"
+                                                required
+                                            >
+                                                {availableRoles.map(role => (
+                                                    <option key={role} value={role}>{role.charAt(0) + role.slice(1).toLowerCase()}</option>
+                                                ))}
+                                                <option value="OUTRO">Outro cargo...</option>
+                                            </select>
+                                            <Button
+                                                type="button"
+                                                onClick={() => {
+                                                    const newRole = prompt("Digite o nome do novo cargo:");
+                                                    if (newRole && newRole.trim()) {
+                                                        const formatted = newRole.trim().toUpperCase();
+                                                        if (!availableRoles.includes(formatted)) {
+                                                            setAvailableRoles(prev => [...prev, formatted]);
+                                                        }
+                                                        setVisitorRole(formatted);
+                                                    }
+                                                }}
+                                                className="h-10 w-10 p-0 bg-slate-105 hover:bg-slate-200 border border-slate-200 rounded-xl text-slate-700 flex items-center justify-center cursor-pointer shadow-premium"
+                                                title="Cadastrar Novo Cargo"
+                                            >
+                                                <Plus className="w-4 h-4" />
+                                            </Button>
+                                        </div>
                                     </div>
                                 </div>
                                 {visitorRole === "OUTRO" && (
@@ -1865,6 +1969,16 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         onChange={(e) => setVisitDate(e.target.value)}
                                         className="h-10 rounded-xl"
                                         required
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-slate-655">Evidência (Checklist, Foto, Link de Ata)</Label>
+                                    <Input
+                                        placeholder="Ex: Link do Google Drive, OneDrive, Vercel Blob..."
+                                        value={visitEvidenceUrl}
+                                        onChange={(e) => setVisitEvidenceUrl(e.target.value)}
+                                        className="h-10 rounded-xl"
                                     />
                                 </div>
 
@@ -3874,9 +3988,20 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 >
                                     ⚙️ Parametrização do SLA
                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSlaTab('visitas')}
+                                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                        slaTab === 'visitas'
+                                            ? "bg-white text-slate-800 shadow-premium"
+                                            : "text-slate-500 hover:text-slate-800"
+                                    }`}
+                                >
+                                    📋 Histórico de Visitas
+                                </button>
                             </div>
 
-                            {slaTab === 'resultado' ? (
+                            {slaTab === 'resultado' && (
                                 <div className="space-y-6">
                                     {/* Cards de Resumo de Topo */}
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -3977,7 +4102,9 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         </CardContent>
                                     </Card>
                                 </div>
-                            ) : (
+                            )}
+
+                            {slaTab === 'config' && (
                                 <>
                                 {/* Card de Configuração da Meta Mínima Geral do Contrato */}
                                 <Card className="border border-slate-200/50 shadow-premium bg-white rounded-2xl p-5 mb-6">
@@ -4153,6 +4280,96 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     </CardContent>
                                 </Card>
                                 </>
+                            )}
+
+                            {slaTab === 'visitas' && (
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-center bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
+                                        <div className="space-y-1 select-none">
+                                            <h4 className="text-sm font-black uppercase text-slate-800">Histórico de Visitas do Contrato</h4>
+                                            <p className="text-[11px] text-slate-500 font-medium">Controle de visitas, acompanhamentos e evidências do contrato.</p>
+                                        </div>
+                                        <Button
+                                            onClick={() => {
+                                                setVisitClientId(selectedClientId);
+                                                setVisitorRole("SUPERVISOR");
+                                                setVisitorName("Cristiano Magalhães");
+                                                setVisitNotes("");
+                                                setVisitEvidenceUrl("");
+                                                setCustomVisitorRole("");
+                                                setLogVisitOpen(true);
+                                            }}
+                                            className="h-9 px-4 bg-slate-900 hover:bg-slate-850 text-white font-bold text-xs rounded-xl"
+                                        >
+                                            Registrar Visita
+                                        </Button>
+                                    </div>
+
+                                    <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
+                                        <Table>
+                                            <TableHeader className="bg-slate-50">
+                                                <TableRow>
+                                                    <TableHead className="font-bold text-slate-800 text-xs py-3 pl-6">Data</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-xs py-3">Cargo</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-xs py-3">Visitante</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-xs py-3">Evidência / Anexo</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-xs py-3">Observações</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Ações</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {(() => {
+                                                    const clientVisits = (detailedData?.visits || []).filter((v: any) => v.clientId === selectedClientId);
+                                                    if (clientVisits.length === 0) {
+                                                        return (
+                                                            <TableRow>
+                                                                <TableCell colSpan={6} className="text-center py-10 text-slate-400 font-semibold text-xs">
+                                                                    Nenhuma visita de liderança registrada para este contrato até o momento.
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        );
+                                                    }
+                                                    return clientVisits.map((v: any) => (
+                                                        <TableRow key={v.id} className="hover:bg-slate-50/50 transition-colors">
+                                                            <TableCell className="font-bold text-xs text-slate-700 pl-6 py-3">
+                                                                {(() => {
+                                                                    const d = new Date(v.visitDate);
+                                                                    const day = String(d.getUTCDate()).padStart(2, '0');
+                                                                    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+                                                                    const year = d.getUTCFullYear();
+                                                                    return `${day}/${month}/${year}`;
+                                                                })()}
+                                                            </TableCell>
+                                                            <TableCell className="font-black text-xs text-slate-800 py-3">{v.visitorRole}</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-900 py-3">{v.visitorName}</TableCell>
+                                                            <TableCell className="text-xs py-3">
+                                                                {v.evidenceUrl ? (
+                                                                    <a 
+                                                                        href={v.evidenceUrl.startsWith('http') ? v.evidenceUrl : `https://${v.evidenceUrl}`} 
+                                                                        target="_blank" 
+                                                                        rel="noopener noreferrer"
+                                                                        className="inline-flex items-center gap-1 font-bold text-blue-650 hover:underline cursor-pointer"
+                                                                    >
+                                                                        📎 Ver Evidência
+                                                                    </a>
+                                                                ) : (
+                                                                    <span className="text-slate-400 italic">Sem anexo</span>
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell className="font-medium text-xs text-slate-600 whitespace-normal break-words max-w-[280px] py-3">{v.notes || "-"}</TableCell>
+                                                            <TableCell className="text-center py-3">
+                                                                <div className="flex justify-center gap-1.5">
+                                                                    <Button size="sm" variant="ghost" onClick={() => handleEditVisitClick(v)} className="h-7 w-7 p-0 rounded hover:bg-slate-105">✏️</Button>
+                                                                    <Button size="sm" variant="ghost" onClick={() => handleDeleteVisit(v.id)} className="h-7 w-7 p-0 rounded hover:bg-red-50 text-red-500">🗑️</Button>
+                                                                </div>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ));
+                                                })()}
+                                            </TableBody>
+                                        </Table>
+                                    </Card>
+                                </div>
                             )}
                         </div>
                     );
@@ -4389,21 +4606,39 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 </div>
                                 <div className="space-y-1">
                                     <Label className="text-xs font-bold text-slate-655">Cargo *</Label>
-                                    <select
-                                        value={visitorRole}
-                                        onChange={(e) => {
-                                            setVisitorRole(e.target.value);
-                                            if (e.target.value !== "OUTRO") setCustomVisitorRole("");
-                                        }}
-                                        className="w-full h-10 border border-slate-200 rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary bg-white"
-                                        required
-                                    >
-                                        <option value="SUPERVISOR">Supervisor</option>
-                                        <option value="COORDENADOR">Coordenador</option>
-                                        <option value="GERENTE">Gerente</option>
-                                        <option value="DIRETOR">Diretor</option>
-                                        <option value="OUTRO">Outro cargo...</option>
-                                    </select>
+                                    <div className="flex items-center gap-1.5">
+                                        <select
+                                            value={visitorRole}
+                                            onChange={(e) => {
+                                                setVisitorRole(e.target.value);
+                                                if (e.target.value !== "OUTRO") setCustomVisitorRole("");
+                                            }}
+                                            className="flex-1 h-10 border border-slate-200 rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary bg-white"
+                                            required
+                                        >
+                                            {availableRoles.map(role => (
+                                                <option key={role} value={role}>{role.charAt(0) + role.slice(1).toLowerCase()}</option>
+                                            ))}
+                                            <option value="OUTRO">Outro cargo...</option>
+                                        </select>
+                                        <Button
+                                            type="button"
+                                            onClick={() => {
+                                                const newRole = prompt("Digite o nome do novo cargo:");
+                                                if (newRole && newRole.trim()) {
+                                                    const formatted = newRole.trim().toUpperCase();
+                                                    if (!availableRoles.includes(formatted)) {
+                                                        setAvailableRoles(prev => [...prev, formatted]);
+                                                    }
+                                                    setVisitorRole(formatted);
+                                                }
+                                            }}
+                                            className="h-10 w-10 p-0 bg-slate-105 hover:bg-slate-200 border border-slate-200 rounded-xl text-slate-700 flex items-center justify-center cursor-pointer shadow-premium"
+                                            title="Cadastrar Novo Cargo"
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                             {visitorRole === "OUTRO" && (
@@ -4431,6 +4666,16 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             </div>
 
                             <div className="space-y-1">
+                                <Label className="text-xs font-bold text-slate-655">Evidência (Fotos, link de ATA, checklists...)</Label>
+                                <Input
+                                    placeholder="Ex: Link do Google Drive, OneDrive, Vercel Blob..."
+                                    value={visitEvidenceUrl}
+                                    onChange={(e) => setVisitEvidenceUrl(e.target.value)}
+                                    className="h-10 rounded-xl"
+                                />
+                            </div>
+
+                            <div className="space-y-1">
                                 <Label className="text-xs font-bold text-slate-655">Observações</Label>
                                 <textarea
                                     placeholder="Escreva detalhes e feedback coletados com o cliente..."
@@ -4445,6 +4690,118 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                         <DialogFooter className="pt-2 border-t border-slate-100">
                             <Button type="button" variant="outline" onClick={() => setLogVisitOpen(false)} className="h-10 text-xs font-bold rounded-xl">Cancelar</Button>
                             <Button type="submit" disabled={savingVisit} className="h-10 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700">Registrar Visita</Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit Visit Form Dialog */}
+            <Dialog open={editVisitOpen} onOpenChange={setEditVisitOpen}>
+                <DialogContent className="sm:max-w-[480px]">
+                    <form onSubmit={handleUpdateVisit} className="space-y-4">
+                        <DialogHeader>
+                            <DialogTitle className="text-md font-bold text-slate-800">Editar Visita ao Contrato</DialogTitle>
+                            <DialogDescription>Ajuste as informações da visita de relacionamento realizada comercialmente.</DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-4 py-2">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-slate-655">Visitante *</Label>
+                                    <Input
+                                        placeholder="Nome"
+                                        value={editVisitorName}
+                                        onChange={(e) => setEditVisitorName(e.target.value)}
+                                        className="h-10 rounded-xl"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-slate-655">Cargo *</Label>
+                                    <div className="flex items-center gap-1.5">
+                                        <select
+                                            value={editVisitorRole}
+                                            onChange={(e) => {
+                                                setEditVisitorRole(e.target.value);
+                                                if (e.target.value !== "OUTRO") setEditCustomVisitorRole("");
+                                            }}
+                                            className="flex-1 h-10 border border-slate-200 rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary bg-white"
+                                            required
+                                        >
+                                            {availableRoles.map(role => (
+                                                <option key={role} value={role}>{role.charAt(0) + role.slice(1).toLowerCase()}</option>
+                                            ))}
+                                            <option value="OUTRO">Outro cargo...</option>
+                                        </select>
+                                        <Button
+                                            type="button"
+                                            onClick={() => {
+                                                const newRole = prompt("Digite o nome do novo cargo:");
+                                                if (newRole && newRole.trim()) {
+                                                    const formatted = newRole.trim().toUpperCase();
+                                                    if (!availableRoles.includes(formatted)) {
+                                                        setAvailableRoles(prev => [...prev, formatted]);
+                                                    }
+                                                    setEditVisitorRole(formatted);
+                                                }
+                                            }}
+                                            className="h-10 w-10 p-0 bg-slate-105 hover:bg-slate-200 border border-slate-200 rounded-xl text-slate-700 flex items-center justify-center cursor-pointer shadow-premium"
+                                            title="Cadastrar Novo Cargo"
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                            {editVisitorRole === "OUTRO" && (
+                                <div className="space-y-1 mt-3 px-3">
+                                    <Label className="text-xs font-bold text-slate-655">Digite o Nome do Cargo *</Label>
+                                    <Input
+                                        placeholder="Ex: Supervisor Operacional, Analista de Qualidade"
+                                        value={editCustomVisitorRole}
+                                        onChange={(e) => setEditCustomVisitorRole(e.target.value)}
+                                        className="h-10 rounded-xl"
+                                        required
+                                    />
+                                </div>
+                            )}
+
+                            <div className="space-y-1">
+                                <Label className="text-xs font-bold text-slate-655">Data *</Label>
+                                <Input
+                                    type="date"
+                                    value={editVisitDate}
+                                    onChange={(e) => setEditVisitDate(e.target.value)}
+                                    className="h-10 rounded-xl"
+                                    required
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <Label className="text-xs font-bold text-slate-655">Evidência (Fotos, link de ATA, checklists...)</Label>
+                                <Input
+                                    placeholder="Ex: Link do Google Drive, OneDrive, Vercel Blob..."
+                                    value={editVisitEvidenceUrl}
+                                    onChange={(e) => setEditVisitEvidenceUrl(e.target.value)}
+                                    className="h-10 rounded-xl"
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <Label className="text-xs font-bold text-slate-655">Observações</Label>
+                                <textarea
+                                    placeholder="Escreva detalhes e feedback coletados com o cliente..."
+                                    rows={3}
+                                    value={editVisitNotes}
+                                    onChange={(e) => setEditVisitNotes(e.target.value)}
+                                    className="w-full border border-slate-200 rounded-xl text-xs font-semibold p-3 outline-none resize-none"
+                                />
+                            </div>
+                        </div>
+
+                        <DialogFooter className="pt-2 border-t border-slate-100">
+                            <Button type="button" variant="outline" onClick={() => setEditVisitOpen(false)} className="h-10 text-xs font-bold rounded-xl">Cancelar</Button>
+                            <Button type="submit" disabled={savingVisit} className="h-10 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700">Salvar Alterações</Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>

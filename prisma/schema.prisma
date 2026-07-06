@@ -591,6 +591,7 @@ model ContractVisit {
   visitorName String
   visitDate   DateTime
   notes       String?
+  evidenceUrl String?
   createdAt   DateTime @default(now())
   client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
 

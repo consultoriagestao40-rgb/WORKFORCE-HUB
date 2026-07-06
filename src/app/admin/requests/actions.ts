@@ -1683,6 +1683,7 @@ export async function createContractVisit(data: {
     visitorName: string;
     visitDate: string;
     notes?: string;
+    evidenceUrl?: string;
 }) {
     try {
         const user = await getCurrentUser();
@@ -1696,7 +1697,8 @@ export async function createContractVisit(data: {
                 visitorRole: data.visitorRole,
                 visitorName: data.visitorName,
                 visitDate: new Date(data.visitDate),
-                notes: data.notes || null
+                notes: data.notes || null,
+                evidenceUrl: data.evidenceUrl || null
             }
         });
 
@@ -1705,6 +1707,57 @@ export async function createContractVisit(data: {
     } catch (error) {
         console.error("Erro ao registrar visita de relacionamento:", error);
         return { success: false, error: "Erro ao registrar visita." };
+    }
+}
+
+export async function updateContractVisit(visitId: string, data: {
+    visitorRole?: string;
+    visitorName?: string;
+    visitDate?: string;
+    notes?: string;
+    evidenceUrl?: string;
+}) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR')) {
+            throw new Error("Unauthorized");
+        }
+
+        const visit = await prisma.contractVisit.update({
+            where: { id: visitId },
+            data: {
+                visitorRole: data.visitorRole,
+                visitorName: data.visitorName,
+                visitDate: data.visitDate ? new Date(data.visitDate) : undefined,
+                notes: data.notes,
+                evidenceUrl: data.evidenceUrl
+            }
+        });
+
+        revalidatePath("/admin/performance");
+        return { success: true, visit };
+    } catch (error: any) {
+        console.error("Erro ao atualizar visita:", error);
+        return { success: false, error: error.message || "Erro ao atualizar visita." };
+    }
+}
+
+export async function deleteContractVisit(visitId: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR')) {
+            throw new Error("Unauthorized");
+        }
+
+        await prisma.contractVisit.delete({
+            where: { id: visitId }
+        });
+
+        revalidatePath("/admin/performance");
+        return { success: true };
+    } catch (error: any) {
+        console.error("Erro ao excluir visita:", error);
+        return { success: false, error: error.message || "Erro ao excluir visita." };
     }
 }
 
