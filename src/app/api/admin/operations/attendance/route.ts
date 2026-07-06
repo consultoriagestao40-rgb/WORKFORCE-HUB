@@ -498,11 +498,24 @@ export async function POST(request: Request) {
 
                             // 6. Buscar supervisor correspondente pelo e-mail do usuário autenticado no Workforce
                             const currentUser = await getCurrentUser();
+                            let userEmail = currentUser?.email;
+                            let userName = currentUser?.name || "Sistema";
+
+                            if (currentUser && currentUser.id && !userEmail) {
+                                const dbUser = await prisma.user.findUnique({
+                                    where: { id: currentUser.id }
+                                });
+                                if (dbUser) {
+                                    userEmail = dbUser.email;
+                                    userName = dbUser.name;
+                                }
+                            }
+
                             let supervisorId = "a2c4b8a1-76ea-4369-bcd8-e29116287af7"; // Fallback: Maria Rosa Vargas
-                            if (currentUser && currentUser.email) {
+                            if (userEmail) {
                                 const foundSupervisor = await prismaReembolso.$queryRawUnsafe(
                                     'SELECT id FROM "User" WHERE email = $1 LIMIT 1',
-                                    currentUser.email
+                                    userEmail
                                 ) as any[];
                                 if (foundSupervisor && foundSupervisor.length > 0) {
                                     supervisorId = foundSupervisor[0].id;
@@ -511,7 +524,7 @@ export async function POST(request: Request) {
 
                             // 7. Inserir a Cobertura (Diária) no Reembolso Fácil
                             const newCoberturaId = crypto.randomUUID();
-                            const observacaoFinal = notes || `Lançado via Mesa de Operações do Workforce Hub por ${currentUser?.name || "Sistema"}`;
+                            const observacaoFinal = `${notes ? notes + ' | ' : ''}Lançado via Mesa de Operações do Workforce Hub por ${userName}`;
 
                             await prismaReembolso.$executeRawUnsafe(
                                 `INSERT INTO "Cobertura" (
