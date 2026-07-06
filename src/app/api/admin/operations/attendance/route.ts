@@ -246,7 +246,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { action, postoId, date, employeeId, coveredById, coverageType, notes, diaristaCost, diaristaId } = body;
+        const { action, postoId, date, employeeId, coveredById, coverageType, notes, diaristaCost, diaristaId, motivoId } = body;
 
         if (!postoId || !date) {
             return NextResponse.json({ error: "Parâmetros obrigatórios ausentes" }, { status: 400 });
@@ -474,9 +474,12 @@ export async function POST(request: Request) {
                             }
 
                             // 3. Mapear o motivo
-                            let motivoId = "db8bec65-1a90-41bf-ba13-0ead0232541f"; // Falta Injustificada padrão
-                            if (titularName === "Banco de Reservas") {
-                                motivoId = "58af1a1c-bf0d-40dc-9e0e-d83f303673dc"; // Vaga em Aberto
+                            let motivoIdToUse = motivoId;
+                            if (!motivoIdToUse) {
+                                motivoIdToUse = "db8bec65-1a90-41bf-ba13-0ead0232541f"; // Falta Injustificada padrão
+                                if (titularName === "Banco de Reservas") {
+                                    motivoIdToUse = "58af1a1c-bf0d-40dc-9e0e-d83f303673dc"; // Vaga em Aberto
+                                }
                             }
 
                             // 4. Mapear Carga Horária
@@ -504,11 +507,13 @@ export async function POST(request: Request) {
 
                             // 7. Inserir a Cobertura (Diária) no Reembolso Fácil
                             const newCoberturaId = crypto.randomUUID();
+                            const observacaoFinal = notes || `Lançado via Mesa de Operações do Workforce Hub por ${currentUser?.name || "Sistema"}`;
+
                             await prismaReembolso.$executeRawUnsafe(
                                 `INSERT INTO "Cobertura" (
                                     id, data, valor, status, "postoId", "diaristaId", "reservaId", "motivoId", 
-                                    "cargaHorariaId", "meioPagamentoSolicitadoId", "supervisorId", observacao
-                                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+                                    "cargaHorariaId", "meioPagamentoSolicitadoId", "supervisorId", observacao, "updatedAt"
+                                ) VALUES ($1, $2, $3, CAST($4 AS "StatusCobertura"), $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
                                 newCoberturaId,
                                 targetDate,
                                 finalCost,
@@ -516,11 +521,12 @@ export async function POST(request: Request) {
                                 reembolsoPostoId,
                                 diaristaId,
                                 reembolsoReservaId,
-                                motivoId,
+                                motivoIdToUse,
                                 cargaHorariaId,
                                 meioPagamentoSolicitadoId,
                                 supervisorId,
-                                notes || "Lançado automaticamente via Mesa de Operações do Workforce Hub"
+                                observacaoFinal,
+                                new Date()
                             );
 
                             console.log("Diária integrada criada no Reembolso Fácil! ID:", newCoberturaId);

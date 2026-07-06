@@ -92,6 +92,9 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
     const [diaristas, setDiaristas] = useState<Array<{ id: string; nome: string }>>([]);
     const [loadingDiaristas, setLoadingDiaristas] = useState<boolean>(false);
     const [selectedDiaristaId, setSelectedDiaristaId] = useState<string>("");
+    const [motivos, setMotivos] = useState<Array<{ id: string; descricao: string }>>([]);
+    const [loadingMotivos, setLoadingMotivos] = useState<boolean>(false);
+    const [selectedMotivoId, setSelectedMotivoId] = useState<string>("");
     const [actionLoading, setActionLoading] = useState<boolean>(false);
 
     // Dialog state for viewing active metrics cards details
@@ -228,6 +231,27 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
         fetchDiaristas();
     }, [fetchDiaristas]);
 
+    const fetchMotivos = useCallback(async () => {
+        setLoadingMotivos(true);
+        try {
+            const res = await fetch("/api/admin/operations/motivos");
+            const data = await res.json();
+            if (data.success) {
+                setMotivos(data.motivos || []);
+            } else {
+                console.error("Erro ao buscar motivos:", data.error);
+            }
+        } catch (e) {
+            console.error("Erro ao conectar motivos:", e);
+        } finally {
+            setLoadingMotivos(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchMotivos();
+    }, [fetchMotivos]);
+
     const handleDateChange = (newDate: string) => {
         startTransition(() => {
             setDate(newDate);
@@ -362,6 +386,11 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
         setDiaristaCost((item.billingValue / 30).toFixed(2));
         setNotes("");
         setSelectedDiaristaId("");
+        if (!item.employee) {
+            setSelectedMotivoId("58af1a1c-bf0d-40dc-9e0e-d83f303673dc"); // Vaga em Aberto
+        } else {
+            setSelectedMotivoId("db8bec65-1a90-41bf-ba13-0ead0232541f"); // Falta Injustificada
+        }
         setOpenDialog(true);
     };
 
@@ -395,6 +424,9 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                 }
                 payload.diaristaCost = parseFloat(diaristaCost) || 0;
                 payload.diaristaId = selectedDiaristaId;
+                if (selectedMotivoId) {
+                    payload.motivoId = selectedMotivoId;
+                }
             } else if (coverageType === "VAGO") {
                 payload.action = "COBERTURA";
                 payload.coverageType = "VAGO";
@@ -1332,6 +1364,24 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
 
                         {coverageType === "DIARISTA" && (
                             <>
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-xs font-black text-slate-700 uppercase">Motivo do Lançamento (Reembolso Fácil)</label>
+                                    {loadingMotivos ? (
+                                        <span className="text-xs text-slate-400 font-semibold animate-pulse">Carregando motivos...</span>
+                                    ) : motivos.length > 0 ? (
+                                        <select
+                                            value={selectedMotivoId}
+                                            onChange={(e) => setSelectedMotivoId(e.target.value)}
+                                            className="h-10 rounded-md border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer"
+                                        >
+                                            {motivos.map(m => (
+                                                <option key={m.id} value={m.id}>{m.descricao}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <span className="text-xs text-slate-400">Nenhum motivo carregado.</span>
+                                    )}
+                                </div>
                                 <div className="flex flex-col gap-2">
                                     <label className="text-xs font-black text-slate-700 uppercase">Escolher Diarista Externa</label>
                                     {loadingDiaristas ? (
