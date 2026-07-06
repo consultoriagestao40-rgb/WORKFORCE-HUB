@@ -39,7 +39,7 @@ import {
     deleteRequest
 } from "@/app/admin/requests/actions";
 import { 
-    Award, Calendar, Users, DollarSign, 
+    ArrowLeft, Award, Calendar, Users, DollarSign, 
     Plus, Clock, LogOut, Star, Info,
     Trash2, Edit3, Inbox, FileText, Smile, 
     BarChart2, ClipboardList, ChevronLeft, ChevronRight, RefreshCw, Download,
@@ -1241,6 +1241,9 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 {/* Header Executivo - Sem Sidebar */}
                 <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0 text-white shadow-md">
                     <div className="flex items-center gap-3">
+                        <a href="/admin" className="mr-1 hover:bg-slate-800 p-2 rounded-xl transition-all text-slate-400 hover:text-white cursor-pointer flex items-center justify-center border border-slate-800 hover:border-slate-700 bg-slate-950/30 shadow-inner" title="Voltar ao Painel Principal">
+                            <ArrowLeft className="w-4 h-4" />
+                        </a>
                         <div className="bg-primary/20 p-2 rounded-xl border border-primary/20 shrink-0">
                             <Award className="w-5 h-5 text-primary" />
                         </div>
