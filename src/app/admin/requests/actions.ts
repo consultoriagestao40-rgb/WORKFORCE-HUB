@@ -1951,11 +1951,14 @@ export async function getAdminClientKpis(clientId: string, year: number) {
             })
         ]);
 
-        console.log(`[getAdminClientKpis] clientId: ${clientId}, year: ${year}`);
-        console.log(`[getAdminClientKpis] attendances count: ${attendances.length}`);
-        const julAtts = attendances.filter((a: any) => new Date(a.date).getMonth() === 6);
-        console.log(`[getAdminClientKpis] Julho attendances count: ${julAtts.length}`);
-        console.log(`[getAdminClientKpis] Julho absences count: ${julAtts.filter((a: any) => a.status === 'FALTA').length}`);
+        const adminPostos = await prisma.posto.findMany({
+            where: { clientId: { in: clientIds } },
+            include: {
+                assignments: {
+                    orderBy: { startDate: "desc" }
+                }
+            }
+        });
 
         const clientRequests = requests.filter((r: any) => 
             r.clientId && clientIds.includes(r.clientId) && r.requester?.role === 'CLIENTE'
@@ -2001,12 +2004,91 @@ export async function getAdminClientKpis(clientId: string, year: number) {
             }
 
             const visitsScore = activeRolesCount > 0 ? (visitAtingimentoSum / activeRolesCount) : null;
-            const monthAtts = isMockPeriod ? [] : attendances.filter((a: any) => new Date(a.date).getMonth() === index && a.status !== "FOLGA");
-            const totalShifts = monthAtts.length;
-            const vacantShifts = monthAtts.filter((a: any) => a.status === "FALTA" && !a.coveredById).length;
-            const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : null;
+            let adminTotalShifts = 0;
+            let adminVacantShifts = 0;
+            let adminTotalAbsences = 0;
 
-            const totalAbsences = monthAtts.filter((a: any) => a.status === "FALTA").length;
+            if (!isMockPeriod) {
+                const daysInMonth: Date[] = [];
+                const startOfThisMonth = new Date(year, index, 1);
+                const endOfThisMonth = new Date(year, index + 1, 0);
+                const today = new Date();
+                const maxDate = (today.getFullYear() === year && today.getMonth() === index) ? today : endOfThisMonth;
+
+                for (let d = new Date(startOfThisMonth); d <= maxDate; d.setDate(d.getDate() + 1)) {
+                    daysInMonth.push(new Date(d));
+                }
+
+                daysInMonth.forEach((dayDate: Date) => {
+                    const dayDateStr = dayDate.toISOString().split("T")[0];
+                    const targetDate = new Date(dayDateStr + "T00:00:00Z");
+
+                    adminPostos.forEach((posto: any) => {
+                        const assignment = posto.assignments.find((a: any) => {
+                            const start = new Date(a.startDate);
+                            const end = a.endDate ? new Date(a.endDate) : null;
+                            return start <= targetDate && (!end || end >= targetDate);
+                        });
+
+                        let shouldWork = false;
+                        if (!assignment) {
+                            const dayOfWeek = targetDate.getDay();
+                            const normSchedule = posto.schedule.replace(/\s+/g, '').toLowerCase();
+                            shouldWork = true;
+                            if (normSchedule.includes('segasex') || normSchedule.includes('mondaytofriday')) {
+                                if (dayOfWeek === 0 || dayOfWeek === 6) shouldWork = false;
+                            } else if (normSchedule.includes('segasab') || normSchedule.includes('mondaytosaturday')) {
+                                if (dayOfWeek === 0) shouldWork = false;
+                            }
+                        } else {
+                            const roster = generateRoster(posto.schedule, new Date(assignment.startDate), [targetDate]);
+                            shouldWork = roster[0]?.status === 'Trabalho';
+                        }
+
+                        if (shouldWork) {
+                            adminTotalShifts++;
+
+                            const att = attendances.find((a: any) =>
+                                a.postoId === posto.id &&
+                                new Date(a.date).toISOString().split("T")[0] === dayDateStr
+                            );
+
+                            if (att) {
+                                if (att.status === "FALTA") {
+                                    adminTotalAbsences++;
+                                    if (!att.coveredById && att.coverageType !== "DIARISTA" && att.coverageType !== "RESERVA_TECNICA") {
+                                        adminVacantShifts++;
+                                    }
+                                }
+                            } else {
+                                const todayStr = today.toISOString().split("T")[0];
+                                const isPastDay = targetDate.getTime() < new Date(todayStr + "T00:00:00Z").getTime();
+                                let isEndedToday = false;
+
+                                if (today.getFullYear() === year && today.getMonth() === index && today.getDate() === dayDate.getDate()) {
+                                    const [endHour, endMinute] = posto.endTime.split(":").map(Number);
+                                    const shiftEnd = new Date(dayDate);
+                                    shiftEnd.setHours(endHour, endMinute, 0, 0);
+                                    const nowInBrazil = new Date(new Date().getTime() - 3 * 60 * 60 * 1000);
+                                    if (nowInBrazil > shiftEnd) {
+                                        isEndedToday = true;
+                                    }
+                                }
+
+                                if (isPastDay || isEndedToday) {
+                                    adminVacantShifts++;
+                                    adminTotalAbsences++;
+                                }
+                            }
+                        }
+                    });
+                });
+            }
+
+            const totalShifts = adminTotalShifts;
+            const vacantShifts = adminVacantShifts;
+            const totalAbsences = adminTotalAbsences;
+            const effectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : null;
             const absenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : null;
             let contractScore: number | null = null;
 
