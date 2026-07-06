@@ -915,7 +915,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                         </div>
                                     ) : activeContractId === null ? (
                                         /* Contract Master List View */
-                                        <Table>
+                                        <Table className="min-w-[1100px]">
                                             <TableHeader className="bg-slate-50">
                                                 <TableRow>
                                                     <TableHead className="font-bold text-slate-800">Contrato / Unidade</TableHead>
@@ -1164,13 +1164,13 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                         <Table>
                                             <TableHeader className="bg-slate-50">
                                                 <TableRow>
-                                                    <TableHead className="font-bold text-slate-800">Tipo de Solicitação</TableHead>
-                                                    <TableHead className="font-bold text-slate-800">Data Abertura</TableHead>
-                                                    <TableHead className="font-bold text-slate-800">Descrição</TableHead>
-                                                    <TableHead className="font-bold text-slate-800">Colaborador Relacionado</TableHead>
-                                                    <TableHead className="font-bold text-slate-800 text-center">Status</TableHead>
-                                                    <TableHead className="font-bold text-slate-800 text-center">Prazo SLA</TableHead>
-                                                    <TableHead className="font-bold text-slate-800">Retorno da Operação</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 w-[180px]">Tipo de Solicitação</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 w-[120px]">Data Abertura</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 w-[300px]">Descrição</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 w-[180px]">Colaborador Relacionado</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-center w-[120px]">Status</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-center w-[120px]">Prazo SLA</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 w-[280px]">Retorno da Operação</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
@@ -1227,10 +1227,10 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                             <TableCell className="text-slate-600 text-xs font-semibold">
                                                                 {format(new Date(req.createdAt), "dd/MM/yyyy HH:mm")}
                                                             </TableCell>
-                                                            <TableCell className="text-slate-800 text-xs max-w-[280px] break-words">
+                                                            <TableCell className="text-slate-800 text-xs whitespace-normal break-words max-w-[300px] leading-relaxed">
                                                                 {req.description}
                                                             </TableCell>
-                                                            <TableCell className="text-slate-700 text-xs font-semibold">
+                                                            <TableCell className="text-slate-700 text-xs font-semibold whitespace-normal break-words max-w-[180px] leading-relaxed">
                                                                 {req.employee?.name || "-"}
                                                             </TableCell>
                                                             <TableCell className="text-center">
@@ -1245,7 +1245,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                     {slaBadge}
                                                                 </div>
                                                             </TableCell>
-                                                            <TableCell className="text-xs text-slate-500 font-medium italic">
+                                                            <TableCell className="text-xs text-slate-500 font-medium italic whitespace-normal break-words max-w-[280px] leading-relaxed">
                                                                 {req.resolutionNotes || "Aguardando análise da mesa de operações..."}
                                                             </TableCell>
                                                         </TableRow>
