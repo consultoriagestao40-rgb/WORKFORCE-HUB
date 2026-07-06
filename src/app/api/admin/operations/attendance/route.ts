@@ -387,11 +387,12 @@ export async function POST(request: Request) {
                 }
 
                 // INTEGRAÇÃO: Lançar diária automaticamente no Reembolso Fácil
-                if (process.env.DATABASE_URL_REEMBOLSO) {
+                const reembolsoUrl = process.env.DATABASE_URL_REEMBOLSO || "postgresql://neondb_owner:npg_FAXvef5z2oLN@ep-lingering-poetry-ahaduz92-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require";
+                if (reembolsoUrl) {
                     const prismaReembolso = new PrismaClient({
                         datasources: {
                             db: {
-                                url: process.env.DATABASE_URL_REEMBOLSO
+                                url: reembolsoUrl
                             }
                         }
                     });

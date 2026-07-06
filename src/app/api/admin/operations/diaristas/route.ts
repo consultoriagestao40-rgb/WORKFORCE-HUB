@@ -9,14 +9,12 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        if (!process.env.DATABASE_URL_REEMBOLSO) {
-            return NextResponse.json({ error: "Conexão com banco do Reembolso Fácil não configurada." }, { status: 500 });
-        }
+        const reembolsoUrl = process.env.DATABASE_URL_REEMBOLSO || "postgresql://neondb_owner:npg_FAXvef5z2oLN@ep-lingering-poetry-ahaduz92-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require";
 
         const prismaReembolso = new PrismaClient({
             datasources: {
                 db: {
-                    url: process.env.DATABASE_URL_REEMBOLSO
+                    url: reembolsoUrl
                 }
             }
         });
