@@ -19,6 +19,8 @@ import {
     createContractVisit, 
     getAdminClientKpis,
     saveContractTargetScore,
+    getVisitRequirements,
+    saveVisitRequirements,
     getClientDetailedData,
     getAdminClientBilling,
     updatePostoBilling,
@@ -117,6 +119,52 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
             toast.error("Erro de conexão ao salvar a meta.");
         } finally {
             setIsSavingSlaTarget(false);
+        }
+    };
+
+    const [visitRequirements, setVisitRequirements] = useState<Array<{ role: string; frequency: number }>>([
+        { role: "SUPERVISOR", frequency: 0 },
+        { role: "COORDENADOR", frequency: 0 },
+        { role: "GERENTE", frequency: 0 },
+        { role: "DIRETOR", frequency: 0 }
+    ]);
+    const [isSavingVisitReqs, setIsSavingVisitReqs] = useState<boolean>(false);
+
+    useEffect(() => {
+        const loadReqs = async () => {
+            if (!selectedClientId || selectedClientId === "all") return;
+            try {
+                const res = await getVisitRequirements(selectedClientId);
+                if (res.success && res.requirements) {
+                    const roles = ["SUPERVISOR", "COORDENADOR", "GERENTE", "DIRETOR"];
+                    const mapped = roles.map(r => {
+                        const found = res.requirements.find((req: any) => req.visitorRole === r);
+                        return { role: r, frequency: found ? found.frequency : 0 };
+                    });
+                    setVisitRequirements(mapped);
+                }
+            } catch (e) {
+                console.error("Erro ao carregar metas de visitas:", e);
+            }
+        };
+        loadReqs();
+    }, [selectedClientId]);
+
+    const handleSaveVisitRequirements = async () => {
+        if (!selectedClientId || selectedClientId === "all") return;
+        setIsSavingVisitReqs(true);
+        try {
+            const res = await saveVisitRequirements(selectedClientId, visitRequirements);
+            if (res.success) {
+                toast.success("Metas de visitas da liderança salvas com sucesso!");
+                await loadPerformanceData();
+            } else {
+                toast.error(res.error || "Erro ao salvar metas.");
+            }
+        } catch (e) {
+            toast.error("Erro de conexão ao salvar metas de visitas.");
+        } finally {
+            setIsSavingVisitReqs(false);
         }
     };
 
@@ -3910,6 +3958,51 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                 className="h-10 px-5 rounded-xl bg-slate-900 text-white font-bold text-xs shadow-premium hover:bg-slate-800 transition-all cursor-pointer"
                                             >
                                                 {isSavingSlaTarget ? "Salvando..." : "Salvar Meta"}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </Card>
+
+                                {/* Card de Configuração da Meta de Visitas da Liderança */}
+                                <Card className="border border-slate-200/50 shadow-premium bg-white rounded-2xl p-5 mb-6">
+                                    <div className="space-y-4">
+                                        <div className="space-y-1">
+                                            <h4 className="text-sm font-black uppercase text-slate-855">Metas Mensais de Visitas da Liderança</h4>
+                                            <p className="text-xs text-slate-500 font-medium">Defina a quantidade de visitas que cada cargo de liderança deve realizar por mês neste contrato.</p>
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
+                                            {visitRequirements.map((req, rIdx) => {
+                                                const label = req.role === "SUPERVISOR" ? "Supervisor" :
+                                                              req.role === "COORDENADOR" ? "Coordenador" :
+                                                              req.role === "GERENTE" ? "Gerente" : "Diretor";
+                                                return (
+                                                    <div key={req.role} className="flex flex-col gap-1.5 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{label}</span>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                max="50"
+                                                                value={req.frequency}
+                                                                onChange={(e) => {
+                                                                    const val = parseInt(e.target.value) || 0;
+                                                                    setVisitRequirements(prev => prev.map((item, idx) => idx === rIdx ? { ...item, frequency: val } : item));
+                                                                }}
+                                                                className="w-full h-8 px-2.5 text-center text-xs font-black bg-white rounded-lg border border-slate-200 text-slate-800 focus:border-slate-350 focus:ring-1 focus:ring-slate-350 outline-none"
+                                                            />
+                                                            <span className="text-[10px] font-bold text-slate-400">/mês</span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="flex justify-end pt-2 border-t border-slate-100">
+                                            <Button
+                                                onClick={handleSaveVisitRequirements}
+                                                disabled={isSavingVisitReqs}
+                                                className="h-10 px-5 rounded-xl bg-slate-900 text-white font-bold text-xs shadow-premium hover:bg-slate-800 transition-all cursor-pointer"
+                                            >
+                                                {isSavingVisitReqs ? "Salvando Metas..." : "Salvar Metas de Visitas"}
                                             </Button>
                                         </div>
                                     </div>

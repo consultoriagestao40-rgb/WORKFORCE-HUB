@@ -418,7 +418,7 @@ export async function getClientKpis(year: number) {
     const startDate = new Date(year, 0, 1, 0, 0, 0);
     const endDate = new Date(year, 11, 31, 23, 59, 59);
 
-    const [attendances, requests, npsResponses, npsQuestions, slaConfigs, assignments, totalPostosCount] = await Promise.all([
+    const [attendances, requests, npsResponses, npsQuestions, slaConfigs, assignments, totalPostosCount, visitRequirements, visits] = await Promise.all([
         prisma.attendance.findMany({
             where: {
                 posto: { clientId: { in: clientIds } },
@@ -458,6 +458,15 @@ export async function getClientKpis(year: number) {
         }),
         prisma.posto.count({
             where: { clientId: { in: clientIds } }
+        }),
+        prisma.clientVisitRequirement.findMany({
+            where: { clientId: { in: clientIds } }
+        }),
+        prisma.contractVisit.findMany({
+            where: {
+                clientId: { in: clientIds },
+                visitDate: { gte: startDate, lte: endDate }
+            }
         })
     ]);
 
@@ -493,6 +502,27 @@ export async function getClientKpis(year: number) {
 
     const monthlyData = monthNames.map((name, index) => {
         const isMockPeriod = year === 2026 && index !== 6;
+        
+        const monthVisits = isMockPeriod ? [] : visits.filter((v: any) => {
+            const d = new Date(v.visitDate);
+            return d.getMonth() === index && d.getFullYear() === year;
+        });
+
+        let visitAtingimentoSum = 0;
+        let activeRolesCount = 0;
+
+        if (visitRequirements.length > 0) {
+            visitRequirements.forEach((req: any) => {
+                if (req.frequency > 0) {
+                    activeRolesCount++;
+                    const roleVisitsCount = monthVisits.filter((v: any) => v.visitorRole === req.visitorRole).length;
+                    const atingimento = Math.min(100, (roleVisitsCount / req.frequency) * 100);
+                    visitAtingimentoSum += atingimento;
+                }
+            });
+        }
+
+        const visitsScore = activeRolesCount > 0 ? (visitAtingimentoSum / activeRolesCount) : null;
         const monthAtts = isMockPeriod ? [] : attendances.filter(a => {
             const d = new Date(a.date);
             return d.getMonth() === index;
@@ -550,6 +580,8 @@ export async function getClientKpis(year: number) {
                     metricValue = turnover;
                 } else if (config.metricType === "REPOSICAO") {
                     metricValue = avgRepositionDays;
+                } else if (config.metricType === "VISITAS") {
+                    metricValue = visitsScore;
                 }
 
                 if (metricValue !== null && config.ranges && config.ranges.length > 0) {
@@ -640,7 +672,8 @@ export async function getClientKpis(year: number) {
             contractScore,
             turnover,
             complaintsRate,
-            avgRepositionDays
+            avgRepositionDays,
+            visitsScore
         };
     });
 
@@ -761,11 +794,17 @@ export async function getClientKpis(year: number) {
         };
     });
 
+    const validVisits = monthlyData.filter(m => m.visitsScore !== null && m.visitsScore !== undefined);
+    const totalVisitsScore = validVisits.length > 0
+        ? validVisits.reduce((sum, m) => sum + m.visitsScore!, 0) / validVisits.length
+        : null;
+
     return {
         success: true,
         contractTargetScore,
         monthlyData,
         npsEvolution,
+        visits,
         summary: {
             effectiveness: totalEffectiveness,
             absenteeism: totalAbsenteeism,
@@ -774,7 +813,8 @@ export async function getClientKpis(year: number) {
             mttrHours: avgMttr,
             avgNpsRating: totalAvgNpsRating,
             contractScore: totalContractScore,
-            turnover: (totalEffectiveness !== null && totalEffectiveness > 0) ? (((1.5) + ((assignments.length / (totalPostosCount > 0 ? totalPostosCount : 5)) * 100))) : 0
+            turnover: (totalEffectiveness !== null && totalEffectiveness > 0) ? (((1.5) + ((assignments.length / (totalPostosCount > 0 ? totalPostosCount : 5)) * 100))) : 0,
+            visitsScore: totalVisitsScore
         }
     };
 }
@@ -1682,7 +1722,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
         const startDate = new Date(year, 0, 1, 0, 0, 0);
         const endDate = new Date(year, 11, 31, 23, 59, 59);
 
-        const [attendances, requests, npsResponses, npsQuestions, slaConfigs, assignments, totalPostosCount] = await Promise.all([
+        const [attendances, requests, npsResponses, npsQuestions, slaConfigs, assignments, totalPostosCount, visitRequirements, visits] = await Promise.all([
             prisma.attendance.findMany({
                 where: {
                     posto: { clientId: { in: clientIds } },
@@ -1750,6 +1790,15 @@ export async function getAdminClientKpis(clientId: string, year: number) {
             }),
             prisma.posto.count({
                 where: { clientId: { in: clientIds } }
+            }),
+            prisma.clientVisitRequirement.findMany({
+                where: { clientId: { in: clientIds } }
+            }),
+            prisma.contractVisit.findMany({
+                where: {
+                    clientId: { in: clientIds },
+                    visitDate: { gte: startDate, lte: endDate }
+                }
             })
         ]);
 
@@ -1782,6 +1831,27 @@ export async function getAdminClientKpis(clientId: string, year: number) {
 
         const monthlyData = monthNames.map((name: string, index: number) => {
             const isMockPeriod = year === 2026 && index !== 6;
+            
+            const monthVisits = isMockPeriod ? [] : visits.filter((v: any) => {
+                const d = new Date(v.visitDate);
+                return d.getMonth() === index && d.getFullYear() === year;
+            });
+
+            let visitAtingimentoSum = 0;
+            let activeRolesCount = 0;
+
+            if (visitRequirements.length > 0) {
+                visitRequirements.forEach((req: any) => {
+                    if (req.frequency > 0) {
+                        activeRolesCount++;
+                        const roleVisitsCount = monthVisits.filter((v: any) => v.visitorRole === req.visitorRole).length;
+                        const atingimento = Math.min(100, (roleVisitsCount / req.frequency) * 100);
+                        visitAtingimentoSum += atingimento;
+                    }
+                });
+            }
+
+            const visitsScore = activeRolesCount > 0 ? (visitAtingimentoSum / activeRolesCount) : null;
             const monthAtts = isMockPeriod ? [] : attendances.filter((a: any) => new Date(a.date).getMonth() === index && a.status !== "FOLGA");
             const totalShifts = monthAtts.length;
             const vacantShifts = monthAtts.filter((a: any) => a.status === "FALTA" && !a.coveredById).length;
@@ -1831,6 +1901,8 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                         metricValue = turnover;
                     } else if (config.metricType === "REPOSICAO") {
                         metricValue = avgRepositionDays;
+                    } else if (config.metricType === "VISITAS") {
+                        metricValue = visitsScore;
                     }
 
                     if (metricValue !== null && config.ranges && config.ranges.length > 0) {
@@ -1920,7 +1992,8 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                 contractScore,
                 turnover,
                 complaintsRate,
-                avgRepositionDays
+                avgRepositionDays,
+                visitsScore
             };
         });
 
@@ -2036,6 +2109,11 @@ export async function getAdminClientKpis(clientId: string, year: number) {
         });
         const avgMttr = resolvedWithTimes.length > 0 ? totalHours / resolvedWithTimes.length : 0;
 
+        const validVisits = monthlyData.filter(m => m.visitsScore !== null && m.visitsScore !== undefined);
+        const totalVisitsScore = validVisits.length > 0
+            ? validVisits.reduce((sum, m) => sum + m.visitsScore!, 0) / validVisits.length
+            : null;
+
         return {
             success: true,
             contractTargetScore,
@@ -2049,7 +2127,8 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                 mttrHours: avgMttr,
                 avgNpsRating: totalAvgNpsRating,
                 contractScore: totalContractScore,
-                turnover: (totalEffectiveness !== null && totalEffectiveness > 0) ? (((1.5) + ((assignments.length / (totalPostosCount > 0 ? totalPostosCount : 5)) * 100))) : 0
+                turnover: (totalEffectiveness !== null && totalEffectiveness > 0) ? (((1.5) + ((assignments.length / (totalPostosCount > 0 ? totalPostosCount : 5)) * 100))) : 0,
+                visitsScore: totalVisitsScore
             }
         };
 
@@ -2538,6 +2617,54 @@ export async function getAdminClientBilling(clientId: string, year: number) {
     } catch (e) {
         console.error("Erro ao buscar faturamento administrativo:", e);
         return { success: false, error: "Erro ao buscar faturamento." };
+    }
+}
+
+export async function getVisitRequirements(clientId: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR' && user.role !== 'CLIENTE')) {
+            throw new Error("Unauthorized");
+        }
+
+        const requirements = await prisma.clientVisitRequirement.findMany({
+            where: { clientId }
+        });
+
+        return { success: true, requirements };
+    } catch (e: any) {
+        console.error("Erro ao buscar visit requirements:", e);
+        return { success: false, error: e.message || "Erro ao buscar metas de visitas" };
+    }
+}
+
+export async function saveVisitRequirements(clientId: string, requirements: Array<{ role: string, frequency: number }>) {
+    try {
+        const user = await getCurrentUser();
+        if (!user || (user.role !== 'ADMIN' && user.role !== 'GESTOR')) {
+            throw new Error("Unauthorized");
+        }
+
+        await prisma.$transaction(async (tx) => {
+            await tx.clientVisitRequirement.deleteMany({
+                where: { clientId }
+            });
+
+            if (requirements.length > 0) {
+                await tx.clientVisitRequirement.createMany({
+                    data: requirements.map(r => ({
+                        clientId,
+                        visitorRole: r.role,
+                        frequency: r.frequency
+                    }))
+                });
+            }
+        });
+
+        return { success: true };
+    } catch (e: any) {
+        console.error("Erro ao salvar visit requirements:", e);
+        return { success: false, error: e.message || "Erro ao salvar metas de visitas" };
     }
 }
 
