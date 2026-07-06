@@ -430,6 +430,9 @@ export async function getClientKpis(year: number) {
             where: {
                 clientId: { in: clientIds },
                 createdAt: { gte: startDate, lte: endDate }
+            },
+            include: {
+                requester: true
             }
         }),
         prisma.npsResponse.findMany({
@@ -536,7 +539,7 @@ export async function getClientKpis(year: number) {
         const absenteeism = totalShifts > 0 ? (totalAbsences / totalShifts) * 100 : null;
         let contractScore: number | null = null;
 
-        const monthRequests = isMockPeriod ? [] : requests.filter(r => new Date(r.createdAt).getMonth() === index);
+        const monthRequests = isMockPeriod ? [] : requests.filter(r => new Date(r.createdAt).getMonth() === index && r.requester?.role === 'CLIENTE');
         const resolvedRequests = monthRequests.filter(r => r.status === "CONCLUIDO" || r.status === "REJEITADO");
         
         const slaOnTime = resolvedRequests.filter(r => r.updatedAt <= r.dueDate).length;
@@ -1809,7 +1812,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
         console.log(`[getAdminClientKpis] Julho absences count: ${julAtts.filter((a: any) => a.status === 'FALTA').length}`);
 
         const clientRequests = requests.filter((r: any) => 
-            r.clientId && clientIds.includes(r.clientId)
+            r.clientId && clientIds.includes(r.clientId) && r.requester?.role === 'CLIENTE'
         );
 
         const mappedNpsResponses = npsResponses.map((resp: any) => {
