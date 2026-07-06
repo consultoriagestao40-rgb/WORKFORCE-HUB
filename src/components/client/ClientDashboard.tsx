@@ -1681,7 +1681,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                 m.effectiveness !== null && m.effectiveness !== undefined && m.effectiveness >= 90 ? 'bg-amber-50 text-amber-700' :
                                                                 'bg-red-50 text-red-700'
                                                             } hover:opacity-100 font-bold`}>
-                                                                {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(1)}%` : '-'}` : '-'}` : "-"}
+                                                                {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(2).replace('.', ',')}%` : '0,00'}` : '0,00'}` : "0,00"}
                                                             </Badge>
                                                         </TableCell>
                                                         <TableCell className="text-center text-xs font-semibold text-slate-505">
@@ -2148,7 +2148,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                     m.effectiveness >= 90 ? 'bg-amber-50 text-amber-700' :
                                                                     'bg-red-50 text-red-755'
                                                                 } font-bold hover:opacity-100`}>
-                                                                    {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(1)}%` : "-"}
+                                                                    {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(2).replace('.', ',')}%` : "0,00"}
                                                                 </Badge>
                                                             </TableCell>
                                                             <TableCell className="text-center">
@@ -2157,16 +2157,16 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                     m.slaCompliance >= 80 ? 'bg-amber-50 text-amber-700' :
                                                                     'bg-red-50 text-red-755'
                                                                 } font-bold hover:opacity-100`}>
-                                                                    {m.slaCompliance !== null && m.slaCompliance !== undefined ? `${m.slaCompliance !== null && m.slaCompliance !== undefined ? `${m.slaCompliance.toFixed(1)}%` : '-'}` : "-"}
+                                                                    {m.slaCompliance !== null && m.slaCompliance !== undefined ? `${m.slaCompliance !== null && m.slaCompliance !== undefined ? `${m.slaCompliance.toFixed(2).replace('.', ',')}%` : '0,00'}` : "0,00"}
                                                                 </Badge>
                                                             </TableCell>
                                                             <TableCell className="text-center">
                                                                 <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold hover:opacity-100">
-                                                                    {m.avgNpsRating !== null && m.avgNpsRating !== undefined ? `${m.avgNpsRating.toFixed(1)} / 10` : "-"}
+                                                                    {m.avgNpsRating !== null && m.avgNpsRating !== undefined ? `${m.avgNpsRating.toFixed(2).replace('.', ',')} / 10` : "0,00"}
                                                                 </Badge>
                                                             </TableCell>
                                                             <TableCell className="text-center font-black text-xs text-slate-900">
-                                                                {m.contractScore !== null && m.contractScore !== undefined ? `${m.contractScore.toFixed(1)} / 10` : '-'}
+                                                                {m.contractScore !== null && m.contractScore !== undefined ? `${m.contractScore.toFixed(2).replace('.', ',')} / 10` : '0,00'}
                                                             </TableCell>
                                                             <TableCell className="text-center">
                                                                 {m.contractScore !== null && m.contractScore !== undefined && m.contractScore >= 9.0 ? (
@@ -2225,7 +2225,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <div className="flex items-start justify-between">
                                                 <div className="space-y-1">
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Efetividade</span>
-                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.effectiveness !== null && slaData.summary.effectiveness !== undefined ? `${slaData.summary.effectiveness.toFixed(1)}%` : '-'}</span>
+                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.effectiveness !== null && slaData.summary.effectiveness !== undefined ? `${slaData.summary.effectiveness.toFixed(2).replace('.', ',')}%` : '0,00'}</span>
                                                 </div>
                                                 <UserCheck className="w-8 h-8 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl border border-emerald-100" />
                                             </div>
@@ -2236,7 +2236,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <div className="flex items-start justify-between">
                                                 <div className="space-y-1">
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Conformidade SLA</span>
-                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.slaCompliance !== null && slaData.summary.slaCompliance !== undefined ? `${slaData.summary.slaCompliance.toFixed(1)}%` : '-'}</span>
+                                                    <span className="text-2xl font-black text-slate-850">{slaData.summary.slaCompliance !== null && slaData.summary.slaCompliance !== undefined ? `${slaData.summary.slaCompliance.toFixed(2).replace('.', ',')}%` : '0,00'}</span>
                                                 </div>
                                                 <Clock className="w-8 h-8 text-blue-600 bg-blue-50 p-1.5 rounded-xl border border-blue-100" />
                                             </div>
@@ -2316,37 +2316,37 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                     onClick={() => handleKpiCellClick(mIndex, m.name, 'effectiveness', m.effectiveness)}
                                                                     className="text-center font-bold text-xs text-emerald-600 py-3 cursor-pointer hover:bg-emerald-50 hover:scale-[1.03] transition-all select-none"
                                                                 >
-                                                                    {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(1)}%` : "-"}
+                                                                    {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(2).replace('.', ',')}%` : "0,00"}
                                                                 </TableCell>
                                                                 <TableCell 
                                                                     onClick={() => handleKpiCellClick(mIndex, m.name, 'nps', m.npsCount > 0 ? m.avgNpsRating * 10 : undefined)}
                                                                     className="text-center font-bold text-xs text-blue-650 py-3 cursor-pointer hover:bg-blue-50 hover:scale-[1.03] transition-all select-none"
                                                                 >
-                                                                    {m.npsCount > 0 && m.avgNpsRating !== null && m.avgNpsRating !== undefined ? `${(m.avgNpsRating * 10).toFixed(1).replace('.', ',')}%` : "-"}
+                                                                    {m.npsCount > 0 && m.avgNpsRating !== null && m.avgNpsRating !== undefined ? `${(m.avgNpsRating * 10).toFixed(1).replace('.', ',')}%` : "0,00"}
                                                                 </TableCell>
                                                                 <TableCell 
                                                                     onClick={() => handleKpiCellClick(mIndex, m.name, 'turnover', turnoverRate)}
                                                                     className="text-center font-bold text-xs text-slate-700 py-3 cursor-pointer hover:bg-slate-100 hover:scale-[1.03] transition-all select-none"
                                                                 >
-                                                                    {turnoverRate > 0 ? `${turnoverRate.toFixed(1).replace('.', ',')}%` : "0,0%"}
+                                                                    {turnoverRate > 0 ? `${turnoverRate.toFixed(2).replace('.', ',').replace('.', ',')}%` : "0,0%"}
                                                                 </TableCell>
                                                                 <TableCell 
                                                                     onClick={() => handleKpiCellClick(mIndex, m.name, 'sla', m.slaCompliance)}
                                                                     className="text-center font-bold text-xs text-blue-600 py-3 cursor-pointer hover:bg-blue-50 hover:scale-[1.03] transition-all select-none"
                                                                 >
-                                                                    {m.slaCompliance !== null && m.slaCompliance !== undefined ? `${m.slaCompliance.toFixed(1)}%` : "-"}
+                                                                    {m.slaCompliance !== null && m.slaCompliance !== undefined ? `${m.slaCompliance.toFixed(2).replace('.', ',')}%` : "0,00"}
                                                                 </TableCell>
                                                                 <TableCell 
                                                                     onClick={() => handleKpiCellClick(mIndex, m.name, 'complaints', m.complaintsRate)}
                                                                     className="text-center font-bold text-xs text-red-500 py-3 cursor-pointer hover:bg-red-50 hover:scale-[1.03] transition-all select-none"
                                                                 >
-                                                                    {m.complaintsRate !== undefined && m.complaintsRate !== null ? `${m.complaintsRate.toFixed(1).replace('.', ',')}%` : "0,0%"}
+                                                                    {m.complaintsRate !== undefined && m.complaintsRate !== null ? `${m.complaintsRate.toFixed(2).replace('.', ',').replace('.', ',')}%` : "0,0%"}
                                                                 </TableCell>
                                                                 <TableCell 
                                                                     onClick={() => handleKpiCellClick(mIndex, m.name, 'reposition', m.avgRepositionDays)}
                                                                     className="text-center font-bold text-xs text-blue-500 py-3 cursor-pointer hover:bg-blue-50 hover:scale-[1.03] transition-all select-none text-right pr-4"
                                                                 >
-                                                                    {m.avgRepositionDays !== undefined && m.avgRepositionDays !== null ? `${m.avgRepositionDays.toFixed(1).replace('.', ',')} dias` : "-"}
+                                                                    {m.avgRepositionDays !== undefined && m.avgRepositionDays !== null ? `${m.avgRepositionDays.toFixed(2).replace('.', ',').replace('.', ',')} dias` : "0,00"}
                                                                 </TableCell>
                                                             </TableRow>
                                                         );
@@ -2466,6 +2466,8 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
         {/* Modal de Detalhamento de KPIs Operacionais (Auditoria Mensal) */}
         <Dialog open={kpiModalConfig !== null} onOpenChange={(open) => { if (!open) setKpiModalConfig(null); }}>
             <DialogContent className="w-[95vw] sm:max-w-4xl h-[85vh] max-h-[85vh] flex flex-col rounded-3xl p-6 bg-white border border-slate-100 shadow-premium overflow-hidden">
+                {kpiModalConfig && (
+                    <>
                 <DialogHeader className="pb-4 border-b border-slate-100 flex flex-row items-center justify-between">
                     <div>
                         <DialogTitle className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
@@ -2509,7 +2511,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <p className="text-2xl font-black text-emerald-700 mt-1">
                                                 {kpiModalData.attendances?.length > 0
                                                     ? `${(((kpiModalData.attendances.length - absences.filter((a: any) => !a.coveredById).length) / kpiModalData.attendances.length) * 100).toFixed(1)}%`
-                                                    : "-"}
+                                                    : "0,00"}
                                             </p>
                                         </div>
                                     </div>
@@ -2655,7 +2657,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             ) : (
                                                 (kpiModalData.assignments || []).map((a: any) => (
                                                     <TableRow key={a.id} className="hover:bg-slate-55/30 transition-colors">
-                                                        <TableCell className="font-bold text-xs text-slate-800 pl-4">{a.endDate ? new Date(a.endDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : "-"}</TableCell>
+                                                        <TableCell className="font-bold text-xs text-slate-800 pl-4">{a.endDate ? new Date(a.endDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : "0,00"}</TableCell>
                                                         <TableCell className="font-bold text-xs text-slate-800">{a.posto?.name || "Posto"}</TableCell>
                                                         <TableCell className="font-bold text-xs text-slate-600">{a.posto?.role?.name || "-"}</TableCell>
                                                         <TableCell className="font-bold text-xs text-slate-900">{a.employee?.name || "-"}</TableCell>
@@ -2740,7 +2742,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                     <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100/50">
                                         <span className="text-[10px] font-black uppercase text-blue-600 tracking-wider">Média de Reposição</span>
                                         <p className="text-2xl font-black text-blue-700 mt-1">
-                                            {kpiModalConfig.value !== undefined && kpiModalConfig.value !== null ? `${kpiModalConfig.value.toFixed(1).replace('.', ',')} dias` : "-"}
+                                            {kpiModalConfig.value !== undefined && kpiModalConfig.value !== null ? `${kpiModalConfig.value.toFixed(1).replace('.', ',')} dias` : "0,00"}
                                         </p>
                                     </div>
                                 </div>
@@ -2839,6 +2841,8 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                 <DialogFooter className="pt-4 border-t border-slate-100 flex items-center justify-end w-full">
                     <Button type="button" onClick={() => setKpiModalConfig(null)} className="h-10 text-xs font-bold rounded-xl bg-slate-900 text-white hover:bg-slate-800 px-6 cursor-pointer">Fechar Relatório</Button>
                 </DialogFooter>
+                    </>
+                )}
             </DialogContent>
         </Dialog>
         </div>
