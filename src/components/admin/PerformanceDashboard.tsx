@@ -221,6 +221,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [visitClientId, setVisitClientId] = useState<string>("all");
     const [visitorName, setVisitorName] = useState<string>("Cristiano Magalhães");
     const [visitorRole, setVisitorRole] = useState<string>("SUPERVISOR");
+    const [customVisitorRole, setCustomVisitorRole] = useState<string>("");
     const [visitDate, setVisitDate] = useState<string>(new Date().toISOString().substring(0, 10));
     const [visitNotes, setVisitNotes] = useState<string>("");
     const [savingVisit, setSavingVisit] = useState<boolean>(false);
@@ -703,11 +704,17 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
             toast.error("Preencha todos os campos obrigatórios.");
             return;
         }
+        const roleToSend = visitorRole === "OUTRO" ? customVisitorRole.trim().toUpperCase() : visitorRole;
+        if (!roleToSend) {
+            toast.error("Por favor, preencha o nome do cargo customizado.");
+            return;
+        }
+
         setSavingVisit(true);
         try {
             const res = await createContractVisit({
                 clientId: cid,
-                visitorRole,
+                visitorRole: roleToSend,
                 visitorName,
                 visitDate,
                 notes: visitNotes
@@ -1822,16 +1829,33 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         <Label className="text-xs font-bold text-slate-655">Cargo *</Label>
                                         <select
                                             value={visitorRole}
-                                            onChange={(e) => setVisitorRole(e.target.value)}
+                                            onChange={(e) => {
+                                                setVisitorRole(e.target.value);
+                                                if (e.target.value !== "OUTRO") setCustomVisitorRole("");
+                                            }}
                                             className="w-full h-10 border border-slate-200 rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary bg-white"
                                             required
                                         >
                                             <option value="SUPERVISOR">Supervisor</option>
+                                            <option value="COORDENADOR">Coordenador</option>
                                             <option value="GERENTE">Gerente</option>
                                             <option value="DIRETOR">Diretor</option>
+                                            <option value="OUTRO">Outro cargo...</option>
                                         </select>
                                     </div>
                                 </div>
+                                {visitorRole === "OUTRO" && (
+                                    <div className="space-y-1 mt-3 px-3">
+                                        <Label className="text-xs font-bold text-slate-655">Digite o Nome do Cargo *</Label>
+                                        <Input
+                                            placeholder="Ex: Supervisor Operacional, Analista de Qualidade"
+                                            value={customVisitorRole}
+                                            onChange={(e) => setCustomVisitorRole(e.target.value)}
+                                            className="h-10 rounded-xl"
+                                            required
+                                        />
+                                    </div>
+                                )}
 
                                 <div className="space-y-1">
                                     <Label className="text-xs font-bold text-slate-655">Data *</Label>
@@ -4367,16 +4391,33 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     <Label className="text-xs font-bold text-slate-655">Cargo *</Label>
                                     <select
                                         value={visitorRole}
-                                        onChange={(e) => setVisitorRole(e.target.value)}
+                                        onChange={(e) => {
+                                            setVisitorRole(e.target.value);
+                                            if (e.target.value !== "OUTRO") setCustomVisitorRole("");
+                                        }}
                                         className="w-full h-10 border border-slate-200 rounded-xl text-xs font-semibold px-3 outline-none focus:border-primary bg-white"
                                         required
                                     >
                                         <option value="SUPERVISOR">Supervisor</option>
+                                        <option value="COORDENADOR">Coordenador</option>
                                         <option value="GERENTE">Gerente</option>
                                         <option value="DIRETOR">Diretor</option>
+                                        <option value="OUTRO">Outro cargo...</option>
                                     </select>
                                 </div>
                             </div>
+                            {visitorRole === "OUTRO" && (
+                                <div className="space-y-1 mt-3 px-3">
+                                    <Label className="text-xs font-bold text-slate-655">Digite o Nome do Cargo *</Label>
+                                    <Input
+                                        placeholder="Ex: Supervisor Operacional, Analista de Qualidade"
+                                        value={customVisitorRole}
+                                        onChange={(e) => setCustomVisitorRole(e.target.value)}
+                                        className="h-10 rounded-xl"
+                                        required
+                                    />
+                                </div>
+                            )}
 
                             <div className="space-y-1">
                                 <Label className="text-xs font-bold text-slate-655">Data *</Label>
@@ -5247,8 +5288,16 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                         <TableRow key={v.id} className="hover:bg-slate-50/50 transition-colors">
                                                             <TableCell className="font-black text-xs text-slate-800 pl-4 py-3">{v.visitorRole}</TableCell>
                                                             <TableCell className="font-bold text-xs text-slate-900">{v.visitorName}</TableCell>
-                                                            <TableCell className="font-bold text-xs text-slate-600">{new Date(v.visitDate).toLocaleDateString('pt-BR')}</TableCell>
-                                                            <TableCell className="font-bold text-xs text-slate-500 max-w-[300px] truncate" title={v.notes || ""}>{v.notes || "-"}</TableCell>
+                                                            <TableCell className="font-bold text-xs text-slate-600">
+                                                                {(() => {
+                                                                    const d = new Date(v.visitDate);
+                                                                    const day = String(d.getUTCDate()).padStart(2, '0');
+                                                                    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+                                                                    const year = d.getUTCFullYear();
+                                                                    return `${day}/${month}/${year}`;
+                                                                })()}
+                                                            </TableCell>
+                                                            <TableCell className="font-medium text-xs text-slate-600 whitespace-normal break-words max-w-[350px]">{v.notes || "-"}</TableCell>
                                                         </TableRow>
                                                     ));
                                                 })()}

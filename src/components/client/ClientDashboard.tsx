@@ -2627,8 +2627,16 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                     <TableRow key={v.id} className="hover:bg-slate-50/50 transition-colors">
                                                         <TableCell className="font-black text-xs text-slate-800 pl-4 py-3">{v.visitorRole}</TableCell>
                                                         <TableCell className="font-bold text-xs text-slate-900">{v.visitorName}</TableCell>
-                                                        <TableCell className="font-bold text-xs text-slate-600">{new Date(v.visitDate).toLocaleDateString('pt-BR')}</TableCell>
-                                                        <TableCell className="font-bold text-xs text-slate-500 max-w-[300px] truncate" title={v.notes || ""}>{v.notes || "-"}</TableCell>
+                                                        <TableCell className="font-bold text-xs text-slate-600">
+                                                            {(() => {
+                                                                const d = new Date(v.visitDate);
+                                                                const day = String(d.getUTCDate()).padStart(2, '0');
+                                                                const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+                                                                const year = d.getUTCFullYear();
+                                                                return `${day}/${month}/${year}`;
+                                                            })()}
+                                                        </TableCell>
+                                                        <TableCell className="font-medium text-xs text-slate-600 whitespace-normal break-words max-w-[350px]">{v.notes || "-"}</TableCell>
                                                     </TableRow>
                                                 ));
                                             })()}
