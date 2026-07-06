@@ -233,6 +233,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [editVisitDate, setEditVisitDate] = useState<string>("");
     const [editVisitNotes, setEditVisitNotes] = useState<string>("");
     const [editVisitEvidenceUrl, setEditVisitEvidenceUrl] = useState<string>("");
+    const [visitFileName, setVisitFileName] = useState<string>("");
+    const [editVisitFileName, setEditVisitFileName] = useState<string>("");
     const [editCustomVisitorRole, setEditCustomVisitorRole] = useState<string>("");
     const [visitDate, setVisitDate] = useState<string>(new Date().toISOString().substring(0, 10));
     const [visitNotes, setVisitNotes] = useState<string>("");
@@ -738,6 +740,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 setVisitorName("Cristiano Magalhães");
                 setVisitNotes("");
                 setVisitEvidenceUrl("");
+                setVisitFileName("");
                 loadPerformanceData();
                 loadClientDetails();
             } else {
@@ -770,6 +773,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
         setEditVisitDate(`${d.getUTCFullYear()}-${mm}-${dd}`);
         setEditVisitNotes(visit.notes || "");
         setEditVisitEvidenceUrl(visit.evidenceUrl || "");
+        setEditVisitFileName(visit.evidenceUrl ? "Arquivo de Evidência Salvo" : "");
         setEditVisitOpen(true);
     };
 
@@ -794,6 +798,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 toast.success("Visita updated!");
                 setEditVisitOpen(false);
                 setEditingVisit(null);
+                setEditVisitFileName("");
                 loadPerformanceData();
                 loadClientDetails();
             } else {
@@ -1973,13 +1978,48 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label className="text-xs font-bold text-slate-655">Evidência (Checklist, Foto, Link de Ata)</Label>
-                                    <Input
-                                        placeholder="Ex: Link do Google Drive, OneDrive, Vercel Blob..."
-                                        value={visitEvidenceUrl}
-                                        onChange={(e) => setVisitEvidenceUrl(e.target.value)}
-                                        className="h-10 rounded-xl"
-                                    />
+                                    <Label className="text-xs font-bold text-slate-655">Subir Evidência (Foto, PDF, Ata, Checklist) *</Label>
+                                    <div className="flex flex-col gap-2">
+                                        <Input
+                                            type="file"
+                                            accept="image/*,application/pdf"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    if (file.size > 4.5 * 1024 * 1024) {
+                                                        toast.error("O arquivo deve ter no máximo 4.5 MB.");
+                                                        e.target.value = "";
+                                                        return;
+                                                    }
+                                                    const reader = new FileReader();
+                                                    reader.onloadend = () => {
+                                                        setVisitEvidenceUrl(reader.result as string);
+                                                        setVisitFileName(file.name);
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                }
+                                            }}
+                                            className="h-10 rounded-xl cursor-pointer text-xs"
+                                        />
+                                        {visitEvidenceUrl && (
+                                            <div className="flex items-center justify-between bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl select-none">
+                                                <span className="text-[10px] font-bold text-slate-700 truncate max-w-[280px]">
+                                                    📎 {visitFileName || "Arquivo de Evidência"}
+                                                </span>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    onClick={() => {
+                                                        setVisitEvidenceUrl("");
+                                                        setVisitFileName("");
+                                                    }}
+                                                    className="h-6 w-6 p-0 rounded-full hover:bg-slate-200 text-red-500"
+                                                >
+                                                    ✕
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className="space-y-1">
@@ -4666,13 +4706,48 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             </div>
 
                             <div className="space-y-1">
-                                <Label className="text-xs font-bold text-slate-655">Evidência (Fotos, link de ATA, checklists...)</Label>
-                                <Input
-                                    placeholder="Ex: Link do Google Drive, OneDrive, Vercel Blob..."
-                                    value={visitEvidenceUrl}
-                                    onChange={(e) => setVisitEvidenceUrl(e.target.value)}
-                                    className="h-10 rounded-xl"
-                                />
+                                <Label className="text-xs font-bold text-slate-655">Subir Evidência (Foto, PDF, Ata, Checklist) *</Label>
+                                <div className="flex flex-col gap-2">
+                                    <Input
+                                        type="file"
+                                        accept="image/*,application/pdf"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                if (file.size > 4.5 * 1024 * 1024) {
+                                                    toast.error("O arquivo deve ter no máximo 4.5 MB.");
+                                                    e.target.value = "";
+                                                    return;
+                                                }
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => {
+                                                    setVisitEvidenceUrl(reader.result as string);
+                                                    setVisitFileName(file.name);
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                        className="h-10 rounded-xl cursor-pointer text-xs"
+                                    />
+                                    {visitEvidenceUrl && (
+                                        <div className="flex items-center justify-between bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl select-none">
+                                            <span className="text-[10px] font-bold text-slate-700 truncate max-w-[280px]">
+                                                📎 {visitFileName || "Arquivo de Evidência"}
+                                            </span>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                onClick={() => {
+                                                    setVisitEvidenceUrl("");
+                                                    setVisitFileName("");
+                                                }}
+                                                className="h-6 w-6 p-0 rounded-full hover:bg-slate-200 text-red-500"
+                                            >
+                                                ✕
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="space-y-1">
@@ -4778,13 +4853,48 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             </div>
 
                             <div className="space-y-1">
-                                <Label className="text-xs font-bold text-slate-655">Evidência (Fotos, link de ATA, checklists...)</Label>
-                                <Input
-                                    placeholder="Ex: Link do Google Drive, OneDrive, Vercel Blob..."
-                                    value={editVisitEvidenceUrl}
-                                    onChange={(e) => setEditVisitEvidenceUrl(e.target.value)}
-                                    className="h-10 rounded-xl"
-                                />
+                                <Label className="text-xs font-bold text-slate-655">Subir Nova Evidência (Foto, PDF, Ata, Checklist)</Label>
+                                <div className="flex flex-col gap-2">
+                                    <Input
+                                        type="file"
+                                        accept="image/*,application/pdf"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                if (file.size > 4.5 * 1024 * 1024) {
+                                                    toast.error("O arquivo deve ter no máximo 4.5 MB.");
+                                                    e.target.value = "";
+                                                    return;
+                                                }
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => {
+                                                    setEditVisitEvidenceUrl(reader.result as string);
+                                                    setEditVisitFileName(file.name);
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                        className="h-10 rounded-xl cursor-pointer text-xs"
+                                    />
+                                    {editVisitEvidenceUrl && (
+                                        <div className="flex items-center justify-between bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl select-none">
+                                            <span className="text-[10px] font-bold text-slate-700 truncate max-w-[280px]">
+                                                📎 {editVisitFileName || "Arquivo de Evidência"}
+                                            </span>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                onClick={() => {
+                                                    setEditVisitEvidenceUrl("");
+                                                    setEditVisitFileName("");
+                                                }}
+                                                className="h-6 w-6 p-0 rounded-full hover:bg-slate-200 text-red-500"
+                                            >
+                                                ✕
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="space-y-1">

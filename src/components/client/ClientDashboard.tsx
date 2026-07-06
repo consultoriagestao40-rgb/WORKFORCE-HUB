@@ -2605,6 +2605,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                 <TableHead className="font-bold text-xs text-slate-800 pl-4 py-3">Cargo Liderança</TableHead>
                                                 <TableHead className="font-bold text-xs text-slate-800">Visitante</TableHead>
                                                 <TableHead className="font-bold text-xs text-slate-800">Data da Visita</TableHead>
+                                                <TableHead className="font-bold text-xs text-slate-800">Evidência / Anexo</TableHead>
                                                 <TableHead className="font-bold text-xs text-slate-800">Observações Operacionais</TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -2617,7 +2618,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                 if (monthVisits.length === 0) {
                                                     return (
                                                         <TableRow>
-                                                            <TableCell colSpan={4} className="text-center py-8 text-slate-400 font-semibold text-xs">
+                                                            <TableCell colSpan={5} className="text-center py-8 text-slate-400 font-semibold text-xs">
                                                                 Nenhuma visita de liderança registrada para este contrato no mês selecionado.
                                                             </TableCell>
                                                         </TableRow>
@@ -2635,6 +2636,20 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                 const year = d.getUTCFullYear();
                                                                 return `${day}/${month}/${year}`;
                                                             })()}
+                                                        </TableCell>
+                                                        <TableCell className="text-xs py-3">
+                                                            {v.evidenceUrl ? (
+                                                                <a 
+                                                                    href={v.evidenceUrl.startsWith('http') ? v.evidenceUrl : `https://${v.evidenceUrl}`} 
+                                                                    target="_blank" 
+                                                                    rel="noopener noreferrer"
+                                                                    className="inline-flex items-center gap-1 font-bold text-blue-650 hover:underline cursor-pointer"
+                                                                >
+                                                                    📎 Ver Evidência
+                                                                </a>
+                                                            ) : (
+                                                                <span className="text-slate-400 italic">Sem anexo</span>
+                                                            )}
                                                         </TableCell>
                                                         <TableCell className="font-medium text-xs text-slate-600 whitespace-normal break-words max-w-[350px]">{v.notes || "-"}</TableCell>
                                                     </TableRow>
