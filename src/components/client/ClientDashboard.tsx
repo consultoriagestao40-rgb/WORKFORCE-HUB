@@ -2349,7 +2349,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                                     onClick={() => handleKpiCellClick(mIndex, m.name, 'sla', m.slaCompliance)}
                                                                     className="text-center font-bold text-xs text-blue-600 py-3 cursor-pointer hover:bg-blue-50 hover:scale-[1.03] transition-all select-none"
                                                                 >
-                                                                    {m.slaCompliance.toFixed(1)}%
+                                                                    {m.slaCompliance !== null && m.slaCompliance !== undefined ? `${m.slaCompliance.toFixed(1)}%` : "-"}
                                                                 </TableCell>
                                                                 <TableCell 
                                                                     onClick={() => handleKpiCellClick(mIndex, m.name, 'complaints', m.complaintsRate)}
