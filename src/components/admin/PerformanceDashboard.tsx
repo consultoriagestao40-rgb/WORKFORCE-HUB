@@ -4059,15 +4059,28 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         </Card>
                                         <Card className="border border-slate-200/50 shadow-premium bg-white p-5 rounded-2xl flex flex-col justify-between">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Status Geral do SLA</span>
-                                            <span className={`text-sm font-black mt-2 rounded px-2.5 py-1 w-fit ${
-                                                annualSlaScore !== null && annualSlaScore >= (clientKpiData?.contractTargetScore ?? 90.0)
-                                                    ? "bg-emerald-50 text-emerald-600"
-                                                    : annualSlaScore !== null
-                                                    ? "bg-red-50 text-red-600"
-                                                    : "bg-slate-100 text-slate-400"
-                                            }`}>
-                                                {annualSlaScore !== null && annualSlaScore >= (clientKpiData?.contractTargetScore ?? 90.0) ? "Conforme" : annualSlaScore !== null ? "Inconforme" : "Pendente"}
-                                            </span>
+                                            {(() => {
+                                                const currentMonthIdx = new Date().getMonth();
+                                                const currentMonthScore = getMonthFinalSlaScore(currentMonthIdx);
+                                                const target = clientKpiData?.contractTargetScore ?? 90.0;
+                                                const isConforme = currentMonthScore !== null && currentMonthScore >= target;
+                                                const colorClass = currentMonthScore !== null
+                                                    ? (isConforme ? "text-emerald-600" : "text-red-600")
+                                                    : "text-slate-400";
+                                                const bgClass = currentMonthScore !== null
+                                                    ? (isConforme ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600")
+                                                    : "bg-slate-100 text-slate-400";
+                                                return (
+                                                    <div className="mt-2 flex flex-col gap-1">
+                                                        <span className={`text-2xl font-black ${colorClass}`}>
+                                                            {currentMonthScore !== null ? `${currentMonthScore.toFixed(1)}%` : "-"}
+                                                        </span>
+                                                        <span className={`text-xs font-black rounded px-2.5 py-1 w-fit ${bgClass}`}>
+                                                            {currentMonthScore !== null ? (isConforme ? "Conforme" : "Inconforme") : "Pendente"}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })()}
                                         </Card>
                                     </div>
 
