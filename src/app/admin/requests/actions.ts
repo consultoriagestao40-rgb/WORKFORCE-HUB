@@ -802,6 +802,132 @@ export async function getPostoRoutines(postoId: string) {
     }
 }
 
+export async function saveWorkRoutine(data: {
+    id?: string;
+    postoId: string;
+    startTime: string;
+    duration: string;
+    endTime: string;
+    location: string;
+    activity: string;
+}) {
+    try {
+        const { id, postoId, startTime, duration, endTime, location, activity } = data;
+
+        const defaultRoutines = [
+            { startTime: "11:00", duration: "00:15", endTime: "11:15", location: "DML", activity: "Organização do material utilizado" },
+            { startTime: "11:15", duration: "00:45", endTime: "12:00", location: "6ª Andar", activity: "Limpeza dos banheiros masculino, hall de entrada, fraldário, recepção e 7 consultórios" },
+            { startTime: "12:00", duration: "01:00", endTime: "13:00", location: "5ª Andar", activity: "Limpeza de banheiros, fraldário, hall de entrada, recepção e 9 consultórios" },
+            { startTime: "13:00", duration: "03:00", endTime: "16:00", location: "4ª Andar", activity: "Limpeza de banheiros, estar médico, expurgo, posto de enfermagem, repai, sala de preparo, utilidades, e 3 salas com limpeza terminal no centro cirúrgico" },
+            { startTime: "16:00", duration: "01:00", endTime: "17:00", location: "SUB SOLO", activity: "Limpeza da área limpa, da área suja, rouparia, utilidades, estoque, hall de entrada, banheiros e vestiários masculino e feminino, área de descanso" },
+            { startTime: "17:00", duration: "01:00", endTime: "18:00", location: "Intervalo", activity: "Horário de almoço" },
+            { startTime: "18:00", duration: "00:45", endTime: "18:45", location: "Copa", activity: "Limpeza e organização de utensílios" },
+            { startTime: "18:45", duration: "04:15", endTime: "23:00", location: "DML", activity: "Organização do material utilizado e fechamento" }
+        ];
+
+        const existingCount = await prisma.workRoutine.count({
+            where: { postoId }
+        });
+
+        if (existingCount === 0) {
+            // Materializar mock
+            const routinesToCreate = [...defaultRoutines];
+            let mockIndexToReplace = -1;
+
+            if (id && id.startsWith("mock-")) {
+                mockIndexToReplace = parseInt(id.replace("mock-", ""), 10) - 1;
+            }
+
+            if (mockIndexToReplace >= 0 && mockIndexToReplace < routinesToCreate.length) {
+                // Substituir o mock que foi editado
+                routinesToCreate[mockIndexToReplace] = { startTime, duration, endTime, location, activity };
+                
+                // Inserir todas no banco
+                for (const r of routinesToCreate) {
+                    await prisma.workRoutine.create({
+                        data: { postoId, ...r }
+                    });
+                }
+            } else {
+                // É um cadastro novo
+                for (const r of routinesToCreate) {
+                    await prisma.workRoutine.create({
+                        data: { postoId, ...r }
+                    });
+                }
+                // Adicionar o novo item
+                await prisma.workRoutine.create({
+                    data: { postoId, startTime, duration, endTime, location, activity }
+                });
+            }
+        } else {
+            // Banco já está materializado
+            if (id && !id.startsWith("mock-")) {
+                // Atualização
+                await prisma.workRoutine.update({
+                    where: { id },
+                    data: { startTime, duration, endTime, location, activity }
+                });
+            } else {
+                // Criação
+                await prisma.workRoutine.create({
+                    data: { postoId, startTime, duration, endTime, location, activity }
+                });
+            }
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error("Erro ao salvar rotina:", error);
+        return { success: false, error: "Erro ao salvar rotina." };
+    }
+}
+
+export async function deleteWorkRoutine(id: string, postoId: string) {
+    try {
+        const defaultRoutines = [
+            { startTime: "11:00", duration: "00:15", endTime: "11:15", location: "DML", activity: "Organização do material utilizado" },
+            { startTime: "11:15", duration: "00:45", endTime: "12:00", location: "6ª Andar", activity: "Limpeza dos banheiros masculino, hall de entrada, fraldário, recepção e 7 consultórios" },
+            { startTime: "12:00", duration: "01:00", endTime: "13:00", location: "5ª Andar", activity: "Limpeza de banheiros, fraldário, hall de entrada, recepção e 9 consultórios" },
+            { startTime: "13:00", duration: "03:00", endTime: "16:00", location: "4ª Andar", activity: "Limpeza de banheiros, estar médico, expurgo, posto de enfermagem, repai, sala de preparo, utilidades, e 3 salas com limpeza terminal no centro cirúrgico" },
+            { startTime: "16:00", duration: "01:00", endTime: "17:00", location: "SUB SOLO", activity: "Limpeza da área limpa, da área suja, rouparia, utilidades, estoque, hall de entrada, banheiros e vestiários masculino e feminino, área de descanso" },
+            { startTime: "17:00", duration: "01:00", endTime: "18:00", location: "Intervalo", activity: "Horário de almoço" },
+            { startTime: "18:00", duration: "00:45", endTime: "18:45", location: "Copa", activity: "Limpeza e organização de utensílios" },
+            { startTime: "18:45", duration: "04:15", endTime: "23:00", location: "DML", activity: "Organização do material utilizado e fechamento" }
+        ];
+
+        const existingCount = await prisma.workRoutine.count({
+            where: { postoId }
+        });
+
+        if (existingCount === 0) {
+            // Materializar mock sem a deletada
+            let mockIndexToRemove = -1;
+            if (id.startsWith("mock-")) {
+                mockIndexToRemove = parseInt(id.replace("mock-", ""), 10) - 1;
+            }
+
+            for (let i = 0; i < defaultRoutines.length; i++) {
+                if (i === mockIndexToRemove) continue;
+                await prisma.workRoutine.create({
+                    data: { postoId, ...defaultRoutines[i] }
+                });
+            }
+        } else {
+            if (!id.startsWith("mock-")) {
+                await prisma.workRoutine.delete({
+                    where: { id }
+                });
+            }
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error("Erro ao deletar rotina:", error);
+        return { success: false, error: "Erro ao deletar rotina." };
+    }
+}
+
 export async function getNpsQuestions(clientId: string) {
     try {
         const questions = await prisma.npsQuestion.findMany({

@@ -28,6 +28,8 @@ import {
     deleteNpsQuestion,
     deleteNpsResponse,
     getPostoRoutines,
+    saveWorkRoutine,
+    deleteWorkRoutine,
     transitionRequest,
     updateRequestClient,
     updateRequestDetails,
@@ -105,6 +107,33 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [selectedPostoId, setSelectedPostoId] = useState<string>("");
     const [routines, setRoutines] = useState<any[]>([]);
     const [loadingRoutines, setLoadingRoutines] = useState<boolean>(false);
+
+    // WorkRoutine local CRUD states
+    const [routineDialogOpen, setRoutineDialogOpen] = useState<boolean>(false);
+    const [editingRoutine, setEditingRoutine] = useState<any | null>(null);
+    const [routineStartTime, setRoutineStartTime] = useState<string>("");
+    const [routineEndTime, setRoutineEndTime] = useState<string>("");
+    const [routineDuration, setRoutineDuration] = useState<string>("");
+    const [routineLocation, setRoutineLocation] = useState<string>("");
+    const [routineActivity, setRoutineActivity] = useState<string>("");
+    const [savingRoutine, setSavingRoutine] = useState<boolean>(false);
+
+    // Calcular duração automaticamente quando houver horários de início/fim
+    useEffect(() => {
+        if (routineStartTime && routineEndTime) {
+            const [hStart, mStart] = routineStartTime.split(":").map(Number);
+            const [hEnd, mEnd] = routineEndTime.split(":").map(Number);
+            if (!isNaN(hStart) && !isNaN(mStart) && !isNaN(hEnd) && !isNaN(mEnd)) {
+                let diffMin = (hEnd * 60 + mEnd) - (hStart * 60 + mStart);
+                if (diffMin < 0) diffMin += 24 * 60; // virada de dia
+                const hDiff = Math.floor(diffMin / 60);
+                const mDiff = diffMin % 60;
+                const hStr = hDiff.toString().padStart(2, '0');
+                const mStr = mDiff.toString().padStart(2, '0');
+                setRoutineDuration(`${hStr}:${mStr}`);
+            }
+        }
+    }, [routineStartTime, routineEndTime]);
 
     // Visit Form Dialog State
     const [logVisitOpen, setLogVisitOpen] = useState<boolean>(false);
@@ -517,6 +546,74 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     useEffect(() => {
         loadRoutines();
     }, [loadRoutines]);
+
+    const handleAddRoutineClick = () => {
+        setEditingRoutine(null);
+        setRoutineStartTime("");
+        setRoutineEndTime("");
+        setRoutineDuration("");
+        setRoutineLocation("");
+        setRoutineActivity("");
+        setRoutineDialogOpen(true);
+    };
+
+    const handleEditRoutineClick = (r: any) => {
+        setEditingRoutine(r);
+        setRoutineStartTime(r.startTime);
+        setRoutineEndTime(r.endTime);
+        setRoutineDuration(r.duration);
+        setRoutineLocation(r.location);
+        setRoutineActivity(r.activity);
+        setRoutineDialogOpen(true);
+    };
+
+    const handleDeleteRoutineClick = async (id: string) => {
+        if (!confirm("Deseja realmente excluir esta atividade do plano de trabalho?")) {
+            return;
+        }
+        try {
+            const res = await deleteWorkRoutine(id, selectedPostoId);
+            if (res.success) {
+                toast.success("Atividade excluída com sucesso.");
+                loadRoutines();
+            } else {
+                toast.error(res.error || "Erro ao excluir atividade.");
+            }
+        } catch (e) {
+            toast.error("Erro ao excluir atividade.");
+        }
+    };
+
+    const handleSaveRoutine = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!routineStartTime || !routineEndTime || !routineLocation || !routineActivity) {
+            toast.error("Preencha todos os campos obrigatórios.");
+            return;
+        }
+        setSavingRoutine(true);
+        try {
+            const res = await saveWorkRoutine({
+                id: editingRoutine?.id,
+                postoId: selectedPostoId,
+                startTime: routineStartTime,
+                duration: routineDuration,
+                endTime: routineEndTime,
+                location: routineLocation,
+                activity: routineActivity
+            });
+            if (res.success) {
+                toast.success(editingRoutine ? "Atividade atualizada!" : "Atividade cadastrada!");
+                setRoutineDialogOpen(false);
+                loadRoutines();
+            } else {
+                toast.error(res.error || "Erro ao salvar atividade.");
+            }
+        } catch (e) {
+            toast.error("Erro ao salvar atividade.");
+        } finally {
+            setSavingRoutine(false);
+        }
+    };
 
     const handleSaveVisit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -3899,6 +3996,15 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             {/* Routines Table */}
                             {selectedClientId !== "all" && selectedPostoId && (
                                 <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
+                                    <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50/30">
+                                        <div className="space-y-0.5">
+                                            <h4 className="text-xs font-bold text-slate-700">Cronograma de Atividades</h4>
+                                            <p className="text-[10px] text-slate-400 font-medium">Cadastre a rotina sequencial do posto.</p>
+                                        </div>
+                                        <Button size="sm" onClick={handleAddRoutineClick} className="h-8 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs gap-1.5 shadow-premium">
+                                            <Plus className="w-3.5 h-3.5" /> Adicionar Atividade
+                                        </Button>
+                                    </div>
                                     <CardContent className="p-0">
                                         {loadingRoutines ? (
                                             <div className="text-center py-12 text-slate-450 italic text-xs animate-pulse">Carregando rotinas...</div>
@@ -3912,6 +4018,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                         <TableHead className="font-bold text-slate-800 text-xs py-3.5">Duração</TableHead>
                                                         <TableHead className="font-bold text-slate-800 text-xs py-3.5">Local</TableHead>
                                                         <TableHead className="font-bold text-slate-800 text-xs py-3.5">Descrição da Atividade</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-xs py-3.5 text-right pr-6">Ações</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
@@ -3921,6 +4028,12 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                             <TableCell className="text-xs text-slate-500 font-semibold py-3">{r.duration}</TableCell>
                                                             <TableCell className="text-xs text-slate-700 font-semibold py-3">{r.location}</TableCell>
                                                             <TableCell className="text-xs text-slate-600 font-medium py-3">{r.activity}</TableCell>
+                                                            <TableCell className="text-right py-3 pr-6">
+                                                                <div className="flex justify-end gap-1">
+                                                                    <Button size="sm" variant="ghost" onClick={() => handleEditRoutineClick(r)} className="h-7 w-7 p-0 rounded hover:bg-slate-100">✏️</Button>
+                                                                    <Button size="sm" variant="ghost" onClick={() => handleDeleteRoutineClick(r.id)} className="h-7 w-7 p-0 rounded hover:bg-red-50 text-red-550">🗑️</Button>
+                                                                </div>
+                                                            </TableCell>
                                                         </TableRow>
                                                     ))}
                                                 </TableBody>
@@ -3933,6 +4046,100 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                     )}
                 </main>
             </div>
+
+            {/* Work Routine Dialog */}
+            <Dialog open={routineDialogOpen} onOpenChange={setRoutineDialogOpen}>
+                <DialogContent className="sm:max-w-[480px] rounded-2xl">
+                    <form onSubmit={handleSaveRoutine} className="space-y-4">
+                        <DialogHeader>
+                            <DialogTitle className="text-md font-bold text-slate-800">
+                                {editingRoutine ? "Editar Atividade da Rotina" : "Adicionar Atividade à Rotina"}
+                            </DialogTitle>
+                            <DialogDescription className="text-xs text-slate-450 font-medium">
+                                Defina os horários, local e a instrução de trabalho do posto.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-4 py-2">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-slate-650">Horário de Início *</Label>
+                                    <Input
+                                        type="time"
+                                        value={routineStartTime}
+                                        onChange={(e) => setRoutineStartTime(e.target.value)}
+                                        className="h-10 border-slate-200 rounded-xl"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-slate-650">Horário de Término *</Label>
+                                    <Input
+                                        type="time"
+                                        value={routineEndTime}
+                                        onChange={(e) => setRoutineEndTime(e.target.value)}
+                                        className="h-10 border-slate-200 rounded-xl"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-slate-650">Duração (calculada)</Label>
+                                    <Input
+                                        type="text"
+                                        value={routineDuration}
+                                        readOnly
+                                        disabled
+                                        className="h-10 border-slate-200 bg-slate-50/80 rounded-xl text-slate-450 font-semibold cursor-not-allowed"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-slate-650">Local de Atuação *</Label>
+                                    <Input
+                                        type="text"
+                                        placeholder="Ex: 6º Andar, DML, Recepção"
+                                        value={routineLocation}
+                                        onChange={(e) => setRoutineLocation(e.target.value)}
+                                        className="h-10 border-slate-200 rounded-xl"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <Label className="text-xs font-bold text-slate-650">Descrição da Atividade *</Label>
+                                <textarea
+                                    placeholder="Descreva detalhadamente a tarefa a ser executada neste período..."
+                                    value={routineActivity}
+                                    onChange={(e) => setRoutineActivity(e.target.value)}
+                                    className="w-full h-24 border border-slate-200 rounded-xl text-xs font-semibold p-3 outline-none focus:border-blue-500/80 transition-colors bg-white resize-none"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <DialogFooter className="gap-2 sm:gap-0">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setRoutineDialogOpen(false)}
+                                className="h-10 rounded-xl border border-slate-200 text-xs font-semibold px-4 hover:bg-slate-50 text-slate-600"
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={savingRoutine}
+                                className="h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 shadow-premium"
+                            >
+                                {savingRoutine ? "Salvando..." : "Salvar Atividade"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
             {/* Visit Form Dialog */}
             <Dialog open={logVisitOpen} onOpenChange={setLogVisitOpen}>
