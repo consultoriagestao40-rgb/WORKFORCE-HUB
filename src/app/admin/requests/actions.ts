@@ -1470,6 +1470,25 @@ export async function getConsolidatedPerformanceData(year: number, month: number
             }
         }
 
+        const daysInMonth: Date[] = [];
+        const today = new Date();
+        const startOfThisMonth = new Date(year, month, 1);
+        const endOfThisMonth = new Date(year, month + 1, 0);
+        const maxDate = (today.getFullYear() === year && today.getMonth() === month) ? today : endOfThisMonth;
+
+        for (let d = new Date(startOfThisMonth); d <= maxDate; d.setDate(d.getDate() + 1)) {
+            daysInMonth.push(new Date(d));
+        }
+
+        // Criar mapa de attendances para busca O(1)
+        const attendanceMap = new Map<string, any>();
+        attendances.forEach((att: any) => {
+            if (att.postoId && att.date) {
+                const dateStr = new Date(att.date).toISOString().split("T")[0];
+                attendanceMap.set(`${att.postoId}-${dateStr}`, att);
+            }
+        });
+
         // 1. Calculate faturamento and postos/vagas for each client
         const clientData = clients.map(client => {
             const billing = client.postos.reduce((sum: number, p: any) => sum + (p.billingValue || 0), 0);
@@ -1523,11 +1542,70 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                 };
             });
 
-            // Filter attendances for this client
-            const clientAtts = attendances.filter((a: any) => a.posto?.clientId === client.id && a.status !== "FOLGA");
-            const totalShifts = clientAtts.length;
-            const vacantShifts = clientAtts.filter((a: any) => a.status === "FALTA" && !a.coveredById && !a.coverageType).length;
-            const clientEffectiveness = totalShifts > 0 ? ((totalShifts - vacantShifts) / totalShifts) * 100 : 100;
+            let adminTotalShifts = 0;
+            let adminVacantShifts = 0;
+
+            daysInMonth.forEach((dayDate: Date) => {
+                const dayDateStr = dayDate.toISOString().split("T")[0];
+                const targetDate = new Date(dayDateStr + "T00:00:00Z");
+
+                client.postos.forEach((posto: any) => {
+                    const assignment = posto.assignments.find((a: any) => {
+                        const start = new Date(a.startDate);
+                        const end = a.endDate ? new Date(a.endDate) : null;
+                        return start <= targetDate && (!end || end >= targetDate);
+                    });
+
+                    let shouldWork = false;
+                    if (!assignment) {
+                        const dayOfWeek = targetDate.getDay();
+                        const normSchedule = posto.schedule.replace(/\s+/g, '').toLowerCase();
+                        shouldWork = true;
+                        if (normSchedule.includes('segasex') || normSchedule.includes('mondaytofriday')) {
+                            if (dayOfWeek === 0 || dayOfWeek === 6) shouldWork = false;
+                        } else if (normSchedule.includes('segasab') || normSchedule.includes('mondaytosaturday')) {
+                            if (dayOfWeek === 0) shouldWork = false;
+                        }
+                    } else {
+                        const roster = generateRoster(posto.schedule, new Date(assignment.startDate), [targetDate]);
+                        shouldWork = roster[0]?.status === 'Trabalho';
+                    }
+
+                    if (shouldWork) {
+                        adminTotalShifts++;
+
+                        const att = attendanceMap.get(`${posto.id}-${dayDateStr}`);
+
+                        if (att) {
+                            if (att.status === "FALTA") {
+                                if (!att.coveredById && att.coverageType !== "DIARISTA" && att.coverageType !== "RESERVA_TECNICA") {
+                                    adminVacantShifts++;
+                                }
+                            }
+                        } else {
+                            const todayStr = today.toISOString().split("T")[0];
+                            const isPastDay = targetDate.getTime() < new Date(todayStr + "T00:00:00Z").getTime();
+                            let isEndedToday = false;
+
+                            if (today.getFullYear() === year && today.getMonth() === month && today.getDate() === dayDate.getDate()) {
+                                const [endHour, endMinute] = posto.endTime.split(":").map(Number);
+                                const shiftEnd = new Date(dayDate);
+                                shiftEnd.setHours(endHour, endMinute, 0, 0);
+                                const nowInBrazil = new Date(new Date().getTime() - 3 * 60 * 60 * 1000);
+                                if (nowInBrazil > shiftEnd) {
+                                    isEndedToday = true;
+                                }
+                            }
+
+                            if (isPastDay || isEndedToday) {
+                                adminVacantShifts++;
+                            }
+                        }
+                    }
+                });
+            });
+
+            const clientEffectiveness = adminTotalShifts > 0 ? ((adminTotalShifts - adminVacantShifts) / adminTotalShifts) * 100 : 100;
 
             // Filter requests for this client
             const clientReqs = requests.filter((r: any) => 
