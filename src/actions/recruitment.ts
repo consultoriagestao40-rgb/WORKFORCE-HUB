@@ -47,13 +47,17 @@ export async function createVacancyFromPosto(postoId: string) {
     revalidatePath("/admin/recrutamento");
 
     // Notify stakeholders
-    await notifyVacancyStakeholders(
-        vacancy.id,
-        "Nova Vaga Aberta",
-        `Vaga "${title}" foi aberta automaticamente no R&S.`,
-        'SYSTEM',
-        `/admin/recrutamento?openId=VAC-${vacancy.id}`
-    );
+    try {
+        await notifyVacancyStakeholders(
+            vacancy.id,
+            "Nova Vaga Aberta",
+            `Vaga "${title}" foi aberta automaticamente no R&S.`,
+            'SYSTEM',
+            `/admin/recrutamento?openId=VAC-${vacancy.id}`
+        );
+    } catch (notifError) {
+        console.error("Failed to notify stakeholders about new vacancy:", notifError);
+    }
 
     return vacancy;
 }
@@ -783,6 +787,9 @@ export async function getBacklogItems() {
     // 1. Get all postos that currently have NO active assignment
     const vacantPostos = await prisma.posto.findMany({
         where: {
+            client: {
+                name: { not: 'ROTATIVO' }
+            },
             assignments: {
                 none: {
                     endDate: null // Active assignments have no end date

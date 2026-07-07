@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { webcrypto } from "crypto";
 import { getCurrentUserRole, getCurrentUser } from "@/lib/auth";
+import { createVacancyFromPosto } from "@/actions/recruitment";
 
 
 // Simple hash helper using Web Crypto API available in Next.js Edge/Server
@@ -532,7 +533,6 @@ export async function assignEmployee(formData: FormData) {
 
             // NUCLEAR BLOCK: If client is ROTATIVO, NEVER create vacancy
             if (sourcePosto && sourcePosto.client.name !== 'ROTATIVO') {
-                const { createVacancyFromPosto } = await import("@/actions/recruitment");
                 await createVacancyFromPosto(postoId);
             } else {
                 console.log("Skipping vacancy creation for ROTATIVO posto.");
@@ -631,7 +631,6 @@ export async function unassignEmployee(formData: FormData) {
     // 4. Create vacancy if requested (outside transaction)
     if (createVacancy) {
         try {
-            const { createVacancyFromPosto } = await import("@/actions/recruitment");
             await createVacancyFromPosto(postoId);
         } catch (error) {
             console.error("Error creating vacancy:", error);
@@ -641,6 +640,7 @@ export async function unassignEmployee(formData: FormData) {
     revalidatePath(`/admin/clients`);
     revalidatePath("/admin");
     revalidatePath("/admin/employees");
+    revalidatePath("/admin/recrutamento");
 }
 export async function createSchedule(formData: FormData) {
     const name = formData.get("name") as string;
