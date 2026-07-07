@@ -230,8 +230,9 @@ export async function getRecruitmentBoardData() {
     // --- SYNC BACKLOG GAPS TO VACANCIES ---
     // Automatically create vacancies for vacant postos
     await syncBacklogGaps();
-    // Automatically close vacancies for filled postos
-    await syncFilledVacancies();
+    // MOD: Disable syncFilledVacancies to prevent active/preventive vacancies from disappearing.
+    // Vancancies are closed natively when candidate is moved to "Posto" in moveCandidate.
+    // await syncFilledVacancies();
     // New: Aggressive Cleanup
     await purgeRedundantVacancies();
 
@@ -888,6 +889,8 @@ async function syncBacklogGaps() {
         );
 
         if (hasFillingCandidate) return false;
+        
+        return true; // FIX: Return true to include the vacant posto in the filter results
     });
 
     if (postosNeedingVacancy.length === 0) return;
