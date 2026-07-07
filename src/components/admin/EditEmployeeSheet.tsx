@@ -42,6 +42,7 @@ interface EditEmployeeSheetProps {
         dismissalReason: string | null;
         dismissalNotes: string | null;
         vacations?: any[];
+        assignments?: any[];
     };
     situations: { id: string, name: string }[];
     roles: { id: string, name: string }[];
@@ -211,6 +212,7 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                         <VacationHistory
                             employeeId={employee.id}
                             vacations={employee.vacations || []}
+                            hasActivePosto={employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name !== "ROTATIVO")}
                         />
                     </div>
 

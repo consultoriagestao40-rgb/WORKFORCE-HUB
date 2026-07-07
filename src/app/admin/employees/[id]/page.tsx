@@ -309,6 +309,7 @@ export default async function EmployeeProfilePage(props: {
                         <VacationHistory
                             employeeId={employee.id}
                             vacations={employee.vacations}
+                            hasActivePosto={employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name !== "ROTATIVO")}
                         />
 
                         <Button variant="outline" className="w-full border-slate-200 text-slate-900 rounded-2xl h-14 font-black justify-between group">

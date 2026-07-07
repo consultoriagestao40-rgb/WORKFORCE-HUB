@@ -1,9 +1,110 @@
 import { prisma } from "@/lib/db";
 import { getOrCreateRotativoPosto } from "@/lib/rotativo";
 
+async function processVacationStarts() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Buscar férias vigentes hoje que ainda não foram marcadas como Férias no status do funcionário
+    const vacationsToStart = await prisma.vacation.findMany({
+        where: {
+            startDate: { lte: today },
+            endDate: { gte: today }
+        },
+        include: {
+            employee: {
+                include: {
+                    situation: true
+                }
+            }
+        }
+    });
+
+    const vacationSituation = await prisma.situation.findFirst({
+        where: { name: 'Férias' }
+    });
+
+    if (!vacationSituation) {
+        console.error("Situação 'Férias' não encontrada no banco");
+        return;
+    }
+
+    for (const vacation of vacationsToStart) {
+        if (vacation.employee.situationId !== vacationSituation.id) {
+            try {
+                await prisma.$transaction(async (tx) => {
+                    // 1. Buscar a alocação ativa atual dele
+                    const currentAssignment = await tx.assignment.findFirst({
+                        where: {
+                            employeeId: vacation.employeeId,
+                            endDate: null
+                        },
+                        include: {
+                            posto: {
+                                include: {
+                                    client: true
+                                }
+                            }
+                        }
+                    });
+
+                    let originPostoId: string | null = null;
+
+                    if (currentAssignment) {
+                        // Se estiver alocado em um posto de cliente real (diferente de ROTATIVO), desvincula!
+                        if (currentAssignment.posto.client.name !== 'ROTATIVO') {
+                            originPostoId = currentAssignment.postoId;
+
+                            // Encerrar a alocação no posto físico
+                            await tx.assignment.update({
+                                where: { id: currentAssignment.id },
+                                data: { endDate: today }
+                            });
+
+                            // Alocar no posto virtual ROTATIVO salvando o posto de origem
+                            const rotativoPosto = await getOrCreateRotativoPosto();
+
+                            await tx.assignment.create({
+                                data: {
+                                    employeeId: vacation.employeeId,
+                                    postoId: rotativoPosto.id,
+                                    startDate: today,
+                                    originPostoId: originPostoId
+                                }
+                            });
+                        }
+                    }
+
+                    // 2. Mudar a situação do funcionário para Férias
+                    await tx.employee.update({
+                        where: { id: vacation.employeeId },
+                        data: { situationId: vacationSituation.id }
+                    });
+
+                    // 3. Logar a auditoria
+                    await tx.log.create({
+                        data: {
+                            action: "INICIO_AUTOMATICO_FERIAS",
+                            details: `Férias iniciadas automaticamente para ${vacation.employee.name}. ${originPostoId ? 'Desvinculado do posto original e alocado no Rotativo.' : 'Mantido no Rotativo.'}`,
+                            employeeId: vacation.employeeId
+                        }
+                    });
+
+                    console.log(`Férias de ${vacation.employee.name} iniciadas automaticamente!`);
+                });
+            } catch (err: any) {
+                console.error(`Erro ao iniciar férias automáticas de ${vacation.employee.name}:`, err.message);
+            }
+        }
+    }
+}
+
 export async function processVacationReturns() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+
+    // Processar o início das férias programadas primeiro!
+    await processVacationStarts();
 
     // 1. Find employees on vacation ending yesterday (or before and not processed)
     // We look for vacations where endDate < today AND processed is false

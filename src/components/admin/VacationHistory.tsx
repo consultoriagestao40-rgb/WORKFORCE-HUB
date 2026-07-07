@@ -19,9 +19,10 @@ interface Vacation {
 interface VacationHistoryProps {
     employeeId: string;
     vacations: Vacation[];
+    hasActivePosto?: boolean;
 }
 
-export function VacationHistory({ employeeId, vacations }: VacationHistoryProps) {
+export function VacationHistory({ employeeId, vacations, hasActivePosto }: VacationHistoryProps) {
     const [open, setOpen] = useState(false);
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
@@ -50,6 +51,13 @@ export function VacationHistory({ employeeId, vacations }: VacationHistoryProps)
     }
 
     async function handleAdd(formData: FormData) {
+        if (hasActivePosto) {
+            const proceed = confirm(
+                "Aviso: Este colaborador está atualmente alocado em um posto de trabalho ativo. Ao confirmar o lançamento destas férias, o colaborador será desvinculado automaticamente do posto de trabalho na data de início programada das férias.\n\nDeseja prosseguir com o agendamento?"
+            );
+            if (!proceed) return;
+        }
+
         try {
             const result = await addVacation(formData);
             if (result?.error) {

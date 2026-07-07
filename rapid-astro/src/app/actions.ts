@@ -807,23 +807,7 @@ export async function addVacation(formData: FormData) {
         return { error: "Missing required fields" };
     }
 
-    // Constraint Check: Active Assignment vs Vacation
-    const activeAssignments = await prisma.assignment.count({
-        where: {
-            employeeId: employeeId,
-            endDate: null,
-            posto: {
-                client: {
-                    name: { not: "ROTATIVO" }
-                }
-            }
-        }
-    });
-
-    if (activeAssignments > 0) {
-        return { error: "Colaborador vinculado a um posto. Desvincule do posto antes de registrar férias." };
-    }
-
+    // Férias permitidas para agendamento futuro ou imediato
     await prisma.vacation.create({
         data: {
             employeeId,
@@ -866,7 +850,6 @@ export async function getEmployeesOnVacation() {
 
     const vacations = await prisma.vacation.findMany({
         where: {
-            startDate: { lte: today },
             endDate: { gte: today }
         },
         include: {
