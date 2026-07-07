@@ -651,7 +651,15 @@ export async function updateEmployee(formData: FormData) {
     // Constraint Check: Situation Change vs Active Assignment
     if (situationId) {
         const activeAssignments = await prisma.assignment.count({
-            where: { employeeId: id, endDate: null }
+            where: {
+                employeeId: id,
+                endDate: null,
+                posto: {
+                    client: {
+                        name: { not: "ROTATIVO" }
+                    }
+                }
+            }
         });
 
         if (activeAssignments > 0) {
@@ -801,7 +809,15 @@ export async function addVacation(formData: FormData) {
 
     // Constraint Check: Active Assignment vs Vacation
     const activeAssignments = await prisma.assignment.count({
-        where: { employeeId: employeeId, endDate: null }
+        where: {
+            employeeId: employeeId,
+            endDate: null,
+            posto: {
+                client: {
+                    name: { not: "ROTATIVO" }
+                }
+            }
+        }
     });
 
     if (activeAssignments > 0) {
