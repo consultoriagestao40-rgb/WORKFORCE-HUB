@@ -900,20 +900,22 @@ async function syncBacklogGaps() {
 
     for (const p of postosNeedingVacancy) {
         if (p.client.name === 'ROTATIVO') continue;
-        await prisma.vacancy.create({
-            data: {
-                title: `${p.role.name} - ${p.client.name}`,
-                description: `Vaga aberta automaticamente por vacância do posto.\nHorário: ${p.startTime} - ${p.endTime}\nEscala: ${p.schedule}`,
-                postoId: p.id,
-                roleId: p.roleId || undefined,
-                companyId: p.client.companyId || undefined,
-                priority: "URGENT",
-                status: "OPEN"
-            }
-        });
+        try {
+            await prisma.vacancy.create({
+                data: {
+                    title: `${p.role.name} - ${p.client.name}`,
+                    description: `Vaga aberta automaticamente por vacância do posto.\nHorário: ${p.startTime} - ${p.endTime}\nEscala: ${p.schedule}`,
+                    postoId: p.id,
+                    roleId: p.roleId || undefined,
+                    companyId: p.client.companyId || undefined,
+                    priority: "URGENT",
+                    status: "OPEN"
+                }
+            });
+        } catch (err) {
+            console.error(`Erro ao criar vaga automática para o posto ${p.id}:`, err);
+        }
     }
-
-    revalidatePath("/admin/recrutamento");
 }
 
 // Helper: Auto-close vacancies if post is filled
