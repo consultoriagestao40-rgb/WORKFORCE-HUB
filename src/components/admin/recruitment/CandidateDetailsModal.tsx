@@ -390,106 +390,20 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                 </div>
                                             )}
 
-                                            <div>
-                                                <label className="text-xs font-medium text-slate-500 uppercase">Data de Abertura</label>
-                                                <div className="text-slate-700 mt-1 text-sm">
-                                                    {candidate.vacancy?.createdAt ? new Date(candidate.vacancy.createdAt).toLocaleString() : 'N/A'}
+                                            <div className="grid grid-cols-2 gap-4 pt-1">
+                                                <div>
+                                                    <label className="text-xs font-medium text-slate-500 uppercase">Data de Abertura</label>
+                                                    <div className="text-slate-700 mt-1 text-xs">
+                                                        {candidate.vacancy?.createdAt ? new Date(candidate.vacancy.createdAt).toLocaleDateString('pt-BR') : 'N/A'}
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-medium text-slate-500 uppercase">Início Planejado</label>
+                                                    <div className="text-slate-700 mt-1 text-xs font-bold text-indigo-700">
+                                                        {candidate.vacancy?.plannedStartDate ? new Date(candidate.vacancy.plannedStartDate).toLocaleDateString('pt-BR') : 'Não definido'}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-
-                                        {/* Requisitos do Perfil (Editable) */}
-                                        <div className="pt-3 border-t border-orange-100/50 space-y-3">
-                                            <div className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Perfil & Requisitos (Vaga)</div>
-                                            
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="text-[10px] font-medium text-slate-500 uppercase">Gênero Preferencial</label>
-                                                    <Select
-                                                        value={reqGender}
-                                                        onValueChange={setReqGender}
-                                                    >
-                                                        <SelectTrigger className="h-8 bg-white text-xs mt-1">
-                                                            <SelectValue placeholder="Selecione..." />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="Ambos">Ambos / Indiferente</SelectItem>
-                                                            <SelectItem value="Masculino">Masculino</SelectItem>
-                                                            <SelectItem value="Feminino">Feminino</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-
-                                                <div>
-                                                    <label className="text-[10px] font-medium text-slate-500 uppercase">Experiência Mínima</label>
-                                                    <input
-                                                        type="text"
-                                                        className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm transition-colors mt-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                                        value={reqExperience}
-                                                        onChange={(e) => setReqExperience(e.target.value)}
-                                                        placeholder="Ex: 6 meses, 1 ano..."
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="text-[10px] font-medium text-slate-500 uppercase">Idade Mínima</label>
-                                                    <input
-                                                        type="number"
-                                                        min="18"
-                                                        className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm transition-colors mt-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                                        value={reqAgeMin}
-                                                        onChange={(e) => setReqAgeMin(e.target.value)}
-                                                        placeholder="Ex: 18"
-                                                    />
-                                                </div>
-
-                                                <div>
-                                                    <label className="text-[10px] font-medium text-slate-500 uppercase">Idade Máxima</label>
-                                                    <input
-                                                        type="number"
-                                                        min="18"
-                                                        className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm transition-colors mt-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                                        value={reqAgeMax}
-                                                        onChange={(e) => setReqAgeMax(e.target.value)}
-                                                        placeholder="Ex: 60"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="text-[10px] font-medium text-slate-500 uppercase">Início Planejado (Operação)</label>
-                                                    <input
-                                                        type="date"
-                                                        className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm transition-colors mt-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                                        value={plannedStartDate}
-                                                        onChange={(e) => setPlannedStartDate(e.target.value)}
-                                                    />
-                                                </div>
-                                                <div></div>
-                                            </div>
-
-                                            <div>
-                                                <label className="text-[10px] font-medium text-slate-500 uppercase">Conhecimentos Gerais / Obrigatórios</label>
-                                                <textarea
-                                                    className="flex min-h-[60px] w-full rounded-md border border-input bg-white px-3 py-2 text-xs shadow-sm mt-1 resize-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                                    value={reqKnowledge}
-                                                    onChange={(e) => setReqKnowledge(e.target.value)}
-                                                    placeholder="Ex: Informática, CNH B..."
-                                                />
-                                            </div>
-
-                                            <Button
-                                                size="sm"
-                                                className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium text-xs h-8"
-                                                onClick={handleSaveRequirements}
-                                                disabled={isSavingRequirements}
-                                            >
-                                                <Save className="w-3.5 h-3.5 mr-1.5" />
-                                                {isSavingRequirements ? "Salvando..." : "Salvar Perfil & Requisitos"}
-                                            </Button>
                                         </div>
 
                                         {/* Participants Section */}
@@ -627,6 +541,104 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                 <Copy className="w-3.5 h-3.5" />
                                                 Copiar Link
                                             </Button>
+                                        </div>
+                                    </div>
+
+                                    {/* Configuração de Requisitos Padrão (Filtros do Perfil) */}
+                                    <div className="bg-white border rounded-xl p-4 space-y-4 shadow-sm">
+                                        <div className="border-b pb-2 flex justify-between items-center">
+                                            <div>
+                                                <h3 className="font-bold text-slate-800 text-sm">Filtros & Requisitos Gerais</h3>
+                                                <p className="text-xs text-slate-400">Requisitos básicos analisados automaticamente pela IA.</p>
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                onClick={handleSaveRequirements}
+                                                disabled={isSavingRequirements}
+                                                className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-7 px-3 flex items-center gap-1"
+                                            >
+                                                <Save className="w-3.5 h-3.5" />
+                                                {isSavingRequirements ? "Salvando..." : "Salvar Filtros"}
+                                            </Button>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Gênero Preferencial</label>
+                                                <Select
+                                                    value={reqGender}
+                                                    onValueChange={setReqGender}
+                                                >
+                                                    <SelectTrigger className="h-8 bg-white text-xs mt-1">
+                                                        <SelectValue placeholder="Selecione..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="Ambos">Ambos / Indiferente</SelectItem>
+                                                        <SelectItem value="Masculino">Masculino</SelectItem>
+                                                        <SelectItem value="Feminino">Feminino</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Experiência Mínima</label>
+                                                <input
+                                                    type="text"
+                                                    className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm mt-1 focus:outline-none"
+                                                    value={reqExperience}
+                                                    onChange={(e) => setReqExperience(e.target.value)}
+                                                    placeholder="Ex: 6 meses, 1 ano..."
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Idade Mínima</label>
+                                                <input
+                                                    type="number"
+                                                    min="18"
+                                                    className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm mt-1 focus:outline-none"
+                                                    value={reqAgeMin}
+                                                    onChange={(e) => setReqAgeMin(e.target.value)}
+                                                    placeholder="Ex: 18"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Idade Máxima</label>
+                                                <input
+                                                    type="number"
+                                                    min="18"
+                                                    className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm mt-1 focus:outline-none"
+                                                    value={reqAgeMax}
+                                                    onChange={(e) => setReqAgeMax(e.target.value)}
+                                                    placeholder="Ex: 60"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Início Planejado (Operação)</label>
+                                                <input
+                                                    type="date"
+                                                    className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm mt-1 focus:outline-none"
+                                                    value={plannedStartDate}
+                                                    onChange={(e) => setPlannedStartDate(e.target.value)}
+                                                />
+                                            </div>
+                                            <div></div>
+                                        </div>
+
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase">Conhecimentos Gerais / Obrigatórios</label>
+                                            <textarea
+                                                className="flex min-h-[60px] w-full rounded-md border border-input bg-white px-3 py-2 text-xs shadow-sm mt-1 resize-none focus:outline-none"
+                                                value={reqKnowledge}
+                                                onChange={(e) => setReqKnowledge(e.target.value)}
+                                                placeholder="Ex: Informática, CNH B..."
+                                            />
                                         </div>
                                     </div>
 
