@@ -47,6 +47,22 @@ export function PublicApplicationForm({ vacancyId }: PublicApplicationFormProps)
         }
     };
 
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let value = e.target.value.replace(/\D/g, ""); // Remove não dígitos
+        if (value.length > 11) value = value.substring(0, 11);
+        
+        // Formato: (XX) XXXXX-XXXX
+        if (value.length > 6) {
+            value = `(${value.substring(0, 2)}) ${value.substring(2, 7)}-${value.substring(7)}`;
+        } else if (value.length > 2) {
+            value = `(${value.substring(0, 2)}) ${value.substring(2)}`;
+        } else if (value.length > 0) {
+            value = `(${value}`;
+        }
+        
+        setFormData({ ...formData, phone: value });
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -140,7 +156,7 @@ export function PublicApplicationForm({ vacancyId }: PublicApplicationFormProps)
                 <Input
                     id="phone"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={handlePhoneChange}
                     placeholder="Ex: (11) 99999-9999"
                     required
                     disabled={isLoading}
