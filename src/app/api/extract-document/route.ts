@@ -23,93 +23,100 @@ Regras:
 
 // Modelos hardcoded como fallback (caso ListModels falhe ou retorne vazio)
 const FALLBACK_MODELS = [
-    "gemini-2.0-flash",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
-    "gemini-1.0-pro-vision",
-    "gemini-pro",
+    "gemini-1.5-flash-8b",
 ];
 
 // Descobre dinamicamente os modelos disponíveis para a chave
 async function listAvailableModels(apiKey: string): Promise<string[]> {
     try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=100`;
-        const res = await fetch(url);
+        // Tenta v1 primeiro (endpoint estável), depois v1beta
+        for (const version of ["v1", "v1beta"]) {
+            const url = `https://generativelanguage.googleapis.com/${version}/models?key=${apiKey}&pageSize=100`;
+            const res = await fetch(url);
 
-        if (!res.ok) {
-            const errText = await res.text();
-            console.error("ListModels falhou:", res.status, errText);
-            return FALLBACK_MODELS;
+            if (!res.ok) {
+                console.error(`ListModels ${version} falhou:`, res.status, await res.text());
+                continue;
+            }
+
+            const json = await res.json();
+            console.log(`ListModels ${version} resposta:`, JSON.stringify(json).slice(0, 300));
+
+            const allModels: any[] = json.models || [];
+            const filtered = allModels
+                .filter((m: any) => {
+                    const methods: string[] = m.supportedGenerationMethods || [];
+                    return methods.some(method =>
+                        method === "generateContent" || method === "streamGenerateContent"
+                    );
+                })
+                .map((m: any) => (m.name as string).replace("models/", ""))
+                .sort((a: string, b: string) => {
+                    const priority = (name: string) => {
+                        if (name.includes("2.0-flash")) return 0;
+                        if (name.includes("1.5-flash") && !name.includes("8b")) return 1;
+                        if (name.includes("1.5-pro")) return 2;
+                        if (name.includes("1.5-flash-8b")) return 3;
+                        if (name.includes("flash")) return 4;
+                        if (name.includes("pro")) return 5;
+                        return 6;
+                    };
+                    return priority(a) - priority(b);
+                });
+
+            if (filtered.length > 0) {
+                console.log(`Modelos encontrados (${version}):`, filtered);
+                return filtered;
+            }
         }
-
-        const json = await res.json();
-        console.log("ListModels resposta bruta:", JSON.stringify(json).slice(0, 500));
-
-        const allModels: any[] = json.models || [];
-
-        // Filtra apenas modelos que suportam geração de conteúdo (aceita generateContent OU streamGenerateContent)
-        const filtered = allModels
-            .filter((m: any) => {
-                const methods: string[] = m.supportedGenerationMethods || [];
-                return methods.some(method =>
-                    method === "generateContent" || method === "streamGenerateContent"
-                );
-            })
-            .map((m: any) => (m.name as string).replace("models/", ""))
-            .sort((a: string, b: string) => {
-                const priority = (name: string) => {
-                    if (name.includes("2.0-flash")) return 0;
-                    if (name.includes("1.5-flash")) return 1;
-                    if (name.includes("1.5-pro")) return 2;
-                    if (name.includes("flash")) return 3;
-                    if (name.includes("pro")) return 4;
-                    return 5;
-                };
-                return priority(a) - priority(b);
-            });
-
-        console.log("Modelos filtrados:", filtered);
-
-        // Se não encontrou nenhum, usa fallback
-        return filtered.length > 0 ? filtered : FALLBACK_MODELS;
     } catch (e: any) {
         console.error("Erro ao listar modelos:", e.message);
-        return FALLBACK_MODELS;
     }
+    console.log("Usando fallback hardcoded de modelos");
+    return FALLBACK_MODELS;
 }
 
 async function callGemini(apiKey: string, model: string, base64Data: string, mimeType: string) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    // Tenta v1 primeiro, depois v1beta como fallback
+    for (const version of ["v1", "v1beta"]) {
+        const url = `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${apiKey}`;
 
-    const body = {
-        contents: [
-            {
-                parts: [
-                    { text: PROMPT },
-                    { inline_data: { mime_type: mimeType, data: base64Data } },
-                ],
+        const body = {
+            contents: [
+                {
+                    parts: [
+                        { text: PROMPT },
+                        { inline_data: { mime_type: mimeType, data: base64Data } },
+                    ],
+                },
+            ],
+            generationConfig: {
+                response_mime_type: "application/json",
             },
-        ],
-        generationConfig: {
-            response_mime_type: "application/json",
-        },
-    };
+        };
 
-    const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-    });
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
 
-    if (!response.ok) {
-        const err = await response.text();
-        throw new Error(`[${response.status}] ${err}`);
+        if (!response.ok) {
+            const err = await response.text();
+            console.error(`${version}/${model} falhou:`, response.status);
+            if (response.status === 404) continue; // tenta próxima versão
+            throw new Error(`[${response.status}] ${err}`);
+        }
+
+        const json = await response.json();
+        const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) throw new Error("Resposta vazia da IA.");
+        console.log(`Sucesso: ${version}/${model}`);
+        return text;
     }
-
-    const json = await response.json();
-    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new Error("Resposta vazia da IA.");
-    return text;
+    throw new Error(`Modelo ${model} não encontrado em nenhuma versão da API.`);
 }
 
 export async function GET() {
