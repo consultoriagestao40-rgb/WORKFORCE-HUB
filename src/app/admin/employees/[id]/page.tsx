@@ -79,7 +79,7 @@ export default async function EmployeeProfilePage(props: {
 
     // ... [existing logic] ...
     const currentAssignment = employee.assignments.find(a => !a.endDate);
-    const isNightShift = currentAssignment?.posto.isNightShift || false;
+    const isNightShift = currentAssignment?.posto?.isNightShift || false;
 
     const payroll = calculateMonthlyPayroll({
         baseSalary: employee.salary,
@@ -152,7 +152,7 @@ export default async function EmployeeProfilePage(props: {
                             <h1 className="text-5xl font-black text-slate-900 tracking-tighter">{employee.name}</h1>
                             <div className="flex flex-wrap justify-center md:justify-start items-center gap-4 text-slate-500 font-bold">
                                 <span className="flex items-center gap-1.5"><Briefcase className="w-4 h-4 text-slate-400" /> {employee.role.name}</span>
-                                <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-slate-400" /> {currentAssignment?.posto.client.name || 'Disponível (Reserva)'}</span>
+                                <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-slate-400" /> {currentAssignment?.posto?.client?.name || 'Disponível (Reserva)'}</span>
                                 <span className="flex items-center gap-1.5"><Briefcase className="w-4 h-4 text-slate-400" /> {employee.company?.name || 'Sem Empresa Vinculada'}</span>
                             </div>
                         </div>

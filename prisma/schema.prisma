@@ -296,6 +296,7 @@ model Vacation {
   startDate  DateTime
   endDate    DateTime
   daysTaken  Int
+  daysSold   Int      @default(0)
   processed  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

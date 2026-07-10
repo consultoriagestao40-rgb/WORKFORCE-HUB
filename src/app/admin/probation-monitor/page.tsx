@@ -76,7 +76,7 @@ async function getProbationData(companyId?: string, search?: string) {
         if (daysLeft < 0) statusBadge = 'VENCIDO';
 
         const currentAssignment = emp.assignments[0];
-        const postoLabel = currentAssignment ? currentAssignment.posto.client.name : 'Sem Posto';
+        const postoLabel = currentAssignment?.posto?.client?.name || 'Sem Posto';
 
         return {
             ...emp,

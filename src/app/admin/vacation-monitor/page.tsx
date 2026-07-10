@@ -75,9 +75,7 @@ async function getVacationData() {
 
         // Get current assignment (Posto)
         const currentAssignment = emp.assignments[0];
-        const postoLabel = currentAssignment
-            ? `${currentAssignment.posto.client.name}`
-            : 'Sem Posto';
+        const postoLabel = currentAssignment?.posto?.client?.name || 'Sem Posto';
 
         return {
             id: emp.id,
