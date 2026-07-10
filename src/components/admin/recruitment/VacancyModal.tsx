@@ -223,80 +223,13 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
                     </div>
 
                     <div className="border-t pt-4 mt-2 space-y-4">
-                        <h3 className="font-bold text-slate-800 text-sm">Perfil & Requisitos (Opcional)</h3>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="reqGender">Gênero Preferencial</Label>
-                                <Select
-                                    value={formData.reqGender}
-                                    onValueChange={(val) => setFormData({ ...formData, reqGender: val })}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecione..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Ambos">Ambos / Indiferente</SelectItem>
-                                        <SelectItem value="Masculino">Masculino</SelectItem>
-                                        <SelectItem value="Feminino">Feminino</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="grid gap-2">
-                                <Label htmlFor="reqExperience">Tempo de Experiência Mínimo</Label>
-                                <Input
-                                    id="reqExperience"
-                                    value={formData.reqExperience}
-                                    onChange={(e) => setFormData({ ...formData, reqExperience: e.target.value })}
-                                    placeholder="Ex: 6 meses, 1 ano..."
-                                />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="reqAgeMin">Idade Mínima</Label>
-                                <Input
-                                    id="reqAgeMin"
-                                    type="number"
-                                    min="18"
-                                    value={formData.reqAgeMin}
-                                    onChange={(e) => setFormData({ ...formData, reqAgeMin: e.target.value })}
-                                    placeholder="Ex: 18"
-                                />
-                            </div>
-
-                            <div className="grid gap-2">
-                                <Label htmlFor="reqAgeMax">Idade Máxima</Label>
-                                <Input
-                                    id="reqAgeMax"
-                                    type="number"
-                                    min="18"
-                                    value={formData.reqAgeMax}
-                                    onChange={(e) => setFormData({ ...formData, reqAgeMax: e.target.value })}
-                                    placeholder="Ex: 60"
-                                />
-                            </div>
-                        </div>
-
                         <div className="grid gap-2">
-                            <Label htmlFor="plannedStartDate" className="text-orange-700 font-semibold">Data de Início Planejada (Ideal para Operação)</Label>
+                            <Label htmlFor="plannedStartDate" className="text-orange-700 font-bold">Data de Início Planejada (Ideal para Operação)</Label>
                             <Input
                                 id="plannedStartDate"
                                 type="date"
                                 value={formData.plannedStartDate}
                                 onChange={(e) => setFormData({ ...formData, plannedStartDate: e.target.value })}
-                            />
-                        </div>
-
-                        <div className="grid gap-2">
-                            <Label htmlFor="reqKnowledge">Conhecimentos Gerais / Obrigatórios</Label>
-                            <Textarea
-                                id="reqKnowledge"
-                                value={formData.reqKnowledge}
-                                onChange={(e) => setFormData({ ...formData, reqKnowledge: e.target.value })}
-                                placeholder="Ex: Informática básica (necessário p/ digitar relatórios), CNH categoria B, curso de formação de vigilante ativo, etc."
                             />
                         </div>
 
