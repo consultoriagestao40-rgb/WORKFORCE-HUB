@@ -93,8 +93,11 @@ export default async function EmployeeProfilePage(props: {
 
     // Vacation Logic
     const admissionDate = new Date(employee.admissionDate);
-    const today = new Date();
-    const fullYearsWorked = differenceInYears(today, admissionDate);
+    const referenceDate = (employee.status === "Desligado" || employee.status === "Afastado")
+        ? new Date(employee.updatedAt)
+        : new Date();
+    
+    const fullYearsWorked = differenceInYears(referenceDate, admissionDate);
     const totalDaysEarned = fullYearsWorked * 30;
 
     // Soma real dos dias de férias lançados
@@ -104,8 +107,8 @@ export default async function EmployeeProfilePage(props: {
     const earliestPendingPeriodYear = Math.floor(actualDaysTaken / 30) + 1;
     const concessiveLimitDate = addYears(admissionDate, earliestPendingPeriodYear + 1);
 
-    const isCritical = daysRemaining > 0 && isBefore(concessiveLimitDate, today);
-    const isWarning = daysRemaining > 0 && isBefore(concessiveLimitDate, addYears(today, 0.2));
+    const isCritical = daysRemaining > 0 && isBefore(concessiveLimitDate, referenceDate);
+    const isWarning = daysRemaining > 0 && !isCritical && isBefore(concessiveLimitDate, addYears(referenceDate, 0.2));
 
     return (
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">

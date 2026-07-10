@@ -24,7 +24,10 @@ interface EmployeeVacationData {
 
 async function getVacationData() {
     const employees = await prisma.employee.findMany({
-        where: { type: 'CLT' },
+        where: {
+            type: 'CLT',
+            status: { notIn: ['Desligado', 'Afastado'] }
+        },
         include: {
             role: true,
             situation: true,
@@ -39,24 +42,26 @@ async function getVacationData() {
     });
 
     const vacationData: EmployeeVacationData[] = employees.map(emp => {
-        const today = new Date();
         const admissionDate = new Date(emp.admissionDate);
+        const referenceDate = (emp.status === 'Desligado' || emp.status === 'Afastado')
+            ? new Date(emp.updatedAt)
+            : new Date();
 
         // Soma real dos dias de férias lançados para métrica precisa
         const actualDaysTaken = emp.vacations.reduce((acc: number, v: any) => acc + v.daysTaken, 0);
 
         // Mesmo cálculo do perfil individual
-        const fullYearsWorked = differenceInYears(today, admissionDate);
+        const fullYearsWorked = differenceInYears(referenceDate, admissionDate);
         const totalDaysEarned = fullYearsWorked * 30;
         const daysRemaining = totalDaysEarned - actualDaysTaken;
 
         // Calcular prazo concessivo (MESMA lógica do perfil)
         const earliestPendingPeriodYear = Math.floor(actualDaysTaken / 30) + 1;
         const concessiveLimitDate = addYears(admissionDate, earliestPendingPeriodYear + 1);
-        const daysUntilLimit = differenceInDays(concessiveLimitDate, today);
+        const daysUntilLimit = differenceInDays(concessiveLimitDate, referenceDate);
 
         // Determinar status (MESMA lógica do perfil)
-        const isCritical = daysRemaining > 0 && isBefore(concessiveLimitDate, today);
+        const isCritical = daysRemaining > 0 && isBefore(concessiveLimitDate, referenceDate);
         const isWarning = daysRemaining > 0 && !isCritical && daysUntilLimit <= 90;
 
         let status: VacationStatus;
