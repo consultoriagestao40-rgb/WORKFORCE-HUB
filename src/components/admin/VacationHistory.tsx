@@ -4,10 +4,27 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { format, addDays } from "date-fns";
+import { addDays } from "date-fns";
 import { Trash2, Plus, Pencil } from "lucide-react";
 import { addVacation, deleteVacation, updateVacation } from "@/app/actions";
 import { toast } from "sonner";
+
+// Helpers para anular qualquer efeito de fuso horário local (timezone offset)
+const formatUTCDate = (dateInput: Date | string) => {
+    const d = new Date(dateInput);
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const year = d.getUTCFullYear();
+    return `${day}/${month}/${year}`;
+};
+
+const toISODateString = (dateInput: Date | string) => {
+    const d = new Date(dateInput);
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const year = d.getUTCFullYear();
+    return `${year}-${month}-${day}`;
+};
 
 interface Vacation {
     id: string;
@@ -211,7 +228,7 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
                                 {vacations.map((v) => (
                                     <tr key={v.id} className="group hover:bg-slate-50">
                                         <td className="px-3 py-2 text-slate-700 font-medium">
-                                            {format(new Date(v.startDate), "dd/MM/yyyy")} até {format(new Date(v.endDate), "dd/MM/yyyy")}
+                                            {formatUTCDate(v.startDate)} até {formatUTCDate(v.endDate)}
                                         </td>
                                         <td className="px-3 py-2 text-center text-slate-600 font-bold">
                                             {v.daysTaken} dias {v.daysSold ? `+ ${v.daysSold} abono` : ""}
@@ -224,8 +241,8 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
                                                 className="h-6 w-6 p-0 text-slate-400 hover:text-primary"
                                                 onClick={() => {
                                                     setEditingId(v.id);
-                                                    setStartDate(new Date(v.startDate).toISOString().split('T')[0]);
-                                                    setEndDate(new Date(v.endDate).toISOString().split('T')[0]);
+                                                    setStartDate(toISODateString(v.startDate));
+                                                    setEndDate(toISODateString(v.endDate));
                                                     setDays(v.daysTaken);
                                                     setDaysSold(v.daysSold || 0);
                                                     setOpen(true);
