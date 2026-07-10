@@ -93,10 +93,12 @@ export function PublicApplicationForm({ vacancyId }: PublicApplicationFormProps)
 
     if (isSuccess) {
         return (
-            <div className="flex flex-col items-center justify-center text-center p-8 bg-slate-900/30 border border-emerald-500/20 rounded-xl space-y-4 animate-in fade-in zoom-in duration-300">
-                <CheckCircle className="w-16 h-16 text-emerald-400" />
-                <h3 className="text-xl font-bold text-white">Inscrição Concluída!</h3>
-                <p className="text-sm text-slate-300 max-w-md leading-relaxed">
+            <div className="flex flex-col items-center justify-center text-center p-8 bg-emerald-950/20 border border-emerald-500/20 rounded-2xl space-y-4 animate-in fade-in zoom-in duration-300">
+                <div className="p-3 bg-emerald-500/10 rounded-full border border-emerald-500/25">
+                    <CheckCircle className="w-12 h-12 text-emerald-400" />
+                </div>
+                <h3 className="text-xl font-bold text-white uppercase tracking-wide">Inscrição Concluída!</h3>
+                <p className="text-xs text-slate-400 max-w-md leading-relaxed font-medium">
                     Obrigado por enviar seu currículo! Se o seu perfil for compatível com a vaga, nosso time de recrutadores entrará em contato com você via WhatsApp ou Telefone.
                 </p>
                 <div className="pt-4">
@@ -109,7 +111,7 @@ export function PublicApplicationForm({ vacancyId }: PublicApplicationFormProps)
                             setFileMimeType(null);
                         }}
                         variant="outline"
-                        className="text-xs border-slate-700 text-slate-300 hover:text-white"
+                        className="text-xs border-slate-800 bg-slate-900/40 text-slate-300 hover:text-white hover:bg-slate-900 rounded-xl px-4 py-2"
                     >
                         Enviar outra candidatura
                     </Button>
@@ -119,9 +121,9 @@ export function PublicApplicationForm({ vacancyId }: PublicApplicationFormProps)
     }
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="grid gap-2">
-                <Label htmlFor="name" className="text-slate-300 text-xs uppercase font-bold tracking-wider">Nome Completo *</Label>
+        <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid gap-1">
+                <Label htmlFor="name" className="text-slate-400 text-[10px] uppercase font-black tracking-wider">Nome Completo *</Label>
                 <Input
                     id="name"
                     value={formData.name}
@@ -129,45 +131,43 @@ export function PublicApplicationForm({ vacancyId }: PublicApplicationFormProps)
                     placeholder="Ex: João da Silva"
                     required
                     disabled={isLoading}
-                    className="bg-slate-900 border-slate-700/60 text-slate-100 placeholder:text-slate-600 focus:border-indigo-500"
+                    className="bg-slate-950/40 border-slate-800 text-slate-100 placeholder:text-slate-700 focus:border-indigo-500/60 rounded-xl h-10 text-xs focus:ring-1 focus:ring-indigo-500/30 focus:outline-none transition-all shadow-inner"
                 />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                    <Label htmlFor="email" className="text-slate-300 text-xs uppercase font-bold tracking-wider">E-mail (Opcional)</Label>
-                    <Input
-                        id="email"
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        placeholder="Ex: joao@email.com"
-                        disabled={isLoading}
-                        className="bg-slate-900 border-slate-700/60 text-slate-100 placeholder:text-slate-600 focus:border-indigo-500"
-                    />
-                </div>
+            <div className="grid gap-1">
+                <Label htmlFor="phone" className="text-slate-400 text-[10px] uppercase font-black tracking-wider">Telefone / WhatsApp *</Label>
+                <Input
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="Ex: (11) 99999-9999"
+                    required
+                    disabled={isLoading}
+                    className="bg-slate-950/40 border-slate-800 text-slate-100 placeholder:text-slate-700 focus:border-indigo-500/60 rounded-xl h-10 text-xs focus:ring-1 focus:ring-indigo-500/30 focus:outline-none transition-all shadow-inner"
+                />
+            </div>
 
-                <div className="grid gap-2">
-                    <Label htmlFor="phone" className="text-slate-300 text-xs uppercase font-bold tracking-wider">Telefone / WhatsApp *</Label>
-                    <Input
-                        id="phone"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        placeholder="Ex: (11) 99999-9999"
-                        required
-                        disabled={isLoading}
-                        className="bg-slate-900 border-slate-700/60 text-slate-100 placeholder:text-slate-600 focus:border-indigo-500"
-                    />
-                </div>
+            <div className="grid gap-1">
+                <Label htmlFor="email" className="text-slate-400 text-[10px] uppercase font-black tracking-wider">E-mail (Opcional)</Label>
+                <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="Ex: joao@email.com"
+                    disabled={isLoading}
+                    className="bg-slate-950/40 border-slate-800 text-slate-100 placeholder:text-slate-700 focus:border-indigo-500/60 rounded-xl h-10 text-xs focus:ring-1 focus:ring-indigo-500/30 focus:outline-none transition-all shadow-inner"
+                />
             </div>
 
             {/* Upload Area */}
-            <div className="grid gap-2">
-                <Label className="text-slate-300 text-xs uppercase font-bold tracking-wider">Anexar Currículo (PDF ou Imagem) *</Label>
+            <div className="grid gap-1 pt-1">
+                <Label className="text-slate-400 text-[10px] uppercase font-black tracking-wider font-semibold">Anexar Currículo (PDF ou Imagem) *</Label>
                 <div 
                     onClick={() => !isLoading && document.getElementById("public-cv-upload")?.click()}
-                    className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200
-                        ${fileName ? 'bg-indigo-950/20 border-indigo-500/40' : 'bg-slate-900/60 border-slate-700/60 hover:border-slate-500'}
+                    className={`border border-dashed rounded-xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 min-h-[110px]
+                        ${fileName ? 'bg-indigo-950/15 border-indigo-500/40' : 'bg-slate-950/20 border-slate-800 hover:border-slate-700'}
                         ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}
                     `}
                 >
@@ -181,26 +181,28 @@ export function PublicApplicationForm({ vacancyId }: PublicApplicationFormProps)
                     />
                     
                     {fileName ? (
-                        <div className="space-y-2 flex flex-col items-center">
-                            <FileText className="w-10 h-10 text-indigo-400" />
-                            <span className="text-sm font-medium text-slate-200 block truncate max-w-[280px]">{fileName}</span>
-                            <span className="text-xs text-indigo-300 underline font-semibold">Alterar arquivo</span>
+                        <div className="space-y-1.5 flex flex-col items-center">
+                            <div className="p-2 bg-indigo-500/10 rounded-full border border-indigo-500/20">
+                                <FileText className="w-5 h-5 text-indigo-400" />
+                            </div>
+                            <span className="text-xs font-semibold text-slate-200 block truncate max-w-[200px]">{fileName}</span>
+                            <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Alterar currículo</span>
                         </div>
                     ) : (
-                        <div className="space-y-2 flex flex-col items-center">
-                            <Upload className="w-10 h-10 text-slate-500" />
-                            <span className="text-sm font-medium text-slate-300 block">Clique para selecionar seu currículo</span>
-                            <span className="text-[11px] text-slate-500 block">Formatos aceitos: PDF, JPEG, JPG ou PNG (Máx: 8MB)</span>
+                        <div className="space-y-1.5 flex flex-col items-center">
+                            <Upload className="w-6 h-6 text-slate-500" />
+                            <span className="text-xs font-semibold text-slate-300 block">Clique para selecionar seu currículo</span>
+                            <span className="text-[10px] text-slate-600 block">PDF ou Imagem (Máx: 8MB)</span>
                         </div>
                     )}
                 </div>
             </div>
 
-            <div className="pt-2">
+            <div className="pt-3">
                 <Button 
                     type="submit" 
                     disabled={isLoading}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold h-11 rounded-lg text-sm transition-all flex items-center justify-center gap-2"
+                    className="w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:opacity-95 text-white font-extrabold h-11 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg shadow-indigo-500/10 border-0"
                 >
                     {isLoading ? (
                         <>
