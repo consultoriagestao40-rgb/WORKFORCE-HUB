@@ -36,7 +36,15 @@ async function getData() {
                 client: {
                     include: { company: true }
                 },
-                role: true
+                role: true,
+                assignments: {
+                    where: {
+                        OR: [
+                            { endDate: null },
+                            { endDate: { gt: new Date() } }
+                        ]
+                    }
+                }
             },
             orderBy: {
                 client: { name: 'asc' }

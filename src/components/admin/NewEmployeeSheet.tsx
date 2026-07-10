@@ -52,6 +52,12 @@ export function NewEmployeeSheet({
         }
     };
 
+    // Somente postos vagos (sem alocações ativas), ou o posto obrigatório inicial se vier de initialData
+    const availablePostos = postos.filter(p => 
+        (p.assignments && p.assignments.length === 0) || 
+        p.id === initialData?.postoId
+    );
+
     // States controlados para preenchimento automático a partir do Posto
     const [selectedPostoId, setSelectedPostoId] = useState(initialData?.postoId || "");
     const [salary, setSalary] = useState("0");
@@ -135,7 +141,7 @@ export function NewEmployeeSheet({
                                 <SelectValue placeholder="Selecione o posto..." />
                             </SelectTrigger>
                             <SelectContent className="max-h-[250px]">
-                                {postos.map(p => (
+                                {availablePostos.map(p => (
                                     <SelectItem key={p.id} value={p.id}>
                                         {p.client?.name} - {p.role?.name} ({p.schedule || "N/A"}: {p.startTime || "00:00"}-{p.endTime || "00:00"})
                                     </SelectItem>
