@@ -93,7 +93,7 @@ async function callGemini(apiKey: string, model: string, base64Data: string, mim
                 },
             ],
             generationConfig: {
-                response_mime_type: "application/json",
+                responseMimeType: "application/json",
             },
         };
 
