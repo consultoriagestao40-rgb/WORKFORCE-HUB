@@ -49,8 +49,8 @@ Regras:
 2. Se um campo não estiver presente ou for ilegível, defina-o como null.
 3. Garanta que o CPF contenha pontuação e traço válidos.`;
 
-        // Tentar vários modelos em cadeia, priorizando a geração 2.0 que está ativa para novos usuários
-        const modelsToTry = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-1.5-pro-latest"];
+        // Tentar vários modelos em cadeia, priorizando a geração flash mais recente e ativa
+        const modelsToTry = ["gemini-flash-latest", "gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-1.5-pro-latest"];
         let result = null;
         let lastError = null;
 
