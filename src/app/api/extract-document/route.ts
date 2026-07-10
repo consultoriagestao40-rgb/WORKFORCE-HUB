@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Modelos em ordem de preferência (nomes exatos da v1beta)
-const MODELS = [
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
-    "gemini-pro-vision",
-];
-
 const PROMPT = `Você é um especialista em OCR inteligente de documentos pessoais para sistemas de RH.
 Analise a imagem ou PDF anexado (RG, CNH, CPF, CTPS, Passaporte ou comprovante de residência).
 Extraia as informações e retorne EXCLUSIVAMENTE um objeto JSON puro, sem markdown, no formato:
@@ -29,13 +21,41 @@ Regras:
 4. name em MAIÚSCULAS.
 5. Se um campo não existir no documento, use null.`;
 
-async function callGemini(apiKey: string, model: string, base64Data: string, mimeType: string) {
-    // Todos os formatos de chave (AIzaSy e AQ.) usam ?key= como parâmetro na URL
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+// Descobre dinamicamente os modelos disponíveis para a chave
+async function listAvailableModels(apiKey: string): Promise<string[]> {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=50`;
+    const res = await fetch(url);
+    if (!res.ok) {
+        console.error("Falha ao listar modelos:", await res.text());
+        return [];
+    }
+    const json = await res.json();
+    const models: string[] = (json.models || [])
+        // Filtra modelos que suportam generateContent (necessário para OCR)
+        .filter((m: any) =>
+            Array.isArray(m.supportedGenerationMethods) &&
+            m.supportedGenerationMethods.includes("generateContent")
+        )
+        // Prefere modelos flash/pro e com suporte a visão
+        .map((m: any) => (m.name as string).replace("models/", ""))
+        .sort((a: string, b: string) => {
+            const priority = (name: string) => {
+                if (name.includes("2.0-flash")) return 0;
+                if (name.includes("1.5-flash")) return 1;
+                if (name.includes("1.5-pro")) return 2;
+                if (name.includes("flash")) return 3;
+                if (name.includes("pro")) return 4;
+                return 5;
+            };
+            return priority(a) - priority(b);
+        });
 
-    const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-    };
+    console.log("Modelos disponíveis:", models);
+    return models;
+}
+
+async function callGemini(apiKey: string, model: string, base64Data: string, mimeType: string) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const body = {
         contents: [
@@ -53,7 +73,7 @@ async function callGemini(apiKey: string, model: string, base64Data: string, mim
 
     const response = await fetch(url, {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
     });
 
@@ -66,6 +86,14 @@ async function callGemini(apiKey: string, model: string, base64Data: string, mim
     const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) throw new Error("Resposta vazia da IA.");
     return text;
+}
+
+export async function GET() {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return NextResponse.json({ error: "Chave não configurada" }, { status: 500 });
+
+    const models = await listAvailableModels(apiKey);
+    return NextResponse.json({ modelsDisponiveis: models, total: models.length });
 }
 
 export async function POST(req: NextRequest) {
@@ -89,13 +117,23 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // Descobre os modelos disponíveis pra essa chave automaticamente
+        const availableModels = await listAvailableModels(GEMINI_API_KEY);
+
+        if (availableModels.length === 0) {
+            return NextResponse.json(
+                { success: false, error: "Nenhum modelo disponível para esta chave de API. Verifique se a Generative Language API está ativada no projeto Google Cloud." },
+                { status: 500 }
+            );
+        }
+
         const arrayBuffer = await file.arrayBuffer();
         const base64Data = Buffer.from(arrayBuffer).toString("base64");
         const fileMimeType = file.type || "image/jpeg";
 
         let lastError = "";
 
-        for (const model of MODELS) {
+        for (const model of availableModels) {
             try {
                 console.log(`Tentando modelo: ${model}`);
                 const responseText = await callGemini(GEMINI_API_KEY, model, base64Data, fileMimeType);
@@ -103,9 +141,8 @@ export async function POST(req: NextRequest) {
                 try {
                     const data = JSON.parse(responseText);
                     console.log(`Sucesso com modelo: ${model}`);
-                    return NextResponse.json({ success: true, data });
+                    return NextResponse.json({ success: true, data, modelUsed: model });
                 } catch {
-                    console.error(`Falha ao parsear JSON do modelo ${model}:`, responseText);
                     lastError = "A IA não retornou dados em formato legível.";
                     continue;
                 }
