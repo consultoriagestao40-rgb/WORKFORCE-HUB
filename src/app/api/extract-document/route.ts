@@ -21,37 +21,61 @@ Regras:
 4. name em MAIÚSCULAS.
 5. Se um campo não existir no documento, use null.`;
 
+// Modelos hardcoded como fallback (caso ListModels falhe ou retorne vazio)
+const FALLBACK_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+    "gemini-1.0-pro-vision",
+    "gemini-pro",
+];
+
 // Descobre dinamicamente os modelos disponíveis para a chave
 async function listAvailableModels(apiKey: string): Promise<string[]> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=50`;
-    const res = await fetch(url);
-    if (!res.ok) {
-        console.error("Falha ao listar modelos:", await res.text());
-        return [];
-    }
-    const json = await res.json();
-    const models: string[] = (json.models || [])
-        // Filtra modelos que suportam generateContent (necessário para OCR)
-        .filter((m: any) =>
-            Array.isArray(m.supportedGenerationMethods) &&
-            m.supportedGenerationMethods.includes("generateContent")
-        )
-        // Prefere modelos flash/pro e com suporte a visão
-        .map((m: any) => (m.name as string).replace("models/", ""))
-        .sort((a: string, b: string) => {
-            const priority = (name: string) => {
-                if (name.includes("2.0-flash")) return 0;
-                if (name.includes("1.5-flash")) return 1;
-                if (name.includes("1.5-pro")) return 2;
-                if (name.includes("flash")) return 3;
-                if (name.includes("pro")) return 4;
-                return 5;
-            };
-            return priority(a) - priority(b);
-        });
+    try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=100`;
+        const res = await fetch(url);
 
-    console.log("Modelos disponíveis:", models);
-    return models;
+        if (!res.ok) {
+            const errText = await res.text();
+            console.error("ListModels falhou:", res.status, errText);
+            return FALLBACK_MODELS;
+        }
+
+        const json = await res.json();
+        console.log("ListModels resposta bruta:", JSON.stringify(json).slice(0, 500));
+
+        const allModels: any[] = json.models || [];
+
+        // Filtra apenas modelos que suportam geração de conteúdo (aceita generateContent OU streamGenerateContent)
+        const filtered = allModels
+            .filter((m: any) => {
+                const methods: string[] = m.supportedGenerationMethods || [];
+                return methods.some(method =>
+                    method === "generateContent" || method === "streamGenerateContent"
+                );
+            })
+            .map((m: any) => (m.name as string).replace("models/", ""))
+            .sort((a: string, b: string) => {
+                const priority = (name: string) => {
+                    if (name.includes("2.0-flash")) return 0;
+                    if (name.includes("1.5-flash")) return 1;
+                    if (name.includes("1.5-pro")) return 2;
+                    if (name.includes("flash")) return 3;
+                    if (name.includes("pro")) return 4;
+                    return 5;
+                };
+                return priority(a) - priority(b);
+            });
+
+        console.log("Modelos filtrados:", filtered);
+
+        // Se não encontrou nenhum, usa fallback
+        return filtered.length > 0 ? filtered : FALLBACK_MODELS;
+    } catch (e: any) {
+        console.error("Erro ao listar modelos:", e.message);
+        return FALLBACK_MODELS;
+    }
 }
 
 async function callGemini(apiKey: string, model: string, base64Data: string, mimeType: string) {
@@ -117,15 +141,8 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Descobre os modelos disponíveis pra essa chave automaticamente
+        // Descobre os modelos disponíveis (com fallback automático)
         const availableModels = await listAvailableModels(GEMINI_API_KEY);
-
-        if (availableModels.length === 0) {
-            return NextResponse.json(
-                { success: false, error: "Nenhum modelo disponível para esta chave de API. Verifique se a Generative Language API está ativada no projeto Google Cloud." },
-                { status: 500 }
-            );
-        }
 
         const arrayBuffer = await file.arrayBuffer();
         const base64Data = Buffer.from(arrayBuffer).toString("base64");
