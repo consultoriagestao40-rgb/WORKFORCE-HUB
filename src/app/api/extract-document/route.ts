@@ -3,11 +3,11 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(req: NextRequest) {
     try {
-        const apiKey = process.env.GEMINI_API_KEY || "AQ.Ab8RN6Lo2V1NdBt2lwskiWbrKlGSEp5bbEw9DxuA1UCAj5-QiQ";
+        const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) {
             return NextResponse.json({
                 success: false,
-                error: "Chave de API do Gemini não configurada."
+                error: "Chave de API do Gemini não configurada. Cadastre a variável GEMINI_API_KEY nas Environment Variables da Vercel."
             }, { status: 500 });
         }
 
@@ -49,8 +49,8 @@ Regras:
 2. Se um campo não estiver presente ou for ilegível, defina-o como null.
 3. Garanta que o CPF contenha pontuação e traço válidos.`;
 
-        // Tentar vários modelos em cadeia caso o fuso ou a versão da API dê 404 em algum deles
-        const modelsToTry = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-1.5-pro-latest", "gemini-1.5-pro"];
+        // Tentar vários modelos em cadeia, priorizando a geração 2.0 que está ativa para novos usuários
+        const modelsToTry = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-1.5-pro-latest"];
         let result = null;
         let lastError = null;
 
