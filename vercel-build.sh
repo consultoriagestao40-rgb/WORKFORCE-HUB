@@ -1,6 +1,7 @@
 #!/bin/bash
 
 echo "🚀 Starting Deployment Script..."
+# Triggering fresh rebuild after Vercel transient error
 
 # 1. Generate Prisma Client
 echo "📦 Generating Prisma Client..."
