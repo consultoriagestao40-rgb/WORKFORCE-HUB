@@ -1,118 +1,126 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// Chamada REST direta ao Gemini usando o header X-goog-api-key
+// (o SDK @google/generative-ai não suporta tokens do tipo AQ., apenas AIzaSy...)
+const GEMINI_API_KEY = "AQ.Ab8RN6K_jNCc0jFr8rJm9Xgdh9gvZ41QbxWMyMWhdzEW83h0Fg";
+
+const GEMINI_REST_URL =
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent";
 
 export async function POST(req: NextRequest) {
     try {
-        const apiKey = "AQ.Ab8RN6K_jNCc0jFr8rJm9Xgdh9gvZ41QbxWMyMWhdzEW83h0Fg";
-        if (!apiKey) {
-            return NextResponse.json({
-                success: false,
-                error: "Chave de API do Gemini não configurada."
-            }, { status: 500 });
-        }
-
         const formData = await req.formData();
         const file = formData.get("file") as File | null;
 
         if (!file) {
-            return NextResponse.json({
-                success: false,
-                error: "Arquivo não enviado."
-            }, { status: 400 });
+            return NextResponse.json(
+                { success: false, error: "Arquivo não enviado." },
+                { status: 400 }
+            );
         }
 
-        // Converter arquivo para base64 para envio ao Gemini
+        // Converter arquivo para base64
         const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const base64Data = buffer.toString("base64");
-        const fileMimeType = file.type;
+        const base64Data = Buffer.from(arrayBuffer).toString("base64");
+        const fileMimeType = file.type || "image/jpeg";
 
-        // Instanciar o SDK do Gemini
-        const genAI = new GoogleGenerativeAI(apiKey);
-        
-        const prompt = `Você é um especialista em OCR inteligente de documentos pessoais para sistemas de RH de empresas. 
-Analise a imagem ou PDF anexado, que pode ser um documento de identidade (RG, CNH, CPF, CTPS, Passaporte) ou um comprovante de residência.
-Extraia as informações do colaborador com a maior precisão possível e retorne EXCLUSIVAMENTE um objeto JSON estruturado no seguinte formato:
+        const prompt = `Você é um especialista em OCR inteligente de documentos pessoais para sistemas de RH.
+Analise a imagem ou PDF anexado (RG, CNH, CPF, CTPS, Passaporte ou comprovante de residência).
+Extraia as informações e retorne EXCLUSIVAMENTE um objeto JSON puro, sem markdown, no formato:
 
 {
-  "name": string | null (Nome completo do colaborador em maiúsculas),
-  "cpf": string | null (CPF formatado no formato 000.000.000-00),
-  "birthDate": string | null (Data de nascimento no formato YYYY-MM-DD, ex: "1995-12-30"),
-  "gender": "Masculino" | "Feminino" | "Outro" | null (Tente identificar ou deduzir com base no nome do colaborador),
-  "address": string | null (Endereço residencial completo extraído de comprovante de residência se disponível. Formate no padrão: Rua/Avenida, Número, Bairro, Cidade - UF),
-  "phone": string | null (Telefone de contato se houver no documento),
-  "email": string | null (Endereço de email se houver no documento)
+  "name": string | null,
+  "cpf": string | null,
+  "birthDate": string | null,
+  "gender": "Masculino" | "Feminino" | "Outro" | null,
+  "address": string | null,
+  "phone": string | null,
+  "email": string | null
 }
 
 Regras:
-1. Retorne apenas o JSON puro, sem formatação markdown (como \`\`\`json) ou textos explicativos.
-2. Se um campo não estiver presente ou for ilegível, defina-o como null.
-3. Garanta que o CPF contenha pontuação e traço válidos.`;
+1. Retorne apenas o JSON puro, sem \`\`\`json ou texto extra.
+2. birthDate no formato YYYY-MM-DD.
+3. cpf no formato 000.000.000-00.
+4. name em maiúsculas.
+5. Se um campo não existir no documento, use null.`;
 
-        // Tentar vários modelos em cadeia, priorizando a geração flash mais recente e ativa
-        const modelsToTry = ["gemini-flash-latest", "gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-1.5-pro-latest"];
-        let result = null;
-        let lastError = null;
+        const requestBody = {
+            contents: [
+                {
+                    parts: [
+                        { text: prompt },
+                        {
+                            inline_data: {
+                                mime_type: fileMimeType,
+                                data: base64Data,
+                            },
+                        },
+                    ],
+                },
+            ],
+            generationConfig: {
+                responseMimeType: "application/json",
+            },
+        };
 
-        for (const modelName of modelsToTry) {
-            try {
-                console.log(`Tentando extração com o modelo: ${modelName}`);
-                const model = genAI.getGenerativeModel({
-                    model: modelName,
-                    generationConfig: {
-                        responseMimeType: "application/json"
-                    }
-                });
+        const geminiResponse = await fetch(GEMINI_REST_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-goog-api-key": GEMINI_API_KEY,
+            },
+            body: JSON.stringify(requestBody),
+        });
 
-                result = await model.generateContent([
-                    prompt,
-                    {
-                        inlineData: {
-                            data: base64Data,
-                            mimeType: fileMimeType
-                        }
-                    }
-                ]);
-
-                if (result) {
-                    console.log(`Sucesso com o modelo: ${modelName}`);
-                    break;
-                }
-            } catch (err: any) {
-                console.error(`Erro com modelo ${modelName}:`, err.message || err);
-                lastError = err;
-            }
+        if (!geminiResponse.ok) {
+            const errorBody = await geminiResponse.text();
+            console.error("Gemini REST erro:", geminiResponse.status, errorBody);
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: `Erro ao chamar a IA Gemini (${geminiResponse.status}): ${errorBody}`,
+                },
+                { status: 500 }
+            );
         }
 
-        if (!result) {
-            return NextResponse.json({
-                success: false,
-                error: `A IA do Gemini não pôde processar o documento. Detalhes: ${lastError?.message || "Erro desconhecido"}`
-            }, { status: 500 });
+        const geminiData = await geminiResponse.json();
+        const responseText =
+            geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
+
+        if (!responseText) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: "A IA não retornou texto na resposta.",
+                },
+                { status: 500 }
+            );
         }
 
-        const responseText = result.response.text();
-        
         try {
             const data = JSON.parse(responseText);
-            return NextResponse.json({
-                success: true,
-                data
-            });
-        } catch (parseError) {
+            return NextResponse.json({ success: true, data });
+        } catch {
             console.error("Falha ao parsear JSON do Gemini:", responseText);
-            return NextResponse.json({
-                success: false,
-                error: "A inteligência artificial não retornou dados em formato legível.",
-                rawText: responseText
-            }, { status: 500 });
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: "A IA não retornou dados em formato legível.",
+                    rawText: responseText,
+                },
+                { status: 500 }
+            );
         }
-
     } catch (error: any) {
-        console.error("Erro na rota de extração:", error);
-        return NextResponse.json({
-            success: false,
-            error: error.message || "Erro interno ao processar o documento."
-        }, { status: 500 });
+        console.error("Erro interno na rota de extração:", error);
+        return NextResponse.json(
+            {
+                success: false,
+                error: error.message || "Erro interno ao processar o documento.",
+            },
+            { status: 500 }
+        );
     }
 }
