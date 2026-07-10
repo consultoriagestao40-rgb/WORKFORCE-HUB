@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "AIzaSyDwnjcn9FDUpLfD2-3rO9NHQqSkmIvSeTk";
-
 export async function POST(req: NextRequest) {
     try {
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+        if (!GEMINI_API_KEY) {
+            return NextResponse.json(
+                { success: false, error: "Chave da API Gemini não configurada no servidor." },
+                { status: 500 }
+            );
+        }
+
         const formData = await req.formData();
         const file = formData.get("file") as File | null;
 
@@ -21,7 +28,7 @@ export async function POST(req: NextRequest) {
 
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
         const model = genAI.getGenerativeModel({
-            model: "gemini-flash-latest",
+            model: "gemini-1.5-flash",
             generationConfig: { responseMimeType: "application/json" },
         });
 
