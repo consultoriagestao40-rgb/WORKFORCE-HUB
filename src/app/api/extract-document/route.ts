@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Chamada REST direta ao Gemini usando o header X-goog-api-key
-// (o SDK @google/generative-ai não suporta tokens do tipo AQ., apenas AIzaSy...)
-const GEMINI_API_KEY = "AQ.Ab8RN6K_jNCc0jFr8rJm9Xgdh9gvZ41QbxWMyMWhdzEW83h0Fg";
-
-const GEMINI_REST_URL =
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "AIzaSyDwnjcn9FDUpLfD2-3rO9NHQqSkmIvSeTk";
 
 export async function POST(req: NextRequest) {
     try {
@@ -19,10 +15,15 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Converter arquivo para base64
         const arrayBuffer = await file.arrayBuffer();
         const base64Data = Buffer.from(arrayBuffer).toString("base64");
         const fileMimeType = file.type || "image/jpeg";
+
+        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({
+            model: "gemini-flash-latest",
+            generationConfig: { responseMimeType: "application/json" },
+        });
 
         const prompt = `Você é um especialista em OCR inteligente de documentos pessoais para sistemas de RH.
 Analise a imagem ou PDF anexado (RG, CNH, CPF, CTPS, Passaporte ou comprovante de residência).
@@ -42,62 +43,15 @@ Regras:
 1. Retorne apenas o JSON puro, sem \`\`\`json ou texto extra.
 2. birthDate no formato YYYY-MM-DD.
 3. cpf no formato 000.000.000-00.
-4. name em maiúsculas.
+4. name em MAIÚSCULAS.
 5. Se um campo não existir no documento, use null.`;
 
-        const requestBody = {
-            contents: [
-                {
-                    parts: [
-                        { text: prompt },
-                        {
-                            inline_data: {
-                                mime_type: fileMimeType,
-                                data: base64Data,
-                            },
-                        },
-                    ],
-                },
-            ],
-            generationConfig: {
-                responseMimeType: "application/json",
-            },
-        };
+        const result = await model.generateContent([
+            prompt,
+            { inlineData: { data: base64Data, mimeType: fileMimeType } },
+        ]);
 
-        const geminiResponse = await fetch(GEMINI_REST_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-goog-api-key": GEMINI_API_KEY,
-            },
-            body: JSON.stringify(requestBody),
-        });
-
-        if (!geminiResponse.ok) {
-            const errorBody = await geminiResponse.text();
-            console.error("Gemini REST erro:", geminiResponse.status, errorBody);
-            return NextResponse.json(
-                {
-                    success: false,
-                    error: `Erro ao chamar a IA Gemini (${geminiResponse.status}): ${errorBody}`,
-                },
-                { status: 500 }
-            );
-        }
-
-        const geminiData = await geminiResponse.json();
-        const responseText =
-            geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
-
-        if (!responseText) {
-            return NextResponse.json(
-                {
-                    success: false,
-                    error: "A IA não retornou texto na resposta.",
-                },
-                { status: 500 }
-            );
-        }
+        const responseText = result.response.text();
 
         try {
             const data = JSON.parse(responseText);
@@ -116,10 +70,7 @@ Regras:
     } catch (error: any) {
         console.error("Erro interno na rota de extração:", error);
         return NextResponse.json(
-            {
-                success: false,
-                error: error.message || "Erro interno ao processar o documento.",
-            },
+            { success: false, error: error.message || "Erro interno ao processar o documento." },
             { status: 500 }
         );
     }
