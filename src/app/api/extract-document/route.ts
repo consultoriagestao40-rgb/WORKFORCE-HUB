@@ -30,17 +30,12 @@ Regras:
 5. Se um campo não existir no documento, use null.`;
 
 async function callGemini(apiKey: string, model: string, base64Data: string, mimeType: string) {
-    const isOAuthToken = apiKey.startsWith("AQ.") || apiKey.startsWith("ya29.");
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent${isOAuthToken ? "" : `?key=${apiKey}`}`;
+    // Todos os formatos de chave (AIzaSy e AQ.) usam ?key= como parâmetro na URL
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
     };
-
-    if (isOAuthToken) {
-        headers["Authorization"] = `Bearer ${apiKey}`;
-    }
 
     const body = {
         contents: [
