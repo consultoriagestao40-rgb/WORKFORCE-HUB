@@ -4,7 +4,7 @@ import { EmployeesClientPage } from "./EmployeesClientPage";
 import { getCurrentUserRole } from "@/lib/auth";
 
 async function getData() {
-    const [employees, situations, roles, companies] = await Promise.all([
+    const [employees, situations, roles, companies, postos] = await Promise.all([
         prisma.employee.findMany({
             orderBy: { name: 'asc' },
             include: {
@@ -30,13 +30,24 @@ async function getData() {
         prisma.company.findMany({
             select: { id: true, name: true },
             orderBy: { name: 'asc' }
+        }),
+        prisma.posto.findMany({
+            include: {
+                client: {
+                    include: { company: true }
+                },
+                role: true
+            },
+            orderBy: {
+                client: { name: 'asc' }
+            }
         })
     ]);
-    return { employees, situations, roles, companies };
+    return { employees, situations, roles, companies, postos };
 }
 
 export default async function EmployeesPage() {
-    const { employees, situations, roles, companies } = await getData();
+    const { employees, situations, roles, companies, postos } = await getData();
 
     const userRole = await getCurrentUserRole();
 
@@ -46,6 +57,7 @@ export default async function EmployeesPage() {
             situations={situations}
             roles={roles}
             companies={companies}
+            postos={postos}
             userRole={userRole}
         />
     );

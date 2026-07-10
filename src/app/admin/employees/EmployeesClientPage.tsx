@@ -36,10 +36,11 @@ interface EmployeesClientPageProps {
     situations: any[];
     roles: any[];
     companies?: any[];
+    postos?: any[];
     userRole: string | null;
 }
 
-export function EmployeesClientPage({ initialEmployees, situations, roles, companies = [], userRole }: EmployeesClientPageProps) {
+export function EmployeesClientPage({ initialEmployees, situations, roles, companies = [], postos = [], userRole }: EmployeesClientPageProps) {
     const [employees, setEmployees] = useState(initialEmployees);
     const [searchTerm, setSearchTerm] = useState("");
     const [situationFilter, setSituationFilter] = useState("all");
@@ -211,7 +212,7 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                         Exportar Excel
                     </Button>
                     <ImportEmployeesDialog />
-                    <NewEmployeeSheet situations={situations} roles={roles} companies={companies} />
+                    <NewEmployeeSheet situations={situations} roles={roles} companies={companies} postos={postos} />
                 </div>
             </div>
 

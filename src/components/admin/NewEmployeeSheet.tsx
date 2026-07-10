@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ export interface NewEmployeeSheetProps {
     situations: { id: string, name: string }[];
     roles: { id: string, name: string }[];
     companies?: { id: string, name: string }[];
+    postos?: any[];
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
     initialData?: {
@@ -32,6 +33,7 @@ export function NewEmployeeSheet({
     situations,
     roles,
     companies = [],
+    postos = [],
     open: controlledOpen,
     onOpenChange: setControlledOpen,
     initialData,
@@ -50,9 +52,54 @@ export function NewEmployeeSheet({
         }
     };
 
+    // States controlados para preenchimento automático a partir do Posto
+    const [selectedPostoId, setSelectedPostoId] = useState(initialData?.postoId || "");
+    const [salary, setSalary] = useState("0");
+    const [insalubridade, setInsalubridade] = useState("0");
+    const [periculosidade, setPericulosidade] = useState("0");
+    const [gratificacao, setGratificacao] = useState("0");
+    const [outrosAdicionais, setOutrosAdicionais] = useState("0");
+    const [workload, setWorkload] = useState("220");
+    const [roleId, setRoleId] = useState(initialData?.roleId || "");
+    const [companyId, setCompanyId] = useState(initialData?.companyId || "");
+
+    const handlePostoChange = (postoId: string) => {
+        setSelectedPostoId(postoId);
+        const posto = postos.find(p => p.id === postoId);
+        if (posto) {
+            setSalary(String(posto.baseSalary || 0));
+            setInsalubridade(String(posto.insalubridade || 0));
+            setPericulosidade(String(posto.periculosidade || 0));
+            setGratificacao(String(posto.gratificacao || 0));
+            setOutrosAdicionais(String(posto.outrosAdicionais || 0));
+            setWorkload(String(posto.requiredWorkload || 220));
+            setRoleId(posto.roleId || "");
+            setCompanyId(posto.client?.companyId || "");
+        }
+    };
+
+    useEffect(() => {
+        if (initialData?.postoId) {
+            handlePostoChange(initialData.postoId);
+        }
+    }, [initialData, postos]);
+
+    const handleCancel = () => {
+        setOpen(false);
+        setSelectedPostoId("");
+        setSalary("0");
+        setInsalubridade("0");
+        setPericulosidade("0");
+        setGratificacao("0");
+        setOutrosAdicionais("0");
+        setWorkload("220");
+        setRoleId("");
+        setCompanyId("");
+    };
+
     async function handleSubmit(formData: FormData) {
         await createEmployee(formData);
-        setOpen(false);
+        handleCancel();
         if (onSuccess) onSuccess();
     }
 
@@ -66,7 +113,7 @@ export function NewEmployeeSheet({
             <SheetContent className="px-8">
                 <SheetHeader>
                     <SheetTitle>Novo Colaborador</SheetTitle>
-                    <SheetDescription>Cadastre um novo funcionário.</SheetDescription>
+                    <SheetDescription>Cadastre um novo funcionário vinculando-o a um posto.</SheetDescription>
                     {initialData?.postoName && (
                         <div className="bg-blue-50 text-blue-700 p-3 rounded-md border border-blue-200 text-sm mt-2 flex items-center gap-2">
                             <span>
@@ -76,7 +123,27 @@ export function NewEmployeeSheet({
                     )}
                 </SheetHeader>
                 <form action={handleSubmit} className="space-y-4 mt-6 h-[80vh] overflow-y-auto pr-4">
-                    {initialData?.postoId && <input type="hidden" name="postoId" value={initialData.postoId} />}
+                    <div className="space-y-2">
+                        <Label htmlFor="postoId">Posto de Trabalho (Obrigatório)</Label>
+                        <Select
+                            name="postoId"
+                            value={selectedPostoId}
+                            onValueChange={handlePostoChange}
+                            required
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Selecione o posto..." />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[250px]">
+                                {postos.map(p => (
+                                    <SelectItem key={p.id} value={p.id}>
+                                        {p.client?.name} - {p.role?.name} ({p.schedule || "N/A"}: {p.startTime || "00:00"}-{p.endTime || "00:00"})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
                     <div className="space-y-2">
                         <Label htmlFor="name">Nome Completo</Label>
                         <Input id="name" name="name" required defaultValue={initialData?.name || ''} />
@@ -84,7 +151,7 @@ export function NewEmployeeSheet({
 
                     <div className="space-y-2">
                         <Label htmlFor="companyId">Empresa Vinculada</Label>
-                        <Select name="companyId" defaultValue={initialData?.companyId}>
+                        <Select name="companyId" value={companyId} onValueChange={setCompanyId}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Selecione a empresa" />
                             </SelectTrigger>
@@ -103,7 +170,7 @@ export function NewEmployeeSheet({
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="workload">Carga Horária Mensal</Label>
-                            <Input id="workload" name="workload" type="number" defaultValue="220" required />
+                            <Input id="workload" name="workload" type="number" value={workload} onChange={e => setWorkload(e.target.value)} required />
                         </div>
                     </div>
 
@@ -165,7 +232,7 @@ export function NewEmployeeSheet({
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="roleId">Cargo</Label>
-                        <Select name="roleId" required defaultValue={initialData?.roleId}>
+                        <Select name="roleId" required value={roleId} onValueChange={setRoleId}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Selecione o cargo" />
                             </SelectTrigger>
@@ -181,23 +248,23 @@ export function NewEmployeeSheet({
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="salary">Salário Base (R$)</Label>
-                            <Input id="salary" name="salary" type="number" step="0.01" placeholder="0.00" />
+                            <Input id="salary" name="salary" type="number" step="0.01" value={salary} onChange={e => setSalary(e.target.value)} placeholder="0.00" />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="insalubridade">Insalubridade (R$)</Label>
-                            <Input id="insalubridade" name="insalubridade" type="number" step="0.01" defaultValue="0" />
+                            <Input id="insalubridade" name="insalubridade" type="number" step="0.01" value={insalubridade} onChange={e => setInsalubridade(e.target.value)} />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="periculosidade">Periculosidade (R$)</Label>
-                            <Input id="periculosidade" name="periculosidade" type="number" step="0.01" defaultValue="0" />
+                            <Input id="periculosidade" name="periculosidade" type="number" step="0.01" value={periculosidade} onChange={e => setPericulosidade(e.target.value)} />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="gratificacao">Gratificacao CCT (R$)</Label>
-                            <Input id="gratificacao" name="gratificacao" type="number" step="0.01" defaultValue="0" />
+                            <Input id="gratificacao" name="gratificacao" type="number" step="0.01" value={gratificacao} onChange={e => setGratificacao(e.target.value)} />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="outrosAdicionais">Outros Adicionais (R$)</Label>
-                            <Input id="outrosAdicionais" name="outrosAdicionais" type="number" step="0.01" defaultValue="0" />
+                            <Input id="outrosAdicionais" name="outrosAdicionais" type="number" step="0.01" value={outrosAdicionais} onChange={e => setOutrosAdicionais(e.target.value)} />
                         </div>
                     </div>
 
