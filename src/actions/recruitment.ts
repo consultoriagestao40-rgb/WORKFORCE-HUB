@@ -114,6 +114,7 @@ export async function createVacancy(data: {
     reqAgeMin?: number;
     reqAgeMax?: number;
     plannedStartDate?: Date | string;
+    customRequirements?: any;
 }) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
@@ -147,7 +148,8 @@ export async function createVacancy(data: {
             reqKnowledge: data.reqKnowledge || null,
             reqAgeMin: data.reqAgeMin || null,
             reqAgeMax: data.reqAgeMax || null,
-            plannedStartDate: data.plannedStartDate ? new Date(data.plannedStartDate) : null
+            plannedStartDate: data.plannedStartDate ? new Date(data.plannedStartDate) : null,
+            customRequirements: data.customRequirements || null
         }
     });
 
@@ -364,7 +366,8 @@ export async function getRecruitmentBoardData() {
             reqKnowledge: v.reqKnowledge,
             reqAgeMin: v.reqAgeMin,
             reqAgeMax: v.reqAgeMax,
-            plannedStartDate: v.plannedStartDate
+            plannedStartDate: v.plannedStartDate,
+            customRequirements: v.customRequirements
         }
     }));
 
@@ -397,17 +400,34 @@ export async function getRecruitmentBoardData() {
         }
     });
 
-    // 4. Map candidates to include type and due date
+    // 4. Map candidates to include type, due date and sort by AI adherence
     const candidateStages = dbStages
         .filter(stage => stage.name !== 'R&S (Vagas)') // FIX: Remove duplicate R&S stage fetch from DB
         .map(stage => ({
             ...stage,
-            candidates: stage.candidates.map(c => ({
-                ...c,
-                type: 'CANDIDATE',
-                realId: c.id
-                // stageDueDate already included
-            }))
+            candidates: stage.candidates
+                .map(c => ({
+                    ...c,
+                    type: 'CANDIDATE' as const,
+                    realId: c.id
+                }))
+                .sort((a, b) => {
+                    const evalA = (a.requirementsEvaluation as any) || {};
+                    const evalB = (b.requirementsEvaluation as any) || {};
+                    
+                    const isDisqA = !!evalA.isDisqualified;
+                    const isDisqB = !!evalB.isDisqualified;
+                    
+                    // Disclassificados sempre ficam no final
+                    if (isDisqA && !isDisqB) return 1;
+                    if (!isDisqA && isDisqB) return -1;
+                    
+                    const scoreA = evalA.adherenceScore || 0;
+                    const scoreB = evalB.adherenceScore || 0;
+                    
+                    // Ordena por score decrescente
+                    return scoreB - scoreA;
+                })
         }));
 
     // 5. Get or Create the System "R&S" Stage for SLA persistence
@@ -1040,7 +1060,7 @@ async function purgeRedundantVacancies() {
     }
 }
 
-// --- NEW: Update Vacancy (Priority, Recruiter, Requirements, Start Date) ---
+// --- NEW: Update Vacancy (Priority, Recruiter, Requirements, Start Date, Custom Requirements) ---
 export async function updateVacancy(vacancyId: string, data: { 
     priority?: string;
     recruiterId?: string;
@@ -1050,6 +1070,7 @@ export async function updateVacancy(vacancyId: string, data: {
     reqAgeMin?: number | null;
     reqAgeMax?: number | null;
     plannedStartDate?: Date | string | null;
+    customRequirements?: any;
     title?: string;
     description?: string;
 }) {
@@ -1069,6 +1090,7 @@ export async function updateVacancy(vacancyId: string, data: {
             reqAgeMin: data.reqAgeMin !== undefined ? data.reqAgeMin : undefined,
             reqAgeMax: data.reqAgeMax !== undefined ? data.reqAgeMax : undefined,
             plannedStartDate: data.plannedStartDate !== undefined ? (data.plannedStartDate ? new Date(data.plannedStartDate) : null) : undefined,
+            customRequirements: data.customRequirements !== undefined ? data.customRequirements : undefined,
             title: data.title,
             description: data.description
         }
@@ -1253,5 +1275,334 @@ export async function getRecruitmentComments(vacancyId: string) {
             user: { select: { id: true, name: true } }
         },
         orderBy: { createdAt: 'desc' }
+    });
+}
+
+function cleanJsonResponse(text: string): string {
+    let cleaned = text.trim();
+    if (cleaned.startsWith("```")) {
+        cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
+    }
+    return cleaned;
+}
+
+export async function evaluateCandidateWithAI(candidateId: string, fileBase64?: string, mimeType?: string) {
+    const candidate = await prisma.recruitmentCandidate.findUnique({
+        where: { id: candidateId },
+        include: {
+            vacancy: {
+                include: {
+                    posto: {
+                        include: {
+                            client: true
+                        }
+                    },
+                    company: true,
+                    role: true
+                }
+            }
+        }
+    });
+
+    if (!candidate) throw new Error("Candidato não encontrado");
+
+    const vacancy = candidate.vacancy;
+    const posto = vacancy.posto;
+    const client = posto?.client;
+
+    const vacancyDetails = {
+        title: vacancy.title,
+        description: vacancy.description || "",
+        roleName: vacancy.role?.name || "",
+        reqGender: vacancy.reqGender || "Ambos",
+        reqExperience: vacancy.reqExperience || "",
+        reqKnowledge: vacancy.reqKnowledge || "",
+        reqAgeMin: vacancy.reqAgeMin || 18,
+        reqAgeMax: vacancy.reqAgeMax || 60,
+        postoAddress: client?.address || client?.name || "Não informado",
+        customRequirements: vacancy.customRequirements || []
+    };
+
+    const prompt = `
+Você é um recrutador técnico e analista de ATS inteligente.
+Você deve analisar o currículo fornecido e compará-lo com os requisitos da vaga descritos abaixo.
+
+REQUISITOS DA VAGA:
+- Título da Vaga: ${vacancyDetails.title}
+- Descrição: ${vacancyDetails.description}
+- Cargo: ${vacancyDetails.roleName}
+- Gênero Preferencial: ${vacancyDetails.reqGender}
+- Experiência Mínima: ${vacancyDetails.reqExperience}
+- Conhecimentos Gerais/Obrigatórios: ${vacancyDetails.reqKnowledge}
+- Faixa Etária Permitida: ${vacancyDetails.reqAgeMin} a ${vacancyDetails.reqAgeMax} anos
+- Posto de Trabalho: ${vacancyDetails.postoAddress}
+- Requisitos Customizados (Checklist):
+${JSON.stringify(vacancyDetails.customRequirements, null, 2)}
+
+SUA TAREFA:
+1. Extraia os dados pessoais básicos do candidato (Nome completo, Email, Telefone, Idade, Gênero e Endereço). Se não houver endereço completo, extraia Cidade/Bairro.
+2. Identifique se o candidato tem filhos menores de 5 anos (hasChildrenUnderFive: true/false). Se houver menção a filhos, veja as idades. Se não disser nada, marque false.
+3. Calcule o tempo médio de permanência nos últimos 3 empregos em meses (averageTenureMonths).
+4. Estime a distância em Km entre o endereço do candidato e o posto de trabalho (${vacancyDetails.postoAddress}). Se for na mesma cidade/região, estime uma distância realista em Km (ex: 15km, 5km, etc.).
+5. Avalie cada um dos Requisitos Customizados listados acima. Para cada item da lista (identificado pelo seu 'id' e 'name'), decida se o candidato atende (value: true) ou não atende (value: false).
+6. Verifique desclassificação: Defina isDisqualified como true se o candidato falhar em qualquer requisito marcado como "isKnockout": true, ou se estiver fora da faixa etária, ou se o gênero não corresponder ao preferencial obrigatório.
+7. Escreva um Parecer Técnico Qualitativo (aiAnalysis) curto de 2 a 3 frases resumindo a adequação do perfil.
+8. Calcule o Score de Aderência (adherenceScore) de 0 a 100 com base nos requisitos preenchidos.
+9. Gere alertas (warnings):
+   - Adicione "Média de permanência nos últimos empregos inferior a 6 meses" se a permanência média for < 6 meses.
+   - Adicione "Distância do posto de trabalho elevada" se a distância estimada for > 30 Km.
+   - Adicione "Candidata com filhos menores de 5 anos" se for mulher com filhos < 5 anos.
+
+Retorne EXCLUSIVAMENTE um objeto JSON puro, sem markdown ou texto extra, neste formato exato:
+{
+  "parsedDetails": {
+    "name": "Nome Completo",
+    "email": "email@provedor.com",
+    "phone": "(XX) XXXXX-XXXX",
+    "age": 30,
+    "gender": "Masculino",
+    "address": "Endereço do Candidato",
+    "hasChildrenUnderFive": false,
+    "averageTenureMonths": 14,
+    "distanceKm": 12.5
+  },
+  "fullText": "Texto bruto do currículo...",
+  "customEvaluations": [
+    { "reqId": "id-do-requisito", "name": "Nome do Requisito", "value": true }
+  ],
+  "adherenceScore": 85,
+  "isDisqualified": false,
+  "disqualificationReason": null,
+  "warnings": [],
+  "aiAnalysis": "Parecer qualitativo..."
+}
+`;
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error("Chave Gemini não configurada");
+
+    // Tenta v1 primeiro
+    const response = await fetch("https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + apiKey, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            contents: [
+                {
+                    parts: fileBase64 && mimeType ? [
+                        { text: prompt },
+                        { inline_data: { mime_type: mimeType, data: fileBase64 } }
+                    ] : [
+                        { text: prompt },
+                        { text: `Currículo (Texto):\n\n${candidate.resumeText || ""}` }
+                    ]
+                }
+            ]
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error(`Gemini API error: ${response.status} ${await response.text()}`);
+    }
+
+    const json = await response.json();
+    const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) throw new Error("Resposta da IA vazia");
+
+    const cleaned = cleanJsonResponse(rawText);
+    const parsedResult = JSON.parse(cleaned);
+
+    const updated = await prisma.recruitmentCandidate.update({
+        where: { id: candidateId },
+        data: {
+            name: parsedResult.parsedDetails?.name || candidate.name,
+            email: parsedResult.parsedDetails?.email || candidate.email,
+            phone: parsedResult.parsedDetails?.phone || candidate.phone,
+            resumeText: parsedResult.fullText || candidate.resumeText,
+            requirementsEvaluation: {
+                adherenceScore: parsedResult.adherenceScore || 0,
+                isDisqualified: !!parsedResult.isDisqualified,
+                disqualificationReason: parsedResult.disqualificationReason || null,
+                warnings: parsedResult.warnings || [],
+                aiAnalysis: parsedResult.aiAnalysis || "",
+                customEvaluations: parsedResult.customEvaluations || [],
+                parsedDetails: parsedResult.parsedDetails || {}
+            }
+        }
+    });
+
+    revalidatePath("/admin/recrutamento");
+    return updated;
+}
+
+export async function updateCandidateEvaluation(candidateId: string, evaluation: {
+    customEvaluations?: { reqId: string, name: string, value: boolean }[];
+    adherenceScore?: number;
+    isDisqualified?: boolean;
+    disqualificationReason?: string | null;
+    warnings?: string[];
+    notes?: string;
+}) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const candidate = await prisma.recruitmentCandidate.findUnique({
+        where: { id: candidateId }
+    });
+
+    if (!candidate) throw new Error("Candidato não encontrado");
+
+    const currentEval = (candidate.requirementsEvaluation as any) || {};
+    const updatedEval = {
+        ...currentEval,
+        ...evaluation
+    };
+
+    if (evaluation.customEvaluations) {
+        const total = evaluation.customEvaluations.length;
+        if (total > 0) {
+            const passed = evaluation.customEvaluations.filter(e => e.value).length;
+            
+            // Verifica se algum item desmarcado é eliminatório
+            const vacancy = await prisma.vacancy.findFirst({
+                where: { candidates: { some: { id: candidateId } } }
+            });
+            
+            let isKnockedOut = false;
+            let knockoutReason = "";
+            
+            if (vacancy?.customRequirements) {
+                const customReqs = vacancy.customRequirements as any[];
+                for (const evalItem of evaluation.customEvaluations) {
+                    if (!evalItem.value) {
+                        const originalReq = customReqs.find(r => r.id === evalItem.reqId);
+                        if (originalReq?.isKnockout) {
+                            isKnockedOut = true;
+                            knockoutReason = `Reprovado no item eliminatório: ${evalItem.name}`;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            updatedEval.isDisqualified = isKnockedOut;
+            updatedEval.disqualificationReason = isKnockedOut ? knockoutReason : null;
+            updatedEval.adherenceScore = Math.round((passed / total) * 100);
+        }
+    }
+
+    const updated = await prisma.recruitmentCandidate.update({
+        where: { id: candidateId },
+        data: {
+            requirementsEvaluation: updatedEval
+        }
+    });
+
+    revalidatePath("/admin/recrutamento");
+    return updated;
+}
+
+export async function createPublicCandidate(data: {
+    name: string;
+    email: string;
+    phone: string;
+    vacancyId: string;
+    fileBase64?: string;
+    fileMimeType?: string;
+}) {
+    // 1. Get first stage
+    const firstStage = await prisma.recruitmentStage.findFirst({
+        where: { isSystem: false },
+        orderBy: { order: 'asc' }
+    });
+
+    if (!firstStage) throw new Error("Nenhuma etapa de recrutamento cadastrada.");
+
+    let initialDueDate = null;
+    if (firstStage.slaDays > 0) {
+        initialDueDate = addBusinessDays(new Date(), firstStage.slaDays);
+    }
+
+    let newCandidateId = "";
+
+    await prisma.$transaction(async (tx) => {
+        const candidate = await tx.recruitmentCandidate.create({
+            data: {
+                name: data.name,
+                email: data.email,
+                phone: data.phone,
+                vacancyId: data.vacancyId,
+                stageId: firstStage.id,
+                stageDueDate: initialDueDate,
+                appliedFromPublicForm: true
+            }
+        });
+
+        newCandidateId = candidate.id;
+
+        await tx.recruitmentTimeline.create({
+            data: {
+                candidateId: candidate.id,
+                vacancyId: data.vacancyId,
+                candidateName: data.name,
+                action: "CREATED",
+                details: `Candidato se inscreveu via formulário público (Meta Ads).`,
+                userId: null
+            }
+        });
+    });
+
+    if (data.fileBase64 && data.fileMimeType) {
+        try {
+            await evaluateCandidateWithAI(newCandidateId, data.fileBase64, data.fileMimeType);
+        } catch (err) {
+            console.error("Erro na triagem automática da inscrição pública:", err);
+        }
+    }
+
+    const vacancy = await prisma.vacancy.findUnique({
+        where: { id: data.vacancyId },
+        select: { recruiterId: true, title: true }
+    });
+
+    if (vacancy?.recruiterId) {
+        await createNotification(
+            vacancy.recruiterId,
+            "Nova Inscrição Pública",
+            `Novo candidato "${data.name}" se inscreveu para a vaga: ${vacancy.title}`,
+            'SYSTEM',
+            '/admin/recrutamento'
+        );
+    }
+
+    revalidatePath("/admin/recrutamento");
+    return { success: true, candidateId: newCandidateId };
+}
+
+export async function getVacancyCandidates(vacancyId: string) {
+    const user = await getCurrentUser();
+    if (!user) return [];
+
+    const candidates = await prisma.recruitmentCandidate.findMany({
+        where: { vacancyId },
+        include: {
+            stage: true
+        }
+    });
+
+    // Ordenação do ranking
+    return candidates.sort((a, b) => {
+        const evalA = (a.requirementsEvaluation as any) || {};
+        const evalB = (b.requirementsEvaluation as any) || {};
+        
+        const isDisqA = !!evalA.isDisqualified;
+        const isDisqB = !!evalB.isDisqualified;
+        
+        if (isDisqA && !isDisqB) return 1;
+        if (!isDisqA && isDisqB) return -1;
+        
+        const scoreA = evalA.adherenceScore || 0;
+        const scoreB = evalB.adherenceScore || 0;
+        
+        return scoreB - scoreA;
     });
 }

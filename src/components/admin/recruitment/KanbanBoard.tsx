@@ -31,6 +31,8 @@ interface Candidate {
     createdAt: Date;
     updatedAt?: Date; // NEW
     stageDueDate?: Date; // NEW
+    requirementsEvaluation?: any;
+    appliedFromPublicForm?: boolean;
     vacancy: {
         id?: string; // NEW: Added to fix TS error
         title: string;
@@ -45,6 +47,8 @@ interface Candidate {
         company?: { name: string } | null;
         description?: string;
         createdAt?: Date; // NEW
+        plannedStartDate?: Date | string | null;
+        customRequirements?: any;
     };
     stage?: { id: string; name: string; approverId?: string | null }; // Needed for approval logic
 }
@@ -469,13 +473,35 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                 className={`bg-white p-3 rounded shadow-sm border hover:shadow-md transition-shadow mb-3 group cursor-pointer
                                                                     ${candidate.type === 'VACANCY' ? 'bg-white border-indigo-100' : 'bg-white border-slate-200'}
                                                                     ${snapshot.isDragging ? 'rotate-2 shadow-lg ring-2 ring-indigo-500/20' : ''}
-`}
+                                                                    ${candidate.type === 'CANDIDATE' && candidate.requirementsEvaluation?.isDisqualified ? 'opacity-65 border-red-200 bg-red-50/20' : ''}
+                                                                `}
                                                                 onClick={() => handleCardClick(candidate)}
                                                             >
                                                                 {/* Header: Title and Priority */}
                                                                 <div className="flex justify-between items-start mb-2">
-                                                                    <div className="font-bold text-slate-800 line-clamp-2 leading-tight flex-1 mr-2 text-sm">
-                                                                        {candidate.type === 'VACANCY' ? candidate.vacancy.title : candidate.name}
+                                                                    <div className="font-bold text-slate-800 line-clamp-2 leading-tight flex-1 mr-2 text-sm flex flex-col gap-1">
+                                                                        <span>{candidate.type === 'VACANCY' ? candidate.vacancy.title : candidate.name}</span>
+                                                                        {candidate.type === 'VACANCY' && candidate.vacancy.plannedStartDate && (
+                                                                            <span className="text-[10px] text-indigo-500 font-semibold">Início Planejado: {new Date(candidate.vacancy.plannedStartDate).toLocaleDateString('pt-BR')}</span>
+                                                                        )}
+                                                                        {candidate.type === 'CANDIDATE' && (
+                                                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                                                {candidate.requirementsEvaluation?.isDisqualified ? (
+                                                                                    <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase tracking-wider">ELIMINADO</span>
+                                                                                ) : candidate.requirementsEvaluation?.adherenceScore !== undefined ? (
+                                                                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider
+                                                                                        ${candidate.requirementsEvaluation.adherenceScore >= 75 ? 'bg-emerald-100 text-emerald-800' : 
+                                                                                          candidate.requirementsEvaluation.adherenceScore >= 50 ? 'bg-amber-100 text-amber-800' : 
+                                                                                          'bg-red-100 text-red-800'}
+                                                                                    `}>
+                                                                                        {candidate.requirementsEvaluation.adherenceScore}% Aderência
+                                                                                    </span>
+                                                                                ) : null}
+                                                                                {candidate.appliedFromPublicForm && (
+                                                                                    <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[9px] font-black uppercase tracking-wider" title="Inscrição pública via Meta Ads">Meta Ads</span>
+                                                                                )}
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                     <Badge variant={candidate.vacancy.priority === 'URGENT' ? 'destructive' : 'secondary'} className="text-[10px] px-1.5 py-0 h-5 shrink-0">
                                                                         {candidate.vacancy.priority === 'URGENT' ? 'Urg' : candidate.vacancy.priority === 'HIGH' ? 'Alta' : 'Nor'}

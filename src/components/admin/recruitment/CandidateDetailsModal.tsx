@@ -6,9 +6,9 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { X, MessageSquare, Send, Paperclip, CheckCircle2, XCircle, Clock, Save, User, Mail, Phone, Calendar, Briefcase, MapPin, Building2, Building, DollarSign, AlertCircle, Trash2 } from "lucide-react";
+import { X, MessageSquare, Send, Paperclip, CheckCircle2, XCircle, Clock, Save, User, Mail, Phone, Calendar, Briefcase, MapPin, Building2, Building, DollarSign, AlertCircle, Trash2, Copy, FileText, Upload, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate, updateVacancy, addVacancyParticipant, removeVacancyParticipant, addRecruitmentComment, getRecruitmentComments } from "@/actions/recruitment";
+import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate, updateVacancy, addVacancyParticipant, removeVacancyParticipant, addRecruitmentComment, getRecruitmentComments, getVacancyCandidates, evaluateCandidateWithAI, updateCandidateEvaluation } from "@/actions/recruitment";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -49,6 +49,15 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
     const [plannedStartDate, setPlannedStartDate] = useState("");
     const [isSavingRequirements, setIsSavingRequirements] = useState(false);
 
+    // ATS & Checklist personalizados
+    const [vacancyReqs, setVacancyReqs] = useState<{ id: string, name: string, isKnockout: boolean }[]>([]);
+    const [newReqText, setNewReqText] = useState("");
+    const [newReqIsKnockout, setNewReqIsKnockout] = useState(false);
+    const [rankedCandidates, setRankedCandidates] = useState<any[]>([]);
+    const [isLoadingRanked, setIsLoadingRanked] = useState(false);
+    const [isUploadingCv, setIsUploadingCv] = useState(false);
+    const [notes, setNotes] = useState("");
+
     const handleSaveRequirements = async () => {
         if (!candidate?.vacancy?.id) return;
         setIsSavingRequirements(true);
@@ -70,6 +79,86 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
         }
     };
 
+    const handleAddVacancyReq = async () => {
+        if (!newReqText.trim() || !candidate?.vacancy?.id) return;
+        const updated = [
+            ...vacancyReqs,
+            { id: `req-${Date.now()}`, name: newReqText.trim(), isKnockout: newReqIsKnockout }
+        ];
+        setVacancyReqs(updated);
+        setNewReqText("");
+        setNewReqIsKnockout(false);
+        
+        await updateVacancy(candidate.vacancy.id, { customRequirements: updated });
+        toast.success("Checklist da vaga atualizado!");
+        router.refresh();
+    };
+
+    const handleRemoveVacancyReq = async (id: string) => {
+        if (!candidate?.vacancy?.id) return;
+        const updated = vacancyReqs.filter(r => r.id !== id);
+        setVacancyReqs(updated);
+        await updateVacancy(candidate.vacancy.id, { customRequirements: updated });
+        toast.success("Requisito removido!");
+        router.refresh();
+    };
+
+    const handleToggleCustomReq = async (reqId: string, currentValue: boolean) => {
+        if (!candidate?.id) return;
+        const evaluation = candidate.requirementsEvaluation || {};
+        const currentEvaluations = evaluation.customEvaluations || [];
+        
+        let updatedEvaluations = [...currentEvaluations];
+        if (currentEvaluations.some((e: any) => e.reqId === reqId)) {
+            updatedEvaluations = currentEvaluations.map((e: any) => 
+                e.reqId === reqId ? { ...e, value: !currentValue } : e
+            );
+        } else {
+            const reqObj = (candidate.vacancy?.customRequirements as any[] || []).find(r => r.id === reqId);
+            if (reqObj) {
+                updatedEvaluations.push({ reqId, name: reqObj.name, value: !currentValue });
+            }
+        }
+        
+        await updateCandidateEvaluation(candidate.id, {
+            customEvaluations: updatedEvaluations
+        });
+        toast.success("Avaliação atualizada!");
+        router.refresh();
+        onOpenChange(false);
+    };
+
+    const handleSaveNotes = async () => {
+        if (!candidate?.id) return;
+        await updateCandidateEvaluation(candidate.id, { notes });
+        toast.success("Observações salvas!");
+        router.refresh();
+    };
+
+    const handleManualCvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !candidate?.id) return;
+        setIsUploadingCv(true);
+        try {
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const result = reader.result as string;
+                const base64 = result.split(",")[1];
+                toast.info("Processando currículo com IA do Gemini...");
+                await evaluateCandidateWithAI(candidate.id, base64, file.type);
+                toast.success("Triagem por IA concluída com sucesso!");
+                router.refresh();
+                onOpenChange(false);
+            };
+            reader.readAsDataURL(file);
+        } catch (err) {
+            console.error(err);
+            toast.error("Erro ao analisar currículo");
+        } finally {
+            setIsUploadingCv(false);
+        }
+    };
+
     useEffect(() => {
         if (open && candidate) {
             setReqGender(candidate.vacancy?.reqGender || "Ambos");
@@ -78,6 +167,16 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
             setReqAgeMax(candidate.vacancy?.reqAgeMax?.toString() || "");
             setReqKnowledge(candidate.vacancy?.reqKnowledge || "");
             setPlannedStartDate(candidate.vacancy?.plannedStartDate ? new Date(candidate.vacancy.plannedStartDate).toISOString().split('T')[0] : "");
+            setVacancyReqs(candidate.vacancy?.customRequirements ? (candidate.vacancy.customRequirements as any[]) : []);
+            setNotes(candidate.requirementsEvaluation?.notes || "");
+
+            if (candidate.type === 'VACANCY') {
+                setIsLoadingRanked(true);
+                getVacancyCandidates(candidate.realId || candidate.id.replace('VAC-', ''))
+                    .then(res => setRankedCandidates(res))
+                    .catch(err => console.error("Error loading candidates:", err))
+                    .finally(() => setIsLoadingRanked(false));
+            }
 
             setLoadingTimeline(true);
             const fetchTimeline = async () => {
@@ -159,8 +258,9 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                     </DialogHeader>
 
                     <Tabs defaultValue="details" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
+                        <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="details">Detalhes</TabsTrigger>
+                            <TabsTrigger value="ats">Triagem Inteligente (ATS)</TabsTrigger>
                             <TabsTrigger value="history">Histórico & Auditoria</TabsTrigger>
                         </TabsList>
 
@@ -494,6 +594,328 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
 
                             {candidate.vacancy && (
                                 <CommentsSection vacancyId={candidate.vacancy.id} currentUser={currentUser} users={recruiters} />
+                            )}
+                        </TabsContent>
+                        
+                        <TabsContent value="ats" className="mt-4">
+                            {candidate.type === 'VACANCY' ? (
+                                <div className="space-y-6 py-2">
+                                    {/* Link de Captação Meta Ads */}
+                                    <div className="bg-gradient-to-r from-indigo-900/10 via-indigo-900/5 to-indigo-900/0 border border-indigo-100 p-4 rounded-xl space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <span className="p-1.5 bg-indigo-100 rounded text-indigo-700 font-bold text-[10px] uppercase tracking-wide">Meta Ads</span>
+                                            <h4 className="text-sm font-bold text-slate-800">Link Público de Candidatura</h4>
+                                        </div>
+                                        <p className="text-xs text-slate-500">Divulgue este link patrocinado no Instagram e Facebook. Os currículos enviados pelos candidatos serão analisados pela IA na hora e cairão direto no seu Kanban.</p>
+                                        
+                                        <div className="flex gap-2">
+                                            <input 
+                                                type="text" 
+                                                readOnly 
+                                                value={typeof window !== 'undefined' ? `${window.location.origin}/candidatar/${candidate.realId || candidate.id.replace('VAC-', '')}` : ''} 
+                                                className="bg-white border text-xs rounded px-3 py-1.5 flex-1 focus:outline-none"
+                                            />
+                                            <Button 
+                                                size="sm" 
+                                                onClick={() => {
+                                                    const url = `${window.location.origin}/candidatar/${candidate.realId || candidate.id.replace('VAC-', '')}`;
+                                                    navigator.clipboard.writeText(url);
+                                                    toast.success("Link copiado para a área de transferência!");
+                                                }}
+                                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 flex items-center gap-1 shrink-0"
+                                            >
+                                                <Copy className="w-3.5 h-3.5" />
+                                                Copiar Link
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {/* Configuração de Checklist de Requisitos da Vaga */}
+                                    <div className="bg-white border rounded-xl p-4 space-y-4 shadow-sm">
+                                        <div className="border-b pb-2">
+                                            <h3 className="font-bold text-slate-800 text-sm">Checklist de Requisitos</h3>
+                                            <p className="text-xs text-slate-400">Adicione e remova requisitos eliminatórios ou desejáveis para esta vaga.</p>
+                                        </div>
+
+                                        <div className="flex gap-2 items-end bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                            <div className="flex-1 space-y-1">
+                                                <label className="text-[10px] uppercase font-black text-slate-500 block">Novo Requisito</label>
+                                                <input
+                                                    type="text"
+                                                    value={newReqText}
+                                                    onChange={(e) => setNewReqText(e.target.value)}
+                                                    placeholder="Ex: Não fumante, Possuir CNH D, Não ter trabalhado no cliente..."
+                                                    className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none"
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-2 h-9 px-2 bg-white rounded border">
+                                                <input
+                                                    type="checkbox"
+                                                    id="vac-req-knockout"
+                                                    checked={newReqIsKnockout}
+                                                    onChange={(e) => setNewReqIsKnockout(e.target.checked)}
+                                                    className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                                />
+                                                <label htmlFor="vac-req-knockout" className="cursor-pointer text-xs font-semibold text-red-700 select-none">Eliminatório</label>
+                                            </div>
+                                            <Button 
+                                                type="button" 
+                                                onClick={handleAddVacancyReq}
+                                                className="bg-slate-900 hover:bg-slate-800 text-white h-9"
+                                                size="sm"
+                                            >
+                                                Adicionar
+                                            </Button>
+                                        </div>
+
+                                        {/* Lista de Requisitos */}
+                                        <div className="space-y-2">
+                                            {vacancyReqs.length === 0 ? (
+                                                <div className="text-center py-4 text-xs text-slate-400">Nenhum requisito cadastrado ainda.</div>
+                                            ) : (
+                                                vacancyReqs.map((req) => (
+                                                    <div key={req.id} className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-100 text-xs">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-semibold text-slate-800">{req.name}</span>
+                                                            {req.isKnockout && (
+                                                                <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase tracking-wider">Eliminatório</span>
+                                                            )}
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleRemoveVacancyReq(req.id)}
+                                                            className="text-red-500 hover:text-red-700 h-6 w-6 p-0 flex items-center justify-center font-bold text-xs"
+                                                        >
+                                                            ×
+                                                        </Button>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Ranking de Candidatos Avaliados */}
+                                    <div className="bg-white border rounded-xl p-4 space-y-4 shadow-sm">
+                                        <div className="border-b pb-2">
+                                            <h3 className="font-bold text-slate-800 text-sm">Ranking de Candidatos ({rankedCandidates.length})</h3>
+                                            <p className="text-xs text-slate-400">Candidatos inscritos nesta vaga, ordenados por pontuação de aderência da IA.</p>
+                                        </div>
+
+                                        {isLoadingRanked ? (
+                                            <div className="text-center py-6 text-xs text-slate-400 flex items-center justify-center gap-2">
+                                                <span>Carregando ranking do ATS...</span>
+                                            </div>
+                                        ) : rankedCandidates.length === 0 ? (
+                                            <div className="text-center py-6 text-xs text-slate-400">Nenhum candidato inscrito nesta vaga ainda.</div>
+                                        ) : (
+                                            <div className="divide-y max-h-64 overflow-y-auto">
+                                                {rankedCandidates.map((cand, idx) => {
+                                                    const evaluation = cand.requirementsEvaluation || {};
+                                                    return (
+                                                        <div key={cand.id} className="flex justify-between items-center py-2.5 text-xs">
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="font-bold text-slate-400 w-5">#{idx + 1}</span>
+                                                                <div>
+                                                                    <span className="font-semibold text-slate-800 block">{cand.name}</span>
+                                                                    <span className="text-[10px] text-slate-400 uppercase tracking-wide">Etapa: {cand.stage?.name || 'Inscrição'}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                {evaluation.isDisqualified ? (
+                                                                    <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase tracking-wider">ELIMINADO</span>
+                                                                ) : evaluation.adherenceScore !== undefined ? (
+                                                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider
+                                                                        ${evaluation.adherenceScore >= 75 ? 'bg-emerald-100 text-emerald-800' : 
+                                                                          evaluation.adherenceScore >= 50 ? 'bg-amber-100 text-amber-800' : 
+                                                                          'bg-red-100 text-red-800'}
+                                                                    `}>
+                                                                        {evaluation.adherenceScore}% Aderência
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-[10px] text-slate-400">Sem Triagem</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-5 py-2">
+                                    {/* Modo Candidato */}
+                                    {/* Upload Manual do CV */}
+                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 flex items-center justify-between gap-4">
+                                        <div className="space-y-1">
+                                            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Subir/Atualizar Currículo (CV)</h4>
+                                            <p className="text-[11px] text-slate-500">Envie o arquivo PDF ou imagem do currículo para a IA analisar o perfil do candidato na hora.</p>
+                                        </div>
+                                        <label className={`cursor-pointer shrink-0 inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-3 h-9 rounded-lg shadow-sm transition-all
+                                            ${isUploadingCv ? 'opacity-50 cursor-not-allowed' : ''}
+                                        `}>
+                                            <Upload className="w-3.5 h-3.5" />
+                                            {isUploadingCv ? 'Analisando...' : 'Anexar CV'}
+                                            <input 
+                                                type="file" 
+                                                accept=".pdf,.png,.jpg,.jpeg" 
+                                                onChange={handleManualCvUpload} 
+                                                disabled={isUploadingCv}
+                                                className="hidden" 
+                                            />
+                                        </label>
+                                    </div>
+
+                                    {candidate.requirementsEvaluation ? (
+                                        <>
+                                            {/* Score de Aderência */}
+                                            <div className="bg-white border rounded-xl p-4 space-y-3 shadow-sm">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Aderência do Candidato</span>
+                                                    <span className={`text-lg font-black
+                                                        ${candidate.requirementsEvaluation.isDisqualified ? 'text-red-600' :
+                                                          candidate.requirementsEvaluation.adherenceScore >= 75 ? 'text-emerald-600' :
+                                                          candidate.requirementsEvaluation.adherenceScore >= 50 ? 'text-amber-600' :
+                                                          'text-red-600'}
+                                                    `}>
+                                                        {candidate.requirementsEvaluation.isDisqualified ? 'Desclassificado' : `${candidate.requirementsEvaluation.adherenceScore}%`}
+                                                    </span>
+                                                </div>
+
+                                                {/* Progress Bar */}
+                                                {!candidate.requirementsEvaluation.isDisqualified && (
+                                                    <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                                                        <div 
+                                                            className={`h-full transition-all duration-500 
+                                                                ${candidate.requirementsEvaluation.adherenceScore >= 75 ? 'bg-emerald-500' : 
+                                                                  candidate.requirementsEvaluation.adherenceScore >= 50 ? 'bg-amber-500' : 
+                                                                  'bg-red-500'}
+                                                            `}
+                                                            style={{ width: `${candidate.requirementsEvaluation.adherenceScore}%` }}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {candidate.requirementsEvaluation.isDisqualified && (
+                                                    <div className="flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800 items-start">
+                                                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                                                        <div>
+                                                            <span className="font-bold block">Candidato Desclassificado por Requisito Eliminatório</span>
+                                                            <span className="mt-0.5 block">{candidate.requirementsEvaluation.disqualificationReason || 'Não atendeu a um dos requisitos eliminatórios configurados para esta vaga.'}</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Alertas & Avisos */}
+                                            {candidate.requirementsEvaluation.warnings && candidate.requirementsEvaluation.warnings.length > 0 && (
+                                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2 shadow-sm">
+                                                    <div className="flex items-center gap-1.5 text-amber-800 font-bold text-xs uppercase tracking-wider">
+                                                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                                                        Alertas Operacionais de Risco
+                                                    </div>
+                                                    <ul className="list-disc pl-4 text-xs text-amber-800 space-y-1">
+                                                        {candidate.requirementsEvaluation.warnings.map((w: string, i: number) => (
+                                                            <li key={i}>{w}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+
+                                            {/* Checklist Interativo */}
+                                            <div className="bg-white border rounded-xl p-4 space-y-3 shadow-sm">
+                                                <div className="border-b pb-2">
+                                                    <h3 className="font-bold text-slate-800 text-sm">Checklist de Requisitos</h3>
+                                                    <p className="text-xs text-slate-400">Verifique e edite manualmente as respostas de cada requisito para este candidato.</p>
+                                                </div>
+
+                                                {/* Requisitos Padrão Extraídos da IA */}
+                                                <div className="space-y-2.5">
+                                                    <div className="grid grid-cols-2 gap-3 text-xs p-2 rounded bg-slate-50 border border-slate-100">
+                                                        <div>
+                                                            <span className="text-slate-500 uppercase block text-[9px] font-black">Idade Extraída</span>
+                                                            <span className="font-semibold text-slate-800">{candidate.requirementsEvaluation.parsedDetails?.age || 'N/A'} anos</span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-slate-500 uppercase block text-[9px] font-black">Distância Estimada</span>
+                                                            <span className="font-semibold text-slate-800">
+                                                                {candidate.requirementsEvaluation.parsedDetails?.distanceKm ? `${candidate.requirementsEvaluation.parsedDetails.distanceKm} Km` : 'N/A'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="col-span-2">
+                                                            <span className="text-slate-500 uppercase block text-[9px] font-black">Endereço Encontrado</span>
+                                                            <span className="font-semibold text-slate-800 truncate block">{candidate.requirementsEvaluation.parsedDetails?.address || 'Não especificado'}</span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Requisitos Customizados Checkboxes */}
+                                                    {(candidate.vacancy?.customRequirements as any[] || []).map((req) => {
+                                                        const evalItem = (candidate.requirementsEvaluation.customEvaluations as any[] || []).find((e: any) => e.reqId === req.id);
+                                                        const value = evalItem ? !!evalItem.value : false;
+                                                        return (
+                                                            <div key={req.id} className="flex items-center justify-between p-2.5 rounded border border-slate-100 bg-white hover:bg-slate-50/50">
+                                                                <div className="flex items-center gap-2.5">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        id={`check-${req.id}`}
+                                                                        checked={value}
+                                                                        onChange={() => handleToggleCustomReq(req.id, value)}
+                                                                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                                                                    />
+                                                                    <label htmlFor={`check-${req.id}`} className="cursor-pointer text-xs font-medium text-slate-800 select-none">
+                                                                        {req.name}
+                                                                    </label>
+                                                                </div>
+                                                                {req.isKnockout && (
+                                                                    <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase tracking-wider">Eliminatório</span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+
+                                            {/* Parecer IA */}
+                                            {candidate.requirementsEvaluation.aiAnalysis && (
+                                                <div className="bg-white border rounded-xl p-4 space-y-2 shadow-sm">
+                                                    <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Parecer Técnico da IA</h3>
+                                                    <p className="text-xs text-slate-600 italic leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                                        "{candidate.requirementsEvaluation.aiAnalysis}"
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* Observações do Entrevistador */}
+                                            <div className="bg-white border rounded-xl p-4 space-y-3 shadow-sm">
+                                                <div className="flex justify-between items-center">
+                                                    <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Observações do Entrevistador</h3>
+                                                    <Button 
+                                                        size="sm" 
+                                                        onClick={handleSaveNotes}
+                                                        className="bg-indigo-600 hover:bg-indigo-700 text-white h-7 px-3 text-xs"
+                                                    >
+                                                        <Save className="w-3.5 h-3.5 mr-1" />
+                                                        Salvar Notas
+                                                    </Button>
+                                                </div>
+                                                <Textarea
+                                                    value={notes}
+                                                    onChange={(e) => setNotes(e.target.value)}
+                                                    placeholder="Digite aqui as observações coletadas durante a entrevista e triagem..."
+                                                    className="min-h-24 text-xs bg-slate-50 border-slate-200"
+                                                />
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="bg-white border rounded-xl p-8 flex flex-col items-center justify-center text-center space-y-3 shadow-sm">
+                                            <FileText className="w-12 h-12 text-slate-300" />
+                                            <h4 className="font-bold text-slate-700 text-sm">Nenhuma triagem por IA realizada</h4>
+                                            <p className="text-xs text-slate-400 max-w-xs">Faça o upload do currículo acima para rodar a triagem inteligente com a IA do Gemini em 5 segundos.</p>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </TabsContent>
 

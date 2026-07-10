@@ -46,6 +46,26 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
         plannedStartDate: ""
     });
 
+    const [customReqs, setCustomReqs] = useState<{ id: string, name: string, isKnockout: boolean }[]>([]);
+    const [newReqText, setNewReqText] = useState("");
+    const [newReqIsKnockout, setNewReqIsKnockout] = useState(false);
+
+    const handleAddReq = () => {
+        if (!newReqText.trim()) return;
+        const newReq = {
+            id: `req-${Date.now()}`,
+            name: newReqText.trim(),
+            isKnockout: newReqIsKnockout
+        };
+        setCustomReqs([...customReqs, newReq]);
+        setNewReqText("");
+        setNewReqIsKnockout(false);
+    };
+
+    const handleRemoveReq = (id: string) => {
+        setCustomReqs(customReqs.filter(r => r.id !== id));
+    };
+
     const toTitleCase = (str: string) => {
         return str.toLowerCase().split(' ').map(word => {
             if (['de', 'da', 'do', 'dos', 'das', 'e'].includes(word)) return word;
@@ -92,7 +112,8 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
                 reqKnowledge: formData.reqKnowledge || undefined,
                 reqAgeMin: formData.reqAgeMin ? parseInt(formData.reqAgeMin) : undefined,
                 reqAgeMax: formData.reqAgeMax ? parseInt(formData.reqAgeMax) : undefined,
-                plannedStartDate: formData.plannedStartDate || undefined
+                plannedStartDate: formData.plannedStartDate || undefined,
+                customRequirements: customReqs
             });
             toast.success("Vaga criada com sucesso!");
             onOpenChange(false);
@@ -111,6 +132,7 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
                 reqAgeMax: "",
                 plannedStartDate: ""
             });
+            setCustomReqs([]);
             setUseBacklog(false);
         } catch (error) {
             toast.error("Erro ao criar vaga");
@@ -276,6 +298,68 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
                                 onChange={(e) => setFormData({ ...formData, reqKnowledge: e.target.value })}
                                 placeholder="Ex: Informática básica (necessário p/ digitar relatórios), CNH categoria B, curso de formação de vigilante ativo, etc."
                             />
+                        </div>
+
+                        {/* Construtor de Checklist */}
+                        <div className="border-t border-slate-200/50 pt-4 mt-2 space-y-3">
+                            <Label className="text-slate-900 font-bold block">Checklist de Requisitos da Vaga</Label>
+                            <p className="text-[11px] text-slate-500">Adicione itens específicos para avaliar o candidato. Marque como "Eliminatório" se for mandatório (reprova o candidato automaticamente se não preencher).</p>
+                            
+                            <div className="flex gap-2 items-end bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                <div className="flex-1 space-y-1">
+                                    <Label htmlFor="new-req-text" className="text-[10px] uppercase font-bold text-slate-500">Descrição do Requisito</Label>
+                                    <Input
+                                        id="new-req-text"
+                                        value={newReqText}
+                                        onChange={(e) => setNewReqText(e.target.value)}
+                                        placeholder="Ex: Não fumante, CNH categoria D, Não ter trabalhado no cliente..."
+                                        className="bg-white h-9"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2 h-9 px-2 bg-white rounded border border-input">
+                                    <input
+                                        type="checkbox"
+                                        id="new-req-knockout"
+                                        checked={newReqIsKnockout}
+                                        onChange={(e) => setNewReqIsKnockout(e.target.checked)}
+                                        className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                    />
+                                    <Label htmlFor="new-req-knockout" className="cursor-pointer text-xs font-semibold text-red-700">Eliminatório</Label>
+                                </div>
+                                <Button 
+                                    type="button" 
+                                    onClick={handleAddReq}
+                                    className="bg-slate-900 hover:bg-slate-800 text-white h-9"
+                                    size="sm"
+                                >
+                                    Adicionar
+                                </Button>
+                            </div>
+
+                            {/* Lista de Requisitos Adicionados */}
+                            {customReqs.length > 0 && (
+                                <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-2 bg-white">
+                                    {customReqs.map((req) => (
+                                        <div key={req.id} className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-100 text-xs">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-semibold text-slate-800">{req.name}</span>
+                                                {req.isKnockout && (
+                                                    <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase tracking-wider">Eliminatório</span>
+                                                )}
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleRemoveReq(req.id)}
+                                                className="text-red-500 hover:text-red-700 h-6 w-6 p-0 flex items-center justify-center font-bold text-xs"
+                                            >
+                                                ×
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 
