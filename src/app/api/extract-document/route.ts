@@ -1,5 +1,77 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// Modelos em ordem de preferência
+const MODELS = [
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash-8b",
+];
+
+const PROMPT = `Você é um especialista em OCR inteligente de documentos pessoais para sistemas de RH.
+Analise a imagem ou PDF anexado (RG, CNH, CPF, CTPS, Passaporte ou comprovante de residência).
+Extraia as informações e retorne EXCLUSIVAMENTE um objeto JSON puro, sem markdown, no formato:
+
+{
+  "name": string | null,
+  "cpf": string | null,
+  "birthDate": string | null,
+  "gender": "Masculino" | "Feminino" | "Outro" | null,
+  "address": string | null,
+  "phone": string | null,
+  "email": string | null
+}
+
+Regras:
+1. Retorne apenas o JSON puro, sem \`\`\`json ou texto extra.
+2. birthDate no formato YYYY-MM-DD.
+3. cpf no formato 000.000.000-00.
+4. name em MAIÚSCULAS.
+5. Se um campo não existir no documento, use null.`;
+
+async function callGemini(apiKey: string, model: string, base64Data: string, mimeType: string) {
+    const isOAuthToken = apiKey.startsWith("AQ.") || apiKey.startsWith("ya29.");
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent${isOAuthToken ? "" : `?key=${apiKey}`}`;
+
+    const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+    };
+
+    if (isOAuthToken) {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+    }
+
+    const body = {
+        contents: [
+            {
+                parts: [
+                    { text: PROMPT },
+                    { inline_data: { mime_type: mimeType, data: base64Data } },
+                ],
+            },
+        ],
+        generationConfig: {
+            response_mime_type: "application/json",
+        },
+    };
+
+    const response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`[${response.status}] ${err}`);
+    }
+
+    const json = await response.json();
+    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error("Resposta vazia da IA.");
+    return text;
+}
 
 export async function POST(req: NextRequest) {
     try {
@@ -26,54 +98,34 @@ export async function POST(req: NextRequest) {
         const base64Data = Buffer.from(arrayBuffer).toString("base64");
         const fileMimeType = file.type || "image/jpeg";
 
-        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
-            generationConfig: { responseMimeType: "application/json" },
-        });
+        let lastError = "";
 
-        const prompt = `Você é um especialista em OCR inteligente de documentos pessoais para sistemas de RH.
-Analise a imagem ou PDF anexado (RG, CNH, CPF, CTPS, Passaporte ou comprovante de residência).
-Extraia as informações e retorne EXCLUSIVAMENTE um objeto JSON puro, sem markdown, no formato:
+        for (const model of MODELS) {
+            try {
+                console.log(`Tentando modelo: ${model}`);
+                const responseText = await callGemini(GEMINI_API_KEY, model, base64Data, fileMimeType);
 
-{
-  "name": string | null,
-  "cpf": string | null,
-  "birthDate": string | null,
-  "gender": "Masculino" | "Feminino" | "Outro" | null,
-  "address": string | null,
-  "phone": string | null,
-  "email": string | null
-}
-
-Regras:
-1. Retorne apenas o JSON puro, sem \`\`\`json ou texto extra.
-2. birthDate no formato YYYY-MM-DD.
-3. cpf no formato 000.000.000-00.
-4. name em MAIÚSCULAS.
-5. Se um campo não existir no documento, use null.`;
-
-        const result = await model.generateContent([
-            prompt,
-            { inlineData: { data: base64Data, mimeType: fileMimeType } },
-        ]);
-
-        const responseText = result.response.text();
-
-        try {
-            const data = JSON.parse(responseText);
-            return NextResponse.json({ success: true, data });
-        } catch {
-            console.error("Falha ao parsear JSON do Gemini:", responseText);
-            return NextResponse.json(
-                {
-                    success: false,
-                    error: "A IA não retornou dados em formato legível.",
-                    rawText: responseText,
-                },
-                { status: 500 }
-            );
+                try {
+                    const data = JSON.parse(responseText);
+                    console.log(`Sucesso com modelo: ${model}`);
+                    return NextResponse.json({ success: true, data });
+                } catch {
+                    console.error(`Falha ao parsear JSON do modelo ${model}:`, responseText);
+                    lastError = "A IA não retornou dados em formato legível.";
+                    continue;
+                }
+            } catch (err: any) {
+                console.error(`Erro com modelo ${model}:`, err.message);
+                lastError = err.message;
+                continue;
+            }
         }
+
+        return NextResponse.json(
+            { success: false, error: `Todos os modelos falharam. Último erro: ${lastError}` },
+            { status: 500 }
+        );
+
     } catch (error: any) {
         console.error("Erro interno na rota de extração:", error);
         return NextResponse.json(
