@@ -78,6 +78,14 @@ async function listAvailableModels(apiKey: string): Promise<string[]> {
     return FALLBACK_MODELS;
 }
 
+function cleanJsonResponse(text: string): string {
+    let cleaned = text.trim();
+    if (cleaned.startsWith("```")) {
+        cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
+    }
+    return cleaned;
+}
+
 async function callGemini(apiKey: string, model: string, base64Data: string, mimeType: string) {
     // Tenta v1 primeiro, depois v1beta como fallback
     for (const version of ["v1", "v1beta"]) {
@@ -92,9 +100,6 @@ async function callGemini(apiKey: string, model: string, base64Data: string, mim
                     ],
                 },
             ],
-            generationConfig: {
-                responseMimeType: "application/json",
-            },
         };
 
         const response = await fetch(url, {
@@ -106,7 +111,7 @@ async function callGemini(apiKey: string, model: string, base64Data: string, mim
         if (!response.ok) {
             const err = await response.text();
             console.error(`${version}/${model} falhou:`, response.status);
-            if (response.status === 404) continue; // tenta próxima versão
+            if (response.status === 404 || response.status === 400) continue; // tenta próxima versão se for 404 ou payload rejeitado
             throw new Error(`[${response.status}] ${err}`);
         }
 
@@ -116,7 +121,7 @@ async function callGemini(apiKey: string, model: string, base64Data: string, mim
         console.log(`Sucesso: ${version}/${model}`);
         return text;
     }
-    throw new Error(`Modelo ${model} não encontrado em nenhuma versão da API.`);
+    throw new Error(`Modelo ${model} não encontrado ou incompatível em nenhuma versão da API.`);
 }
 
 export async function GET() {
@@ -163,7 +168,8 @@ export async function POST(req: NextRequest) {
                 const responseText = await callGemini(GEMINI_API_KEY, model, base64Data, fileMimeType);
 
                 try {
-                    const data = JSON.parse(responseText);
+                    const cleanedJson = cleanJsonResponse(responseText);
+                    const data = JSON.parse(cleanedJson);
                     console.log(`Sucesso com modelo: ${model}`);
                     return NextResponse.json({ success: true, data, modelUsed: model });
                 } catch {
