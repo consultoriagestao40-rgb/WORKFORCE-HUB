@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState, useEffect } from "react";
 import { ApprovalModal } from "./ApprovalModal";
+import { useRouter } from "next/navigation";
 
 interface CandidateDetailsModalProps {
     open: boolean;
@@ -31,6 +32,7 @@ interface CandidateDetailsModalProps {
 }
 
 export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdrawSuccess, stages = [], currentUser, recruiters = [] }: CandidateDetailsModalProps) {
+    const router = useRouter();
     const [timeline, setTimeline] = useState<any[]>([]);
     const [loadingTimeline, setLoadingTimeline] = useState(false);
 
@@ -38,8 +40,42 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
     const [approvalModalOpen, setApprovalModalOpen] = useState(false);
     const [approvalAction, setApprovalAction] = useState<"APPROVE" | "REJECT" | null>(null);
 
+    // Requisitos do Perfil
+    const [reqGender, setReqGender] = useState("Ambos");
+    const [reqExperience, setReqExperience] = useState("");
+    const [reqAgeMin, setReqAgeMin] = useState("");
+    const [reqAgeMax, setReqAgeMax] = useState("");
+    const [reqKnowledge, setReqKnowledge] = useState("");
+    const [isSavingRequirements, setIsSavingRequirements] = useState(false);
+
+    const handleSaveRequirements = async () => {
+        if (!candidate?.vacancy?.id) return;
+        setIsSavingRequirements(true);
+        try {
+            await updateVacancy(candidate.vacancy.id, {
+                reqGender: reqGender === "Ambos" ? "Ambos" : reqGender,
+                reqExperience: reqExperience || "",
+                reqKnowledge: reqKnowledge || "",
+                reqAgeMin: reqAgeMin ? parseInt(reqAgeMin) : null,
+                reqAgeMax: reqAgeMax ? parseInt(reqAgeMax) : null
+            });
+            toast.success("Requisitos do perfil salvados!");
+            router.refresh();
+        } catch (e) {
+            toast.error("Erro ao salvar requisitos");
+        } finally {
+            setIsSavingRequirements(false);
+        }
+    };
+
     useEffect(() => {
         if (open && candidate) {
+            setReqGender(candidate.vacancy?.reqGender || "Ambos");
+            setReqExperience(candidate.vacancy?.reqExperience || "");
+            setReqAgeMin(candidate.vacancy?.reqAgeMin?.toString() || "");
+            setReqAgeMax(candidate.vacancy?.reqAgeMax?.toString() || "");
+            setReqKnowledge(candidate.vacancy?.reqKnowledge || "");
+
             setLoadingTimeline(true);
             const fetchTimeline = async () => {
                 try {
@@ -257,6 +293,87 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                     {candidate.vacancy?.createdAt ? new Date(candidate.vacancy.createdAt).toLocaleString() : 'N/A'}
                                                 </div>
                                             </div>
+                                        </div>
+
+                                        {/* Requisitos do Perfil (Editable) */}
+                                        <div className="pt-3 border-t border-orange-100/50 space-y-3">
+                                            <div className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Perfil & Requisitos (Vaga)</div>
+                                            
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-[10px] font-medium text-slate-500 uppercase">Gênero Preferencial</label>
+                                                    <Select
+                                                        value={reqGender}
+                                                        onValueChange={setReqGender}
+                                                    >
+                                                        <SelectTrigger className="h-8 bg-white text-xs mt-1">
+                                                            <SelectValue placeholder="Selecione..." />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="Ambos">Ambos / Indiferente</SelectItem>
+                                                            <SelectItem value="Masculino">Masculino</SelectItem>
+                                                            <SelectItem value="Feminino">Feminino</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+
+                                                <div>
+                                                    <label className="text-[10px] font-medium text-slate-500 uppercase">Experiência Mínima</label>
+                                                    <input
+                                                        type="text"
+                                                        className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm transition-colors mt-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                                        value={reqExperience}
+                                                        onChange={(e) => setReqExperience(e.target.value)}
+                                                        placeholder="Ex: 6 meses, 1 ano..."
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-[10px] font-medium text-slate-500 uppercase">Idade Mínima</label>
+                                                    <input
+                                                        type="number"
+                                                        min="18"
+                                                        className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm transition-colors mt-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                                        value={reqAgeMin}
+                                                        onChange={(e) => setReqAgeMin(e.target.value)}
+                                                        placeholder="Ex: 18"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="text-[10px] font-medium text-slate-500 uppercase">Idade Máxima</label>
+                                                    <input
+                                                        type="number"
+                                                        min="18"
+                                                        className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm transition-colors mt-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                                        value={reqAgeMax}
+                                                        onChange={(e) => setReqAgeMax(e.target.value)}
+                                                        placeholder="Ex: 60"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[10px] font-medium text-slate-500 uppercase">Conhecimentos Gerais / Obrigatórios</label>
+                                                <textarea
+                                                    className="flex min-h-[60px] w-full rounded-md border border-input bg-white px-3 py-2 text-xs shadow-sm mt-1 resize-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                                    value={reqKnowledge}
+                                                    onChange={(e) => setReqKnowledge(e.target.value)}
+                                                    placeholder="Ex: Informática, CNH B..."
+                                                />
+                                            </div>
+
+                                            <Button
+                                                size="sm"
+                                                className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium text-xs h-8"
+                                                onClick={handleSaveRequirements}
+                                                disabled={isSavingRequirements}
+                                            >
+                                                <Save className="w-3.5 h-3.5 mr-1.5" />
+                                                {isSavingRequirements ? "Salvando..." : "Salvar Perfil & Requisitos"}
+                                            </Button>
                                         </div>
 
                                         {/* Participants Section */}

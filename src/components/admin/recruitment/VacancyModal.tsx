@@ -37,7 +37,12 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
         postoId: "none",
         companyId: "none",
         priority: "MEDIUM",
-        recruiterId: ""
+        recruiterId: "",
+        reqGender: "Ambos",
+        reqExperience: "",
+        reqKnowledge: "",
+        reqAgeMin: "",
+        reqAgeMax: ""
     });
 
     const toTitleCase = (str: string) => {
@@ -80,7 +85,12 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
                 postoId: formData.postoId === "none" ? undefined : formData.postoId,
                 companyId: formData.companyId === "none" ? undefined : formData.companyId,
                 priority: formData.priority,
-                recruiterId: formData.recruiterId
+                recruiterId: formData.recruiterId,
+                reqGender: formData.reqGender,
+                reqExperience: formData.reqExperience || undefined,
+                reqKnowledge: formData.reqKnowledge || undefined,
+                reqAgeMin: formData.reqAgeMin ? parseInt(formData.reqAgeMin) : undefined,
+                reqAgeMax: formData.reqAgeMax ? parseInt(formData.reqAgeMax) : undefined
             });
             toast.success("Vaga criada com sucesso!");
             onOpenChange(false);
@@ -91,7 +101,12 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
                 postoId: "none",
                 companyId: "none",
                 priority: "MEDIUM",
-                recruiterId: ""
+                recruiterId: "",
+                reqGender: "Ambos",
+                reqExperience: "",
+                reqKnowledge: "",
+                reqAgeMin: "",
+                reqAgeMax: ""
             });
             setUseBacklog(false);
         } catch (error) {
@@ -104,7 +119,7 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[800px]">
+            <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Nova Vaga</DialogTitle>
                     <DialogDescription>
@@ -180,6 +195,75 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
                             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                             placeholder="Requisitos e detalhes da vaga..."
                         />
+                    </div>
+
+                    <div className="border-t pt-4 mt-2 space-y-4">
+                        <h3 className="font-bold text-slate-800 text-sm">Perfil & Requisitos (Opcional)</h3>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="reqGender">Gênero Preferencial</Label>
+                                <Select
+                                    value={formData.reqGender}
+                                    onValueChange={(val) => setFormData({ ...formData, reqGender: val })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecione..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Ambos">Ambos / Indiferente</SelectItem>
+                                        <SelectItem value="Masculino">Masculino</SelectItem>
+                                        <SelectItem value="Feminino">Feminino</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="reqExperience">Tempo de Experiência Mínimo</Label>
+                                <Input
+                                    id="reqExperience"
+                                    value={formData.reqExperience}
+                                    onChange={(e) => setFormData({ ...formData, reqExperience: e.target.value })}
+                                    placeholder="Ex: 6 meses, 1 ano..."
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="reqAgeMin">Idade Mínima</Label>
+                                <Input
+                                    id="reqAgeMin"
+                                    type="number"
+                                    min="18"
+                                    value={formData.reqAgeMin}
+                                    onChange={(e) => setFormData({ ...formData, reqAgeMin: e.target.value })}
+                                    placeholder="Ex: 18"
+                                />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="reqAgeMax">Idade Máxima</Label>
+                                <Input
+                                    id="reqAgeMax"
+                                    type="number"
+                                    min="18"
+                                    value={formData.reqAgeMax}
+                                    onChange={(e) => setFormData({ ...formData, reqAgeMax: e.target.value })}
+                                    placeholder="Ex: 60"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="reqKnowledge">Conhecimentos Gerais / Obrigatórios</Label>
+                            <Textarea
+                                id="reqKnowledge"
+                                value={formData.reqKnowledge}
+                                onChange={(e) => setFormData({ ...formData, reqKnowledge: e.target.value })}
+                                placeholder="Ex: Informática básica (necessário p/ digitar relatórios), CNH categoria B, curso de formação de vigilante ativo, etc."
+                            />
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">

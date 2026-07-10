@@ -219,6 +219,13 @@ model Vacancy {
   recruiter    User?                  @relation(fields: [recruiterId], references: [id])
   role         Role?                  @relation(fields: [roleId], references: [id])
   participants User[]                 @relation("VacancyParticipants")
+  
+  // Requisitos do Perfil (Opcionais)
+  reqGender    String?
+  reqExperience String?
+  reqKnowledge String?
+  reqAgeMin    Int?
+  reqAgeMax    Int?
 }
 
 model RecruitmentComment {

@@ -108,6 +108,11 @@ export async function createVacancy(data: {
     companyId?: string;
     priority: string;
     recruiterId: string; // NEW Mandatory
+    reqGender?: string;
+    reqExperience?: string;
+    reqKnowledge?: string;
+    reqAgeMin?: number;
+    reqAgeMax?: number;
 }) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
@@ -135,7 +140,12 @@ export async function createVacancy(data: {
             companyId: data.companyId || null,
             priority: data.priority,
             status: "OPEN",
-            recruiterId: data.recruiterId
+            recruiterId: data.recruiterId,
+            reqGender: data.reqGender || null,
+            reqExperience: data.reqExperience || null,
+            reqKnowledge: data.reqKnowledge || null,
+            reqAgeMin: data.reqAgeMin || null,
+            reqAgeMax: data.reqAgeMax || null
         }
     });
 
@@ -346,7 +356,12 @@ export async function getRecruitmentBoardData() {
             recruiter: v.recruiter,
             createdAt: v.createdAt,
             participants: v.participants,
-            id: v.id // FIX: Add ID so frontend can access candidate.vacancy.id
+            id: v.id, // FIX: Add ID so frontend can access candidate.vacancy.id
+            reqGender: v.reqGender,
+            reqExperience: v.reqExperience,
+            reqKnowledge: v.reqKnowledge,
+            reqAgeMin: v.reqAgeMin,
+            reqAgeMax: v.reqAgeMax
         }
     }));
 
@@ -1022,8 +1037,18 @@ async function purgeRedundantVacancies() {
     }
 }
 
-// --- NEW: Update Vacancy (Priority, Recruiter) ---
-export async function updateVacancy(vacancyId: string, data: { priority?: string, recruiterId?: string }) {
+// --- NEW: Update Vacancy (Priority, Recruiter, Requirements) ---
+export async function updateVacancy(vacancyId: string, data: { 
+    priority?: string;
+    recruiterId?: string;
+    reqGender?: string | null;
+    reqExperience?: string | null;
+    reqKnowledge?: string | null;
+    reqAgeMin?: number | null;
+    reqAgeMax?: number | null;
+    title?: string;
+    description?: string;
+}) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
@@ -1033,7 +1058,14 @@ export async function updateVacancy(vacancyId: string, data: { priority?: string
         where: { id: vacancyId },
         data: {
             priority: data.priority,
-            recruiterId: data.recruiterId
+            recruiterId: data.recruiterId,
+            reqGender: data.reqGender !== undefined ? data.reqGender : undefined,
+            reqExperience: data.reqExperience !== undefined ? data.reqExperience : undefined,
+            reqKnowledge: data.reqKnowledge !== undefined ? data.reqKnowledge : undefined,
+            reqAgeMin: data.reqAgeMin !== undefined ? data.reqAgeMin : undefined,
+            reqAgeMax: data.reqAgeMax !== undefined ? data.reqAgeMax : undefined,
+            title: data.title,
+            description: data.description
         }
     });
 
