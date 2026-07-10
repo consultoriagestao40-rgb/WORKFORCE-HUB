@@ -227,6 +227,7 @@ model Vacancy {
   reqAgeMin    Int?
   reqAgeMax    Int?
   plannedStartDate DateTime?
+  customRequirements Json?
 }
 
 model RecruitmentComment {
@@ -269,6 +270,11 @@ model RecruitmentCandidate {
   stage        RecruitmentStage      @relation(fields: [stageId], references: [id])
   vacancy      Vacancy               @relation(fields: [vacancyId], references: [id])
   timeline     RecruitmentTimeline[]
+  
+  // Triagem Automática & ATS
+  requirementsEvaluation Json?
+  resumeText             String?
+  appliedFromPublicForm  Boolean @default(false)
 }
 
 model RecruitmentStage {
