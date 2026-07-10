@@ -113,6 +113,7 @@ export async function createVacancy(data: {
     reqKnowledge?: string;
     reqAgeMin?: number;
     reqAgeMax?: number;
+    plannedStartDate?: Date | string;
 }) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
@@ -145,7 +146,8 @@ export async function createVacancy(data: {
             reqExperience: data.reqExperience || null,
             reqKnowledge: data.reqKnowledge || null,
             reqAgeMin: data.reqAgeMin || null,
-            reqAgeMax: data.reqAgeMax || null
+            reqAgeMax: data.reqAgeMax || null,
+            plannedStartDate: data.plannedStartDate ? new Date(data.plannedStartDate) : null
         }
     });
 
@@ -361,7 +363,8 @@ export async function getRecruitmentBoardData() {
             reqExperience: v.reqExperience,
             reqKnowledge: v.reqKnowledge,
             reqAgeMin: v.reqAgeMin,
-            reqAgeMax: v.reqAgeMax
+            reqAgeMax: v.reqAgeMax,
+            plannedStartDate: v.plannedStartDate
         }
     }));
 
@@ -1037,7 +1040,7 @@ async function purgeRedundantVacancies() {
     }
 }
 
-// --- NEW: Update Vacancy (Priority, Recruiter, Requirements) ---
+// --- NEW: Update Vacancy (Priority, Recruiter, Requirements, Start Date) ---
 export async function updateVacancy(vacancyId: string, data: { 
     priority?: string;
     recruiterId?: string;
@@ -1046,6 +1049,7 @@ export async function updateVacancy(vacancyId: string, data: {
     reqKnowledge?: string | null;
     reqAgeMin?: number | null;
     reqAgeMax?: number | null;
+    plannedStartDate?: Date | string | null;
     title?: string;
     description?: string;
 }) {
@@ -1064,6 +1068,7 @@ export async function updateVacancy(vacancyId: string, data: {
             reqKnowledge: data.reqKnowledge !== undefined ? data.reqKnowledge : undefined,
             reqAgeMin: data.reqAgeMin !== undefined ? data.reqAgeMin : undefined,
             reqAgeMax: data.reqAgeMax !== undefined ? data.reqAgeMax : undefined,
+            plannedStartDate: data.plannedStartDate !== undefined ? (data.plannedStartDate ? new Date(data.plannedStartDate) : null) : undefined,
             title: data.title,
             description: data.description
         }

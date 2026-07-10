@@ -46,6 +46,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
     const [reqAgeMin, setReqAgeMin] = useState("");
     const [reqAgeMax, setReqAgeMax] = useState("");
     const [reqKnowledge, setReqKnowledge] = useState("");
+    const [plannedStartDate, setPlannedStartDate] = useState("");
     const [isSavingRequirements, setIsSavingRequirements] = useState(false);
 
     const handleSaveRequirements = async () => {
@@ -57,7 +58,8 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                 reqExperience: reqExperience || "",
                 reqKnowledge: reqKnowledge || "",
                 reqAgeMin: reqAgeMin ? parseInt(reqAgeMin) : null,
-                reqAgeMax: reqAgeMax ? parseInt(reqAgeMax) : null
+                reqAgeMax: reqAgeMax ? parseInt(reqAgeMax) : null,
+                plannedStartDate: plannedStartDate ? new Date(plannedStartDate) : null
             });
             toast.success("Requisitos do perfil salvados!");
             router.refresh();
@@ -75,6 +77,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
             setReqAgeMin(candidate.vacancy?.reqAgeMin?.toString() || "");
             setReqAgeMax(candidate.vacancy?.reqAgeMax?.toString() || "");
             setReqKnowledge(candidate.vacancy?.reqKnowledge || "");
+            setPlannedStartDate(candidate.vacancy?.plannedStartDate ? new Date(candidate.vacancy.plannedStartDate).toISOString().split('T')[0] : "");
 
             setLoadingTimeline(true);
             const fetchTimeline = async () => {
@@ -353,6 +356,19 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                         placeholder="Ex: 60"
                                                     />
                                                 </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-[10px] font-medium text-slate-500 uppercase">Início Planejado (Operação)</label>
+                                                    <input
+                                                        type="date"
+                                                        className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm transition-colors mt-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                                        value={plannedStartDate}
+                                                        onChange={(e) => setPlannedStartDate(e.target.value)}
+                                                    />
+                                                </div>
+                                                <div></div>
                                             </div>
 
                                             <div>

@@ -226,6 +226,7 @@ model Vacancy {
   reqKnowledge String?
   reqAgeMin    Int?
   reqAgeMax    Int?
+  plannedStartDate DateTime?
 }
 
 model RecruitmentComment {

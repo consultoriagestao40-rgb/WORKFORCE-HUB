@@ -42,7 +42,8 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
         reqExperience: "",
         reqKnowledge: "",
         reqAgeMin: "",
-        reqAgeMax: ""
+        reqAgeMax: "",
+        plannedStartDate: ""
     });
 
     const toTitleCase = (str: string) => {
@@ -90,7 +91,8 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
                 reqExperience: formData.reqExperience || undefined,
                 reqKnowledge: formData.reqKnowledge || undefined,
                 reqAgeMin: formData.reqAgeMin ? parseInt(formData.reqAgeMin) : undefined,
-                reqAgeMax: formData.reqAgeMax ? parseInt(formData.reqAgeMax) : undefined
+                reqAgeMax: formData.reqAgeMax ? parseInt(formData.reqAgeMax) : undefined,
+                plannedStartDate: formData.plannedStartDate || undefined
             });
             toast.success("Vaga criada com sucesso!");
             onOpenChange(false);
@@ -106,7 +108,8 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
                 reqExperience: "",
                 reqKnowledge: "",
                 reqAgeMin: "",
-                reqAgeMax: ""
+                reqAgeMax: "",
+                plannedStartDate: ""
             });
             setUseBacklog(false);
         } catch (error) {
@@ -253,6 +256,16 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
                                     placeholder="Ex: 60"
                                 />
                             </div>
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="plannedStartDate" className="text-orange-700 font-semibold">Data de Início Planejada (Ideal para Operação)</Label>
+                            <Input
+                                id="plannedStartDate"
+                                type="date"
+                                value={formData.plannedStartDate}
+                                onChange={(e) => setFormData({ ...formData, plannedStartDate: e.target.value })}
+                            />
                         </div>
 
                         <div className="grid gap-2">
