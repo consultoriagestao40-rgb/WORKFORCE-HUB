@@ -30,14 +30,6 @@ export async function POST(req: NextRequest) {
         // Instanciar o SDK do Gemini
         const genAI = new GoogleGenerativeAI(apiKey);
         
-        // Usar o modelo gemini-1.5-flash que é rápido e multimodal
-        const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
-            generationConfig: {
-                responseMimeType: "application/json"
-            }
-        });
-
         const prompt = `Você é um especialista em OCR inteligente de documentos pessoais para sistemas de RH de empresas. 
 Analise a imagem ou PDF anexado, que pode ser um documento de identidade (RG, CNH, CPF, CTPS, Passaporte) ou um comprovante de residência.
 Extraia as informações do colaborador com a maior precisão possível e retorne EXCLUSIVAMENTE um objeto JSON estruturado no seguinte formato:
@@ -57,16 +49,47 @@ Regras:
 2. Se um campo não estiver presente ou for ilegível, defina-o como null.
 3. Garanta que o CPF contenha pontuação e traço válidos.`;
 
-        // Chamar o Gemini enviando o prompt e a imagem/documento
-        const result = await model.generateContent([
-            prompt,
-            {
-                inlineData: {
-                    data: base64Data,
-                    mimeType: fileMimeType
+        // Tentar vários modelos em cadeia caso o fuso ou a versão da API dê 404 em algum deles
+        const modelsToTry = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-1.5-pro-latest", "gemini-1.5-pro"];
+        let result = null;
+        let lastError = null;
+
+        for (const modelName of modelsToTry) {
+            try {
+                console.log(`Tentando extração com o modelo: ${modelName}`);
+                const model = genAI.getGenerativeModel({
+                    model: modelName,
+                    generationConfig: {
+                        responseMimeType: "application/json"
+                    }
+                });
+
+                result = await model.generateContent([
+                    prompt,
+                    {
+                        inlineData: {
+                            data: base64Data,
+                            mimeType: fileMimeType
+                        }
+                    }
+                ]);
+
+                if (result) {
+                    console.log(`Sucesso com o modelo: ${modelName}`);
+                    break;
                 }
+            } catch (err: any) {
+                console.error(`Erro com modelo ${modelName}:`, err.message || err);
+                lastError = err;
             }
-        ]);
+        }
+
+        if (!result) {
+            return NextResponse.json({
+                success: false,
+                error: `A IA do Gemini não pôde processar o documento. Detalhes: ${lastError?.message || "Erro desconhecido"}`
+            }, { status: 500 });
+        }
 
         const responseText = result.response.text();
         
