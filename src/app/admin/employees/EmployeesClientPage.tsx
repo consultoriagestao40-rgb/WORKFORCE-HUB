@@ -324,6 +324,7 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                                             />
                                         </TableHead>
                                         <TableHead className="text-xs font-bold uppercase tracking-wider pl-4 py-4">Nome do Colaborador</TableHead>
+                                        <TableHead className="text-xs font-bold uppercase tracking-wider">Admissão</TableHead>
                                         <TableHead className="text-xs font-bold uppercase tracking-wider">Empresa</TableHead>
                                         <TableHead className="text-xs font-bold uppercase tracking-wider">Cargo / Função</TableHead>
                                         <TableHead className="text-xs font-bold uppercase tracking-wider">Situação Atual</TableHead>
@@ -357,6 +358,11 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                                                             <span className="text-[11px] text-slate-400 font-bold tracking-tight">{emp.cpf}</span>
                                                         </div>
                                                     </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200/60">
+                                                        {emp.admissionDate ? format(new Date(emp.admissionDate), 'dd/MM/yyyy') : "-"}
+                                                    </span>
                                                 </TableCell>
                                                 <TableCell>
                                                     <span className="text-xs font-bold text-slate-500">{emp.company?.name || '-'}</span>
@@ -428,7 +434,7 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                                     })}
                                     {filteredEmployees.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={8} className="text-center py-12 text-slate-400">
+                                            <TableCell colSpan={9} className="text-center py-12 text-slate-400">
                                                 Nenhum colaborador encontrado com os filtros atuais.
                                             </TableCell>
                                         </TableRow>
