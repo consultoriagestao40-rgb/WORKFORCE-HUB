@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Modelos em ordem de preferência
+// Modelos em ordem de preferência (nomes exatos da v1beta)
 const MODELS = [
     "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-flash-8b",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+    "gemini-pro-vision",
 ];
 
 const PROMPT = `Você é um especialista em OCR inteligente de documentos pessoais para sistemas de RH.
