@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
 import { createEmployee } from "@/app/actions";
+import { toast } from "sonner";
 
 export interface NewEmployeeSheetProps {
     situations: { id: string, name: string }[];
@@ -58,7 +59,7 @@ export function NewEmployeeSheet({
         p.id === initialData?.postoId
     );
 
-    // States controlados para preenchimento automático a partir do Posto
+    // States controlados para preenchimento automático a partir do Posto ou IA
     const [selectedPostoId, setSelectedPostoId] = useState(initialData?.postoId || "");
     const [salary, setSalary] = useState("0");
     const [insalubridade, setInsalubridade] = useState("0");
@@ -68,6 +69,18 @@ export function NewEmployeeSheet({
     const [workload, setWorkload] = useState("220");
     const [roleId, setRoleId] = useState(initialData?.roleId || "");
     const [companyId, setCompanyId] = useState(initialData?.companyId || "");
+
+    // States controlados de informações pessoais (preenchidos pela IA)
+    const [name, setName] = useState(initialData?.name || "");
+    const [cpf, setCpf] = useState(initialData?.cpf || "");
+    const [birthDate, setBirthDate] = useState("");
+    const [gender, setGender] = useState("");
+    const [address, setAddress] = useState("");
+    const [phone, setPhone] = useState(initialData?.phone || "");
+    const [email, setEmail] = useState(initialData?.email || "");
+
+    // Estado de carregamento da IA
+    const [isExtracting, setIsExtracting] = useState(false);
 
     const handlePostoChange = (postoId: string) => {
         setSelectedPostoId(postoId);
@@ -81,6 +94,44 @@ export function NewEmployeeSheet({
             setWorkload(String(posto.requiredWorkload || 220));
             setRoleId(posto.roleId || "");
             setCompanyId(posto.client?.companyId || "");
+        }
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsExtracting(true);
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const res = await fetch("/api/extract-document", {
+                method: "POST",
+                body: formData
+            });
+
+            const result = await res.json();
+            if (!result.success) {
+                toast.error(result.error || "Ocorreu um erro ao extrair os dados.");
+                return;
+            }
+
+            const data = result.data;
+            if (data.name) setName(data.name);
+            if (data.cpf) setCpf(data.cpf);
+            if (data.birthDate) setBirthDate(data.birthDate);
+            if (data.gender) setGender(data.gender);
+            if (data.address) setAddress(data.address);
+            if (data.phone) setPhone(data.phone);
+            if (data.email) setEmail(data.email);
+
+            toast.success("Dados cadastrais extraídos com sucesso via IA!");
+        } catch (error: any) {
+            toast.error("Erro ao conectar com o serviço de extração.");
+        } finally {
+            setIsExtracting(false);
+            e.target.value = ""; // Limpar input
         }
     };
 
@@ -101,6 +152,13 @@ export function NewEmployeeSheet({
         setWorkload("220");
         setRoleId("");
         setCompanyId("");
+        setName("");
+        setCpf("");
+        setBirthDate("");
+        setGender("");
+        setAddress("");
+        setPhone("");
+        setEmail("");
     };
 
     async function handleSubmit(formData: FormData) {
@@ -129,6 +187,30 @@ export function NewEmployeeSheet({
                     )}
                 </SheetHeader>
                 <form action={handleSubmit} className="space-y-4 mt-6 h-[80vh] overflow-y-auto pr-4">
+                    {/* Área de Preenchimento Inteligente por IA */}
+                    <div className="p-4 bg-orange-50/60 border border-dashed border-orange-200 rounded-2xl flex flex-col items-center justify-center text-center gap-2">
+                        {isExtracting ? (
+                            <div className="flex flex-col items-center gap-2 py-2">
+                                <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                                <span className="text-xs font-bold text-orange-700">Analisando documento com IA...</span>
+                            </div>
+                        ) : (
+                            <label className="cursor-pointer w-full flex flex-col items-center gap-1.5 py-1">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-orange-700">
+                                    <Sparkles className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
+                                    Preenchimento Inteligente (IA)
+                                </div>
+                                <span className="text-[10px] text-slate-500 font-medium">Anexe CNH, RG ou Comprovante de Residência (PDF ou imagem)</span>
+                                <input
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    className="hidden"
+                                    onChange={handleFileChange}
+                                />
+                            </label>
+                        )}
+                    </div>
+
                     <div className="space-y-2">
                         <Label htmlFor="postoId">Posto de Trabalho (Obrigatório)</Label>
                         <Select
@@ -152,7 +234,7 @@ export function NewEmployeeSheet({
 
                     <div className="space-y-2">
                         <Label htmlFor="name">Nome Completo</Label>
-                        <Input id="name" name="name" required defaultValue={initialData?.name || ''} />
+                        <Input id="name" name="name" required value={name} onChange={e => setName(e.target.value)} />
                     </div>
 
                     <div className="space-y-2">
@@ -172,7 +254,7 @@ export function NewEmployeeSheet({
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="cpf">CPF</Label>
-                            <Input id="cpf" name="cpf" placeholder="000.000.000-00" required defaultValue={initialData?.cpf || ''} />
+                            <Input id="cpf" name="cpf" placeholder="000.000.000-00" required value={cpf} onChange={e => setCpf(e.target.value)} />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="workload">Carga Horária Mensal</Label>
@@ -183,11 +265,11 @@ export function NewEmployeeSheet({
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="birthDate">Data de Nascimento</Label>
-                            <Input id="birthDate" name="birthDate" type="date" />
+                            <Input id="birthDate" name="birthDate" type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="gender">Gênero</Label>
-                            <Select name="gender">
+                            <Select name="gender" value={gender} onValueChange={setGender}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Selecione" />
                                 </SelectTrigger>
@@ -204,16 +286,16 @@ export function NewEmployeeSheet({
                     <div className="text-sm font-semibold border-b pt-4 pb-1">Contato e Endereço</div>
                     <div className="space-y-2">
                         <Label htmlFor="address">Endereço Completo</Label>
-                        <Input id="address" name="address" placeholder="Rua, Número, Bairro, Cidade - UF" />
+                        <Input id="address" name="address" placeholder="Rua, Número, Bairro, Cidade - UF" value={address} onChange={e => setAddress(e.target.value)} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="phone">Telefone / Celular</Label>
-                            <Input id="phone" name="phone" placeholder="(00) 00000-0000" defaultValue={initialData?.phone || ''} />
+                            <Input id="phone" name="phone" placeholder="(00) 00000-0000" value={phone} onChange={e => setPhone(e.target.value)} />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="email">Email Pessoal</Label>
-                            <Input id="email" name="email" type="email" placeholder="email@exemplo.com" defaultValue={initialData?.email || ''} />
+                            <Input id="email" name="email" type="email" placeholder="email@exemplo.com" value={email} onChange={e => setEmail(e.target.value)} />
                         </div>
                     </div>
 
