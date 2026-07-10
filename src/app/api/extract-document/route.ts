@@ -3,11 +3,11 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(req: NextRequest) {
     try {
-        const apiKey = process.env.GEMINI_API_KEY;
+        const apiKey = process.env.GEMINI_API_KEY || "AQ.Ab8RN6Lo2V1NdBt2lwskiWbrKlGSEp5bbEw9DxuA1UCAj5-QiQ";
         if (!apiKey) {
             return NextResponse.json({
                 success: false,
-                error: "Chave de API do Gemini não configurada. Configure a variável GEMINI_API_KEY no painel da Vercel ou no arquivo .env local."
+                error: "Chave de API do Gemini não configurada."
             }, { status: 500 });
         }
 
