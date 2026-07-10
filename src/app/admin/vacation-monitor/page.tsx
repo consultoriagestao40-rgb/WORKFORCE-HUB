@@ -47,8 +47,8 @@ async function getVacationData() {
             ? new Date(emp.updatedAt)
             : new Date();
 
-        // Soma real dos dias de férias lançados para métrica precisa
-        const actualDaysTaken = emp.vacations.reduce((acc: number, v: any) => acc + v.daysTaken, 0);
+        // Soma real dos dias de férias lançados para métrica precisa (incluindo abonos/dias comprados)
+        const actualDaysTaken = emp.vacations.reduce((acc: number, v: any) => acc + v.daysTaken + (v.daysSold || 0), 0);
 
         // Mesmo cálculo do perfil individual
         const fullYearsWorked = differenceInYears(referenceDate, admissionDate);

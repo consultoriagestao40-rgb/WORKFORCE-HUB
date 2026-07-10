@@ -989,33 +989,148 @@ export async function updateEmployee(formData: FormData) {
     revalidatePath(`/admin/employees/${id}`);
 }
 
+function validateCLTStartDate(date: Date): { isValid: boolean; reason?: string } {
+    const dayOfWeek = date.getUTCDay(); // 0 = Domingo, 5 = Sexta, 6 = Sábado
+    
+    if (dayOfWeek === 5) {
+        return { isValid: false, reason: "A CLT proíbe o início das férias na sexta-feira (dois dias que antecedem o descanso semanal remunerado)." };
+    }
+    if (dayOfWeek === 6) {
+        return { isValid: false, reason: "A CLT proíbe o início das férias no sábado (um dia que antecede o descanso semanal remunerado)." };
+    }
+    if (dayOfWeek === 0) {
+        return { isValid: false, reason: "A CLT proíbe o início das férias no domingo (dia de descanso semanal remunerado)." };
+    }
+
+    // Feriados Nacionais Fixos no Brasil (Mês é 0-indexado)
+    const holidays = [
+        { month: 0, day: 1, name: "Confraternização Universal (Ano Novo)" },
+        { month: 3, day: 21, name: "Tiradentes" },
+        { month: 4, day: 1, name: "Dia do Trabalho" },
+        { month: 8, day: 7, name: "Independência do Brasil" },
+        { month: 9, day: 12, name: "Nossa Senhora Aparecida" },
+        { month: 10, day: 2, name: "Finados" },
+        { month: 10, day: 15, name: "Proclamação da República" },
+        { month: 10, day: 20, name: "Dia da Consciência Negra" },
+        { month: 11, day: 25, name: "Natal" }
+    ];
+
+    // Verificar se a data coincide com o feriado ou com os 2 dias anteriores
+    for (let i = 0; i <= 2; i++) {
+        const checkDate = new Date(date.getTime());
+        checkDate.setUTCDate(checkDate.getUTCDate() + i);
+        
+        const checkMonth = checkDate.getUTCMonth();
+        const checkDay = checkDate.getUTCDate();
+
+        const holiday = holidays.find(h => h.month === checkMonth && h.day === checkDay);
+        if (holiday) {
+            if (i === 0) {
+                return { isValid: false, reason: `A data de início coincide com o feriado de ${holiday.name}.` };
+            } else if (i === 1) {
+                return { isValid: false, reason: `A data de início antecede em 1 dia o feriado de ${holiday.name} (vedado pela CLT).` };
+            } else if (i === 2) {
+                return { isValid: false, reason: `A data de início antecede em 2 dias o feriado de ${holiday.name} (vedado pela CLT).` };
+            }
+        }
+    }
+
+    return { isValid: true };
+}
+
 export async function addVacation(formData: FormData) {
     const employeeId = formData.get("employeeId") as string;
     const startDateStr = formData.get("startDate") as string;
     const endDateStr = formData.get("endDate") as string;
     const daysTaken = parseInt(formData.get("daysTaken") as string) || 0;
+    const daysSold = parseInt(formData.get("daysSold") as string) || 0;
 
     if (!employeeId || !startDateStr || !endDateStr) {
-        return { error: "Missing required fields" };
+        return { error: "Preencha todos os campos obrigatórios." };
     }
 
-    // Férias permitidas para agendamento futuro ou imediato
+    // Forçar UTC 00:00:00 para evitar desvios de timezone local
+    const startDate = new Date(startDateStr + "T00:00:00.000Z");
+    const endDate = new Date(endDateStr + "T00:00:00.000Z");
+
+    // Validar regras da CLT no início das férias
+    const cltValidation = validateCLTStartDate(startDate);
+    if (!cltValidation.isValid) {
+        return { error: cltValidation.reason };
+    }
+
     await prisma.vacation.create({
         data: {
             employeeId,
-            startDate: new Date(startDateStr),
-            endDate: new Date(endDateStr),
-            daysTaken
+            startDate,
+            endDate,
+            daysTaken,
+            daysSold
         }
     });
 
-    // Optionally update the current legacy fields for quick reference
+    // Atualiza os campos legados para referência rápida, somando os dias gozados + vendidos
     await prisma.employee.update({
         where: { id: employeeId },
         data: {
-            lastVacationStart: new Date(startDateStr),
-            lastVacationEnd: new Date(endDateStr),
-            totalVacationDaysTaken: { increment: daysTaken }
+            lastVacationStart: startDate,
+            lastVacationEnd: endDate,
+            totalVacationDaysTaken: { increment: daysTaken + daysSold }
+        }
+    });
+
+    revalidatePath("/admin/employees");
+    revalidatePath(`/admin/employees/${employeeId}`);
+}
+
+export async function updateVacation(formData: FormData) {
+    const vacationId = formData.get("vacationId") as string;
+    const employeeId = formData.get("employeeId") as string;
+    const startDateStr = formData.get("startDate") as string;
+    const endDateStr = formData.get("endDate") as string;
+    const daysTaken = parseInt(formData.get("daysTaken") as string) || 0;
+    const daysSold = parseInt(formData.get("daysSold") as string) || 0;
+
+    if (!vacationId || !employeeId || !startDateStr || !endDateStr) {
+        return { error: "Preencha todos os campos obrigatórios." };
+    }
+
+    // Forçar UTC 00:00:00 para evitar desvios de timezone local
+    const startDate = new Date(startDateStr + "T00:00:00.000Z");
+    const endDate = new Date(endDateStr + "T00:00:00.000Z");
+
+    // Validar regras da CLT no início das férias
+    const cltValidation = validateCLTStartDate(startDate);
+    if (!cltValidation.isValid) {
+        return { error: cltValidation.reason };
+    }
+
+    const oldVacation = await prisma.vacation.findUnique({
+        where: { id: vacationId }
+    });
+
+    if (!oldVacation) {
+        return { error: "Registro de férias não encontrado." };
+    }
+
+    const oldTotal = oldVacation.daysTaken + (oldVacation.daysSold || 0);
+    const newTotal = daysTaken + daysSold;
+    const diffTotal = newTotal - oldTotal;
+
+    await prisma.vacation.update({
+        where: { id: vacationId },
+        data: {
+            startDate,
+            endDate,
+            daysTaken,
+            daysSold
+        }
+    });
+
+    await prisma.employee.update({
+        where: { id: employeeId },
+        data: {
+            totalVacationDaysTaken: { increment: diffTotal }
         }
     });
 
@@ -1025,11 +1140,28 @@ export async function addVacation(formData: FormData) {
 
 export async function deleteVacation(vacationId: string, employeeId: string) {
     if (!vacationId || !employeeId) {
-        throw new Error("Missing ID");
+        throw new Error("ID ausente");
     }
+
+    const vacation = await prisma.vacation.findUnique({
+        where: { id: vacationId }
+    });
+
+    if (!vacation) {
+        throw new Error("Registro de férias não encontrado");
+    }
+
+    const totalDays = vacation.daysTaken + (vacation.daysSold || 0);
 
     await prisma.vacation.delete({
         where: { id: vacationId }
+    });
+
+    await prisma.employee.update({
+        where: { id: employeeId },
+        data: {
+            totalVacationDaysTaken: { decrement: totalDays }
+        }
     });
 
     revalidatePath("/admin/employees");

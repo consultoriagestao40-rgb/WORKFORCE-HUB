@@ -100,8 +100,8 @@ export default async function EmployeeProfilePage(props: {
     const fullYearsWorked = differenceInYears(referenceDate, admissionDate);
     const totalDaysEarned = fullYearsWorked * 30;
 
-    // Soma real dos dias de férias lançados
-    const actualDaysTaken = employee.vacations.reduce((acc: number, v: any) => acc + v.daysTaken, 0);
+    // Soma real dos dias de férias lançados (incluindo abonos/dias comprados)
+    const actualDaysTaken = employee.vacations.reduce((acc: number, v: any) => acc + v.daysTaken + (v.daysSold || 0), 0);
 
     const daysRemaining = totalDaysEarned - actualDaysTaken;
     const earliestPendingPeriodYear = Math.floor(actualDaysTaken / 30) + 1;
