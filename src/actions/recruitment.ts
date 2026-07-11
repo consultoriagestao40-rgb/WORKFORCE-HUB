@@ -1404,27 +1404,45 @@ Retorne EXCLUSIVAMENTE um objeto JSON puro, sem markdown ou texto extra, neste f
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("Chave Gemini não configurada");
 
-    // Tenta v1 primeiro
-    const response = await fetch("https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + apiKey, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            contents: [
-                {
-                    parts: fileBase64 && mimeType ? [
-                        { text: prompt },
-                        { inline_data: { mime_type: mimeType, data: fileBase64 } }
-                    ] : [
-                        { text: prompt },
-                        { text: `Currículo (Texto):\n\n${candidate.resumeText || ""}` }
-                    ]
-                }
-            ]
-        })
-    });
+    const models = ["gemini-2.0-flash", "gemini-2.5-flash-lite", "gemini-3.5-flash", "gemini-1.5-flash"];
+    let response = null;
+    let lastError = "";
 
-    if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.status} ${await response.text()}`);
+    for (const model of models) {
+        try {
+            const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+            const res = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [
+                        {
+                            parts: fileBase64 && mimeType ? [
+                                { text: prompt },
+                                { inline_data: { mime_type: mimeType, data: fileBase64 } }
+                            ] : [
+                                { text: prompt },
+                                { text: `Currículo (Texto):\n\n${candidate.resumeText || ""}` }
+                            ]
+                        }
+                    ]
+                })
+            });
+
+            if (res.ok) {
+                response = res;
+                break;
+            } else {
+                const errText = await res.text();
+                lastError = `Model ${model} failed with ${res.status}: ${errText}`;
+            }
+        } catch (e: any) {
+            lastError = e?.message || String(e);
+        }
+    }
+
+    if (!response) {
+        throw new Error(`Erro ao chamar a API do Gemini. Detalhes: ${lastError}`);
     }
 
     const json = await response.json();
