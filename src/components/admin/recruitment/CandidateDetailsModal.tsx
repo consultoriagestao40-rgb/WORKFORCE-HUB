@@ -60,6 +60,8 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
     const [expandedRankId, setExpandedRankId] = useState<string | null>(null);
     const [rankEvals, setRankEvals] = useState<Record<string, any[]>>({});
     const [notes, setNotes] = useState("");
+    const [isVacancyReqsExpanded, setIsVacancyReqsExpanded] = useState(false);
+
 
     const handleSaveRequirements = async () => {
         if (!candidate?.vacancy?.id) return;
@@ -106,7 +108,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
         router.refresh();
     };
 
-    const handleToggleCustomReq = async (reqId: string, currentValue: boolean) => {
+    const handleToggleCustomReq = async (reqId: string, newValue: boolean | null) => {
         if (!candidate?.id) return;
         const evaluation = candidate.requirementsEvaluation || {};
         const currentEvaluations = evaluation.customEvaluations || [];
@@ -114,12 +116,12 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
         let updatedEvaluations = [...currentEvaluations];
         if (currentEvaluations.some((e: any) => e.reqId === reqId)) {
             updatedEvaluations = currentEvaluations.map((e: any) => 
-                e.reqId === reqId ? { ...e, value: !currentValue } : e
+                e.reqId === reqId ? { ...e, value: newValue } : e
             );
         } else {
             const reqObj = (candidate.vacancy?.customRequirements as any[] || []).find(r => r.id === reqId);
             if (reqObj) {
-                updatedEvaluations.push({ reqId, name: reqObj.name, value: !currentValue });
+                updatedEvaluations.push({ reqId, name: reqObj.name, value: newValue });
             }
         }
         
@@ -199,13 +201,13 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
         }
     };
 
-    const handleToggleRankReq = async (candidateId: string, reqId: string, currentValue: boolean, reqName: string) => {
+    const handleToggleRankReq = async (candidateId: string, reqId: string, newValue: boolean | null, reqName: string) => {
         const currentEvals = rankEvals[candidateId] || [];
         let updated: any[];
         if (currentEvals.some((e: any) => e.reqId === reqId)) {
-            updated = currentEvals.map((e: any) => e.reqId === reqId ? { ...e, value: !currentValue } : e);
+            updated = currentEvals.map((e: any) => e.reqId === reqId ? { ...e, value: newValue } : e);
         } else {
-            updated = [...currentEvals, { reqId, name: reqName, value: !currentValue }];
+            updated = [...currentEvals, { reqId, name: reqName, value: newValue }];
         }
         setRankEvals(prev => ({ ...prev, [candidateId]: updated }));
         try {
@@ -622,68 +624,99 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
 
                                     {/* Configuração de Checklist de Requisitos da Vaga */}
                                     <div className="bg-white border rounded-xl p-4 space-y-4 shadow-sm">
-                                        <div className="border-b pb-2">
-                                            <h3 className="font-bold text-slate-800 text-sm">Checklist de Requisitos</h3>
-                                            <p className="text-xs text-slate-400">Adicione e remova requisitos eliminatórios ou desejáveis para esta vaga.</p>
-                                        </div>
-
-                                        <div className="flex gap-2 items-end bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                            <div className="flex-1 space-y-1">
-                                                <label className="text-[10px] uppercase font-black text-slate-500 block">Novo Requisito</label>
-                                                <input
-                                                    type="text"
-                                                    value={newReqText}
-                                                    onChange={(e) => setNewReqText(e.target.value)}
-                                                    placeholder="Ex: Não fumante, Possuir CNH D, Não ter trabalhado no cliente..."
-                                                    className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none"
-                                                />
+                                        <div className="border-b pb-2 flex justify-between items-center">
+                                            <div>
+                                                <h3 className="font-bold text-slate-800 text-sm">Checklist de Requisitos ({vacancyReqs.length})</h3>
+                                                <p className="text-xs text-slate-400">Critérios de avaliação para esta vaga.</p>
                                             </div>
-                                            <div className="flex items-center gap-2 h-9 px-2 bg-white rounded border">
-                                                <input
-                                                    type="checkbox"
-                                                    id="vac-req-knockout"
-                                                    checked={newReqIsKnockout}
-                                                    onChange={(e) => setNewReqIsKnockout(e.target.checked)}
-                                                    className="rounded border-gray-300 text-red-600 focus:ring-red-500"
-                                                />
-                                                <label htmlFor="vac-req-knockout" className="cursor-pointer text-xs font-semibold text-red-700 select-none">Eliminatório</label>
-                                            </div>
-                                            <Button 
-                                                type="button" 
-                                                onClick={handleAddVacancyReq}
-                                                className="bg-slate-900 hover:bg-slate-800 text-white h-9"
+                                            <Button
+                                                type="button"
+                                                variant="outline"
                                                 size="sm"
+                                                onClick={() => setIsVacancyReqsExpanded(!isVacancyReqsExpanded)}
+                                                className="text-xs h-8 flex items-center gap-1 border-slate-200 text-slate-700 font-semibold"
                                             >
-                                                Adicionar
+                                                {isVacancyReqsExpanded ? 'Fechar Editor' : '✏️ Configurar/Editar'}
                                             </Button>
                                         </div>
 
-                                        {/* Lista de Requisitos */}
-                                        <div className="space-y-2">
-                                            {vacancyReqs.length === 0 ? (
-                                                <div className="text-center py-4 text-xs text-slate-400">Nenhum requisito cadastrado ainda.</div>
-                                            ) : (
-                                                vacancyReqs.map((req) => (
-                                                    <div key={req.id} className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-100 text-xs">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-semibold text-slate-800">{req.name}</span>
-                                                            {req.isKnockout && (
-                                                                <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase tracking-wider">Eliminatório</span>
-                                                            )}
-                                                        </div>
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => handleRemoveVacancyReq(req.id)}
-                                                            className="text-red-500 hover:text-red-700 h-6 w-6 p-0 flex items-center justify-center font-bold text-xs"
-                                                        >
-                                                            ×
-                                                        </Button>
+                                        {isVacancyReqsExpanded ? (
+                                            <>
+                                                <div className="flex gap-2 items-end bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                                    <div className="flex-1 space-y-1">
+                                                        <label className="text-[10px] uppercase font-black text-slate-500 block">Novo Requisito</label>
+                                                        <input
+                                                            type="text"
+                                                            value={newReqText}
+                                                            onChange={(e) => setNewReqText(e.target.value)}
+                                                            placeholder="Ex: Não fumante, Possuir CNH D..."
+                                                            className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none"
+                                                        />
                                                     </div>
-                                                ))
-                                            )}
-                                        </div>
+                                                    <div className="flex items-center gap-2 h-9 px-2 bg-white rounded border">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="vac-req-knockout"
+                                                            checked={newReqIsKnockout}
+                                                            onChange={(e) => setNewReqIsKnockout(e.target.checked)}
+                                                            className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                                        />
+                                                        <label htmlFor="vac-req-knockout" className="cursor-pointer text-xs font-semibold text-red-700 select-none">Eliminatório</label>
+                                                    </div>
+                                                    <Button 
+                                                        type="button" 
+                                                        onClick={handleAddVacancyReq}
+                                                        className="bg-slate-900 hover:bg-slate-800 text-white h-9"
+                                                        size="sm"
+                                                    >
+                                                        Adicionar
+                                                    </Button>
+                                                </div>
+
+                                                {/* Lista de Requisitos */}
+                                                <div className="space-y-2">
+                                                    {vacancyReqs.length === 0 ? (
+                                                        <div className="text-center py-4 text-xs text-slate-400">Nenhum requisito cadastrado ainda.</div>
+                                                    ) : (
+                                                        vacancyReqs.map((req) => (
+                                                            <div key={req.id} className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-100 text-xs">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-semibold text-slate-800">{req.name}</span>
+                                                                    {req.isKnockout && (
+                                                                        <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase tracking-wider">Eliminatório</span>
+                                                                    )}
+                                                                </div>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => handleRemoveVacancyReq(req.id)}
+                                                                    className="text-red-500 hover:text-red-700 h-6 w-6 p-0 flex items-center justify-center font-bold text-xs"
+                                                                >
+                                                                    ×
+                                                                </Button>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            /* Resumo Simplificado quando fechado */
+                                            <div className="space-y-2">
+                                                {vacancyReqs.length === 0 ? (
+                                                    <div className="text-xs text-slate-400">Nenhum requisito cadastrado ainda. Clique em "✏️ Configurar/Editar" acima para definir os critérios da vaga.</div>
+                                                ) : (
+                                                    <div className="flex flex-wrap gap-1.5 pt-1">
+                                                        {vacancyReqs.map((req) => (
+                                                            <span key={req.id} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${req.isKnockout ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-slate-50 text-slate-700 border border-slate-100'}`}>
+                                                                {req.name}
+                                                                {req.isKnockout && <span className="text-[8px] font-black uppercase text-red-600 bg-red-100/50 px-1 rounded-full shrink-0">Elim</span>}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Upload Manual de Currículo para a Vaga */}
@@ -700,13 +733,13 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                             </label>
                                         </div>
                                     </div>
-
+                                    
                                     {/* Ranking de Candidatos com Checkboxes */}
                                     <div className="bg-white border rounded-xl p-4 space-y-3 shadow-sm">
                                         <div className="border-b pb-2 flex items-center justify-between">
                                             <div>
                                                 <h3 className="font-bold text-slate-800 text-sm">Ranking de Candidatos ({rankedCandidates.length})</h3>
-                                                <p className="text-xs text-slate-400">Clique em um candidato para ver e marcar os requisitos.</p>
+                                                <p className="text-xs text-slate-400">Clique em um candidato para ver e avaliar os requisitos.</p>
                                             </div>
                                         </div>
 
@@ -720,140 +753,209 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                             </div>
                                         ) : (
                                             <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                                                {rankedCandidates.map((cand, idx) => {
-                                                    const evaluation = (cand.requirementsEvaluation as any) || {};
-                                                    const reqs: any[] = vacancyReqs;
-                                                    const candEvals: any[] = rankEvals[cand.id] || (evaluation.customEvaluations as any[] || []);
-                                                    const checkedCount = reqs.filter(r => { const e = candEvals.find((ev:any) => ev.reqId === r.id); return e ? !!e.value : false; }).length;
-                                                    const pct = reqs.length > 0 ? Math.round((checkedCount / reqs.length) * 100) : (evaluation.adherenceScore ?? 0);
-                                                    const isExpanded = expandedRankId === cand.id;
+                                                {(() => {
+                                                    // Dynamic Client-side Live Sorting: Disqualified candidates at the bottom, then sorted by pct descending
+                                                    const sorted = [...rankedCandidates].sort((a, b) => {
+                                                        const evalA = (a.requirementsEvaluation as any) || {};
+                                                        const evalB = (b.requirementsEvaluation as any) || {};
+                                                        const reqs = vacancyReqs;
+                                                        
+                                                        // A
+                                                        const candEvalsA = rankEvals[a.id] || (evalA.customEvaluations as any[] || []);
+                                                        const checkedCountA = reqs.filter(r => { const e = candEvalsA.find((ev:any) => ev.reqId === r.id); return e ? e.value === true : false; }).length;
+                                                        const pctA = reqs.length > 0 ? Math.round((checkedCountA / reqs.length) * 100) : (evalA.adherenceScore ?? 0);
+                                                        const isDisqA = reqs.some(r => { const e = candEvalsA.find((ev:any) => ev.reqId === r.id); return r.isKnockout && e && e.value === false; }) || !!evalA.isDisqualified;
+                                                        
+                                                        // B
+                                                        const candEvalsB = rankEvals[b.id] || (evalB.customEvaluations as any[] || []);
+                                                        const checkedCountB = reqs.filter(r => { const e = candEvalsB.find((ev:any) => ev.reqId === r.id); return e ? e.value === true : false; }).length;
+                                                        const pctB = reqs.length > 0 ? Math.round((checkedCountB / reqs.length) * 100) : (evalB.adherenceScore ?? 0);
+                                                        const isDisqB = reqs.some(r => { const e = candEvalsB.find((ev:any) => ev.reqId === r.id); return r.isKnockout && e && e.value === false; }) || !!evalB.isDisqualified;
+                                                        
+                                                        if (isDisqA && !isDisqB) return 1;
+                                                        if (!isDisqA && isDisqB) return -1;
+                                                        return pctB - pctA;
+                                                    });
 
-                                                    return (
-                                                        <div key={cand.id} className={`rounded-xl border transition-all ${isExpanded ? 'border-indigo-300 bg-indigo-50/30' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
-                                                            {/* Header do candidato */}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setExpandedRankId(isExpanded ? null : cand.id)}
-                                                                className="w-full flex items-center justify-between p-3 text-left"
-                                                            >
-                                                                <div className="flex items-center gap-3">
-                                                                    <span className="font-black text-slate-400 text-xs w-6">#{idx+1}</span>
-                                                                    <div>
-                                                                        <span className="font-semibold text-slate-800 text-sm block">{cand.name}</span>
-                                                                        <span className="text-[10px] text-slate-400 uppercase tracking-wide">{cand.stage?.name || 'Inscrição'}</span>
+                                                    return sorted.map((cand, idx) => {
+                                                        const evaluation = (cand.requirementsEvaluation as any) || {};
+                                                        const reqs: any[] = vacancyReqs;
+                                                        const candEvals: any[] = rankEvals[cand.id] || (evaluation.customEvaluations as any[] || []);
+                                                        
+                                                        // Live compliance count and percentage
+                                                        const checkedCount = reqs.filter(r => { const e = candEvals.find((ev:any) => ev.reqId === r.id); return e ? e.value === true : false; }).length;
+                                                        const pct = reqs.length > 0 ? Math.round((checkedCount / reqs.length) * 100) : (evaluation.adherenceScore ?? 0);
+                                                        const isExpanded = expandedRankId === cand.id;
+                                                        
+                                                        // Live disqualified check
+                                                        const isDisqualified = reqs.some(r => {
+                                                            const e = candEvals.find((ev:any) => ev.reqId === r.id);
+                                                            return r.isKnockout && e && e.value === false;
+                                                        }) || !!evaluation.isDisqualified;
+
+                                                        return (
+                                                            <div key={cand.id} className={`rounded-xl border transition-all ${isExpanded ? 'border-indigo-300 bg-indigo-50/30' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                                                                {/* Header do candidato */}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setExpandedRankId(isExpanded ? null : cand.id)}
+                                                                    className="w-full flex items-center justify-between p-3 text-left"
+                                                                >
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className="font-black text-slate-400 text-xs w-6">#{idx+1}</span>
+                                                                        <div>
+                                                                            <span className="font-semibold text-slate-800 text-sm block">{cand.name}</span>
+                                                                            <span className="text-[10px] text-slate-400 uppercase tracking-wide">{cand.stage?.name || 'Inscrição'}</span>
+                                                                        </div>
                                                                     </div>
-                                                                </div>
-                                                                <div className="flex items-center gap-2">
-                                                                    {evaluation.isDisqualified ? (
-                                                                        <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase">Eliminado</span>
-                                                                    ) : (
-                                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${pct >= 75 ? 'bg-emerald-100 text-emerald-800' : pct >= 50 ? 'bg-amber-100 text-amber-800' : pct > 0 ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-500'}`}>
-                                                                    {pct > 0 ? `${pct}%` : 'Sem Triagem'}
-                                                                        </span>
-                                                                    )}
-                                                                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                                                                </div>
-                                                            </button>
+                                                                    <div className="flex items-center gap-2">
+                                                                        {isDisqualified ? (
+                                                                            <span className="px-2 py-0.5 rounded bg-red-600 text-white text-[9px] font-black uppercase">Desclassificado</span>
+                                                                        ) : (
+                                                                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${pct >= 75 ? 'bg-emerald-100 text-emerald-800' : pct >= 50 ? 'bg-amber-100 text-amber-800' : pct > 0 ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-500'}`}>
+                                                                                {pct > 0 ? `${pct}%` : 'Sem Triagem'}
+                                                                            </span>
+                                                                        )}
+                                                                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                                                    </div>
+                                                                </button>
 
-                                                            {/* Checklist expansível */}
-                                                            {isExpanded && (
-                                                                <div className="px-4 pb-4 space-y-4 border-t border-slate-100 divide-y divide-slate-100">
-                                                                    {/* Dados extraídos do CV */}
-                                                                    {evaluation.aiAnalysis ? (
-                                                                        <div className="pt-3.5 space-y-3">
-                                                                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1">
-                                                                                <span className="text-[10px] uppercase font-black text-slate-500 block">Parecer Técnico da IA</span>
-                                                                                <p className="text-xs text-slate-700 italic">"{evaluation.aiAnalysis}"</p>
-                                                                            </div>
-
-                                                                            <div className="grid grid-cols-2 gap-2 text-xs">
-                                                                                <div className="p-2 bg-white rounded border border-slate-100">
-                                                                                    <span className="text-[9px] uppercase font-black text-slate-400 block">Idade Extraída</span>
-                                                                                    <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.age ? `${evaluation.parsedDetails.age} anos` : 'Não especificado'}</span>
-                                                                                </div>
-                                                                                <div className="p-2 bg-white rounded border border-slate-100">
-                                                                                    <span className="text-[9px] uppercase font-black text-slate-400 block">Estabilidade (Últimos Empregos)</span>
-                                                                                    <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.averageTenureMonths ? `${evaluation.parsedDetails.averageTenureMonths} meses / vaga` : 'Não especificado'}</span>
-                                                                                </div>
-                                                                                <div className="p-2 bg-white rounded border border-slate-100">
-                                                                                    <span className="text-[9px] uppercase font-black text-slate-400 block">Distância Estimada</span>
-                                                                                    <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.distanceKm ? `${evaluation.parsedDetails.distanceKm} Km` : 'Não especificado'}</span>
-                                                                                </div>
-                                                                                <div className="p-2 bg-white rounded border border-slate-100">
-                                                                                    <span className="text-[9px] uppercase font-black text-slate-400 block">Filhos menores de 5 anos</span>
-                                                                                    <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.hasChildrenUnderFive ? 'Sim' : 'Não'}</span>
-                                                                                </div>
-                                                                            </div>
-
-                                                                            {evaluation.warnings && evaluation.warnings.length > 0 && (
-                                                                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 space-y-1">
-                                                                                    <span className="text-[9px] uppercase font-black text-amber-800 flex items-center gap-1">
-                                                                                        <AlertTriangle className="w-3.5 h-3.5" />
-                                                                                        Alertas de Risco
-                                                                                    </span>
-                                                                                    <ul className="list-disc pl-4 text-xs text-amber-900 space-y-0.5">
-                                                                                        {evaluation.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
-                                                                                    </ul>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="pt-3.5 text-center py-2 text-xs text-slate-400">
-                                                                            Nenhuma análise de currículo por IA disponível. Envie o CV acima para rodar a triagem.
-                                                                        </div>
-                                                                    )}
-
-                                                                    {/* Barra de progresso */}
-                                                                    {reqs.length > 0 && (
-                                                                        <div className="pt-3.5 space-y-1">
-                                                                            <div className="flex justify-between text-xs">
-                                                                                <span className="text-slate-500">{checkedCount} de {reqs.length} requisitos atendidos</span>
-                                                                                <span className={`font-black ${pct >= 75 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{pct}%</span>
-                                                                            </div>
-                                                                            <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                                                                                <div className={`h-full transition-all duration-500 ${pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-
-                                                                    {/* Checkboxes por requisito */}
-                                                                    {reqs.length === 0 ? (
-                                                                        <p className="text-xs text-amber-600 py-2 pt-3">Nenhum requisito cadastrado nesta vaga. Adicione requisitos acima.</p>
-                                                                    ) : (
-                                                                        <div className="space-y-1.5 pt-3">
-                                                                            {reqs.map(req => {
-                                                                                const evalItem = candEvals.find((ev:any) => ev.reqId === req.id);
-                                                                                const checked = evalItem ? !!evalItem.value : false;
-                                                                                const isFailedKnockout = req.isKnockout && !checked;
-                                                                                return (
-                                                                                    <div key={req.id} className={`flex items-center justify-between p-2.5 rounded-lg border transition-all ${checked ? 'bg-emerald-50 border-emerald-200 text-emerald-950' : isFailedKnockout ? 'bg-red-50 border-red-200 text-red-950 ring-1 ring-red-300' : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'}`}>
-                                                                                        <div className="flex items-center gap-2.5">
-                                                                                            <input
-                                                                                                type="checkbox"
-                                                                                                id={`rank-${cand.id}-${req.id}`}
-                                                                                                checked={checked}
-                                                                                                onChange={() => handleToggleRankReq(cand.id, req.id, checked, req.name)}
-                                                                                                className="rounded border-gray-300 text-indigo-600 w-4 h-4 cursor-pointer"
-                                                                                            />
-                                                                                            <label htmlFor={`rank-${cand.id}-${req.id}`} className="text-xs font-medium cursor-pointer select-none">{req.name}</label>
-                                                                                        </div>
-                                                                                        {req.isKnockout && (
-                                                                                            <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${isFailedKnockout ? 'bg-red-600 text-white animate-pulse' : 'bg-red-100 text-red-800'}`}>
-                                                                                                {isFailedKnockout ? 'Não Atendido' : 'Eliminatório'}
-                                                                                            </span>
-                                                                                        )}
+                                                                {/* Checklist expansível */}
+                                                                {isExpanded && (
+                                                                    <div className="px-4 pb-4 space-y-4 border-t border-slate-100 divide-y divide-slate-100">
+                                                                        
+                                                                        {/* Banner de desclassificação no topo da seção */}
+                                                                        {isDisqualified && (
+                                                                            <div className="pt-3.5">
+                                                                                <div className="bg-red-100 border border-red-200 text-red-800 text-xs rounded-lg p-3 flex items-start gap-2.5 animate-pulse">
+                                                                                    <AlertCircle className="w-4.5 h-4.5 text-red-600 shrink-0 mt-0.5" />
+                                                                                    <div>
+                                                                                        <span className="font-black block text-xs uppercase tracking-wider">Candidato Desclassificado</span>
+                                                                                        <span className="block mt-0.5 text-red-700">Não atende a um ou mais requisitos eliminatórios obrigatórios.</span>
                                                                                     </div>
-                                                                                );
-                                                                            })}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Dados extraídos do CV */}
+                                                                        {evaluation.aiAnalysis ? (
+                                                                            <div className="pt-3.5 space-y-3">
+                                                                                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1">
+                                                                                    <span className="text-[10px] uppercase font-black text-slate-500 block">Parecer Técnico da IA</span>
+                                                                                    <p className="text-xs text-slate-700 italic">"{evaluation.aiAnalysis}"</p>
+                                                                                </div>
+
+                                                                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                                                                    <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                        <span className="text-[9px] uppercase font-black text-slate-400 block">Idade Extraída</span>
+                                                                                        <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.age ? `${evaluation.parsedDetails.age} anos` : 'Não especificado'}</span>
+                                                                                    </div>
+                                                                                    <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                        <span className="text-[9px] uppercase font-black text-slate-400 block">Estabilidade (Últimos Empregos)</span>
+                                                                                        <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.averageTenureMonths ? `${evaluation.parsedDetails.averageTenureMonths} meses / vaga` : 'Não especificado'}</span>
+                                                                                    </div>
+                                                                                    <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                        <span className="text-[9px] uppercase font-black text-slate-400 block">Distância Estimada</span>
+                                                                                        <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.distanceKm ? `${evaluation.parsedDetails.distanceKm} Km` : 'Não especificado'}</span>
+                                                                                    </div>
+                                                                                    <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                        <span className="text-[9px] uppercase font-black text-slate-400 block">Filhos menores de 5 anos</span>
+                                                                                        <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.hasChildrenUnderFive ? 'Sim' : 'Não'}</span>
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                {evaluation.warnings && evaluation.warnings.length > 0 && (
+                                                                                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 space-y-1">
+                                                                                        <span className="text-[9px] uppercase font-black text-amber-800 flex items-center gap-1">
+                                                                                            <AlertTriangle className="w-3.5 h-3.5" />
+                                                                                            Alertas de Risco
+                                                                                        </span>
+                                                                                        <ul className="list-disc pl-4 text-xs text-amber-900 space-y-0.5">
+                                                                                            {evaluation.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
+                                                                                        </ul>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="pt-3.5 text-center py-2 text-xs text-slate-400">
+                                                                                Nenhuma análise de currículo por IA disponível. Envie o CV acima para rodar a triagem.
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Barra de progresso */}
+                                                                        {reqs.length > 0 && (
+                                                                            <div className="pt-3.5 space-y-1">
+                                                                                <div className="flex justify-between text-xs">
+                                                                                    <span className="text-slate-500">{checkedCount} de {reqs.length} requisitos atendidos</span>
+                                                                                    <span className={`font-black ${pct >= 75 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{pct}%</span>
+                                                                                </div>
+                                                                                <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                                                                                    <div className={`h-full transition-all duration-500 ${pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Checkboxes por requisito */}
+                                                                        {reqs.length === 0 ? (
+                                                                            <p className="text-xs text-amber-600 py-2 pt-3">Nenhum requisito cadastrado nesta vaga. Adicione requisitos acima.</p>
+                                                                        ) : (
+                                                                            <div className="space-y-2 pt-3">
+                                                                                {reqs.map(req => {
+                                                                                    const evalItem = candEvals.find((ev:any) => ev.reqId === req.id);
+                                                                                    const checkedValue = evalItem ? (evalItem.value === null ? null : !!evalItem.value) : null;
+                                                                                    const isFailedKnockout = req.isKnockout && checkedValue === false;
+                                                                                    return (
+                                                                                        <div key={req.id} className={`p-3 rounded-lg border transition-all ${checkedValue === true ? 'bg-emerald-50 border-emerald-200 text-emerald-950' : checkedValue === false ? 'bg-red-50 border-red-200 text-red-950 ring-1 ring-red-300' : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'}`}>
+                                                                                            <div className="flex justify-between items-center">
+                                                                                                <span className="text-xs font-semibold">{req.name}</span>
+                                                                                                {req.isKnockout && (
+                                                                                                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${isFailedKnockout ? 'bg-red-600 text-white animate-pulse' : 'bg-red-100 text-red-800'}`}>
+                                                                                                        {isFailedKnockout ? 'Não Atendido' : 'Eliminatório'}
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                            
+                                                                                            <div className="flex gap-4 mt-2">
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={() => handleToggleRankReq(cand.id, req.id, checkedValue === true ? null : true, req.name)}
+                                                                                                    className={`flex items-center gap-1.5 cursor-pointer text-xs select-none border rounded px-2.5 py-1 transition-all ${checkedValue === true ? 'bg-emerald-600 border-emerald-600 text-white font-bold' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                                                                                >
+                                                                                                    <input
+                                                                                                        type="checkbox"
+                                                                                                        checked={checkedValue === true}
+                                                                                                        readOnly
+                                                                                                        className="rounded border-gray-300 text-emerald-600 pointer-events-none w-3.5 h-3.5"
+                                                                                                    />
+                                                                                                    <span>Atende</span>
+                                                                                                </button>
+                                                                                                
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={() => handleToggleRankReq(cand.id, req.id, checkedValue === false ? null : false, req.name)}
+                                                                                                    className={`flex items-center gap-1.5 cursor-pointer text-xs select-none border rounded px-2.5 py-1 transition-all ${checkedValue === false ? 'bg-red-600 border-red-600 text-white font-bold' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                                                                                >
+                                                                                                    <input
+                                                                                                        type="checkbox"
+                                                                                                        checked={checkedValue === false}
+                                                                                                        readOnly
+                                                                                                        className="rounded border-gray-300 text-red-600 pointer-events-none w-3.5 h-3.5"
+                                                                                                    />
+                                                                                                    <span>Não Atende</span>
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    });
+                                                })()}
+                                            </div>                                        )}
                                     </div>
                                 </div>
                             ) : (
@@ -936,12 +1038,12 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                         <div className="bg-white border rounded-xl p-4 space-y-3 shadow-sm">
                                             <div className="border-b pb-2">
                                                 <h3 className="font-bold text-slate-800 text-sm">✅ Checklist de Requisitos</h3>
-                                                <p className="text-xs text-slate-400">Marque os itens que o candidato <strong>atende</strong>. A barra de aderência atualiza automaticamente.</p>
+                                                <p className="text-xs text-slate-400">Avalie se o candidato atende ou não atende aos requisitos definidos para a vaga.</p>
                                             </div>
                                             {(() => {
                                                 const reqs: any[] = (candidate.vacancy?.customRequirements as any[] || []);
                                                 const evals: any[] = (candidate.requirementsEvaluation?.customEvaluations as any[] || []);
-                                                const checked = reqs.filter(req => { const e = evals.find((ev: any) => ev.reqId === req.id); return e ? !!e.value : false; }).length;
+                                                const checked = reqs.filter(req => { const e = evals.find((ev: any) => ev.reqId === req.id); return e ? e.value === true : false; }).length;
                                                 const pct = reqs.length > 0 ? Math.round((checked / reqs.length) * 100) : 0;
                                                 return (
                                                     <div className="space-y-1">
@@ -958,20 +1060,50 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                             <div className="space-y-2">
                                                 {(candidate.vacancy?.customRequirements as any[] || []).map((req) => {
                                                     const evalItem = ((candidate.requirementsEvaluation?.customEvaluations as any[]) || []).find((e: any) => e.reqId === req.id);
-                                                    const value = evalItem ? !!evalItem.value : false;
+                                                    
+                                                    // Três estados: true (atende), false (não atende), null (não avaliado)
+                                                    const checkedValue = evalItem ? (evalItem.value === null ? null : !!evalItem.value) : null;
+                                                    const isFailedKnockout = req.isKnockout && checkedValue === false;
                                                     return (
-                                                        <div key={req.id} className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${value ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
-                                                            <div className="flex items-center gap-3">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    id={`check-${req.id}`}
-                                                                    checked={value}
-                                                                    onChange={() => handleToggleCustomReq(req.id, value)}
-                                                                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
-                                                                />
-                                                                <label htmlFor={`check-${req.id}`} className="cursor-pointer text-sm font-medium text-slate-800 select-none">{req.name}</label>
+                                                        <div key={req.id} className={`p-3 rounded-lg border transition-all ${checkedValue === true ? 'bg-emerald-50 border-emerald-200 text-emerald-950' : checkedValue === false ? 'bg-red-50 border-red-200 text-red-950 ring-1 ring-red-300' : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'}`}>
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-xs font-semibold">{req.name}</span>
+                                                                {req.isKnockout && (
+                                                                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${isFailedKnockout ? 'bg-red-600 text-white animate-pulse' : 'bg-red-100 text-red-800'}`}>
+                                                                        {isFailedKnockout ? 'Não Atendido' : 'Eliminatório'}
+                                                                    </span>
+                                                                )}
                                                             </div>
-                                                            {req.isKnockout && (<span className="px-2 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase tracking-wider shrink-0">Eliminatório</span>)}
+                                                            
+                                                            <div className="flex gap-4 mt-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleToggleCustomReq(req.id, checkedValue === true ? null : true)}
+                                                                    className={`flex items-center gap-1.5 cursor-pointer text-xs select-none border rounded px-2.5 py-1 transition-all ${checkedValue === true ? 'bg-emerald-600 border-emerald-600 text-white font-bold' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                                                >
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={checkedValue === true}
+                                                                        readOnly
+                                                                        className="rounded border-gray-300 text-emerald-600 pointer-events-none w-3.5 h-3.5"
+                                                                    />
+                                                                    <span>Atende</span>
+                                                                </button>
+                                                                
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleToggleCustomReq(req.id, checkedValue === false ? null : false)}
+                                                                    className={`flex items-center gap-1.5 cursor-pointer text-xs select-none border rounded px-2.5 py-1 transition-all ${checkedValue === false ? 'bg-red-600 border-red-600 text-white font-bold' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                                                >
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={checkedValue === false}
+                                                                        readOnly
+                                                                        className="rounded border-gray-300 text-red-600 pointer-events-none w-3.5 h-3.5"
+                                                                    />
+                                                                    <span>Não Atende</span>
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     );
                                                 })}
@@ -995,7 +1127,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                 </Button>
                                             </div>
                                             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações coletadas durante a entrevista..." className="min-h-20 text-xs bg-slate-50 border-slate-200" />
-                                            <p className="text-xs text-amber-700 pt-1">⚠️ Nenhum requisito cadastrado nesta vaga. Abra o card da Vaga → aba ATS → Checklist para adicionar.</p>
+                                            <p className="text-xs text-amber-700 pt-1">Nenhum requisito cadastrado nesta vaga. Abra o card da Vaga - aba ATS - Checklist para adicionar.</p>
                                         </div>
                                     )}
                                 </div>

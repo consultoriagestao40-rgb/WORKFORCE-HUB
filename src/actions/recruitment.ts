@@ -1474,10 +1474,12 @@ export async function updateCandidateEvaluation(candidateId: string, evaluation:
                 const evalItem = evaluation.customEvaluations?.find(e => e.reqId === req.id)
                     || (currentEval.customEvaluations as any[] || []).find(e => e.reqId === req.id);
                 
-                const value = evalItem ? !!evalItem.value : false;
-                if (value) {
+                // Três estados: true (atende), false (não atende), null/undefined (não avaliado)
+                const value = evalItem ? (evalItem.value === null ? null : !!evalItem.value) : null;
+                
+                if (value === true) {
                     passed++;
-                } else if (req.isKnockout) {
+                } else if (value === false && req.isKnockout) {
                     isKnockedOut = true;
                     knockoutReason = `Reprovado no item eliminatório: ${req.name}`;
                 }
@@ -1495,6 +1497,7 @@ export async function updateCandidateEvaluation(candidateId: string, evaluation:
             updatedEval.adherenceScore = Math.round((passed / total) * 100);
         }
     }
+
 
 
     const updated = await prisma.recruitmentCandidate.update({
@@ -1559,12 +1562,9 @@ export async function createPublicCandidate(data: {
     });
 
     if (data.fileBase64 && data.fileMimeType) {
-        try {
-            await evaluateCandidateWithAI(newCandidateId, data.fileBase64, data.fileMimeType);
-        } catch (err) {
-            console.error("Erro na triagem automática da inscrição pública:", err);
-        }
+        await evaluateCandidateWithAI(newCandidateId, data.fileBase64, data.fileMimeType);
     }
+
 
     const vacancy = await prisma.vacancy.findUnique({
         where: { id: data.vacancyId },
