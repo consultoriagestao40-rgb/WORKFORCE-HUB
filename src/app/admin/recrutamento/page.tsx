@@ -6,14 +6,27 @@ import { prisma } from "@/lib/db";
 
 
 export default async function RecruitmentPage() {
-    const [stages, vacancies, roles, postos, companies, backlogs, users] = await Promise.all([
+    const [stages, vacancies, roles, postos, companies, backlogs, users, candidates] = await Promise.all([
         getRecruitmentBoardData(),
         getVacancies({ status: 'OPEN' }),
         prisma.role.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
         prisma.posto.findMany({ orderBy: { client: { name: 'asc' } }, select: { id: true, client: { select: { name: true } } } }),
         prisma.company.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
         getBacklogItems(),
-        prisma.user.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, select: { id: true, name: true } })
+        prisma.user.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+        prisma.recruitmentCandidate.findMany({
+            include: {
+                stage: true,
+                vacancy: {
+                    include: {
+                        role: true,
+                        company: true,
+                        posto: { include: { client: true } }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        })
     ]);
 
     // Format postos for dropdown
@@ -28,6 +41,7 @@ export default async function RecruitmentPage() {
             companies={companies}
             backlogs={backlogs}
             recruiters={users}
+            candidates={candidates}
             currentUser={await import("@/lib/auth").then(m => m.getCurrentUser())}
         />
     );
