@@ -1452,6 +1452,8 @@ Retorne EXCLUSIVAMENTE um objeto JSON puro, sem markdown ou texto extra, neste f
     const cleaned = cleanJsonResponse(rawText);
     const parsedResult = JSON.parse(cleaned);
 
+    const existingEval = (candidate.requirementsEvaluation as any) || {};
+
     const updated = await prisma.recruitmentCandidate.update({
         where: { id: candidateId },
         data: {
@@ -1474,7 +1476,9 @@ Retorne EXCLUSIVAMENTE um objeto JSON puro, sem markdown ou texto extra, neste f
                         value
                     };
                 }),
-                parsedDetails: parsedResult.parsedDetails || {}
+                parsedDetails: parsedResult.parsedDetails || {},
+                resumeFileBase64: fileBase64 || existingEval.resumeFileBase64 || null,
+                resumeFileMimeType: mimeType || existingEval.resumeFileMimeType || null
             }
         }
     });

@@ -385,6 +385,54 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                     <Badge variant="outline">{currentStage?.name || 'Desconhecida'}</Badge>
                                                 </div>
                                             </div>
+                                            
+                                            {/* Currículo Original */}
+                                            {(() => {
+                                                const evalObj = (candidate.requirementsEvaluation as any) || {};
+                                                const fileBase64 = evalObj.resumeFileBase64;
+                                                const fileMimeType = evalObj.resumeFileMimeType || 'application/pdf';
+                                                
+                                                if (!fileBase64) return null;
+                                                
+                                                return (
+                                                    <div className="pt-3 border-t border-slate-200">
+                                                        <label className="text-xs font-medium text-slate-500 uppercase block mb-1">Currículo Original Anexado</label>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="w-full flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 font-semibold"
+                                                            onClick={() => {
+                                                                try {
+                                                                    const byteCharacters = atob(fileBase64);
+                                                                    const byteNumbers = new Array(byteCharacters.length);
+                                                                    for (let i = 0; i < byteCharacters.length; i++) {
+                                                                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                                                    }
+                                                                    const byteArray = new Uint8Array(byteNumbers);
+                                                                    const blob = new Blob([byteArray], { type: fileMimeType });
+                                                                    const blobUrl = URL.createObjectURL(blob);
+                                                                    
+                                                                    if (fileMimeType.includes('pdf')) {
+                                                                        window.open(blobUrl, '_blank');
+                                                                    } else {
+                                                                        const a = document.createElement('a');
+                                                                        a.href = blobUrl;
+                                                                        a.download = `curriculo_${candidate.name.replace(/\s+/g, '_')}.${fileMimeType.includes('png') ? 'png' : fileMimeType.includes('jpeg') || fileMimeType.includes('jpg') ? 'jpg' : 'pdf'}`;
+                                                                        document.body.appendChild(a);
+                                                                        a.click();
+                                                                        document.body.removeChild(a);
+                                                                    }
+                                                                } catch (err) {
+                                                                    toast.error("Erro ao abrir arquivo do currículo");
+                                                                }
+                                                            }}
+                                                        >
+                                                            <FileText className="w-4 h-4 text-indigo-600" />
+                                                            Visualizar/Baixar Currículo
+                                                        </Button>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                                 )}
@@ -900,6 +948,49 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                                 Nenhuma análise de currículo por IA disponível. Envie o CV acima para rodar a triagem.
                                                                             </div>
                                                                         )}
+
+                                                                        {/* Visualizador de Currículo no Ranking da Vaga */}
+                                                                        {(() => {
+                                                                            const fileBase64 = evaluation.resumeFileBase64;
+                                                                            const fileMimeType = evaluation.resumeFileMimeType || 'application/pdf';
+                                                                            if (!fileBase64) return null;
+                                                                            return (
+                                                                                <div className="pt-3">
+                                                                                    <Button
+                                                                                        variant="outline"
+                                                                                        size="sm"
+                                                                                        className="w-full flex items-center justify-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 text-[11px] h-8 font-semibold"
+                                                                                        onClick={() => {
+                                                                                            try {
+                                                                                                const byteCharacters = atob(fileBase64);
+                                                                                                const byteNumbers = new Array(byteCharacters.length);
+                                                                                                for (let i = 0; i < byteCharacters.length; i++) {
+                                                                                                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                                                                                }
+                                                                                                const byteArray = new Uint8Array(byteNumbers);
+                                                                                                const blob = new Blob([byteArray], { type: fileMimeType });
+                                                                                                const blobUrl = URL.createObjectURL(blob);
+                                                                                                if (fileMimeType.includes('pdf')) {
+                                                                                                    window.open(blobUrl, '_blank');
+                                                                                                } else {
+                                                                                                    const a = document.createElement('a');
+                                                                                                    a.href = blobUrl;
+                                                                                                    a.download = `curriculo_${cand.name.replace(/\s+/g, '_')}.${fileMimeType.includes('png') ? 'png' : fileMimeType.includes('jpeg') || fileMimeType.includes('jpg') ? 'jpg' : 'pdf'}`;
+                                                                                                    document.body.appendChild(a);
+                                                                                                    a.click();
+                                                                                                    document.body.removeChild(a);
+                                                                                                }
+                                                                                            } catch (err) {
+                                                                                                toast.error("Erro ao abrir arquivo do currículo");
+                                                                                            }
+                                                                                        }}
+                                                                                    >
+                                                                                        <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                                                                                        Visualizar Currículo Original
+                                                                                    </Button>
+                                                                                </div>
+                                                                            );
+                                                                        })()}
 
                                                                         {/* Barra de progresso */}
                                                                         {reqs.length > 0 && (
