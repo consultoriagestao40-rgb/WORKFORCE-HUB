@@ -19,6 +19,14 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
+# 2.5. Restore candidates original vacancy mapping
+echo "🔄 Restoring original vacancy mappings..."
+node scripts/restore-candidates.js
+if [ $? -ne 0 ]; then
+  echo "⚠️ Warning: Candidate restoration script encountered an issue, proceeding anyway..."
+fi
+
+
 # 3. Build Next.js App
 echo "🏗️ Building Next.js App..."
 export NEXT_build_worker_threads=1

@@ -1582,7 +1582,12 @@ export async function getVacancyCandidates(vacancyId: string) {
     const user = await getCurrentUser();
     if (!user) return [];
 
-    const sortFn = (a: any, b: any) => {
+    const candidates = await prisma.recruitmentCandidate.findMany({
+        where: { vacancyId },
+        include: { stage: true }
+    });
+
+    return candidates.sort((a, b) => {
         const evalA = (a.requirementsEvaluation as any) || {};
         const evalB = (b.requirementsEvaluation as any) || {};
         const isDisqA = !!evalA.isDisqualified;
@@ -1590,50 +1595,6 @@ export async function getVacancyCandidates(vacancyId: string) {
         if (isDisqA && !isDisqB) return 1;
         if (!isDisqA && isDisqB) return -1;
         return (evalB.adherenceScore || 0) - (evalA.adherenceScore || 0);
-    };
-
-    // 1. Tenta buscar por vacancyId exato
-    let candidates = await prisma.recruitmentCandidate.findMany({
-        where: { vacancyId },
-        include: { stage: true }
     });
-
-    if (candidates.length > 0) {
-        return candidates.sort(sortFn);
-    }
-
-    // 2. Fallback: busca todos os candidatos ativos no pipeline
-    // (candidatos cujo vacancyId aponta para vagas abertas ou fechadas)
-    // e reassocia ao vacancyId desta vaga para exibir no ranking
-    const allActive = await prisma.recruitmentCandidate.findMany({
-        where: {
-            vacancy: {
-                status: { in: ['OPEN', 'CLOSED'] }
-            }
-        },
-        include: { stage: true, vacancy: true }
-    });
-
-    if (allActive.length > 0) {
-        // Reassocia silenciosamente para o vacancyId correto
-        // somente se há apenas uma vaga ativa (pipeline unificado)
-        const distinctVacancyIds = [...new Set(allActive.map(c => c.vacancyId))];
-        if (distinctVacancyIds.length === 1) {
-            // Pipeline único: atualiza todos para apontar para esta vaga
-            await prisma.recruitmentCandidate.updateMany({
-                where: { vacancyId: distinctVacancyIds[0] },
-                data: { vacancyId }
-            });
-            // Re-fetch com o ID correto
-            const updated = await prisma.recruitmentCandidate.findMany({
-                where: { vacancyId },
-                include: { stage: true }
-            });
-            return updated.sort(sortFn);
-        }
-        // Múltiplas vagas: retorna todos sem reassociação
-        return allActive.sort(sortFn);
-    }
-
-    return [];
 }
+

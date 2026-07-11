@@ -6,7 +6,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { X, MessageSquare, Send, Paperclip, CheckCircle2, XCircle, Clock, Save, User, Mail, Phone, Calendar, Briefcase, MapPin, Building2, Building, DollarSign, AlertCircle, Trash2, Copy, FileText, Upload, AlertTriangle } from "lucide-react";
+import { X, MessageSquare, Send, Paperclip, CheckCircle2, XCircle, Clock, Save, User, Mail, Phone, Calendar, Briefcase, MapPin, Building2, Building, DollarSign, AlertCircle, Trash2, Copy, FileText, Upload, AlertTriangle, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate, updateVacancy, addVacancyParticipant, removeVacancyParticipant, addRecruitmentComment, getRecruitmentComments, getVacancyCandidates, evaluateCandidateWithAI, updateCandidateEvaluation } from "@/actions/recruitment";
 import { Textarea } from "@/components/ui/textarea";
@@ -56,6 +56,9 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
     const [rankedCandidates, setRankedCandidates] = useState<any[]>([]);
     const [isLoadingRanked, setIsLoadingRanked] = useState(false);
     const [isUploadingCv, setIsUploadingCv] = useState(false);
+    const [isUploadingVacancyCv, setIsUploadingVacancyCv] = useState(false);
+    const [expandedRankId, setExpandedRankId] = useState<string | null>(null);
+    const [rankEvals, setRankEvals] = useState<Record<string, any[]>>({});
     const [notes, setNotes] = useState("");
 
     const handleSaveRequirements = async () => {
@@ -157,6 +160,57 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
         } finally {
             setIsUploadingCv(false);
         }
+    };
+
+    // Upload de CV para CRIAR candidato diretamente na vaga
+    const handleVacancyCvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const vacId = candidate?.realId || candidate?.id?.replace('VAC-', '');
+        if (!vacId) return;
+        setIsUploadingVacancyCv(true);
+        try {
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const result = reader.result as string;
+                const base64 = result.split(",")[1];
+                toast.info("Lendo currículo e criando candidato...");
+                const { createPublicCandidate } = await import("@/actions/recruitment");
+                await createPublicCandidate({
+                    vacancyId: vacId,
+                    name: `Candidato (${file.name})`,
+                    email: '',
+                    phone: '',
+                    fileBase64: base64,
+                    fileMimeType: file.type
+                });
+                toast.success("Candidato criado e analisado pela IA!");
+                // Refresh ranking
+                setIsLoadingRanked(true);
+                const updated = await getVacancyCandidates(vacId);
+                setRankedCandidates(updated);
+                setIsLoadingRanked(false);
+                router.refresh();
+            };
+            reader.readAsDataURL(file);
+        } catch (err: any) {
+            toast.error(err?.message || "Erro ao processar currículo");
+        } finally {
+            setIsUploadingVacancyCv(false);
+        }
+    };
+
+    const handleToggleRankReq = async (candidateId: string, reqId: string, currentValue: boolean, reqName: string) => {
+        const currentEvals = rankEvals[candidateId] || [];
+        let updated: any[];
+        if (currentEvals.some((e: any) => e.reqId === reqId)) {
+            updated = currentEvals.map((e: any) => e.reqId === reqId ? { ...e, value: !currentValue } : e);
+        } else {
+            updated = [...currentEvals, { reqId, name: reqName, value: !currentValue }];
+        }
+        setRankEvals(prev => ({ ...prev, [candidateId]: updated }));
+        await updateCandidateEvaluation(candidateId, { customEvaluations: updated });
+        toast.success("Requisito atualizado!");
     };
 
     useEffect(() => {
@@ -624,47 +678,119 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                         </div>
                                     </div>
 
-                                    {/* Ranking de Candidatos Avaliados */}
-                                    <div className="bg-white border rounded-xl p-4 space-y-4 shadow-sm">
-                                        <div className="border-b pb-2">
-                                            <h3 className="font-bold text-slate-800 text-sm">Ranking de Candidatos ({rankedCandidates.length})</h3>
-                                            <p className="text-xs text-slate-400">Candidatos inscritos nesta vaga, ordenados por pontuação de aderência da IA.</p>
+                                    {/* Upload Manual de Currículo para a Vaga */}
+                                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h4 className="text-sm font-bold text-slate-800">📎 Subir Candidato Manualmente</h4>
+                                                <p className="text-xs text-slate-500 mt-0.5">Anexe um currículo (PDF/imagem). A IA extrai os dados e avalia os requisitos da vaga automaticamente.</p>
+                                            </div>
+                                            <label className={`cursor-pointer shrink-0 inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 h-10 rounded-lg shadow-sm transition-all ${isUploadingVacancyCv ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                                                <Upload className="w-4 h-4" />
+                                                {isUploadingVacancyCv ? 'Processando...' : 'Anexar CV'}
+                                                <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={handleVacancyCvUpload} disabled={isUploadingVacancyCv} className="hidden" />
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Ranking de Candidatos com Checkboxes */}
+                                    <div className="bg-white border rounded-xl p-4 space-y-3 shadow-sm">
+                                        <div className="border-b pb-2 flex items-center justify-between">
+                                            <div>
+                                                <h3 className="font-bold text-slate-800 text-sm">Ranking de Candidatos ({rankedCandidates.length})</h3>
+                                                <p className="text-xs text-slate-400">Clique em um candidato para ver e marcar os requisitos.</p>
+                                            </div>
                                         </div>
 
                                         {isLoadingRanked ? (
-                                            <div className="text-center py-6 text-xs text-slate-400 flex items-center justify-center gap-2">
-                                                <span>Carregando ranking do ATS...</span>
-                                            </div>
+                                            <div className="text-center py-6 text-xs text-slate-400">Carregando ranking...</div>
                                         ) : rankedCandidates.length === 0 ? (
-                                            <div className="text-center py-6 text-xs text-slate-400">Nenhum candidato inscrito nesta vaga ainda.</div>
+                                            <div className="flex flex-col items-center justify-center py-8 text-center space-y-2">
+                                                <Upload className="w-8 h-8 text-slate-300" />
+                                                <p className="text-xs font-bold text-slate-500">Nenhum candidato nesta vaga ainda.</p>
+                                                <p className="text-xs text-slate-400">Use o botão "Anexar CV" acima para subir o primeiro currículo.</p>
+                                            </div>
                                         ) : (
-                                            <div className="divide-y max-h-64 overflow-y-auto">
+                                            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
                                                 {rankedCandidates.map((cand, idx) => {
-                                                    const evaluation = cand.requirementsEvaluation || {};
+                                                    const evaluation = (cand.requirementsEvaluation as any) || {};
+                                                    const reqs: any[] = vacancyReqs;
+                                                    const candEvals: any[] = rankEvals[cand.id] || (evaluation.customEvaluations as any[] || []);
+                                                    const checkedCount = reqs.filter(r => { const e = candEvals.find((ev:any) => ev.reqId === r.id); return e ? !!e.value : false; }).length;
+                                                    const pct = reqs.length > 0 ? Math.round((checkedCount / reqs.length) * 100) : (evaluation.adherenceScore ?? 0);
+                                                    const isExpanded = expandedRankId === cand.id;
+
                                                     return (
-                                                        <div key={cand.id} className="flex justify-between items-center py-2.5 text-xs">
-                                                            <div className="flex items-center gap-3">
-                                                                <span className="font-bold text-slate-400 w-5">#{idx + 1}</span>
-                                                                <div>
-                                                                    <span className="font-semibold text-slate-800 block">{cand.name}</span>
-                                                                    <span className="text-[10px] text-slate-400 uppercase tracking-wide">Etapa: {cand.stage?.name || 'Inscrição'}</span>
+                                                        <div key={cand.id} className={`rounded-xl border transition-all ${isExpanded ? 'border-indigo-300 bg-indigo-50/30' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                                                            {/* Header do candidato */}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setExpandedRankId(isExpanded ? null : cand.id)}
+                                                                className="w-full flex items-center justify-between p-3 text-left"
+                                                            >
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className="font-black text-slate-400 text-xs w-6">#{idx+1}</span>
+                                                                    <div>
+                                                                        <span className="font-semibold text-slate-800 text-sm block">{cand.name}</span>
+                                                                        <span className="text-[10px] text-slate-400 uppercase tracking-wide">{cand.stage?.name || 'Inscrição'}</span>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                {evaluation.isDisqualified ? (
-                                                                    <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase tracking-wider">ELIMINADO</span>
-                                                                ) : evaluation.adherenceScore !== undefined ? (
-                                                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider
-                                                                        ${evaluation.adherenceScore >= 75 ? 'bg-emerald-100 text-emerald-800' : 
-                                                                          evaluation.adherenceScore >= 50 ? 'bg-amber-100 text-amber-800' : 
-                                                                          'bg-red-100 text-red-800'}
-                                                                    `}>
-                                                                        {evaluation.adherenceScore}% Aderência
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-[10px] text-slate-400">Sem Triagem</span>
-                                                                )}
-                                                            </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    {evaluation.isDisqualified ? (
+                                                                        <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase">Eliminado</span>
+                                                                    ) : (
+                                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${pct >= 75 ? 'bg-emerald-100 text-emerald-800' : pct >= 50 ? 'bg-amber-100 text-amber-800' : pct > 0 ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-500'}`}>
+                                                                            {pct > 0 ? `${pct}%` : 'Sem Triagem'}
+                                                                        </span>
+                                                                    )}
+                                                                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                                                </div>
+                                                            </button>
+
+                                                            {/* Checklist expansível */}
+                                                            {isExpanded && (
+                                                                <div className="px-4 pb-4 space-y-3 border-t border-slate-100">
+                                                                    {/* Barra de progresso */}
+                                                                    {reqs.length > 0 && (
+                                                                        <div className="pt-3 space-y-1">
+                                                                            <div className="flex justify-between text-xs">
+                                                                                <span className="text-slate-500">{checkedCount} de {reqs.length} requisitos atendidos</span>
+                                                                                <span className={`font-black ${pct >= 75 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{pct}%</span>
+                                                                            </div>
+                                                                            <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                                                                                <div className={`h-full transition-all duration-500 ${pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Checkboxes por requisito */}
+                                                                    {reqs.length === 0 ? (
+                                                                        <p className="text-xs text-amber-600 py-2">Nenhum requisito cadastrado nesta vaga. Adicione requisitos acima.</p>
+                                                                    ) : (
+                                                                        <div className="space-y-1.5 mt-2">
+                                                                            {reqs.map(req => {
+                                                                                const evalItem = candEvals.find((ev:any) => ev.reqId === req.id);
+                                                                                const checked = evalItem ? !!evalItem.value : false;
+                                                                                return (
+                                                                                    <div key={req.id} className={`flex items-center justify-between p-2.5 rounded-lg border transition-colors ${checked ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'}`}>
+                                                                                        <div className="flex items-center gap-2.5">
+                                                                                            <input
+                                                                                                type="checkbox"
+                                                                                                id={`rank-${cand.id}-${req.id}`}
+                                                                                                checked={checked}
+                                                                                                onChange={() => handleToggleRankReq(cand.id, req.id, checked, req.name)}
+                                                                                                className="rounded border-gray-300 text-indigo-600 w-4 h-4 cursor-pointer"
+                                                                                            />
+                                                                                            <label htmlFor={`rank-${cand.id}-${req.id}`} className="text-xs font-medium text-slate-800 cursor-pointer select-none">{req.name}</label>
+                                                                                        </div>
+                                                                                        {req.isKnockout && <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-red-100 text-red-800">Eliminatório</span>}
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     );
                                                 })}
