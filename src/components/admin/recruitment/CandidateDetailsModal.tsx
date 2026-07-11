@@ -208,8 +208,17 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
             updated = [...currentEvals, { reqId, name: reqName, value: !currentValue }];
         }
         setRankEvals(prev => ({ ...prev, [candidateId]: updated }));
-        await updateCandidateEvaluation(candidateId, { customEvaluations: updated });
-        toast.success("Requisito atualizado!");
+        try {
+            const updatedCandidate = await updateCandidateEvaluation(candidateId, { customEvaluations: updated });
+            setRankedCandidates(prev => prev.map(c => 
+                c.id === candidateId 
+                    ? { ...c, requirementsEvaluation: updatedCandidate.requirementsEvaluation } 
+                    : c
+            ));
+            toast.success("Requisito atualizado!");
+        } catch (error) {
+            toast.error("Erro ao salvar avaliação");
+        }
     };
 
     useEffect(() => {
@@ -739,7 +748,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                         <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase">Eliminado</span>
                                                                     ) : (
                                                                         <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${pct >= 75 ? 'bg-emerald-100 text-emerald-800' : pct >= 50 ? 'bg-amber-100 text-amber-800' : pct > 0 ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-500'}`}>
-                                                                            {pct > 0 ? `${pct}%` : 'Sem Triagem'}
+                                                                    {pct > 0 ? `${pct}%` : 'Sem Triagem'}
                                                                         </span>
                                                                     )}
                                                                     <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
@@ -748,10 +757,55 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
 
                                                             {/* Checklist expansível */}
                                                             {isExpanded && (
-                                                                <div className="px-4 pb-4 space-y-3 border-t border-slate-100">
+                                                                <div className="px-4 pb-4 space-y-4 border-t border-slate-100 divide-y divide-slate-100">
+                                                                    {/* Dados extraídos do CV */}
+                                                                    {evaluation.aiAnalysis ? (
+                                                                        <div className="pt-3.5 space-y-3">
+                                                                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1">
+                                                                                <span className="text-[10px] uppercase font-black text-slate-500 block">Parecer Técnico da IA</span>
+                                                                                <p className="text-xs text-slate-700 italic">"{evaluation.aiAnalysis}"</p>
+                                                                            </div>
+
+                                                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                                                <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                    <span className="text-[9px] uppercase font-black text-slate-400 block">Idade Extraída</span>
+                                                                                    <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.age ? `${evaluation.parsedDetails.age} anos` : 'Não especificado'}</span>
+                                                                                </div>
+                                                                                <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                    <span className="text-[9px] uppercase font-black text-slate-400 block">Estabilidade (Últimos Empregos)</span>
+                                                                                    <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.averageTenureMonths ? `${evaluation.parsedDetails.averageTenureMonths} meses / vaga` : 'Não especificado'}</span>
+                                                                                </div>
+                                                                                <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                    <span className="text-[9px] uppercase font-black text-slate-400 block">Distância Estimada</span>
+                                                                                    <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.distanceKm ? `${evaluation.parsedDetails.distanceKm} Km` : 'Não especificado'}</span>
+                                                                                </div>
+                                                                                <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                    <span className="text-[9px] uppercase font-black text-slate-400 block">Filhos menores de 5 anos</span>
+                                                                                    <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.hasChildrenUnderFive ? 'Sim' : 'Não'}</span>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {evaluation.warnings && evaluation.warnings.length > 0 && (
+                                                                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 space-y-1">
+                                                                                    <span className="text-[9px] uppercase font-black text-amber-800 flex items-center gap-1">
+                                                                                        <AlertTriangle className="w-3.5 h-3.5" />
+                                                                                        Alertas de Risco
+                                                                                    </span>
+                                                                                    <ul className="list-disc pl-4 text-xs text-amber-900 space-y-0.5">
+                                                                                        {evaluation.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
+                                                                                    </ul>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="pt-3.5 text-center py-2 text-xs text-slate-400">
+                                                                            Nenhuma análise de currículo por IA disponível. Envie o CV acima para rodar a triagem.
+                                                                        </div>
+                                                                    )}
+
                                                                     {/* Barra de progresso */}
                                                                     {reqs.length > 0 && (
-                                                                        <div className="pt-3 space-y-1">
+                                                                        <div className="pt-3.5 space-y-1">
                                                                             <div className="flex justify-between text-xs">
                                                                                 <span className="text-slate-500">{checkedCount} de {reqs.length} requisitos atendidos</span>
                                                                                 <span className={`font-black ${pct >= 75 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{pct}%</span>
@@ -764,14 +818,15 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
 
                                                                     {/* Checkboxes por requisito */}
                                                                     {reqs.length === 0 ? (
-                                                                        <p className="text-xs text-amber-600 py-2">Nenhum requisito cadastrado nesta vaga. Adicione requisitos acima.</p>
+                                                                        <p className="text-xs text-amber-600 py-2 pt-3">Nenhum requisito cadastrado nesta vaga. Adicione requisitos acima.</p>
                                                                     ) : (
-                                                                        <div className="space-y-1.5 mt-2">
+                                                                        <div className="space-y-1.5 pt-3">
                                                                             {reqs.map(req => {
                                                                                 const evalItem = candEvals.find((ev:any) => ev.reqId === req.id);
                                                                                 const checked = evalItem ? !!evalItem.value : false;
+                                                                                const isFailedKnockout = req.isKnockout && !checked;
                                                                                 return (
-                                                                                    <div key={req.id} className={`flex items-center justify-between p-2.5 rounded-lg border transition-colors ${checked ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'}`}>
+                                                                                    <div key={req.id} className={`flex items-center justify-between p-2.5 rounded-lg border transition-all ${checked ? 'bg-emerald-50 border-emerald-200 text-emerald-950' : isFailedKnockout ? 'bg-red-50 border-red-200 text-red-950 ring-1 ring-red-300' : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'}`}>
                                                                                         <div className="flex items-center gap-2.5">
                                                                                             <input
                                                                                                 type="checkbox"
@@ -780,9 +835,13 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                                                 onChange={() => handleToggleRankReq(cand.id, req.id, checked, req.name)}
                                                                                                 className="rounded border-gray-300 text-indigo-600 w-4 h-4 cursor-pointer"
                                                                                             />
-                                                                                            <label htmlFor={`rank-${cand.id}-${req.id}`} className="text-xs font-medium text-slate-800 cursor-pointer select-none">{req.name}</label>
+                                                                                            <label htmlFor={`rank-${cand.id}-${req.id}`} className="text-xs font-medium cursor-pointer select-none">{req.name}</label>
                                                                                         </div>
-                                                                                        {req.isKnockout && <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-red-100 text-red-800">Eliminatório</span>}
+                                                                                        {req.isKnockout && (
+                                                                                            <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${isFailedKnockout ? 'bg-red-600 text-white animate-pulse' : 'bg-red-100 text-red-800'}`}>
+                                                                                                {isFailedKnockout ? 'Não Atendido' : 'Eliminatório'}
+                                                                                            </span>
+                                                                                        )}
                                                                                     </div>
                                                                                 );
                                                                             })}
