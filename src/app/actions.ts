@@ -291,6 +291,8 @@ export async function createPosto(formData: FormData) {
     const periculosidade = parseFloat(formData.get("periculosidade") as string) || 0;
     const gratificacao = parseFloat(formData.get("gratificacao") as string) || 0;
     const outrosAdicionais = parseFloat(formData.get("outrosAdicionais") as string) || 0;
+    const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
+    const valeTransporte = parseFloat(formData.get("valeTransporte") as string) || 0;
 
     await prisma.posto.create({
         data: {
@@ -306,7 +308,9 @@ export async function createPosto(formData: FormData) {
             insalubridade,
             periculosidade,
             gratificacao,
-            outrosAdicionais
+            outrosAdicionais,
+            valeAlimentacao,
+            valeTransporte
         }
     });
 
@@ -797,6 +801,8 @@ export async function updatePosto(formData: FormData) {
     const periculosidade = parseFloat(formData.get("periculosidade") as string) || 0;
     const gratificacao = parseFloat(formData.get("gratificacao") as string) || 0;
     const outrosAdicionais = parseFloat(formData.get("outrosAdicionais") as string) || 0;
+    const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
+    const valeTransporte = parseFloat(formData.get("valeTransporte") as string) || 0;
 
     const posto = await prisma.posto.update({
         where: { id },
@@ -812,7 +818,9 @@ export async function updatePosto(formData: FormData) {
             insalubridade,
             periculosidade,
             gratificacao,
-            outrosAdicionais
+            outrosAdicionais,
+            valeAlimentacao,
+            valeTransporte
         }
     });
 

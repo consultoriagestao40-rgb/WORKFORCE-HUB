@@ -617,14 +617,14 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 flex items-center gap-1 shrink-0"
                                             >
                                                 <Copy className="w-3.5 h-3.5" />
-                                                Copiar Link
+                                                        Copiar Link
                                             </Button>
                                         </div>
                                     </div>
 
                                     {/* Configuração de Checklist de Requisitos da Vaga */}
-                                    <div className="bg-white border rounded-xl p-4 space-y-4 shadow-sm">
-                                        <div className="border-b pb-2 flex justify-between items-center">
+                                    <div className="bg-white border rounded-xl p-4 shadow-sm">
+                                        <div className="flex justify-between items-center">
                                             <div>
                                                 <h3 className="font-bold text-slate-800 text-sm">Checklist de Requisitos ({vacancyReqs.length})</h3>
                                                 <p className="text-xs text-slate-400">Critérios de avaliação para esta vaga.</p>
@@ -640,8 +640,8 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                             </Button>
                                         </div>
 
-                                        {isVacancyReqsExpanded ? (
-                                            <>
+                                        {isVacancyReqsExpanded && (
+                                            <div className="mt-4 space-y-4 border-t pt-4">
                                                 <div className="flex gap-2 items-end bg-slate-50 p-3 rounded-lg border border-slate-100">
                                                     <div className="flex-1 space-y-1">
                                                         <label className="text-[10px] uppercase font-black text-slate-500 block">Novo Requisito</label>
@@ -699,22 +699,6 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                         ))
                                                     )}
                                                 </div>
-                                            </>
-                                        ) : (
-                                            /* Resumo Simplificado quando fechado */
-                                            <div className="space-y-2">
-                                                {vacancyReqs.length === 0 ? (
-                                                    <div className="text-xs text-slate-400">Nenhum requisito cadastrado ainda. Clique em "✏️ Configurar/Editar" acima para definir os critérios da vaga.</div>
-                                                ) : (
-                                                    <div className="flex flex-wrap gap-1.5 pt-1">
-                                                        {vacancyReqs.map((req) => (
-                                                            <span key={req.id} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${req.isKnockout ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-slate-50 text-slate-700 border border-slate-100'}`}>
-                                                                {req.name}
-                                                                {req.isKnockout && <span className="text-[8px] font-black uppercase text-red-600 bg-red-100/50 px-1 rounded-full shrink-0">Elim</span>}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                )}
                                             </div>
                                         )}
                                     </div>

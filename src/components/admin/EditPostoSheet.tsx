@@ -24,6 +24,8 @@ interface EditPostoSheetProps {
         periculosidade: number;
         gratificacao: number;
         outrosAdicionais: number;
+        valeAlimentacao?: number;
+        valeTransporte?: number;
     };
     schedules: { id: string; name: string }[];
     roles: { id: string; name: string }[];
@@ -124,6 +126,14 @@ export function EditPostoSheet({ posto, schedules, roles }: EditPostoSheetProps)
                             </div>
                             <div className="space-y-2 col-span-2 text-xs text-slate-500 bg-blue-50 p-2 rounded">
                                 Estes valores compõem o quadro orçado para este posto.
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="valeAlimentacao">Vale Alimentação (R$)</Label>
+                                <Input id="valeAlimentacao" name="valeAlimentacao" type="number" step="0.01" defaultValue={posto.valeAlimentacao || 0} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="valeTransporte">Vale Transporte (R$)</Label>
+                                <Input id="valeTransporte" name="valeTransporte" type="number" step="0.01" defaultValue={posto.valeTransporte || 0} />
                             </div>
                             <div className="space-y-2 col-span-2">
                                 <Label htmlFor="outrosAdicionais">Outros Adicionais (R$)</Label>

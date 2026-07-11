@@ -400,35 +400,54 @@ export async function getRecruitmentBoardData() {
         }
     });
 
-    // 4. Map candidates to include type, due date and sort by AI adherence
+    // 4. Map stages to return Vacancy cards grouped by vacancy
     const candidateStages = dbStages
-        .filter(stage => stage.name !== 'R&S (Vagas)') // FIX: Remove duplicate R&S stage fetch from DB
-        .map(stage => ({
-            ...stage,
-            candidates: stage.candidates
-                .map(c => ({
-                    ...c,
-                    type: 'CANDIDATE' as const,
-                    realId: c.id
-                }))
-                .sort((a, b) => {
-                    const evalA = (a.requirementsEvaluation as any) || {};
-                    const evalB = (b.requirementsEvaluation as any) || {};
-                    
-                    const isDisqA = !!evalA.isDisqualified;
-                    const isDisqB = !!evalB.isDisqualified;
-                    
-                    // Disclassificados sempre ficam no final
-                    if (isDisqA && !isDisqB) return 1;
-                    if (!isDisqA && isDisqB) return -1;
-                    
-                    const scoreA = evalA.adherenceScore || 0;
-                    const scoreB = evalB.adherenceScore || 0;
-                    
-                    // Ordena por score decrescente
-                    return scoreB - scoreA;
-                })
-        }));
+        .filter(stage => stage.name !== 'R&S (Vagas)')
+        .map(stage => {
+            // Group candidates of this stage by vacancyId
+            const grouped: Record<string, typeof stage.candidates> = {};
+            stage.candidates.forEach(c => {
+                if (!grouped[c.vacancyId]) {
+                    grouped[c.vacancyId] = [];
+                }
+                grouped[c.vacancyId].push(c);
+            });
+
+            // Map each vacancy group to a single vacancy card representing that vacancy in this stage
+            const candidatesAsVacancyCards = Object.entries(grouped).map(([vacId, candidatesList]) => {
+                const sampleCandidate = candidatesList[0];
+                const vacancy = sampleCandidate.vacancy;
+                const totalCandidates = candidatesList.length;
+                
+                return {
+                    id: `VACSTAGE-${stage.id}-${vacId}`, // Unique for Drag and Drop
+                    realId: vacId,
+                    name: `${vacancy.title} (${totalCandidates} candidato${totalCandidates > 1 ? 's' : ''})`,
+                    type: 'VACANCY' as const,
+                    createdAt: vacancy.createdAt,
+                    stageId: stage.id,
+                    candidateCount: totalCandidates,
+                    vacancy: {
+                        id: vacId,
+                        title: `${vacancy.title} (${totalCandidates} candidato${totalCandidates > 1 ? 's' : ''})`,
+                        priority: vacancy.priority,
+                        status: vacancy.status,
+                        role: vacancy.role,
+                        posto: vacancy.posto,
+                        company: vacancy.company,
+                        description: vacancy.description,
+                        createdAt: vacancy.createdAt,
+                        customRequirements: vacancy.customRequirements,
+                        plannedStartDate: vacancy.plannedStartDate
+                    }
+                };
+            });
+
+            return {
+                ...stage,
+                candidates: candidatesAsVacancyCards
+            };
+        });
 
     // 5. Get or Create the System "R&S" Stage for SLA persistence
     let rnsStageDb = await prisma.recruitmentStage.findFirst({

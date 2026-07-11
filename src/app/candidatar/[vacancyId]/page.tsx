@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
-import { Briefcase, MapPin, Building, Calendar, ShieldCheck, Sparkles, Clock } from "lucide-react";
+import { Briefcase, MapPin, Building, Calendar, ShieldCheck, Sparkles, Clock, DollarSign } from "lucide-react";
 import { PublicApplicationForm } from "./PublicApplicationForm";
 
 export const dynamic = "force-dynamic";
@@ -106,6 +106,91 @@ export default async function PublicApplicationPage(props: {
                                 </div>
                             )}
                         </div>
+
+                        {/* Remuneração e Benefícios */}
+                        {vacancy.posto && (
+                            <div className="space-y-3">
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                    <DollarSign className="w-4 h-4 text-indigo-400" />
+                                    Remuneração & Benefícios
+                                </h3>
+                                
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {/* Salário Base */}
+                                    <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800/40 space-y-1">
+                                        <span className="block text-[9px] text-slate-500 uppercase font-black tracking-wider">Salário Base</span>
+                                        <span className="text-lg font-black text-emerald-400">
+                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(vacancy.posto.baseSalary || 0)}
+                                        </span>
+                                    </div>
+                                    
+                                    {/* Vale Alimentação */}
+                                    <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800/40 space-y-1">
+                                        <span className="block text-[9px] text-slate-500 uppercase font-black tracking-wider">Vale Alimentação</span>
+                                        <span className="text-lg font-black text-indigo-400">
+                                            {vacancy.posto.valeAlimentacao > 0 ? (
+                                                new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(vacancy.posto.valeAlimentacao)
+                                            ) : (
+                                                "Conforme CCT"
+                                            )}
+                                        </span>
+                                    </div>
+
+                                    {/* Vale Transporte */}
+                                    <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800/40 space-y-1">
+                                        <span className="block text-[9px] text-slate-500 uppercase font-black tracking-wider">Vale Transporte</span>
+                                        <span className="text-lg font-black text-indigo-400">
+                                            {vacancy.posto.valeTransporte > 0 ? (
+                                                new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(vacancy.posto.valeTransporte)
+                                            ) : (
+                                                "Fornecido / VT"
+                                            )}
+                                        </span>
+                                    </div>
+
+                                    {/* Escala de Trabalho */}
+                                    <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800/40 space-y-1">
+                                        <span className="block text-[9px] text-slate-500 uppercase font-black tracking-wider">Escala & Horário</span>
+                                        <span className="text-sm font-bold text-slate-200 block">
+                                            {vacancy.posto.schedule} ({vacancy.posto.startTime} - {vacancy.posto.endTime})
+                                        </span>
+                                    </div>
+
+                                    {/* Adicionais se existirem */}
+                                    {(vacancy.posto.insalubridade > 0 || vacancy.posto.periculosidade > 0 || vacancy.posto.gratificacao > 0 || vacancy.posto.outrosAdicionais > 0) && (
+                                        <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800/40 col-span-1 sm:col-span-2 space-y-2">
+                                            <span className="block text-[9px] text-slate-500 uppercase font-black tracking-wider">Adicionais Previstos</span>
+                                            <div className="grid grid-cols-2 gap-2 text-xs text-slate-300 font-semibold">
+                                                {vacancy.posto.insalubridade > 0 && (
+                                                    <div className="flex justify-between border-b border-slate-900 pb-1">
+                                                        <span>Insalubridade:</span>
+                                                        <span className="text-emerald-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(vacancy.posto.insalubridade)}</span>
+                                                    </div>
+                                                )}
+                                                {vacancy.posto.periculosidade > 0 && (
+                                                    <div className="flex justify-between border-b border-slate-900 pb-1">
+                                                        <span>Periculosidade:</span>
+                                                        <span className="text-emerald-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(vacancy.posto.periculosidade)}</span>
+                                                    </div>
+                                                )}
+                                                {vacancy.posto.gratificacao > 0 && (
+                                                    <div className="flex justify-between border-b border-slate-900 pb-1">
+                                                        <span>Gratificação CCT:</span>
+                                                        <span className="text-emerald-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(vacancy.posto.gratificacao)}</span>
+                                                    </div>
+                                                )}
+                                                {vacancy.posto.outrosAdicionais > 0 && (
+                                                    <div className="flex justify-between border-b border-slate-900 pb-1">
+                                                        <span>Outros Adicionais:</span>
+                                                        <span className="text-emerald-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(vacancy.posto.outrosAdicionais)}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Description Box */}
                         {vacancy.description && (
