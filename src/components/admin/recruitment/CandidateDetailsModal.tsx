@@ -695,156 +695,128 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                             />
                                         </label>
                                     </div>
-
+                       
                                     {candidate.requirementsEvaluation ? (
                                         <>
-                                            {/* Score de Aderência */}
+                                            {/* Score de Aderência por IA */}
                                             <div className="bg-white border rounded-xl p-4 space-y-3 shadow-sm">
                                                 <div className="flex justify-between items-center">
-                                                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Aderência do Candidato</span>
-                                                    <span className={`text-lg font-black
-                                                        ${candidate.requirementsEvaluation.isDisqualified ? 'text-red-600' :
-                                                          candidate.requirementsEvaluation.adherenceScore >= 75 ? 'text-emerald-600' :
-                                                          candidate.requirementsEvaluation.adherenceScore >= 50 ? 'text-amber-600' :
-                                                          'text-red-600'}
-                                                    `}>
+                                                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Aderência por IA</span>
+                                                    <span className={`text-lg font-black ${candidate.requirementsEvaluation.isDisqualified ? 'text-red-600' : candidate.requirementsEvaluation.adherenceScore >= 75 ? 'text-emerald-600' : candidate.requirementsEvaluation.adherenceScore >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
                                                         {candidate.requirementsEvaluation.isDisqualified ? 'Desclassificado' : `${candidate.requirementsEvaluation.adherenceScore}%`}
                                                     </span>
                                                 </div>
-
-                                                {/* Progress Bar */}
                                                 {!candidate.requirementsEvaluation.isDisqualified && (
                                                     <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                                                        <div 
-                                                            className={`h-full transition-all duration-500 
-                                                                ${candidate.requirementsEvaluation.adherenceScore >= 75 ? 'bg-emerald-500' : 
-                                                                  candidate.requirementsEvaluation.adherenceScore >= 50 ? 'bg-amber-500' : 
-                                                                  'bg-red-500'}
-                                                            `}
-                                                            style={{ width: `${candidate.requirementsEvaluation.adherenceScore}%` }}
-                                                        />
+                                                        <div className={`h-full transition-all duration-500 ${candidate.requirementsEvaluation.adherenceScore >= 75 ? 'bg-emerald-500' : candidate.requirementsEvaluation.adherenceScore >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${candidate.requirementsEvaluation.adherenceScore}%` }} />
                                                     </div>
                                                 )}
-
                                                 {candidate.requirementsEvaluation.isDisqualified && (
                                                     <div className="flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800 items-start">
                                                         <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                                                         <div>
-                                                            <span className="font-bold block">Candidato Desclassificado por Requisito Eliminatório</span>
-                                                            <span className="mt-0.5 block">{candidate.requirementsEvaluation.disqualificationReason || 'Não atendeu a um dos requisitos eliminatórios configurados para esta vaga.'}</span>
+                                                            <span className="font-bold block">Desclassificado por Requisito Eliminatório</span>
+                                                            <span className="mt-0.5 block">{candidate.requirementsEvaluation.disqualificationReason}</span>
                                                         </div>
                                                     </div>
                                                 )}
                                             </div>
-
-                                            {/* Alertas & Avisos */}
                                             {candidate.requirementsEvaluation.warnings && candidate.requirementsEvaluation.warnings.length > 0 && (
                                                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2 shadow-sm">
                                                     <div className="flex items-center gap-1.5 text-amber-800 font-bold text-xs uppercase tracking-wider">
                                                         <AlertTriangle className="w-4 h-4 text-amber-600" />
-                                                        Alertas Operacionais de Risco
+                                                        Alertas de Risco
                                                     </div>
                                                     <ul className="list-disc pl-4 text-xs text-amber-800 space-y-1">
-                                                        {candidate.requirementsEvaluation.warnings.map((w: string, i: number) => (
-                                                            <li key={i}>{w}</li>
-                                                        ))}
+                                                        {candidate.requirementsEvaluation.warnings.map((w: string, i: number) => (<li key={i}>{w}</li>))}
                                                     </ul>
                                                 </div>
                                             )}
-
-                                            {/* Checklist Interativo */}
-                                            <div className="bg-white border rounded-xl p-4 space-y-3 shadow-sm">
-                                                <div className="border-b pb-2">
-                                                    <h3 className="font-bold text-slate-800 text-sm">Checklist de Requisitos</h3>
-                                                    <p className="text-xs text-slate-400">Verifique e edite manualmente as respostas de cada requisito para este candidato.</p>
-                                                </div>
-
-                                                {/* Requisitos Padrão Extraídos da IA */}
-                                                <div className="space-y-2.5">
-                                                    <div className="grid grid-cols-2 gap-3 text-xs p-2 rounded bg-slate-50 border border-slate-100">
-                                                        <div>
-                                                            <span className="text-slate-500 uppercase block text-[9px] font-black">Idade Extraída</span>
-                                                            <span className="font-semibold text-slate-800">{candidate.requirementsEvaluation.parsedDetails?.age || 'N/A'} anos</span>
-                                                        </div>
-                                                        <div>
-                                                            <span className="text-slate-500 uppercase block text-[9px] font-black">Distância Estimada</span>
-                                                            <span className="font-semibold text-slate-800">
-                                                                {candidate.requirementsEvaluation.parsedDetails?.distanceKm ? `${candidate.requirementsEvaluation.parsedDetails.distanceKm} Km` : 'N/A'}
-                                                            </span>
-                                                        </div>
-                                                        <div className="col-span-2">
-                                                            <span className="text-slate-500 uppercase block text-[9px] font-black">Endereço Encontrado</span>
-                                                            <span className="font-semibold text-slate-800 truncate block">{candidate.requirementsEvaluation.parsedDetails?.address || 'Não especificado'}</span>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Requisitos Customizados Checkboxes */}
-                                                    {(candidate.vacancy?.customRequirements as any[] || []).map((req) => {
-                                                        const evalItem = (candidate.requirementsEvaluation.customEvaluations as any[] || []).find((e: any) => e.reqId === req.id);
-                                                        const value = evalItem ? !!evalItem.value : false;
-                                                        return (
-                                                            <div key={req.id} className="flex items-center justify-between p-2.5 rounded border border-slate-100 bg-white hover:bg-slate-50/50">
-                                                                <div className="flex items-center gap-2.5">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        id={`check-${req.id}`}
-                                                                        checked={value}
-                                                                        onChange={() => handleToggleCustomReq(req.id, value)}
-                                                                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
-                                                                    />
-                                                                    <label htmlFor={`check-${req.id}`} className="cursor-pointer text-xs font-medium text-slate-800 select-none">
-                                                                        {req.name}
-                                                                    </label>
-                                                                </div>
-                                                                {req.isKnockout && (
-                                                                    <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase tracking-wider">Eliminatório</span>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-
-                                            {/* Parecer IA */}
                                             {candidate.requirementsEvaluation.aiAnalysis && (
                                                 <div className="bg-white border rounded-xl p-4 space-y-2 shadow-sm">
                                                     <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Parecer Técnico da IA</h3>
-                                                    <p className="text-xs text-slate-600 italic leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                                        "{candidate.requirementsEvaluation.aiAnalysis}"
-                                                    </p>
+                                                    <p className="text-xs text-slate-600 italic leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">"{candidate.requirementsEvaluation.aiAnalysis}"</p>
                                                 </div>
                                             )}
-
-                                            {/* Observações do Entrevistador */}
-                                            <div className="bg-white border rounded-xl p-4 space-y-3 shadow-sm">
-                                                <div className="flex justify-between items-center">
-                                                    <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Observações do Entrevistador</h3>
-                                                    <Button 
-                                                        size="sm" 
-                                                        onClick={handleSaveNotes}
-                                                        className="bg-indigo-600 hover:bg-indigo-700 text-white h-7 px-3 text-xs"
-                                                    >
-                                                        <Save className="w-3.5 h-3.5 mr-1" />
-                                                        Salvar Notas
-                                                    </Button>
-                                                </div>
-                                                <Textarea
-                                                    value={notes}
-                                                    onChange={(e) => setNotes(e.target.value)}
-                                                    placeholder="Digite aqui as observações coletadas durante a entrevista e triagem..."
-                                                    className="min-h-24 text-xs bg-slate-50 border-slate-200"
-                                                />
-                                            </div>
                                         </>
                                     ) : (
-                                        <div className="bg-white border rounded-xl p-8 flex flex-col items-center justify-center text-center space-y-3 shadow-sm">
-                                            <FileText className="w-12 h-12 text-slate-300" />
-                                            <h4 className="font-bold text-slate-700 text-sm">Nenhuma triagem por IA realizada</h4>
-                                            <p className="text-xs text-slate-400 max-w-xs">Faça o upload do currículo acima para rodar a triagem inteligente com a IA do Gemini em 5 segundos.</p>
+                                        <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-5 flex flex-col items-center justify-center text-center space-y-2">
+                                            <FileText className="w-8 h-8 text-slate-300" />
+                                            <h4 className="font-bold text-slate-600 text-xs uppercase tracking-wide">Sem triagem por IA</h4>
+                                            <p className="text-xs text-slate-400 max-w-xs">Faça o upload do currículo acima para rodar a triagem automática com o Gemini em segundos.</p>
+                                        </div>
+                                    )}
+
+                                    {/* ✅ CHECKLIST — SEMPRE VISÍVEL */}
+                                    {(candidate.vacancy?.customRequirements as any[] || []).length > 0 ? (
+                                        <div className="bg-white border rounded-xl p-4 space-y-3 shadow-sm">
+                                            <div className="border-b pb-2">
+                                                <h3 className="font-bold text-slate-800 text-sm">✅ Checklist de Requisitos</h3>
+                                                <p className="text-xs text-slate-400">Marque os itens que o candidato <strong>atende</strong>. A barra de aderência atualiza automaticamente.</p>
+                                            </div>
+                                            {(() => {
+                                                const reqs: any[] = (candidate.vacancy?.customRequirements as any[] || []);
+                                                const evals: any[] = (candidate.requirementsEvaluation?.customEvaluations as any[] || []);
+                                                const checked = reqs.filter(req => { const e = evals.find((ev: any) => ev.reqId === req.id); return e ? !!e.value : false; }).length;
+                                                const pct = reqs.length > 0 ? Math.round((checked / reqs.length) * 100) : 0;
+                                                return (
+                                                    <div className="space-y-1">
+                                                        <div className="flex justify-between text-xs">
+                                                            <span className="text-slate-500">{checked} de {reqs.length} itens atendidos</span>
+                                                            <span className={`font-black ${pct >= 75 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{pct}%</span>
+                                                        </div>
+                                                        <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                                                            <div className={`h-full transition-all duration-500 ${pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+                                            <div className="space-y-2">
+                                                {(candidate.vacancy?.customRequirements as any[] || []).map((req) => {
+                                                    const evalItem = ((candidate.requirementsEvaluation?.customEvaluations as any[]) || []).find((e: any) => e.reqId === req.id);
+                                                    const value = evalItem ? !!evalItem.value : false;
+                                                    return (
+                                                        <div key={req.id} className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${value ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+                                                            <div className="flex items-center gap-3">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    id={`check-${req.id}`}
+                                                                    checked={value}
+                                                                    onChange={() => handleToggleCustomReq(req.id, value)}
+                                                                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                                                                />
+                                                                <label htmlFor={`check-${req.id}`} className="cursor-pointer text-sm font-medium text-slate-800 select-none">{req.name}</label>
+                                                            </div>
+                                                            {req.isKnockout && (<span className="px-2 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase tracking-wider shrink-0">Eliminatório</span>)}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            <div className="pt-2 border-t space-y-2">
+                                                <div className="flex justify-between items-center">
+                                                    <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Observações do Entrevistador</h4>
+                                                    <Button size="sm" onClick={handleSaveNotes} className="bg-indigo-600 hover:bg-indigo-700 text-white h-7 px-3 text-xs">
+                                                        <Save className="w-3.5 h-3.5 mr-1" />Salvar
+                                                    </Button>
+                                                </div>
+                                                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações coletadas durante a entrevista..." className="min-h-20 text-xs bg-slate-50 border-slate-200" />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-white border rounded-xl p-4 space-y-2 shadow-sm">
+                                            <div className="flex justify-between items-center">
+                                                <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Observações do Entrevistador</h4>
+                                                <Button size="sm" onClick={handleSaveNotes} className="bg-indigo-600 hover:bg-indigo-700 text-white h-7 px-3 text-xs">
+                                                    <Save className="w-3.5 h-3.5 mr-1" />Salvar
+                                                </Button>
+                                            </div>
+                                            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações coletadas durante a entrevista..." className="min-h-20 text-xs bg-slate-50 border-slate-200" />
+                                            <p className="text-xs text-amber-700 pt-1">⚠️ Nenhum requisito cadastrado nesta vaga. Abra o card da Vaga → aba ATS → Checklist para adicionar.</p>
                                         </div>
                                     )}
                                 </div>
                             )}
+
                         </TabsContent>
 
                         <TabsContent value="history" className="mt-4">
