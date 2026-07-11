@@ -128,7 +128,6 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
         });
         toast.success("Avaliação atualizada!");
         router.refresh();
-        onOpenChange(false);
     };
 
     const handleSaveNotes = async () => {

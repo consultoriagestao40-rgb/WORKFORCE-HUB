@@ -1458,37 +1458,44 @@ export async function updateCandidateEvaluation(candidateId: string, evaluation:
     };
 
     if (evaluation.customEvaluations) {
-        const total = evaluation.customEvaluations.length;
+        const vacancy = await prisma.vacancy.findFirst({
+            where: { candidates: { some: { id: candidateId } } }
+        });
+        
+        const vacancyReqs = (vacancy?.customRequirements as any[]) || [];
+        const total = vacancyReqs.length;
+        
         if (total > 0) {
-            const passed = evaluation.customEvaluations.filter(e => e.value).length;
-            
-            // Verifica se algum item desmarcado é eliminatório
-            const vacancy = await prisma.vacancy.findFirst({
-                where: { candidates: { some: { id: candidateId } } }
-            });
-            
+            let passed = 0;
             let isKnockedOut = false;
             let knockoutReason = "";
             
-            if (vacancy?.customRequirements) {
-                const customReqs = vacancy.customRequirements as any[];
-                for (const evalItem of evaluation.customEvaluations) {
-                    if (!evalItem.value) {
-                        const originalReq = customReqs.find(r => r.id === evalItem.reqId);
-                        if (originalReq?.isKnockout) {
-                            isKnockedOut = true;
-                            knockoutReason = `Reprovado no item eliminatório: ${evalItem.name}`;
-                            break;
-                        }
-                    }
+            const checkedEvaluations = vacancyReqs.map(req => {
+                const evalItem = evaluation.customEvaluations?.find(e => e.reqId === req.id)
+                    || (currentEval.customEvaluations as any[] || []).find(e => e.reqId === req.id);
+                
+                const value = evalItem ? !!evalItem.value : false;
+                if (value) {
+                    passed++;
+                } else if (req.isKnockout) {
+                    isKnockedOut = true;
+                    knockoutReason = `Reprovado no item eliminatório: ${req.name}`;
                 }
-            }
+                
+                return {
+                    reqId: req.id,
+                    name: req.name,
+                    value
+                };
+            });
             
+            updatedEval.customEvaluations = checkedEvaluations;
             updatedEval.isDisqualified = isKnockedOut;
             updatedEval.disqualificationReason = isKnockedOut ? knockoutReason : null;
             updatedEval.adherenceScore = Math.round((passed / total) * 100);
         }
     }
+
 
     const updated = await prisma.recruitmentCandidate.update({
         where: { id: candidateId },
