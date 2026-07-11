@@ -200,6 +200,26 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
             setIsUploadingVacancyCv(false);
         }
     };
+    const handleDeleteRankedCandidate = async (e: React.MouseEvent, candidateId: string, candidateName: string) => {
+        e.stopPropagation();
+        if (!confirm(`Tem certeza que deseja EXCLUIR permanentemente o candidato "${candidateName}"?`)) return;
+        
+        try {
+            await deleteCandidate(candidateId);
+            toast.success("Candidato excluído permanentemente!");
+            
+            const vacId = candidate?.realId || candidate?.id?.replace('VAC-', '');
+            if (vacId) {
+                setIsLoadingRanked(true);
+                const updated = await getVacancyCandidates(vacId);
+                setRankedCandidates(updated);
+                setIsLoadingRanked(false);
+            }
+            router.refresh();
+        } catch (err: any) {
+            toast.error(err?.message || "Erro ao excluir candidato");
+        }
+    };
 
     const handleToggleRankReq = async (candidateId: string, reqId: string, newValue: boolean | null, reqName: string) => {
         const currentEvals = rankEvals[candidateId] || [];
@@ -780,19 +800,20 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                         return (
                                                             <div key={cand.id} className={`rounded-xl border transition-all ${isExpanded ? 'border-indigo-300 bg-indigo-50/30' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
                                                                 {/* Header do candidato */}
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setExpandedRankId(isExpanded ? null : cand.id)}
+                                                                <div
                                                                     className="w-full flex items-center justify-between p-3 text-left"
                                                                 >
-                                                                    <div className="flex items-center gap-3">
+                                                                    <div
+                                                                        onClick={() => setExpandedRankId(isExpanded ? null : cand.id)}
+                                                                        className="flex items-center gap-3 cursor-pointer flex-1"
+                                                                    >
                                                                         <span className="font-black text-slate-400 text-xs w-6">#{idx+1}</span>
                                                                         <div>
                                                                             <span className="font-semibold text-slate-800 text-sm block">{cand.name}</span>
                                                                             <span className="text-[10px] text-slate-400 uppercase tracking-wide">{cand.stage?.name || 'Inscrição'}</span>
                                                                         </div>
                                                                     </div>
-                                                                    <div className="flex items-center gap-2">
+                                                                    <div className="flex items-center gap-2 shrink-0">
                                                                         {isDisqualified ? (
                                                                             <span className="px-2 py-0.5 rounded bg-red-600 text-white text-[9px] font-black uppercase">Desclassificado</span>
                                                                         ) : (
@@ -800,9 +821,23 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                                 {pct > 0 ? `${pct}%` : 'Sem Triagem'}
                                                                             </span>
                                                                         )}
-                                                                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setExpandedRankId(isExpanded ? null : cand.id)}
+                                                                            className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
+                                                                        >
+                                                                            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => handleDeleteRankedCandidate(e, cand.id, cand.name)}
+                                                                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50/55 transition-all border border-transparent hover:border-red-100/50"
+                                                                            title="Excluir Candidato permanentemente"
+                                                                        >
+                                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                                        </button>
                                                                     </div>
-                                                                </button>
+                                                                </div>
 
                                                                 {/* Checklist expansível */}
                                                                 {isExpanded && (
