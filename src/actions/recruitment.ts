@@ -327,22 +327,21 @@ export async function getRecruitmentBoardData() {
     // If a vacancy has a candidate, it is considered "In Progress" and disappears from R&S.
     const openVacancies = await prisma.vacancy.findMany({
         where: {
-            status: 'OPEN',
-            candidates: {
-                none: {} // Only show vacancies with zero candidates
-            }
+            status: 'OPEN'
+            // REMOVED: candidates: { none: {} }
+            // Vagas com candidatos devem continuar visíveis no R&S
+            // para que o gestor possa acessar o ranking e triagem
         },
         include: {
             role: true,
             posto: { include: { client: true } },
             company: true,
             recruiter: true,
-            participants: { select: { id: true, name: true } } // NEW
+            participants: { select: { id: true, name: true } }
         },
         orderBy: { createdAt: 'desc' }
     });
 
-    // 2. Map vacancies to a structure compatible with the frontend board
     const vacancyItems = openVacancies.map(v => ({
         id: `VAC-${v.id}`, // Prefix to distinguish from candidate IDs
         realId: v.id,      // Real ID for actions
@@ -370,6 +369,7 @@ export async function getRecruitmentBoardData() {
             customRequirements: v.customRequirements
         }
     }));
+
 
     // 3. Fetch standard stages and candidates
     const dbStages = await prisma.recruitmentStage.findMany({
