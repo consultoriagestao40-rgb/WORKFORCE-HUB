@@ -322,34 +322,63 @@ export async function getRecruitmentBoardData() {
         });
     }
 
-    // 1. Fetch Open Vacancies for the "R&S" column
-    // MOD: Filter out vacancies that already have candidates, simulating a "Single Slot" flow.
-    // If a vacancy has a candidate, it is considered "In Progress" and disappears from R&S.
+    // 1. Fetch Open Vacancies with their candidates and stages
     const openVacancies = await prisma.vacancy.findMany({
         where: {
             status: 'OPEN'
-            // REMOVED: candidates: { none: {} }
-            // Vagas com candidatos devem continuar visíveis no R&S
-            // para que o gestor possa acessar o ranking e triagem
         },
         include: {
             role: true,
             posto: { include: { client: true } },
             company: true,
             recruiter: true,
-            participants: { select: { id: true, name: true } }
+            participants: { select: { id: true, name: true } },
+            candidates: {
+                include: { stage: true }
+            }
         },
         orderBy: { createdAt: 'desc' }
     });
 
-    const vacancyItems = openVacancies.map(v => ({
-        id: `VAC-${v.id}`, // Prefix to distinguish from candidate IDs
-        realId: v.id,      // Real ID for actions
-        name: v.title,     // Display title as name
-        type: 'VACANCY',   // Discriminator
+    // 2. Fetch standard recruitment stages
+    const dbStages = await prisma.recruitmentStage.findMany({
+        orderBy: { order: 'asc' }
+    });
+
+    // Get or Create the System "R&S (Vagas)" Stage
+    let rnsStageDb = dbStages.find(s => s.name === 'R&S (Vagas)');
+    if (!rnsStageDb) {
+        rnsStageDb = await prisma.recruitmentStage.create({
+            data: {
+                name: 'R&S (Vagas)',
+                order: 0,
+                isSystem: true,
+                slaDays: 5
+            }
+        });
+    }
+
+    // Filter standard stages (excluding backlog stage)
+    const standardStages = dbStages.filter(s => s.name !== 'R&S (Vagas)' && s.id !== rnsStageDb?.id);
+
+    // 3. Initialize mapping of stages to their vacancy cards
+    const stageCardsMap: Record<string, any[]> = {
+        [rnsStageDb.id]: []
+    };
+    standardStages.forEach(s => {
+        stageCardsMap[s.id] = [];
+    });
+
+    // Helper to map vacancy object to Kanban card structure
+    const createVacancyCard = (v: typeof openVacancies[0], totalCandidates: number) => ({
+        id: `VAC-${v.id}`, // Unique ID across the whole board
+        realId: v.id,
+        name: `${v.title} (${totalCandidates} candidato${totalCandidates !== 1 ? 's' : ''})`,
+        type: 'VACANCY' as const,
         createdAt: v.createdAt,
-        vacancy: {         // Self-reference structure to satisfy UI
-            title: v.title,
+        vacancy: {
+            id: v.id,
+            title: `${v.title} (${totalCandidates} candidato${totalCandidates !== 1 ? 's' : ''})`,
             priority: v.priority,
             status: v.status,
             role: v.role,
@@ -359,7 +388,6 @@ export async function getRecruitmentBoardData() {
             recruiter: v.recruiter,
             createdAt: v.createdAt,
             participants: v.participants,
-            id: v.id, // FIX: Add ID so frontend can access candidate.vacancy.id
             reqGender: v.reqGender,
             reqExperience: v.reqExperience,
             reqKnowledge: v.reqKnowledge,
@@ -368,133 +396,72 @@ export async function getRecruitmentBoardData() {
             plannedStartDate: v.plannedStartDate,
             customRequirements: v.customRequirements
         }
-    }));
+    });
 
+    // 4. Place each vacancy in exactly one stage based on its candidates
+    openVacancies.forEach(v => {
+        const totalCandidates = v.candidates.length;
+        if (totalCandidates === 0) {
+            // No candidates -> vacancy card stays in R&S
+            stageCardsMap[rnsStageDb!.id].push(createVacancyCard(v, 0));
+        } else {
+            // Filter candidates with valid stages (not matching the backlog stage itself)
+            const activeCandidates = v.candidates.filter(c => c.stage && c.stageId !== rnsStageDb!.id);
+            if (activeCandidates.length === 0) {
+                // If all candidates are somehow in backlog or without stage, keep vacancy in R&S
+                stageCardsMap[rnsStageDb!.id].push(createVacancyCard(v, totalCandidates));
+            } else {
+                // Find highest stage order among candidates
+                activeCandidates.sort((a, b) => (b.stage?.order || 0) - (a.stage?.order || 0));
+                const highestCandidate = activeCandidates[0];
+                const targetStageId = highestCandidate.stageId;
 
-    // 3. Fetch standard stages and candidates
-    const dbStages = await prisma.recruitmentStage.findMany({
-        orderBy: { order: 'asc' },
-        include: {
-            candidates: {
-                where: { vacancy: { status: { in: ['OPEN', 'CLOSED'] } } },
-                include: {
-                    vacancy: {
-                        include: {
-                            role: true,
-                            recruiter: { select: { id: true, name: true } }, // NEW
-                            posto: {
-                                include: {
-                                    client: true
-                                }
-                            },
-                            company: true,
-                            participants: { select: { id: true, name: true } } // NEW
-                            // recruiter already included inside vacancy root in mapped object via openVacancies logic, but here inside candidate include...
-                            // Wait, the include structure is: vacancy -> include -> recruiter.
-                            // I added it twice: once after `role: true` and once after `company: true`.
-                            // I should remove one.
-                        }
+                if (stageCardsMap[targetStageId]) {
+                    stageCardsMap[targetStageId].push(createVacancyCard(v, totalCandidates));
+                } else {
+                    // Fallback to first standard stage (Seleção)
+                    const firstStandard = standardStages[0];
+                    if (firstStandard) {
+                        stageCardsMap[firstStandard.id].push(createVacancyCard(v, totalCandidates));
+                    } else {
+                        stageCardsMap[rnsStageDb!.id].push(createVacancyCard(v, totalCandidates));
                     }
                 }
             }
         }
     });
 
-    // 4. Map stages to return Vacancy cards grouped by vacancy
-    const candidateStages = dbStages
-        .filter(stage => stage.name !== 'R&S (Vagas)')
-        .map(stage => {
-            // Group candidates of this stage by vacancyId
-            const grouped: Record<string, typeof stage.candidates> = {};
-            stage.candidates.forEach(c => {
-                if (!grouped[c.vacancyId]) {
-                    grouped[c.vacancyId] = [];
-                }
-                grouped[c.vacancyId].push(c);
-            });
-
-            // Map each vacancy group to a single vacancy card representing that vacancy in this stage
-            const candidatesAsVacancyCards = Object.entries(grouped).map(([vacId, candidatesList]) => {
-                const sampleCandidate = candidatesList[0];
-                const vacancy = sampleCandidate.vacancy;
-                const totalCandidates = candidatesList.length;
-                
-                return {
-                    id: `VACSTAGE-${stage.id}-${vacId}`, // Unique for Drag and Drop
-                    realId: vacId,
-                    name: `${vacancy.title} (${totalCandidates} candidato${totalCandidates > 1 ? 's' : ''})`,
-                    type: 'VACANCY' as const,
-                    createdAt: vacancy.createdAt,
-                    stageId: stage.id,
-                    candidateCount: totalCandidates,
-                    vacancy: {
-                        id: vacId,
-                        title: `${vacancy.title} (${totalCandidates} candidato${totalCandidates > 1 ? 's' : ''})`,
-                        priority: vacancy.priority,
-                        status: vacancy.status,
-                        role: vacancy.role,
-                        posto: vacancy.posto,
-                        company: vacancy.company,
-                        description: vacancy.description,
-                        createdAt: vacancy.createdAt,
-                        customRequirements: vacancy.customRequirements,
-                        plannedStartDate: vacancy.plannedStartDate
-                    }
-                };
-            });
-
-            return {
-                ...stage,
-                candidates: candidatesAsVacancyCards
-            };
-        });
-
-    // 5. Get or Create the System "R&S" Stage for SLA persistence
-    let rnsStageDb = await prisma.recruitmentStage.findFirst({
-        where: { name: 'R&S (Vagas)' }
-    });
-
-    if (!rnsStageDb) {
-        rnsStageDb = await prisma.recruitmentStage.create({
-            data: {
-                name: 'R&S (Vagas)',
-                order: 0,
-                isSystem: true,
-                slaDays: 5 // Default
-            }
-        });
-    }
-
+    // 5. Build final list of board stages
     const rnsStage = {
-        id: rnsStageDb.id, // Real DB ID allows updateStageSLA to work
+        id: rnsStageDb.id,
         name: rnsStageDb.name,
         order: rnsStageDb.order,
         isSystem: true,
         slaDays: rnsStageDb.slaDays,
-        candidates: vacancyItems
+        candidates: stageCardsMap[rnsStageDb.id]
     };
 
-    // 6. Rescue Logic: Detect candidates accidentally moved to R&S (System Stage) and auto-move them to next stage
-    // This fixes the "disappearing card" issue if they were dropped there before the UI fix.
+    const candidateStages = standardStages.map(s => ({
+        id: s.id,
+        name: s.name,
+        order: s.order,
+        isSystem: false,
+        slaDays: s.slaDays,
+        candidates: stageCardsMap[s.id] || []
+    }));
+
+    // 6. Rescue Logic: Automatically fix any stranded candidates placed in R&S stage in the DB
     const strandedCandidates = await prisma.recruitmentCandidate.findMany({
         where: { stageId: rnsStageDb.id }
     });
 
     if (strandedCandidates.length > 0) {
-        // Find the first non-system stage (Triagem)
-        const firstStage = await prisma.recruitmentStage.findFirst({
-            where: { isSystem: false },
-            orderBy: { order: 'asc' }
-        });
-
-        if (firstStage) {
+        const firstStandard = standardStages[0];
+        if (firstStandard) {
             await prisma.recruitmentCandidate.updateMany({
                 where: { stageId: rnsStageDb.id },
-                data: { stageId: firstStage.id }
+                data: { stageId: firstStandard.id }
             });
-            // Re-fetch everything? No, next refresh will show them.
-            // But to be consistent, we might miss them in this render.
-            // It's acceptable for now, they will appear on next load.
         }
     }
 
@@ -518,6 +485,43 @@ export async function getRecruitmentTimeline(params: { candidateId?: string; vac
 export async function moveCandidate(candidateId: string, newStageId: string, justification?: string) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
+
+    // Support Vacancy card dragging: moves all candidates of that vacancy to the new stage
+    if (candidateId.startsWith("VAC-")) {
+        const vacancyId = candidateId.replace("VAC-", "");
+        const newStage = await prisma.recruitmentStage.findUnique({ where: { id: newStageId } });
+        if (!newStage) throw new Error("New stage not found");
+
+        const candidates = await prisma.recruitmentCandidate.findMany({
+            where: { vacancyId },
+            include: { stage: true }
+        });
+
+        for (const cand of candidates) {
+            await prisma.recruitmentCandidate.update({
+                where: { id: cand.id },
+                data: {
+                    stageId: newStageId,
+                    stageDueDate: newStage.slaDays > 0 ? addBusinessDays(new Date(), newStage.slaDays) : null,
+                    updatedAt: new Date()
+                }
+            });
+
+            await prisma.recruitmentTimeline.create({
+                data: {
+                    candidateId: cand.id,
+                    vacancyId,
+                    candidateName: cand.name,
+                    action: "MOVED",
+                    details: `Movido em lote para ${newStage.name} via arraste da vaga no Kanban.`,
+                    userId: user.id
+                }
+            });
+        }
+
+        revalidatePath("/admin/recrutamento");
+        return { success: true };
+    }
 
     const candidate = await prisma.recruitmentCandidate.findUnique({
         where: { id: candidateId },
@@ -1443,7 +1447,15 @@ Retorne EXCLUSIVAMENTE um objeto JSON puro, sem markdown ou texto extra, neste f
                 disqualificationReason: parsedResult.disqualificationReason || null,
                 warnings: parsedResult.warnings || [],
                 aiAnalysis: parsedResult.aiAnalysis || "",
-                customEvaluations: parsedResult.customEvaluations || [],
+                customEvaluations: (parsedResult.customEvaluations || []).map((e: any) => {
+                    const rawValue = e.value;
+                    const value = rawValue === true || rawValue === 'true' ? true : rawValue === false || rawValue === 'false' ? false : null;
+                    return {
+                        reqId: e.reqId,
+                        name: e.name,
+                        value
+                    };
+                }),
                 parsedDetails: parsedResult.parsedDetails || {}
             }
         }
@@ -1493,8 +1505,9 @@ export async function updateCandidateEvaluation(candidateId: string, evaluation:
                 const evalItem = evaluation.customEvaluations?.find(e => e.reqId === req.id)
                     || (currentEval.customEvaluations as any[] || []).find(e => e.reqId === req.id);
                 
-                // Três estados: true (atende), false (não atende), null/undefined (não avaliado)
-                const value = evalItem ? (evalItem.value === null ? null : !!evalItem.value) : null;
+                // Três estados normatizados de forma segura (suportando strings do JSON ou booleano)
+                const rawValue = evalItem ? evalItem.value : null;
+                const value = rawValue === true || rawValue === 'true' ? true : rawValue === false || rawValue === 'false' ? false : null;
                 
                 if (value === true) {
                     passed++;

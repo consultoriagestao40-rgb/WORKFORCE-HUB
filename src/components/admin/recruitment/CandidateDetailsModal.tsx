@@ -746,15 +746,15 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                         
                                                         // A
                                                         const candEvalsA = rankEvals[a.id] || (evalA.customEvaluations as any[] || []);
-                                                        const checkedCountA = reqs.filter(r => { const e = candEvalsA.find((ev:any) => ev.reqId === r.id); return e ? e.value === true : false; }).length;
+                                                        const checkedCountA = reqs.filter(r => { const e = candEvalsA.find((ev:any) => ev.reqId === r.id); return e ? (e.value === true || e.value === 'true') : false; }).length;
                                                         const pctA = reqs.length > 0 ? Math.round((checkedCountA / reqs.length) * 100) : (evalA.adherenceScore ?? 0);
-                                                        const isDisqA = reqs.some(r => { const e = candEvalsA.find((ev:any) => ev.reqId === r.id); return r.isKnockout && e && e.value === false; }) || !!evalA.isDisqualified;
+                                                        const isDisqA = reqs.some(r => { const e = candEvalsA.find((ev:any) => ev.reqId === r.id); return r.isKnockout && e && (e.value === false || e.value === 'false'); }) || !!evalA.isDisqualified;
                                                         
                                                         // B
                                                         const candEvalsB = rankEvals[b.id] || (evalB.customEvaluations as any[] || []);
-                                                        const checkedCountB = reqs.filter(r => { const e = candEvalsB.find((ev:any) => ev.reqId === r.id); return e ? e.value === true : false; }).length;
+                                                        const checkedCountB = reqs.filter(r => { const e = candEvalsB.find((ev:any) => ev.reqId === r.id); return e ? (e.value === true || e.value === 'true') : false; }).length;
                                                         const pctB = reqs.length > 0 ? Math.round((checkedCountB / reqs.length) * 100) : (evalB.adherenceScore ?? 0);
-                                                        const isDisqB = reqs.some(r => { const e = candEvalsB.find((ev:any) => ev.reqId === r.id); return r.isKnockout && e && e.value === false; }) || !!evalB.isDisqualified;
+                                                        const isDisqB = reqs.some(r => { const e = candEvalsB.find((ev:any) => ev.reqId === r.id); return r.isKnockout && e && (e.value === false || e.value === 'false'); }) || !!evalB.isDisqualified;
                                                         
                                                         if (isDisqA && !isDisqB) return 1;
                                                         if (!isDisqA && isDisqB) return -1;
@@ -767,14 +767,14 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                         const candEvals: any[] = rankEvals[cand.id] || (evaluation.customEvaluations as any[] || []);
                                                         
                                                         // Live compliance count and percentage
-                                                        const checkedCount = reqs.filter(r => { const e = candEvals.find((ev:any) => ev.reqId === r.id); return e ? e.value === true : false; }).length;
+                                                        const checkedCount = reqs.filter(r => { const e = candEvals.find((ev:any) => ev.reqId === r.id); return e ? (e.value === true || e.value === 'true') : false; }).length;
                                                         const pct = reqs.length > 0 ? Math.round((checkedCount / reqs.length) * 100) : (evaluation.adherenceScore ?? 0);
                                                         const isExpanded = expandedRankId === cand.id;
                                                         
                                                         // Live disqualified check
                                                         const isDisqualified = reqs.some(r => {
                                                             const e = candEvals.find((ev:any) => ev.reqId === r.id);
-                                                            return r.isKnockout && e && e.value === false;
+                                                            return r.isKnockout && e && (e.value === false || e.value === 'false');
                                                         }) || !!evaluation.isDisqualified;
 
                                                         return (
@@ -886,7 +886,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                             <div className="space-y-2 pt-3">
                                                                                 {reqs.map(req => {
                                                                                     const evalItem = candEvals.find((ev:any) => ev.reqId === req.id);
-                                                                                    const checkedValue = evalItem ? (evalItem.value === null ? null : !!evalItem.value) : null;
+                                                                                    const checkedValue = evalItem ? (evalItem.value === null || evalItem.value === 'null' ? null : (evalItem.value === true || evalItem.value === 'true')) : null;
                                                                                     const isFailedKnockout = req.isKnockout && checkedValue === false;
                                                                                     return (
                                                                                         <div key={req.id} className={`p-3 rounded-lg border transition-all ${checkedValue === true ? 'bg-emerald-50 border-emerald-200 text-emerald-950' : checkedValue === false ? 'bg-red-50 border-red-200 text-red-950 ring-1 ring-red-300' : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'}`}>
@@ -1027,7 +1027,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                             {(() => {
                                                 const reqs: any[] = (candidate.vacancy?.customRequirements as any[] || []);
                                                 const evals: any[] = (candidate.requirementsEvaluation?.customEvaluations as any[] || []);
-                                                const checked = reqs.filter(req => { const e = evals.find((ev: any) => ev.reqId === req.id); return e ? e.value === true : false; }).length;
+                                                const checked = reqs.filter(req => { const e = evals.find((ev: any) => ev.reqId === req.id); return e ? (e.value === true || e.value === 'true') : false; }).length;
                                                 const pct = reqs.length > 0 ? Math.round((checked / reqs.length) * 100) : 0;
                                                 return (
                                                     <div className="space-y-1">
@@ -1046,7 +1046,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                     const evalItem = ((candidate.requirementsEvaluation?.customEvaluations as any[]) || []).find((e: any) => e.reqId === req.id);
                                                     
                                                     // Três estados: true (atende), false (não atende), null (não avaliado)
-                                                    const checkedValue = evalItem ? (evalItem.value === null ? null : !!evalItem.value) : null;
+                                                    const checkedValue = evalItem ? (evalItem.value === null || evalItem.value === 'null' ? null : (evalItem.value === true || evalItem.value === 'true')) : null;
                                                     const isFailedKnockout = req.isKnockout && checkedValue === false;
                                                     return (
                                                         <div key={req.id} className={`p-3 rounded-lg border transition-all ${checkedValue === true ? 'bg-emerald-50 border-emerald-200 text-emerald-950' : checkedValue === false ? 'bg-red-50 border-red-200 text-red-950 ring-1 ring-red-300' : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'}`}>
