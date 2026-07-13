@@ -7,7 +7,8 @@ import { VacancyModal } from "@/components/admin/recruitment/VacancyModal";
 import { CandidateModal } from "@/components/admin/recruitment/CandidateModal";
 import { CandidateDetailsModal } from "@/components/admin/recruitment/CandidateDetailsModal";
 import { Button } from "@/components/ui/button";
-import { Plus, UserPlus, Search, User, Filter, AlertCircle, FileText, CheckCircle2, XCircle } from "lucide-react";
+import { Plus, UserPlus, Search, User, Filter, AlertCircle, FileText, CheckCircle2, XCircle, Briefcase } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,6 +29,7 @@ interface RecruitmentClientPageProps {
 export function RecruitmentClientPage({ stages, vacancies, roles, postos, companies, backlogs, recruiters, candidates = [], currentUser }: RecruitmentClientPageProps) {
     const [searchTerm, setSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState<"kanban" | "talents">("kanban");
+    const [viewMode, setViewMode] = useState<"stages" | "clients" | "list">("stages");
     const [isVacancyModalOpen, setIsVacancyModalOpen] = useState(false);
     const [isCandidateModalOpen, setIsCandidateModalOpen] = useState(false);
 
@@ -111,6 +113,29 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
         setSelectedCandidate(formatted);
         setIsDetailsModalOpen(true);
     };
+    const handleOpenVacancyDetails = (card: any) => {
+        setSelectedCandidate(card);
+        setIsDetailsModalOpen(true);
+    };
+
+    // Gather all vacancy cards from stages to build clients and list views
+    const allFilteredCards = filteredStages.flatMap(s => 
+        s.candidates.map((c: any) => ({
+            ...c,
+            currentStageName: s.name,
+            currentStageId: s.id
+        }))
+    );
+
+    // Group by client name
+    const clientGroups: Record<string, any[]> = {};
+    allFilteredCards.forEach(card => {
+        const clientName = card.vacancy?.posto?.client?.name || card.vacancy?.company?.name || "Sem Cliente / Geral";
+        if (!clientGroups[clientName]) {
+            clientGroups[clientName] = [];
+        }
+        clientGroups[clientName].push(card);
+    });
 
     return (
         <div className="space-y-6">
@@ -166,9 +191,33 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
             {/* Renderizar aba ativa */}
             {activeTab === "kanban" ? (
                 <div className="space-y-4">
-                    {/* Search Bar for Kanban */}
-                    <div className="flex justify-end">
-                        <div className="relative w-80">
+                    {/* Barra de controle de visão e barra de busca */}
+                    <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-white p-3 rounded-xl border shadow-sm">
+                        <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+                            <button
+                                type="button"
+                                onClick={() => setViewMode("stages")}
+                                className={`px-3 py-1.5 rounded-md font-bold transition-all flex items-center gap-1.5 ${viewMode === "stages" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                            >
+                                📋 Por Fases
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode("clients")}
+                                className={`px-3 py-1.5 rounded-md font-bold transition-all flex items-center gap-1.5 ${viewMode === "clients" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                            >
+                                🏢 Por Cliente
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode("list")}
+                                className={`px-3 py-1.5 rounded-md font-bold transition-all flex items-center gap-1.5 ${viewMode === "list" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                            >
+                                📝 Lista de Vagas
+                            </button>
+                        </div>
+
+                        <div className="relative w-full md:w-80">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                             <Input
                                 placeholder="Buscar vaga, cliente ou empresa..."
@@ -179,8 +228,157 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
                         </div>
                     </div>
 
-                    <div className="min-h-[calc(100vh-200px)]">
-                        <KanbanBoard initialStages={filteredStages} currentUser={currentUser} recruiters={recruiters} />
+                    <div className="min-h-[calc(100vh-250px)]">
+                        {viewMode === "stages" && (
+                            <KanbanBoard initialStages={filteredStages} currentUser={currentUser} recruiters={recruiters} />
+                        )}
+
+                        {viewMode === "clients" && (
+                            <div className="flex gap-4 overflow-x-auto pb-4 items-start select-none">
+                                {Object.keys(clientGroups).length === 0 ? (
+                                    <div className="bg-white rounded-xl border shadow-sm w-full p-12 text-center flex flex-col items-center justify-center space-y-3">
+                                        <Briefcase className="w-12 h-12 text-slate-300" />
+                                        <h3 className="font-bold text-slate-700 text-sm">Nenhuma vaga encontrada</h3>
+                                        <p className="text-xs text-slate-400 max-w-sm">Tente limpar os filtros de busca para visualizar as vagas.</p>
+                                    </div>
+                                ) : (
+                                    Object.entries(clientGroups).map(([clientName, cards]) => (
+                                        <div key={clientName} className="w-72 bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex flex-col shrink-0 max-h-[calc(100vh-280px)]">
+                                            {/* Column Header */}
+                                            <div className="flex justify-between items-center mb-3">
+                                                <span className="font-bold text-slate-800 text-xs truncate max-w-[200px]" title={clientName}>{clientName}</span>
+                                                <span className="bg-slate-200 text-slate-700 text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                                                    {cards.length}
+                                                </span>
+                                            </div>
+                                            
+                                            {/* Cards List */}
+                                            <div className="space-y-2 overflow-y-auto pr-0.5 flex-1 min-h-[50px]">
+                                                {cards.map(card => (
+                                                    <div
+                                                        key={card.id}
+                                                        className="bg-white p-3 rounded shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer space-y-2"
+                                                        onClick={() => handleOpenVacancyDetails(card)}
+                                                    >
+                                                        <div className="flex justify-between items-start gap-2">
+                                                            <span className="font-bold text-slate-800 line-clamp-2 leading-tight text-xs flex-1">
+                                                                {card.vacancy.title}
+                                                            </span>
+                                                            <Badge variant={card.vacancy.priority === 'URGENT' ? 'destructive' : 'secondary'} className="text-[9px] px-1 py-0 h-4 shrink-0 font-bold">
+                                                                {card.vacancy.priority === 'URGENT' ? 'Urg' : card.vacancy.priority === 'HIGH' ? 'Alta' : 'Nor'}
+                                                            </Badge>
+                                                        </div>
+
+                                                        {card.vacancy.plannedStartDate && (
+                                                            <div className="text-[9px] text-indigo-500 font-semibold">
+                                                                Início: {new Date(card.vacancy.plannedStartDate).toLocaleDateString('pt-BR')}
+                                                            </div>
+                                                        )}
+
+                                                        <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                                                            <Briefcase className="w-3 h-3 text-slate-400" />
+                                                            <span className="truncate">{card.vacancy.role?.name || "Sem Cargo"}</span>
+                                                        </div>
+
+                                                        <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 text-[8px] font-black uppercase tracking-wider">
+                                                                {card.currentStageName}
+                                                            </span>
+                                                            {card.vacancy.recruiter?.name && (
+                                                                <span className="text-[9px] text-slate-400 truncate max-w-[100px]" title={`Recrutador: ${card.vacancy.recruiter.name}`}>
+                                                                    👤 {card.vacancy.recruiter.name}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
+
+                        {viewMode === "list" && (
+                            <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                                {allFilteredCards.length === 0 ? (
+                                    <div className="p-12 text-center flex flex-col items-center justify-center space-y-3">
+                                        <Briefcase className="w-12 h-12 text-slate-300" />
+                                        <h3 className="font-bold text-slate-700 text-sm">Nenhuma vaga encontrada</h3>
+                                        <p className="text-xs text-slate-400 max-w-sm">Tente limpar os filtros de busca para visualizar as vagas.</p>
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                                                    <th className="py-3.5 px-4">Vaga</th>
+                                                    <th className="py-3.5 px-4">Cargo / Função</th>
+                                                    <th className="py-3.5 px-4">Cliente / Contrato</th>
+                                                    <th className="py-3.5 px-4">Recrutador</th>
+                                                    <th className="py-3.5 px-4">Fase Atual</th>
+                                                    <th className="py-3.5 px-4 text-center">Candidatos</th>
+                                                    <th className="py-3.5 px-4">Prioridade</th>
+                                                    <th className="py-3.5 px-4 text-right">Ações</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
+                                                {allFilteredCards.map((card) => {
+                                                    const clientName = card.vacancy?.posto?.client?.name || card.vacancy?.company?.name || "Geral / Interno";
+                                                    const match = card.name.match(/\((\d+)\)/) || card.name.match(/\((\d+)\s+candidato/);
+                                                    const totalCands = match ? parseInt(match[1]) : 0;
+                                                    
+                                                    return (
+                                                        <tr key={card.id} className="hover:bg-slate-50/70 transition-colors">
+                                                            <td className="py-4 px-4">
+                                                                <span className="font-bold text-slate-900 text-sm block">{card.vacancy.title}</span>
+                                                                {card.vacancy.plannedStartDate && (
+                                                                    <span className="text-[10px] text-indigo-500 font-semibold block mt-0.5">Início Planejado: {new Date(card.vacancy.plannedStartDate).toLocaleDateString('pt-BR')}</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="py-4 px-4">
+                                                                <span>{card.vacancy.role?.name || "Sem Cargo"}</span>
+                                                            </td>
+                                                            <td className="py-4 px-4">
+                                                                <span className="font-bold text-slate-800">{clientName}</span>
+                                                            </td>
+                                                            <td className="py-4 px-4">
+                                                                <span>{card.vacancy.recruiter?.name || "Não atribuído"}</span>
+                                                            </td>
+                                                            <td className="py-4 px-4">
+                                                                <span className="px-2.5 py-1 rounded bg-slate-100 border border-slate-200/50 text-[10px] uppercase font-black tracking-wide text-slate-600">
+                                                                    {card.currentStageName}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-4 px-4 text-center">
+                                                                <span className="bg-indigo-50 text-indigo-700 font-bold px-2.5 py-1 rounded-full text-xs border border-indigo-100">
+                                                                    {totalCands}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-4 px-4">
+                                                                <Badge variant={card.vacancy.priority === 'URGENT' ? 'destructive' : 'secondary'} className="text-[10px] px-1.5 py-0.5">
+                                                                    {card.vacancy.priority === 'URGENT' ? 'Urgente' : card.vacancy.priority === 'HIGH' ? 'Alta' : 'Normal'}
+                                                                </Badge>
+                                                            </td>
+                                                            <td className="py-4 px-4 text-right">
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="h-8 text-xs font-semibold"
+                                                                    onClick={() => handleOpenVacancyDetails(card)}
+                                                                >
+                                                                    Gerenciar Vaga
+                                                                </Button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             ) : (
