@@ -2075,9 +2075,28 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                 if (response.ok) {
                     const result = await response.json();
                     if (result && result.data && Array.isArray(result.data)) {
+                        // Palavras irrelevantes para filtrar do nome do cliente
+                        const stopwords = ['empresa', 'ltda', 'sa', 's.a.', 'de', 'do', 'da', 'e', 'o', 'a', 'os', 'as', 'hub', 'workforce'];
+                        const searchTerms = clientName
+                            .toLowerCase()
+                            .split(/\s+/)
+                            .filter(word => word.length > 2 && !stopwords.includes(word));
+
                         result.data.forEach((evaluation: any) => {
-                            const unitName = evaluation.unitName || evaluation.unit?.name || evaluation.storeName || '';
-                            if (unitName.toLowerCase().includes(clientName.toLowerCase())) {
+                            const unitName = String(evaluation.unitName || evaluation.unit?.name || evaluation.storeName || '').toLowerCase();
+                            const checklistName = String(evaluation.checklistName || evaluation.checklist?.name || '').toLowerCase();
+                            const userName = String(evaluation.userName || evaluation.user?.name || '').toLowerCase();
+                            const evaluatorName = String(evaluation.evaluatorName || '').toLowerCase();
+
+                            // Verifica se alguma das palavras-chave significativas do cliente (ex: 'penha') bate em qualquer campo textual
+                            const isMatch = searchTerms.some(term => 
+                                unitName.includes(term) || 
+                                checklistName.includes(term) || 
+                                userName.includes(term) ||
+                                evaluatorName.includes(term)
+                            );
+
+                            if (isMatch) {
                                 const conclDate = new Date(evaluation.concludedAt || evaluation.createdAt);
                                 const mIdx = conclDate.getMonth();
                                 if (mIdx >= 0 && mIdx < 12) {
