@@ -3904,11 +3904,10 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                  </div>
                                                  <Button 
                                                      size="sm"
-                                                     onClick={() => setShowKpiConfig(!showKpiConfig)}
-                                                     variant={showKpiConfig ? "outline" : "default"}
-                                                     className="gap-1 font-bold text-xs rounded-xl border border-slate-300"
+                                                     onClick={() => setKpiConfigOpen(true)}
+                                                     className="gap-1 bg-slate-900 text-white font-bold text-xs rounded-xl shadow-premium hover:bg-slate-800 transition-all cursor-pointer"
                                                  >
-                                                     <Edit3 className="w-3.5 h-3.5" /> {showKpiConfig ? "Fechar Configuração" : "Configurar KPIs"}
+                                                     <Edit3 className="w-3.5 h-3.5" /> Configurar KPIs
                                                  </Button>
                                              </CardHeader>
                                             <CardContent className="p-0 border-t border-slate-100 overflow-x-auto">
