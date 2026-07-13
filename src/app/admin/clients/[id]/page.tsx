@@ -110,7 +110,7 @@ export default async function ClientPostosPage(props: { params: Promise<{ id: st
                 </Link>
                 <div className="flex-1">
                     <h1 className="text-2xl font-bold text-slate-800">{client.name}</h1>
-                    <p className="text-slate-500 text-sm">Gerenciamento de Vagas, SLA e NPS do Contrato</p>
+                    <p className="text-slate-500 text-sm">Gerenciamento de Vagas e Postos do Contrato</p>
                 </div>
             </div>
 
