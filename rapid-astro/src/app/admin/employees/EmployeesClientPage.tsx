@@ -36,10 +36,11 @@ interface EmployeesClientPageProps {
     situations: any[];
     roles: any[];
     companies?: any[];
+    postos?: any[];
     userRole: string | null;
 }
 
-export function EmployeesClientPage({ initialEmployees, situations, roles, companies = [], userRole }: EmployeesClientPageProps) {
+export function EmployeesClientPage({ initialEmployees, situations, roles, companies = [], postos = [], userRole }: EmployeesClientPageProps) {
     const [employees, setEmployees] = useState(initialEmployees);
     const [searchTerm, setSearchTerm] = useState("");
     const [situationFilter, setSituationFilter] = useState("all");
@@ -138,7 +139,9 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                 "Empresa": emp.company?.name || "-",
                 "Cargo": emp.role?.name || "N/A",
                 "Situação": emp.situation?.name || emp.status || "N/A",
-                "Alocação": activeAssignment ? "Alocado" : "Reserva",
+                "Alocação": (emp.situation?.name?.toLowerCase() === "desligado" || emp.status?.toLowerCase() === "desligado")
+                    ? "Desligado"
+                    : (activeAssignment ? "Alocado" : "Reserva"),
                 "Posto Atual": activeAssignment ? activeAssignment.posto?.client?.name : "-",
 
                 "Data Admissão": emp.admissionDate ? format(new Date(emp.admissionDate), 'dd/MM/yyyy') : "-",
@@ -211,7 +214,7 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                         Exportar Excel
                     </Button>
                     <ImportEmployeesDialog />
-                    <NewEmployeeSheet situations={situations} roles={roles} companies={companies} />
+                    <NewEmployeeSheet situations={situations} roles={roles} companies={companies} postos={postos} />
                 </div>
             </div>
 
@@ -323,6 +326,7 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                                             />
                                         </TableHead>
                                         <TableHead className="text-xs font-bold uppercase tracking-wider pl-4 py-4">Nome do Colaborador</TableHead>
+                                        <TableHead className="text-xs font-bold uppercase tracking-wider">Admissão</TableHead>
                                         <TableHead className="text-xs font-bold uppercase tracking-wider">Empresa</TableHead>
                                         <TableHead className="text-xs font-bold uppercase tracking-wider">Cargo / Função</TableHead>
                                         <TableHead className="text-xs font-bold uppercase tracking-wider">Situação Atual</TableHead>
@@ -358,6 +362,11 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200/60">
+                                                        {emp.admissionDate ? format(new Date(emp.admissionDate), 'dd/MM/yyyy') : "-"}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell>
                                                     <span className="text-xs font-bold text-slate-500">{emp.company?.name || '-'}</span>
                                                 </TableCell>
                                                 <TableCell>
@@ -372,7 +381,11 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
-                                                    {activeAssignment ? (
+                                                    {emp.situation?.name?.toLowerCase() === "desligado" || emp.status?.toLowerCase() === "desligado" ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wider border border-slate-200">
+                                                            Desligado
+                                                        </span>
+                                                    ) : activeAssignment ? (
                                                         <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wider border border-emerald-100">
                                                             Alocado
                                                         </span>
@@ -427,7 +440,7 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                                     })}
                                     {filteredEmployees.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={8} className="text-center py-12 text-slate-400">
+                                            <TableCell colSpan={9} className="text-center py-12 text-slate-400">
                                                 Nenhum colaborador encontrado com os filtros atuais.
                                             </TableCell>
                                         </TableRow>

@@ -139,7 +139,9 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                 "Empresa": emp.company?.name || "-",
                 "Cargo": emp.role?.name || "N/A",
                 "Situação": emp.situation?.name || emp.status || "N/A",
-                "Alocação": activeAssignment ? "Alocado" : "Reserva",
+                "Alocação": (emp.situation?.name?.toLowerCase() === "desligado" || emp.status?.toLowerCase() === "desligado")
+                    ? "Desligado"
+                    : (activeAssignment ? "Alocado" : "Reserva"),
                 "Posto Atual": activeAssignment ? activeAssignment.posto?.client?.name : "-",
 
                 "Data Admissão": emp.admissionDate ? format(new Date(emp.admissionDate), 'dd/MM/yyyy') : "-",
@@ -379,7 +381,11 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
-                                                    {activeAssignment ? (
+                                                    {emp.situation?.name?.toLowerCase() === "desligado" || emp.status?.toLowerCase() === "desligado" ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wider border border-slate-200">
+                                                            Desligado
+                                                        </span>
+                                                    ) : activeAssignment ? (
                                                         <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wider border border-emerald-100">
                                                             Alocado
                                                         </span>
