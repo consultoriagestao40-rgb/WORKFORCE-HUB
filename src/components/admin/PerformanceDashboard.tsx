@@ -379,6 +379,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     // Controle de exclusão de chamados (Admin)
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [deletingRequest, setDeletingRequest] = useState<boolean>(false);
+    const [editingCell, setEditingCell] = useState<string | null>(null);
     const [kpiConfigOpen, setKpiConfigOpen] = useState<boolean>(false);
     const [selectedKpiTypeForSla, setSelectedKpiTypeForSla] = useState<string>('');
     const [kpiFormOpen, setKpiFormOpen] = useState<boolean>(false);
@@ -938,6 +939,23 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
             }
         } catch (e) {
             toast.error("Erro de conexão.");
+        }
+    };
+
+    // Cell-level inline editor handler
+    const handleSaveCellManualValue = async (month: number, configItemId: string, val: number) => {
+        setEditingCell(null);
+        try {
+            const res = await updateSlaMonthlyValue(configItemId, month, selectedYear, val);
+            if (res.success) {
+                toast.success('Valor atualizado com sucesso!');
+                loadClientDetails();
+                loadPerformanceData();
+            } else {
+                toast.error('Erro ao salvar valor.');
+            }
+        } catch (e) {
+            toast.error('Erro de conexão.');
         }
     };
 
