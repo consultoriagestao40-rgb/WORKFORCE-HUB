@@ -184,8 +184,8 @@ export function VacantPostosDialog({ vagoDaysCount, glosaProjetada, vacantPostos
                     </CardContent>
                 </Card>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[1200px] w-full max-h-[80vh] overflow-y-auto">
-                <DialogHeader className="flex flex-col gap-4 pr-8">
+            <DialogContent className="sm:max-w-[1200px] w-full max-h-[85vh] overflow-hidden flex flex-col p-6">
+                <DialogHeader className="flex flex-col gap-4 pr-12 shrink-0">
                     <div className="flex flex-row items-center justify-between w-full">
                         <div>
                             <DialogTitle>Postos Vagos</DialogTitle>
@@ -292,82 +292,84 @@ export function VacantPostosDialog({ vagoDaysCount, glosaProjetada, vacantPostos
                     </div>
                 </DialogHeader>
 
-                <div className="mt-4">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Empresa</TableHead>
-                                <TableHead>Cliente</TableHead>
-                                <TableHead>Cargo/Função</TableHead>
-                                <TableHead>Escala</TableHead>
-                                <TableHead>Faturamento (Perda)</TableHead>
-                                <TableHead>Vago Desde</TableHead>
-                                <TableHead className="text-right">Dias Vagos</TableHead>
-                                <TableHead className="text-right">Ação</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {vacantPostosDetails.map((posto) => (
-                                <TableRow key={posto.id}>
-                                    <TableCell>
-                                        <span className="text-xs font-bold text-blue-600 uppercase">
-                                            {posto.client.company?.name || '-'}
-                                        </span>
-                                    </TableCell>
-                                    <TableCell className="font-medium">{posto.client.name}</TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-bold">{posto.role?.name || 'N/A'}</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <span className="text-xs bg-slate-100 px-2 py-1 rounded font-medium text-slate-600">{posto.schedule}</span>
-                                    </TableCell>
-                                    <TableCell className="text-red-500 font-bold">
-                                        R$ {posto.billingValue.toFixed(2)}
-                                    </TableCell>
-                                    <TableCell className="text-slate-600 text-xs">
-                                        {posto.isNeverOccupied 
-                                            ? "Nunca ocupado" 
-                                            : posto.vacantSinceDate.toLocaleDateString("pt-BR")
-                                        }
-                                    </TableCell>
-                                    <TableCell className="text-right font-bold text-slate-900">
-                                        {posto.diffDays} {posto.diffDays === 1 ? 'dia' : 'dias'}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <Link href={`/admin/clients/${posto.client.id}`}>
-                                            <div className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-bold uppercase tracking-wider">
-                                                Alocar <ArrowRight className="w-3 h-3" />
-                                            </div>
-                                        </Link>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                            {vacantPostosDetails.length === 0 && (
+                <div className="flex-1 overflow-y-auto mt-4 pr-1 min-h-0">
+                    <div className="overflow-x-auto border rounded-lg">
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-8 text-slate-500">
-                                        Nenhum posto vago encontrado com os filtros atuais.
-                                    </TableCell>
+                                    <TableHead>Empresa</TableHead>
+                                    <TableHead>Cliente</TableHead>
+                                    <TableHead>Cargo/Função</TableHead>
+                                    <TableHead>Escala</TableHead>
+                                    <TableHead>Faturamento (Perda)</TableHead>
+                                    <TableHead>Vago Desde</TableHead>
+                                    <TableHead className="text-right">Dias Vagos</TableHead>
+                                    <TableHead className="text-right">Ação</TableHead>
                                 </TableRow>
-                            )}
-                            {/* Summary Row */}
-                            {vacantPostosDetails.length > 0 && (
-                                <TableRow className="bg-slate-50 font-bold hover:bg-slate-50 border-t-2 border-slate-200">
-                                    <TableCell colSpan={2} className="text-slate-900">Total</TableCell>
-                                    <TableCell colSpan={2}></TableCell>
-                                    <TableCell className="text-red-600">
-                                        R$ {totals.billingValue.toFixed(2)}
-                                    </TableCell>
-                                    <TableCell></TableCell> {/* Vago Desde */}
-                                    <TableCell className="text-slate-950 text-right">
-                                        {totals.diffDays} dias
-                                    </TableCell>
-                                    <TableCell></TableCell> {/* Ação */}
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {vacantPostosDetails.map((posto) => (
+                                    <TableRow key={posto.id}>
+                                        <TableCell>
+                                            <span className="text-xs font-bold text-blue-600 uppercase">
+                                                {posto.client.company?.name || '-'}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="font-medium">{posto.client.name}</TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-bold">{posto.role?.name || 'N/A'}</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <span className="text-xs bg-slate-100 px-2 py-1 rounded font-medium text-slate-600">{posto.schedule}</span>
+                                        </TableCell>
+                                        <TableCell className="text-red-500 font-bold">
+                                            R$ {posto.billingValue.toFixed(2)}
+                                        </TableCell>
+                                        <TableCell className="text-slate-600 text-xs">
+                                            {posto.isNeverOccupied 
+                                                ? "Nunca ocupado" 
+                                                : posto.vacantSinceDate.toLocaleDateString("pt-BR")
+                                            }
+                                        </TableCell>
+                                        <TableCell className="text-right font-bold text-slate-900">
+                                            {posto.diffDays} {posto.diffDays === 1 ? 'dia' : 'dias'}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Link href={`/admin/clients/${posto.client.id}`}>
+                                                <div className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-bold uppercase tracking-wider">
+                                                    Alocar <ArrowRight className="w-3 h-3" />
+                                                </div>
+                                            </Link>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                                {vacantPostosDetails.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={8} className="text-center py-8 text-slate-500">
+                                            Nenhum posto vago encontrado com os filtros atuais.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                                {/* Summary Row */}
+                                {vacantPostosDetails.length > 0 && (
+                                    <TableRow className="bg-slate-50 font-bold hover:bg-slate-50 border-t-2 border-slate-200">
+                                        <TableCell colSpan={2} className="text-slate-900">Total</TableCell>
+                                        <TableCell colSpan={2}></TableCell>
+                                        <TableCell className="text-red-600">
+                                            R$ {totals.billingValue.toFixed(2)}
+                                        </TableCell>
+                                        <TableCell></TableCell> {/* Vago Desde */}
+                                        <TableCell className="text-slate-950 text-right">
+                                            {totals.diffDays} dias
+                                        </TableCell>
+                                        <TableCell></TableCell> {/* Ação */}
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>
