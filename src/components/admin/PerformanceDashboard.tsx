@@ -3828,10 +3828,19 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
                                         {/* Tabela de KPIs Comparativa Mensal */}
                                         <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
-                                            <CardHeader>
-                                                <CardTitle className="text-sm font-black uppercase text-slate-850">Indicadores Operacionais de Performance (KPIs)</CardTitle>
-                                                <CardDescription>Notas e percentuais consolidados dos principais indicadores operacionais do contrato, mês a mês.</CardDescription>
-                                            </CardHeader>
+                                            <CardHeader className="flex flex-row items-center justify-between">
+                                                 <div>
+                                                     <CardTitle className="text-sm font-black uppercase text-slate-855">Indicadores Operacionais de Performance (KPIs)</CardTitle>
+                                                     <CardDescription>Notas e percentuais consolidados dos principais indicadores operacionais do contrato, mês a mês.</CardDescription>
+                                                 </div>
+                                                 <Button 
+                                                     size="sm"
+                                                     onClick={() => { setActiveTab("sla"); setSlaTab("config"); }}
+                                                     className="gap-1 bg-slate-900 text-white font-bold text-xs rounded-xl"
+                                                 >
+                                                     <Edit3 className="w-3.5 h-3.5" /> Configurar KPIs
+                                                 </Button>
+                                             </CardHeader>
                                             <CardContent className="p-0 border-t border-slate-100 overflow-x-auto">
                                                 <Table className="min-w-[850px]">
                                                     <TableHeader className="bg-slate-50">
@@ -4301,7 +4310,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
                                     <CardHeader className="flex flex-row items-center justify-between">
                                         <div>
-                                            <CardTitle className="text-sm font-black uppercase text-slate-855">Indicadores de SLA Parametrizados</CardTitle>
+                                            <CardTitle className="text-sm font-black uppercase text-slate-855">Configuração de KPIs e Metas de SLA</CardTitle>
                                         </div>
                                         <Button 
                                             size="sm"
@@ -4316,7 +4325,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             }}
                                             className="gap-1 bg-slate-900 text-white font-bold text-xs rounded-xl"
                                         >
-                                            <Plus className="w-3.5 h-3.5" /> Adicionar SLA
+                                            <Plus className="w-3.5 h-3.5" /> Adicionar KPI / Indicador
                                         </Button>
                                     </CardHeader>
                                     <CardContent className="p-0 border-t border-slate-100">
@@ -4998,12 +5007,12 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 <DialogContent className="sm:max-w-[480px]">
                     <form onSubmit={handleSaveSlaItem} className="space-y-4">
                         <DialogHeader>
-                            <DialogTitle className="text-md font-bold text-slate-800">Configurar SLA do Contrato</DialogTitle>
+                            <DialogTitle className="text-md font-bold text-slate-800">Configurar KPI e Metas de SLA</DialogTitle>
                         </DialogHeader>
 
                         <div className="space-y-4 py-2">
                             <div className="space-y-1">
-                                <Label className="text-xs font-bold text-slate-655">Nome do Indicador *</Label>
+                                <Label className="text-xs font-bold text-slate-655">Nome do KPI / Indicador *</Label>
                                 <Input
                                     placeholder="Ex: Pontualidade"
                                     value={slaName}
@@ -5014,27 +5023,27 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             </div>
 
                             <div className="space-y-1">
-                                <Label className="text-xs font-bold text-slate-655">Métrica do Sistema *</Label>
+                                <Label className="text-xs font-bold text-slate-655">Tipo / Métrica de Cálculo *</Label>
                                 <select
                                     value={slaMetricType}
                                     onChange={(e) => setSlaMetricType(e.target.value)}
                                     className="w-full h-10 border border-slate-200 rounded-xl text-xs font-semibold px-3 outline-none bg-white"
                                     required
                                 >
-                                    <option value="EFETIVIDADE">Automático: Efetividade de Escala</option>
-                                    <option value="SLA_CHAMADOS">Automático: Chamados no Prazo</option>
-                                    <option value="NPS">Automático: Nota NPS do Cliente</option>
-                                    <option value="TURNOVER">Automático: Rotatividade (Turnover)</option>
-                                    <option value="RECLAMACOES">Automático: Chamados de Reclamação (Qtd)</option>
-                                    <option value="REPOSICAO">Automático: SLA de Contratação (Média Dias)</option>
-                                    <option value="VISITAS">Automático: Visitas de Liderança</option>
-                                    <option value="MANUAL">Lançamento Manual pelo Gestor</option>
+                                    <option value="EFETIVIDADE">Métrica Automática: Efetividade de Escala</option>
+                                    <option value="SLA_CHAMADOS">Métrica Automática: Chamados no Prazo</option>
+                                    <option value="NPS">Métrica Automática: Nota NPS do Cliente</option>
+                                    <option value="TURNOVER">Métrica Automática: Rotatividade (Turnover)</option>
+                                    <option value="RECLAMACOES">Métrica Automática: Chamados de Reclamação (Qtd)</option>
+                                    <option value="REPOSICAO">Métrica Automática: SLA de Contratação (Média Dias)</option>
+                                    <option value="VISITAS">Métrica Automática: Visitas de Liderança</option>
+                                    <option value="MANUAL">Lançamento Manual pelo Gestor (Qualquer KPI Personalizado)</option>
                                 </select>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <Label className="text-xs font-bold text-slate-655">Meta (%) *</Label>
+                                    <Label className="text-xs font-bold text-slate-655">Meta de SLA (%) *</Label>
                                     <Input
                                         type="number"
                                         value={slaTarget}
@@ -5044,7 +5053,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <Label className="text-xs font-bold text-slate-655">Peso da Nota *</Label>
+                                    <Label className="text-xs font-bold text-slate-655">Peso no SLA Global *</Label>
                                     <Input
                                         type="number"
                                         value={slaWeight}
