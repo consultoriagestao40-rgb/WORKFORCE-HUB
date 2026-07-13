@@ -1941,7 +1941,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
 
         const clientRecord = await prisma.client.findUnique({
             where: { id: clientId },
-            select: { contractTargetScore: true }
+            select: { contractTargetScore: true, name: true }
         });
         const contractTargetScore = clientRecord?.contractTargetScore ?? 90.0;
 
@@ -2056,6 +2056,41 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                 resolvedScore
             };
         });
+
+        // Integração com o Checklist Fácil API Analytics
+        let checklistFacilCounts = Array(12).fill(0);
+        const apiKey = process.env.CHECKLIST_FACIL_API_KEY;
+        const clientName = clientRecord?.name || '';
+        if (apiKey && clientName) {
+            try {
+                const startDateStr = `${year}-01-01T00:00:00`;
+                const endDateStr = `${year}-12-31T23:59:59`;
+                const url = `https://api-analytics.checklistfacil.com.br/v1/evaluations?concludedAt=[gte]${startDateStr}&concludedAt=[lte]${endDateStr}&status=6&limit=10000`;
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result && result.data && Array.isArray(result.data)) {
+                        result.data.forEach((evaluation: any) => {
+                            const unitName = evaluation.unitName || evaluation.unit?.name || evaluation.storeName || '';
+                            if (unitName.toLowerCase().includes(clientName.toLowerCase())) {
+                                const conclDate = new Date(evaluation.concludedAt || evaluation.createdAt);
+                                const mIdx = conclDate.getMonth();
+                                if (mIdx >= 0 && mIdx < 12) {
+                                    checklistFacilCounts[mIdx]++;
+                                }
+                            }
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error('Erro ao carregar checklists do Checklist Fácil:', e);
+            }
+        }
 
         const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 

@@ -4074,6 +4074,11 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 detailedData && (() => {
                     // Lógica local para obter o valor real de cada KPI em um mês arbitrário
                     const getSlaMetricRealValForMonth = (item: any, monthIdx: number) => {
+                        if (item.metricType === "CHECKLIST_FACIL") {
+                            const completed = clientKpiData?.checklistFacilCounts?.[monthIdx] || 0;
+                            const planned = item.monthlyValues?.find((v: any) => v.month === monthIdx && v.year === selectedYear)?.value || 0;
+                            return planned > 0 ? (completed / planned) * 100 : null;
+                        }
                         if (item.metricType === "MANUAL") {
                             const found = item.monthlyValues?.find((v: any) => v.month === monthIdx && v.year === selectedYear);
                             return found ? found.value : null;
@@ -4096,6 +4101,12 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                         }
                         if (item.metricType === "VISITAS") {
                             return mData.visitsScore;
+                        }
+                        if (item.metricType === "TURNOVER") {
+                            return mData.turnover;
+                        }
+                        if (item.metricType === "REPOSICAO") {
+                            return mData.avgRepositionDays;
                         }
                         return null;
                     };
@@ -4439,7 +4450,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                             <TableCell className="text-center text-xs font-bold py-3">{item.targetValue}%</TableCell>
                                                             <TableCell className="text-center text-xs font-bold py-3">{item.weight}</TableCell>
                                                             <TableCell className="text-right pr-6 py-3 text-xs">
-                                                                {item.metricType === "MANUAL" ? (
+                                                                {(item.metricType === "MANUAL" || item.metricType === "CHECKLIST_FACIL") ? (
                                                                     editingSlaValueId === item.id ? (
                                                                         <div className="flex justify-end items-center gap-1">
                                                                             <Input type="number" value={manualSlaValue} onChange={(e) => setManualSlaValue(Number(e.target.value))} className="w-16 h-7 text-right" />
@@ -4447,8 +4458,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                         </div>
                                                                     ) : (
                                                                         <div className="flex justify-end items-center gap-1.5 font-black text-slate-800">
-                                                                            <span>{mVal !== undefined ? `${mVal}%` : "Pendente"}</span>
-                                                                            <Button size="sm" variant="ghost" onClick={() => { setEditingSlaValueId(item.id); setManualSlaValue(mVal || item.targetValue); }} className="h-6 w-6 p-0 rounded">✏️</Button>
+                                                                            <span>{item.metricType === "CHECKLIST_FACIL" ? (mVal !== undefined ? `${mVal} plan.` : "Meta Pendente") : (mVal !== undefined ? `${mVal}%` : "Pendente")}</span>
+                                                                            <Button size="sm" variant="ghost" onClick={() => { setEditingSlaValueId(item.id); setManualSlaValue(mVal || 10); }} className="h-6 w-6 p-0 rounded">✏️</Button>
                                                                         </div>
                                                                     )
                                                                 ) : (
@@ -5138,7 +5149,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                  item.metricType === 'NPS' ? 'Nota NPS' :
                                                  item.metricType === 'TURNOVER' ? 'Rotatividade (Turnover)' :
                                                  item.metricType === 'RECLAMACOES' ? 'Índice Reclamações' : 
-                                                 item.metricType === 'VISITAS' ? 'Visitas de Liderança' : 'SLA de Contratação'}
+                                                 item.metricType === 'VISITAS' ? 'Visitas de Liderança' : 
+                                                 item.metricType === 'CHECKLIST_FACIL' ? 'Integração Checklist Fácil' : 'SLA de Contratação'}
                                             </TableCell>
                                             <TableCell className="text-center py-3">
                                                 <div className="flex justify-center gap-1">
@@ -5221,6 +5233,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     <option value="RECLAMACOES">Métrica Automática: Chamados de Reclamação (Qtd)</option>
                                     <option value="REPOSICAO">Métrica Automática: SLA de Contratação (Média Dias)</option>
                                     <option value="VISITAS">Métrica Automática: Visitas de Liderança</option>
+                                    <option value="CHECKLIST_FACIL">Métrica Automática: Integração Checklist Fácil</option>
                                     <option value="CREATE_NEW" className="font-bold text-blue-600">+ Criar Novo KPI (Personalizado)...</option>
                                 </select>
                             </div>
@@ -5284,6 +5297,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     <option value="RECLAMACOES">Métrica Automática: Chamados de Reclamação (Qtd)</option>
                                     <option value="REPOSICAO">Métrica Automática: SLA de Contratação (Média Dias)</option>
                                     <option value="VISITAS">Métrica Automática: Visitas de Liderança</option>
+                                    <option value="CHECKLIST_FACIL">Métrica Automática: Integração Checklist Fácil</option>
                                     <option value="MANUAL">Lançamento Manual pelo Gestor (Qualquer KPI Personalizado)</option>
                                 </select>
                             </div>
