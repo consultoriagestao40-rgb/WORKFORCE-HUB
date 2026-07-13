@@ -2429,6 +2429,7 @@ export async function getAdminClientKpis(clientId: string, year: number) {
             contractTargetScore,
             monthlyData,
             npsEvolution,
+            slaConfigs,
             summary: {
                 effectiveness: totalEffectiveness,
                 absenteeism: totalAbsenteeism,

@@ -283,6 +283,92 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     // Modal contracts filter (multiple choice selection)
     const [selectedContractsFilter, setSelectedContractsFilter] = useState<string[]>([]);
 
+    const activeConfigs = useMemo(() => {
+        if (clientKpiData?.slaConfigs && clientKpiData.slaConfigs.length > 0) {
+            return clientKpiData.slaConfigs;
+        }
+        return [
+            { id: "fallback-eff", name: "Eficiência Operacional (Escala)", metricType: "EFETIVIDADE" },
+            { id: "fallback-nps", name: "NPS (Satisfação)", metricType: "NPS" },
+            { id: "fallback-turn", name: "Rotatividade (Turnover)", metricType: "TURNOVER" },
+            { id: "fallback-sla", name: "Chamados no Prazo (SLA)", metricType: "SLA_CHAMADOS" },
+            { id: "fallback-comp", name: "Índice Reclamações", metricType: "RECLAMACOES" },
+            { id: "fallback-vis", name: "Visitas de Liderança", metricType: "VISITAS" },
+            { id: "fallback-rep", name: "SLA de Contratação (Média Dias)", metricType: "REPOSICAO" }
+        ];
+    }, [clientKpiData]);
+
+    const getKpiValue = useCallback((m: any, config: any) => {
+        if (config.metricType === "MANUAL") {
+            const found = config.monthlyValues?.find((v: any) => v.month === m.monthIndex && v.year === selectedYear);
+            if (found !== undefined && found !== null) {
+                return `${found.value.toFixed(1).replace('.', ',')}%`;
+            }
+            return "-";
+        }
+        if (config.metricType === "EFETIVIDADE") {
+            return m.effectiveness !== null && m.effectiveness !== undefined 
+                ? `${m.effectiveness.toFixed(1)}%` 
+                : "-";
+        }
+        if (config.metricType === "NPS") {
+            return m.npsCount > 0 
+                ? `${(m.avgNpsRating * 10).toFixed(1).replace('.', ',')}%` 
+                : "-";
+        }
+        if (config.metricType === "TURNOVER") {
+            const turnoverRate = m.turnover || 0;
+            return turnoverRate > 0 
+                ? `${turnoverRate.toFixed(1).replace('.', ',')}%` 
+                : "0,0%";
+        }
+        if (config.metricType === "SLA_CHAMADOS") {
+            return m.slaCompliance !== null && m.slaCompliance !== undefined 
+                ? `${m.slaCompliance.toFixed(1)}%` 
+                : "-";
+        }
+        if (config.metricType === "RECLAMACOES") {
+            const rate = m.complaintsRate ?? 0;
+            return `${rate.toFixed(1).replace('.', ',')}%`;
+        }
+        if (config.metricType === "VISITAS") {
+            return m.visitsScore !== null && m.visitsScore !== undefined 
+                ? `${m.visitsScore.toFixed(2).replace('.', ',')}%` 
+                : "0,00%";
+        }
+        if (config.metricType === "REPOSICAO") {
+            return m.avgRepositionDays !== undefined && m.avgRepositionDays !== null 
+                ? `${m.avgRepositionDays.toFixed(1).replace('.', ',')} dias` 
+                : "-";
+        }
+        return "-";
+    }, [selectedYear]);
+
+    const handleKpiClick = useCallback((m: any, config: any) => {
+        const kpiTypeMap: Record<string, any> = {
+            EFETIVIDADE: 'effectiveness',
+            NPS: 'nps',
+            TURNOVER: 'turnover',
+            SLA_CHAMADOS: 'sla',
+            RECLAMACOES: 'complaints',
+            VISITAS: 'visits',
+            REPOSICAO: 'reposition'
+        };
+        const kpiType = kpiTypeMap[config.metricType];
+        if (kpiType) {
+            let rawVal = undefined;
+            if (config.metricType === "EFETIVIDADE") rawVal = m.effectiveness;
+            else if (config.metricType === "NPS") rawVal = m.npsCount > 0 ? m.avgNpsRating * 10 : undefined;
+            else if (config.metricType === "TURNOVER") rawVal = m.turnover;
+            else if (config.metricType === "SLA_CHAMADOS") rawVal = m.slaCompliance;
+            else if (config.metricType === "RECLAMACOES") rawVal = m.complaintsRate;
+            else if (config.metricType === "VISITAS") rawVal = m.visitsScore;
+            else if (config.metricType === "REPOSICAO") rawVal = m.avgRepositionDays;
+            
+            handleKpiCellClick(m.monthIndex, m.name, kpiType, rawVal);
+        }
+    }, [handleKpiCellClick]);
+
     // Estados exclusivos para a aba/tela de solicitações do gestor
     const [consolidatedTab, setConsolidatedTab] = useState<"performance" | "requests">("performance");
     const [requestsViewMode, setRequestsViewMode] = useState<"kanban-status" | "kanban-contract" | "list">("kanban-status");
@@ -3751,88 +3837,65 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                     <TableHeader className="bg-slate-50">
                                                         <TableRow>
                                                             <TableHead className="font-bold text-slate-800 text-xs pl-6 py-3">Mês</TableHead>
-                                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Eficiência Operacional (Escala)</TableHead>
-                                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3">NPS (Satisfação)</TableHead>
-                                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Rotatividade (Turnover)</TableHead>
-                                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Chamados no Prazo (SLA)</TableHead>
-                                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Índice Reclamações</TableHead>
-                                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Visitas de Liderança</TableHead>
-                                                    <TableHead className="font-bold text-xs text-slate-800">SLA de Contratação (Média Dias)</TableHead>
+                                                            {activeConfigs.map((config: any) => (
+                                                                <TableHead key={config.id} className="font-bold text-slate-800 text-xs text-center py-3">
+                                                                    {config.name}
+                                                                </TableHead>
+                                                            ))}
                                                         </TableRow>
                                                     </TableHeader>
                                                     <TableBody>
                                                         {(clientKpiData.monthlyData || []).map((m: any) => {
                                                             const mIndex = m.monthIndex;
-                                                            // Calcular reclamações e rotatividade com base nos chamados reais do mês
                                                             const monthRequests = (detailedData?.requests || []).filter((r: any) => new Date(r.createdAt).getMonth() === mIndex);
-                                                            const complaints = monthRequests.filter((r: any) => r.category === "RECLAMACOES" || r.type === "RECLAMACOES" || r.description?.toLowerCase().includes("reclam") || r.description?.toLowerCase().includes("queixa"));
-                                                            const complaintsRate = m.complaintsRate || 0;
-
-                                                            const turnoverRate = m.turnover || 0;
-
-                                                            // Só exibir se o mês tiver algum dado
-                                                            const hasData = (m.effectiveness !== null && m.effectiveness !== undefined) || (m.turnover !== null && m.turnover !== undefined && m.turnover > 0) || (m.avgRepositionDays !== null && m.avgRepositionDays !== undefined) || monthRequests.length > 0 || m.npsCount > 0;
-
+                                                            
+                                                            const hasManualLaunch = activeConfigs.some((config: any) => 
+                                                                config.metricType === "MANUAL" && 
+                                                                config.monthlyValues?.some((v: any) => v.month === mIndex && v.year === selectedYear)
+                                                            );
+                                                            const hasData = (m.effectiveness !== null && m.effectiveness !== undefined) || 
+                                                                (m.turnover !== null && m.turnover !== undefined && m.turnover > 0) || 
+                                                                (m.avgRepositionDays !== null && m.avgRepositionDays !== undefined) || 
+                                                                monthRequests.length > 0 || 
+                                                                m.npsCount > 0 || 
+                                                                hasManualLaunch;
+ 
                                                             if (!hasData) {
                                                                 return (
                                                                     <TableRow key={m.monthIndex} className="hover:bg-slate-50/30 transition-colors">
                                                                         <TableCell className="font-bold text-xs text-slate-900 pl-6 py-3">{m.name}</TableCell>
-                                                                        <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
-                                                                        <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
-                                                                        <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
-                                                                        <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
-                                                                        <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
-                                                                        <TableCell className="text-center text-xs text-slate-400 py-3">-</TableCell>
+                                                                        {activeConfigs.map((config: any) => (
+                                                                            <TableCell key={config.id} className="text-center text-xs text-slate-400 py-3">-</TableCell>
+                                                                        ))}
                                                                     </TableRow>
                                                                 );
                                                             }
-
+ 
                                                             return (
                                                                 <TableRow key={m.monthIndex} className="hover:bg-slate-50/50 transition-colors">
                                                                     <TableCell className="font-bold text-xs text-slate-900 pl-6 py-3">{m.name}</TableCell>
-                                                                    <TableCell 
-                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'effectiveness', m.effectiveness)}
-                                                                        className="text-center font-bold text-xs text-emerald-600 py-3 cursor-pointer hover:bg-emerald-50 hover:scale-[1.03] transition-all select-none"
-                                                                    >
-                                                                        {m.effectiveness !== null && m.effectiveness !== undefined ? `${m.effectiveness.toFixed(1)}%` : "-"}
-                                                                    </TableCell>
-                                                                    <TableCell 
-                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'nps', m.npsCount > 0 ? m.avgNpsRating * 10 : undefined)}
-                                                                        className="text-center font-bold text-xs text-blue-650 py-3 cursor-pointer hover:bg-blue-50 hover:scale-[1.03] transition-all select-none"
-                                                                    >
-                                                                        {m.npsCount > 0 ? `${(m.avgNpsRating * 10).toFixed(1).replace('.', ',')}%` : "-"}
-                                                                    </TableCell>
-                                                                    <TableCell 
-                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'turnover', turnoverRate)}
-                                                                        className="text-center font-bold text-xs text-slate-700 py-3 cursor-pointer hover:bg-slate-100 hover:scale-[1.03] transition-all select-none"
-                                                                    >
-                                                                        {turnoverRate > 0 ? `${turnoverRate.toFixed(1).replace('.', ',')}%` : "0,0%"}
-                                                                    </TableCell>
-                                                                    <TableCell 
-                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'sla', m.slaCompliance)}
-                                                                        className="text-center font-bold text-xs text-blue-600 py-3 cursor-pointer hover:bg-blue-50 hover:scale-[1.03] transition-all select-none"
-                                                                    >
-                                                                        {m.slaCompliance !== null && m.slaCompliance !== undefined ? `${m.slaCompliance.toFixed(1)}%` : "-"}
-                                                                    </TableCell>
-                                                                    <TableCell 
-                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'complaints', m.complaintsRate)}
-                                                                        className="text-center font-bold text-xs text-red-500 py-3 cursor-pointer hover:bg-red-50 hover:scale-[1.03] transition-all select-none"
-                                                                    >
-                                                                        {m.complaintsRate !== undefined && m.complaintsRate !== null ? `${m.complaintsRate.toFixed(1).replace('.', ',')}%` : "0,0%"}
-                                                                    </TableCell>
-                                                                    <TableCell 
-                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'visits', m.visitsScore)}
-                                                                        className="text-center font-bold text-xs text-purple-600 py-3 cursor-pointer hover:bg-purple-50 hover:scale-[1.03] transition-all select-none"
-                                                                    >
-                                                                        {m.visitsScore !== null && m.visitsScore !== undefined ? `${m.visitsScore.toFixed(2).replace('.', ',')}%` : "0,00%"}
-                                                                    </TableCell>
-
-                                                                    <TableCell 
-                                                                        onClick={() => handleKpiCellClick(mIndex, m.name, 'reposition', m.avgRepositionDays)}
-                                                                        className="text-center font-bold text-xs text-blue-500 py-3 cursor-pointer hover:bg-blue-50 hover:scale-[1.03] transition-all select-none"
-                                                                    >
-                                                                        {m.avgRepositionDays !== undefined && m.avgRepositionDays !== null ? `${m.avgRepositionDays.toFixed(1).replace('.', ',')} dias` : "-"}
-                                                                    </TableCell>
+                                                                    {activeConfigs.map((config: any) => {
+                                                                        const val = getKpiValue(m, config);
+                                                                        const isAutomatic = config.metricType !== "MANUAL";
+                                                                        
+                                                                        let colorClass = "text-slate-700";
+                                                                        if (config.metricType === "EFETIVIDADE") colorClass = "text-emerald-600";
+                                                                        else if (config.metricType === "NPS") colorClass = "text-blue-650";
+                                                                        else if (config.metricType === "SLA_CHAMADOS") colorClass = "text-blue-600";
+                                                                        else if (config.metricType === "RECLAMACOES") colorClass = "text-red-500";
+                                                                        else if (config.metricType === "VISITAS") colorClass = "text-purple-650";
+                                                                        else if (config.metricType === "REPOSICAO") colorClass = "text-blue-500";
+ 
+                                                                        return (
+                                                                            <TableCell 
+                                                                                key={config.id}
+                                                                                onClick={() => isAutomatic && handleKpiClick(m, config)}
+                                                                                className={`text-center font-bold text-xs ${colorClass} py-3 select-none ${isAutomatic ? 'cursor-pointer hover:bg-slate-50 hover:scale-[1.02] transition-all' : ''}`}
+                                                                            >
+                                                                                {val}
+                                                                            </TableCell>
+                                                                        );
+                                                                    })}
                                                                 </TableRow>
                                                             );
                                                         })}
