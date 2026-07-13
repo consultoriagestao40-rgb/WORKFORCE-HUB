@@ -28,10 +28,16 @@ export async function createVacancyFromPosto(postoId: string) {
         throw new Error("Não é permitido abrir vaga para o posto ROTATIVO.");
     }
 
+    // Busca a vaga mais recente deste posto para herdar as configurações
+    const latestVacancy = await prisma.vacancy.findFirst({
+        where: { postoId: posto.id },
+        orderBy: { createdAt: 'desc' }
+    });
+
     const title = `${posto.role.name} - ${posto.client.name}`;
     const description = `Vaga aberta automaticamente após realocação de colaborador.\n\nDetalhes do posto:\n- Escala: ${posto.schedule}\n- Horário: ${posto.startTime} - ${posto.endTime}\n- Carga horária: ${posto.requiredWorkload}h`;
 
-    // Create vacancy without recruiter (will be assigned later)
+    // Create vacancy inheriting requirements from the previous vacancy of the same Posto
     const vacancy = await prisma.vacancy.create({
         data: {
             title,
@@ -40,7 +46,13 @@ export async function createVacancyFromPosto(postoId: string) {
             companyId: posto.client.company?.id || null,
             status: 'OPEN',
             priority: 'MEDIUM',
-            recruiterId: null // No recruiter assigned yet
+            recruiterId: latestVacancy?.recruiterId || null,
+            reqGender: latestVacancy?.reqGender || null,
+            reqExperience: latestVacancy?.reqExperience || null,
+            reqKnowledge: latestVacancy?.reqKnowledge || null,
+            reqAgeMin: latestVacancy?.reqAgeMin || null,
+            reqAgeMax: latestVacancy?.reqAgeMax || null,
+            customRequirements: (latestVacancy?.customRequirements as any) || undefined
         }
     });
 
@@ -133,6 +145,14 @@ export async function createVacancy(data: {
         }
     }
 
+    let inheritData: any = null;
+    if (data.postoId) {
+        inheritData = await prisma.vacancy.findFirst({
+            where: { postoId: data.postoId },
+            orderBy: { createdAt: 'desc' }
+        });
+    }
+
     await prisma.vacancy.create({
         data: {
             title: data.title,
@@ -143,13 +163,13 @@ export async function createVacancy(data: {
             priority: data.priority,
             status: "OPEN",
             recruiterId: data.recruiterId,
-            reqGender: data.reqGender || null,
-            reqExperience: data.reqExperience || null,
-            reqKnowledge: data.reqKnowledge || null,
-            reqAgeMin: data.reqAgeMin || null,
-            reqAgeMax: data.reqAgeMax || null,
-            plannedStartDate: data.plannedStartDate ? new Date(data.plannedStartDate) : null,
-            customRequirements: data.customRequirements || null
+            reqGender: data.reqGender || inheritData?.reqGender || null,
+            reqExperience: data.reqExperience || inheritData?.reqExperience || null,
+            reqKnowledge: data.reqKnowledge || inheritData?.reqKnowledge || null,
+            reqAgeMin: data.reqAgeMin || inheritData?.reqAgeMin || null,
+            reqAgeMax: data.reqAgeMax || inheritData?.reqAgeMax || null,
+            plannedStartDate: data.plannedStartDate ? new Date(data.plannedStartDate) : (inheritData?.plannedStartDate ? new Date(inheritData.plannedStartDate) : null),
+            customRequirements: (data.customRequirements || inheritData?.customRequirements) as any || undefined
         }
     });
 
