@@ -379,6 +379,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     // Controle de exclusão de chamados (Admin)
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [deletingRequest, setDeletingRequest] = useState<boolean>(false);
+    const [showKpiConfig, setShowKpiConfig] = useState<boolean>(false);
 
     // Sub-abas de NPS
     const [npsSubTab, setNpsSubTab] = useState<"results" | "config">("results");
@@ -3835,10 +3836,11 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                  </div>
                                                  <Button 
                                                      size="sm"
-                                                     onClick={() => { setActiveTab("sla"); setSlaTab("config"); }}
-                                                     className="gap-1 bg-slate-900 text-white font-bold text-xs rounded-xl"
+                                                     onClick={() => setShowKpiConfig(!showKpiConfig)}
+                                                     variant={showKpiConfig ? "outline" : "default"}
+                                                     className="gap-1 font-bold text-xs rounded-xl border border-slate-300"
                                                  >
-                                                     <Edit3 className="w-3.5 h-3.5" /> Configurar KPIs
+                                                     <Edit3 className="w-3.5 h-3.5" /> {showKpiConfig ? "Fechar Configuração" : "Configurar KPIs"}
                                                  </Button>
                                              </CardHeader>
                                             <CardContent className="p-0 border-t border-slate-100 overflow-x-auto">
