@@ -944,15 +944,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     // Dedicated KPI Handlers
     const handleSaveKpi = async (e: React.FormEvent) => {
         e.preventDefault();
-        const finalName = selectedKpiType === 'CREATE_NEW' ? newKpiName : (
-            selectedKpiType === 'EFETIVIDADE' ? 'Efetividade Escala' :
-            selectedKpiType === 'SLA_CHAMADOS' ? 'Chamados no Prazo' :
-            selectedKpiType === 'NPS' ? 'NPS' :
-            selectedKpiType === 'TURNOVER' ? 'Rotatividade (Turnover)' :
-            selectedKpiType === 'RECLAMACOES' ? 'Índice Reclamações' :
-            selectedKpiType === 'VISITAS' ? 'Visitas de Liderança' : 'SLA de Contratação'
-        );
-        if (!finalName) {
+        if (!newKpiName) {
             toast.error('Por favor, informe o nome do KPI.');
             return;
         }
@@ -963,7 +955,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
             const res = await upsertSlaConfigItem({
                 id: editingKpi?.id,
                 clientId: selectedClientId,
-                name: finalName,
+                name: newKpiName,
                 metricType: finalMetricType,
                 weight: editingKpi ? editingKpi.weight : 0,
                 targetValue: editingKpi ? editingKpi.targetValue : 0,
@@ -5159,14 +5151,9 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                         variant="ghost" 
                                                         onClick={() => { 
                                                             setEditingKpi(item); 
-                                                            if (item.metricType === 'MANUAL') {
-                                                                setSelectedKpiType('CREATE_NEW');
-                                                                setNewKpiName(item.name);
-                                                                setIsNewCustomKpi(true);
-                                                            } else {
-                                                                setSelectedKpiType(item.metricType);
-                                                                setIsNewCustomKpi(false);
-                                                            }
+                                                            setSelectedKpiType(item.metricType === 'MANUAL' ? 'CREATE_NEW' : item.metricType);
+                                                            setNewKpiName(item.name);
+                                                            setIsNewCustomKpi(item.metricType === 'MANUAL');
                                                             setKpiMeta(item.targetValue); 
                                                             setKpiPeso(item.weight); 
                                                             setKpiFormOpen(true); 
@@ -5210,18 +5197,25 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
                         <div className="space-y-4 py-2">
                             <div className="space-y-1">
-                                <Label className="text-xs font-bold text-slate-655">KPI (Indicador) *</Label>
+                                <Label className="text-xs font-bold text-slate-655">Métrica / Tipo de Cálculo *</Label>
                                 <select
                                     value={selectedKpiType}
                                     onChange={(e) => {
                                         const val = e.target.value;
                                         setSelectedKpiType(val);
-                                        if (val === 'CREATE_NEW') {
-                                            setIsNewCustomKpi(true);
-                                            setNewKpiName('');
-                                        } else {
-                                            setIsNewCustomKpi(false);
-                                        }
+                                        setIsNewCustomKpi(val === 'CREATE_NEW');
+                                        const namesMap: Record<string, string> = {
+                                            EFETIVIDADE: 'Efetividade Escala',
+                                            SLA_CHAMADOS: 'Chamados no Prazo',
+                                            NPS: 'NPS',
+                                            TURNOVER: 'Rotatividade (Turnover)',
+                                            RECLAMACOES: 'Índice Reclamações',
+                                            VISITAS: 'Visitas de Liderança',
+                                            REPOSICAO: 'SLA de Contratação',
+                                            CHECKLIST_FACIL: 'Checklist Fácil',
+                                            CREATE_NEW: ''
+                                        };
+                                        setNewKpiName(namesMap[val] || '');
                                     }}
                                     className="w-full h-10 border border-slate-200 rounded-xl text-xs font-semibold px-3 outline-none bg-white"
                                     required
@@ -5238,18 +5232,16 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 </select>
                             </div>
 
-                            {isNewCustomKpi && (
-                                <div className="space-y-1 animate-in fade-in duration-200">
-                                    <Label className="text-xs font-bold text-slate-655">Nome do Novo KPI *</Label>
-                                    <Input
-                                        placeholder="Ex: Auditoria 5S, Uso de EPIs"
-                                        value={newKpiName}
-                                        onChange={(e) => setNewKpiName(e.target.value)}
-                                        className="h-10 rounded-xl"
-                                        required
-                                    />
-                                </div>
-                            )}
+                            <div className="space-y-1">
+                                <Label className="text-xs font-bold text-slate-655">Nome do KPI *</Label>
+                                <Input
+                                    placeholder="Ex: Auditoria 5S, Uso de EPIs"
+                                    value={newKpiName}
+                                    onChange={(e) => setNewKpiName(e.target.value)}
+                                    className="h-10 rounded-xl"
+                                    required
+                                />
+                            </div>
 
 
                         </div>
