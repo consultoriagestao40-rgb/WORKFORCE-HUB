@@ -6,7 +6,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { X, MessageSquare, Send, Paperclip, CheckCircle2, XCircle, Clock, Save, User, Mail, Phone, Calendar, Briefcase, MapPin, Building2, Building, DollarSign, AlertCircle, Trash2, Copy, FileText, Upload, AlertTriangle, ChevronDown } from "lucide-react";
+import { X, MessageSquare, Send, Paperclip, CheckCircle2, XCircle, Clock, Save, User, Mail, Phone, Calendar, Briefcase, MapPin, Building2, Building, DollarSign, AlertCircle, Trash2, Copy, FileText, Upload, AlertTriangle, ChevronDown, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate, updateVacancy, addVacancyParticipant, removeVacancyParticipant, addRecruitmentComment, getRecruitmentComments, getVacancyCandidates, evaluateCandidateWithAI, updateCandidateEvaluation } from "@/actions/recruitment";
 import { Textarea } from "@/components/ui/textarea";
@@ -61,6 +61,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
     const [rankEvals, setRankEvals] = useState<Record<string, any[]>>({});
     const [notes, setNotes] = useState("");
     const [isVacancyReqsExpanded, setIsVacancyReqsExpanded] = useState(false);
+    const [isReevaluatingAi, setIsReevaluatingAi] = useState(false);
 
 
     const handleSaveRequirements = async () => {
@@ -395,8 +396,8 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                 if (!fileBase64) return null;
                                                 
                                                 return (
-                                                    <div className="pt-3 border-t border-slate-200">
-                                                        <label className="text-xs font-medium text-slate-500 uppercase block mb-1">Currículo Original Anexado</label>
+                                                    <div className="pt-3 border-t border-slate-200 space-y-2">
+                                                        <label className="text-xs font-medium text-slate-500 uppercase block">Currículo Original Anexado</label>
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
@@ -429,6 +430,31 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                         >
                                                             <FileText className="w-4 h-4 text-indigo-600" />
                                                             Visualizar/Baixar Currículo
+                                                        </Button>
+
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="w-full flex items-center justify-center gap-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200 font-semibold"
+                                                            disabled={isReevaluatingAi}
+                                                            onClick={async () => {
+                                                                setIsReevaluatingAi(true);
+                                                                toast.info("Processando triagem com IA do Gemini...");
+                                                                try {
+                                                                    const { evaluateCandidateWithAI } = await import("@/actions/recruitment");
+                                                                    await evaluateCandidateWithAI(candidate.id, fileBase64, fileMimeType);
+                                                                    toast.success("Triagem por IA concluída!");
+                                                                    router.refresh();
+                                                                    onOpenChange(false);
+                                                                } catch (err: any) {
+                                                                    toast.error(err?.message || "Erro ao processar IA");
+                                                                } finally {
+                                                                    setIsReevaluatingAi(false);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <Sparkles className="w-4 h-4 text-purple-600" />
+                                                            {isReevaluatingAi ? "Processando..." : "Refazer Triagem por IA"}
                                                         </Button>
                                                     </div>
                                                 );

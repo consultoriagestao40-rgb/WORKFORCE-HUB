@@ -1616,7 +1616,36 @@ export async function createPublicCandidate(data: {
     });
 
     if (data.fileBase64 && data.fileMimeType) {
-        await evaluateCandidateWithAI(newCandidateId, data.fileBase64, data.fileMimeType);
+        // Salva o currículo imediatamente no banco
+        await prisma.recruitmentCandidate.update({
+            where: { id: newCandidateId },
+            data: {
+                requirementsEvaluation: {
+                    resumeFileBase64: data.fileBase64,
+                    resumeFileMimeType: data.fileMimeType,
+                    adherenceScore: 0,
+                    isDisqualified: false,
+                    aiAnalysis: "Aguardando triagem da IA..."
+                }
+            }
+        });
+
+        // Executa a triagem de IA em segundo plano (background)
+        try {
+            const { after } = require("next/server");
+            after(async () => {
+                try {
+                    await evaluateCandidateWithAI(newCandidateId, data.fileBase64, data.fileMimeType);
+                } catch (aiErr) {
+                    console.error("Erro no processamento em segundo plano do Gemini:", aiErr);
+                }
+            });
+        } catch (afterErr) {
+            console.log("after() não disponível no ambiente, rodando como promessa solta");
+            evaluateCandidateWithAI(newCandidateId, data.fileBase64, data.fileMimeType).catch(err => {
+                console.error("Erro no processamento em segundo plano do Gemini:", err);
+            });
+        }
     }
 
 

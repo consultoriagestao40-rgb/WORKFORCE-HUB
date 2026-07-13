@@ -6,9 +6,9 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { X, MessageSquare, Send, Paperclip, CheckCircle2, XCircle, Clock, Save, User, Mail, Phone, Calendar, Briefcase, MapPin, Building2, Building, DollarSign, AlertCircle, Trash2 } from "lucide-react";
+import { X, MessageSquare, Send, Paperclip, CheckCircle2, XCircle, Clock, Save, User, Mail, Phone, Calendar, Briefcase, MapPin, Building2, Building, DollarSign, AlertCircle, Trash2, Copy, FileText, Upload, AlertTriangle, ChevronDown, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate, updateVacancy, addVacancyParticipant, removeVacancyParticipant, addRecruitmentComment, getRecruitmentComments } from "@/actions/recruitment";
+import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate, updateVacancy, addVacancyParticipant, removeVacancyParticipant, addRecruitmentComment, getRecruitmentComments, getVacancyCandidates, evaluateCandidateWithAI, updateCandidateEvaluation } from "@/actions/recruitment";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState, useEffect } from "react";
 import { ApprovalModal } from "./ApprovalModal";
+import { useRouter } from "next/navigation";
 
 interface CandidateDetailsModalProps {
     open: boolean;
@@ -31,6 +32,7 @@ interface CandidateDetailsModalProps {
 }
 
 export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdrawSuccess, stages = [], currentUser, recruiters = [] }: CandidateDetailsModalProps) {
+    const router = useRouter();
     const [timeline, setTimeline] = useState<any[]>([]);
     const [loadingTimeline, setLoadingTimeline] = useState(false);
 
@@ -38,8 +40,229 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
     const [approvalModalOpen, setApprovalModalOpen] = useState(false);
     const [approvalAction, setApprovalAction] = useState<"APPROVE" | "REJECT" | null>(null);
 
+    // Requisitos do Perfil
+    const [reqGender, setReqGender] = useState("Ambos");
+    const [reqExperience, setReqExperience] = useState("");
+    const [reqAgeMin, setReqAgeMin] = useState("");
+    const [reqAgeMax, setReqAgeMax] = useState("");
+    const [reqKnowledge, setReqKnowledge] = useState("");
+    const [plannedStartDate, setPlannedStartDate] = useState("");
+    const [isSavingRequirements, setIsSavingRequirements] = useState(false);
+
+    // ATS & Checklist personalizados
+    const [vacancyReqs, setVacancyReqs] = useState<{ id: string, name: string, isKnockout: boolean }[]>([]);
+    const [newReqText, setNewReqText] = useState("");
+    const [newReqIsKnockout, setNewReqIsKnockout] = useState(false);
+    const [rankedCandidates, setRankedCandidates] = useState<any[]>([]);
+    const [isLoadingRanked, setIsLoadingRanked] = useState(false);
+    const [isUploadingCv, setIsUploadingCv] = useState(false);
+    const [isUploadingVacancyCv, setIsUploadingVacancyCv] = useState(false);
+    const [expandedRankId, setExpandedRankId] = useState<string | null>(null);
+    const [rankEvals, setRankEvals] = useState<Record<string, any[]>>({});
+    const [notes, setNotes] = useState("");
+    const [isVacancyReqsExpanded, setIsVacancyReqsExpanded] = useState(false);
+    const [isReevaluatingAi, setIsReevaluatingAi] = useState(false);
+
+
+    const handleSaveRequirements = async () => {
+        if (!candidate?.vacancy?.id) return;
+        setIsSavingRequirements(true);
+        try {
+            await updateVacancy(candidate.vacancy.id, {
+                reqGender: reqGender === "Ambos" ? "Ambos" : reqGender,
+                reqExperience: reqExperience || "",
+                reqKnowledge: reqKnowledge || "",
+                reqAgeMin: reqAgeMin ? parseInt(reqAgeMin) : null,
+                reqAgeMax: reqAgeMax ? parseInt(reqAgeMax) : null,
+                plannedStartDate: plannedStartDate ? new Date(plannedStartDate) : null
+            });
+            toast.success("Requisitos do perfil salvados!");
+            router.refresh();
+        } catch (e) {
+            toast.error("Erro ao salvar requisitos");
+        } finally {
+            setIsSavingRequirements(false);
+        }
+    };
+
+    const handleAddVacancyReq = async () => {
+        if (!newReqText.trim() || !candidate?.vacancy?.id) return;
+        const updated = [
+            ...vacancyReqs,
+            { id: `req-${Date.now()}`, name: newReqText.trim(), isKnockout: newReqIsKnockout }
+        ];
+        setVacancyReqs(updated);
+        setNewReqText("");
+        setNewReqIsKnockout(false);
+        
+        await updateVacancy(candidate.vacancy.id, { customRequirements: updated });
+        toast.success("Checklist da vaga atualizado!");
+        router.refresh();
+    };
+
+    const handleRemoveVacancyReq = async (id: string) => {
+        if (!candidate?.vacancy?.id) return;
+        const updated = vacancyReqs.filter(r => r.id !== id);
+        setVacancyReqs(updated);
+        await updateVacancy(candidate.vacancy.id, { customRequirements: updated });
+        toast.success("Requisito removido!");
+        router.refresh();
+    };
+
+    const handleToggleCustomReq = async (reqId: string, newValue: boolean | null) => {
+        if (!candidate?.id) return;
+        const evaluation = candidate.requirementsEvaluation || {};
+        const currentEvaluations = evaluation.customEvaluations || [];
+        
+        let updatedEvaluations = [...currentEvaluations];
+        if (currentEvaluations.some((e: any) => e.reqId === reqId)) {
+            updatedEvaluations = currentEvaluations.map((e: any) => 
+                e.reqId === reqId ? { ...e, value: newValue } : e
+            );
+        } else {
+            const reqObj = (candidate.vacancy?.customRequirements as any[] || []).find(r => r.id === reqId);
+            if (reqObj) {
+                updatedEvaluations.push({ reqId, name: reqObj.name, value: newValue });
+            }
+        }
+        
+        await updateCandidateEvaluation(candidate.id, {
+            customEvaluations: updatedEvaluations
+        });
+        toast.success("Avaliação atualizada!");
+        router.refresh();
+    };
+
+    const handleSaveNotes = async () => {
+        if (!candidate?.id) return;
+        await updateCandidateEvaluation(candidate.id, { notes });
+        toast.success("Observações salvas!");
+        router.refresh();
+    };
+
+    const handleManualCvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !candidate?.id) return;
+        setIsUploadingCv(true);
+        try {
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const result = reader.result as string;
+                const base64 = result.split(",")[1];
+                toast.info("Processando currículo com IA do Gemini...");
+                await evaluateCandidateWithAI(candidate.id, base64, file.type);
+                toast.success("Triagem por IA concluída com sucesso!");
+                router.refresh();
+                onOpenChange(false);
+            };
+            reader.readAsDataURL(file);
+        } catch (err) {
+            console.error(err);
+            toast.error("Erro ao analisar currículo");
+        } finally {
+            setIsUploadingCv(false);
+        }
+    };
+
+    // Upload de CV para CRIAR candidato diretamente na vaga
+    const handleVacancyCvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const vacId = candidate?.realId || candidate?.id?.replace('VAC-', '');
+        if (!vacId) return;
+        setIsUploadingVacancyCv(true);
+        try {
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const result = reader.result as string;
+                const base64 = result.split(",")[1];
+                toast.info("Lendo currículo e criando candidato...");
+                const { createPublicCandidate } = await import("@/actions/recruitment");
+                await createPublicCandidate({
+                    vacancyId: vacId,
+                    name: `Candidato (${file.name})`,
+                    email: '',
+                    phone: '',
+                    fileBase64: base64,
+                    fileMimeType: file.type
+                });
+                toast.success("Candidato criado e analisado pela IA!");
+                // Refresh ranking
+                setIsLoadingRanked(true);
+                const updated = await getVacancyCandidates(vacId);
+                setRankedCandidates(updated);
+                setIsLoadingRanked(false);
+                router.refresh();
+            };
+            reader.readAsDataURL(file);
+        } catch (err: any) {
+            toast.error(err?.message || "Erro ao processar currículo");
+        } finally {
+            setIsUploadingVacancyCv(false);
+        }
+    };
+    const handleDeleteRankedCandidate = async (e: React.MouseEvent, candidateId: string, candidateName: string) => {
+        e.stopPropagation();
+        if (!confirm(`Tem certeza que deseja EXCLUIR permanentemente o candidato "${candidateName}"?`)) return;
+        
+        try {
+            await deleteCandidate(candidateId);
+            toast.success("Candidato excluído permanentemente!");
+            
+            const vacId = candidate?.realId || candidate?.id?.replace('VAC-', '');
+            if (vacId) {
+                setIsLoadingRanked(true);
+                const updated = await getVacancyCandidates(vacId);
+                setRankedCandidates(updated);
+                setIsLoadingRanked(false);
+            }
+            router.refresh();
+        } catch (err: any) {
+            toast.error(err?.message || "Erro ao excluir candidato");
+        }
+    };
+
+    const handleToggleRankReq = async (candidateId: string, reqId: string, newValue: boolean | null, reqName: string) => {
+        const currentEvals = rankEvals[candidateId] || [];
+        let updated: any[];
+        if (currentEvals.some((e: any) => e.reqId === reqId)) {
+            updated = currentEvals.map((e: any) => e.reqId === reqId ? { ...e, value: newValue } : e);
+        } else {
+            updated = [...currentEvals, { reqId, name: reqName, value: newValue }];
+        }
+        setRankEvals(prev => ({ ...prev, [candidateId]: updated }));
+        try {
+            const updatedCandidate = await updateCandidateEvaluation(candidateId, { customEvaluations: updated });
+            setRankedCandidates(prev => prev.map(c => 
+                c.id === candidateId 
+                    ? { ...c, requirementsEvaluation: updatedCandidate.requirementsEvaluation } 
+                    : c
+            ));
+            toast.success("Requisito atualizado!");
+        } catch (error) {
+            toast.error("Erro ao salvar avaliação");
+        }
+    };
+
     useEffect(() => {
         if (open && candidate) {
+            setReqGender(candidate.vacancy?.reqGender || "Ambos");
+            setReqExperience(candidate.vacancy?.reqExperience || "");
+            setReqAgeMin(candidate.vacancy?.reqAgeMin?.toString() || "");
+            setReqAgeMax(candidate.vacancy?.reqAgeMax?.toString() || "");
+            setReqKnowledge(candidate.vacancy?.reqKnowledge || "");
+            setPlannedStartDate(candidate.vacancy?.plannedStartDate ? new Date(candidate.vacancy.plannedStartDate).toISOString().split('T')[0] : "");
+            setVacancyReqs(candidate.vacancy?.customRequirements ? (candidate.vacancy.customRequirements as any[]) : []);
+            setNotes(candidate.requirementsEvaluation?.notes || "");
+
+            if (candidate.type === 'VACANCY') {
+                setIsLoadingRanked(true);
+                getVacancyCandidates(candidate.realId || candidate.id.replace('VAC-', ''))
+                    .then(res => setRankedCandidates(res))
+                    .catch(err => console.error("Error loading candidates:", err))
+                    .finally(() => setIsLoadingRanked(false));
+            }
+
             setLoadingTimeline(true);
             const fetchTimeline = async () => {
                 try {
@@ -120,8 +343,9 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                     </DialogHeader>
 
                     <Tabs defaultValue="details" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
+                        <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="details">Detalhes</TabsTrigger>
+                            <TabsTrigger value="ats">Triagem Inteligente (ATS)</TabsTrigger>
                             <TabsTrigger value="history">Histórico & Auditoria</TabsTrigger>
                         </TabsList>
 
@@ -162,6 +386,79 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                     <Badge variant="outline">{currentStage?.name || 'Desconhecida'}</Badge>
                                                 </div>
                                             </div>
+                                            
+                                            {/* Currículo Original */}
+                                            {(() => {
+                                                const evalObj = (candidate.requirementsEvaluation as any) || {};
+                                                const fileBase64 = evalObj.resumeFileBase64;
+                                                const fileMimeType = evalObj.resumeFileMimeType || 'application/pdf';
+                                                
+                                                if (!fileBase64) return null;
+                                                
+                                                return (
+                                                    <div className="pt-3 border-t border-slate-200 space-y-2">
+                                                        <label className="text-xs font-medium text-slate-500 uppercase block">Currículo Original Anexado</label>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="w-full flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 font-semibold"
+                                                            onClick={() => {
+                                                                try {
+                                                                    const byteCharacters = atob(fileBase64);
+                                                                    const byteNumbers = new Array(byteCharacters.length);
+                                                                    for (let i = 0; i < byteCharacters.length; i++) {
+                                                                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                                                    }
+                                                                    const byteArray = new Uint8Array(byteNumbers);
+                                                                    const blob = new Blob([byteArray], { type: fileMimeType });
+                                                                    const blobUrl = URL.createObjectURL(blob);
+                                                                    
+                                                                    if (fileMimeType.includes('pdf')) {
+                                                                        window.open(blobUrl, '_blank');
+                                                                    } else {
+                                                                        const a = document.createElement('a');
+                                                                        a.href = blobUrl;
+                                                                        a.download = `curriculo_${candidate.name.replace(/\s+/g, '_')}.${fileMimeType.includes('png') ? 'png' : fileMimeType.includes('jpeg') || fileMimeType.includes('jpg') ? 'jpg' : 'pdf'}`;
+                                                                        document.body.appendChild(a);
+                                                                        a.click();
+                                                                        document.body.removeChild(a);
+                                                                    }
+                                                                } catch (err) {
+                                                                    toast.error("Erro ao abrir arquivo do currículo");
+                                                                }
+                                                            }}
+                                                        >
+                                                            <FileText className="w-4 h-4 text-indigo-600" />
+                                                            Visualizar/Baixar Currículo
+                                                        </Button>
+
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="w-full flex items-center justify-center gap-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200 font-semibold"
+                                                            disabled={isReevaluatingAi}
+                                                            onClick={async () => {
+                                                                setIsReevaluatingAi(true);
+                                                                toast.info("Processando triagem com IA do Gemini...");
+                                                                try {
+                                                                    const { evaluateCandidateWithAI } = await import("@/actions/recruitment");
+                                                                    await evaluateCandidateWithAI(candidate.id, fileBase64, fileMimeType);
+                                                                    toast.success("Triagem por IA concluída!");
+                                                                    router.refresh();
+                                                                    onOpenChange(false);
+                                                                } catch (err: any) {
+                                                                    toast.error(err?.message || "Erro ao processar IA");
+                                                                } finally {
+                                                                    setIsReevaluatingAi(false);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <Sparkles className="w-4 h-4 text-purple-600" />
+                                                            {isReevaluatingAi ? "Processando..." : "Refazer Triagem por IA"}
+                                                        </Button>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                                 )}
@@ -251,10 +548,32 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                 </div>
                                             )}
 
-                                            <div>
-                                                <label className="text-xs font-medium text-slate-500 uppercase">Data de Abertura</label>
-                                                <div className="text-slate-700 mt-1 text-sm">
-                                                    {candidate.vacancy?.createdAt ? new Date(candidate.vacancy.createdAt).toLocaleString() : 'N/A'}
+                                            <div className="grid grid-cols-2 gap-4 pt-1 items-end">
+                                                <div>
+                                                    <label className="text-xs font-medium text-slate-500 uppercase">Data de Abertura</label>
+                                                    <div className="text-slate-700 mt-1 text-xs">
+                                                        {candidate.vacancy?.createdAt ? new Date(candidate.vacancy.createdAt).toLocaleDateString('pt-BR') : 'N/A'}
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-xs font-medium text-slate-500 uppercase">Início Planejado (Operação)</label>
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            type="date"
+                                                            className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                            value={plannedStartDate}
+                                                            onChange={(e) => setPlannedStartDate(e.target.value)}
+                                                        />
+                                                        <Button
+                                                            size="sm"
+                                                            className="bg-orange-600 hover:bg-orange-700 text-white font-medium text-xs h-8 px-2"
+                                                            onClick={handleSaveRequirements}
+                                                            disabled={isSavingRequirements}
+                                                            title="Salvar Data Planejada"
+                                                        >
+                                                            <Save className="w-3.5 h-3.5" />
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -362,6 +681,594 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                             {candidate.vacancy && (
                                 <CommentsSection vacancyId={candidate.vacancy.id} currentUser={currentUser} users={recruiters} />
                             )}
+                        </TabsContent>
+                        
+                        <TabsContent value="ats" className="mt-4">
+                            {candidate.type === 'VACANCY' ? (
+                                <div className="space-y-6 py-2">
+                                    {/* Link de Captação Meta Ads */}
+                                    <div className="bg-gradient-to-r from-indigo-900/10 via-indigo-900/5 to-indigo-900/0 border border-indigo-100 p-4 rounded-xl space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <span className="p-1.5 bg-indigo-100 rounded text-indigo-700 font-bold text-[10px] uppercase tracking-wide">Meta Ads</span>
+                                            <h4 className="text-sm font-bold text-slate-800">Link Público de Candidatura</h4>
+                                        </div>
+                                        <p className="text-xs text-slate-500">Divulgue este link patrocinado no Instagram e Facebook. Os currículos enviados pelos candidatos serão analisados pela IA na hora e cairão direto no seu Kanban.</p>
+                                        
+                                        <div className="flex gap-2">
+                                            <input 
+                                                type="text" 
+                                                readOnly 
+                                                value={typeof window !== 'undefined' ? `${window.location.origin}/candidatar/${candidate.realId || candidate.id.replace('VAC-', '')}` : ''} 
+                                                className="bg-white border text-xs rounded px-3 py-1.5 flex-1 focus:outline-none"
+                                            />
+                                            <Button 
+                                                size="sm" 
+                                                onClick={() => {
+                                                    const url = `${window.location.origin}/candidatar/${candidate.realId || candidate.id.replace('VAC-', '')}`;
+                                                    navigator.clipboard.writeText(url);
+                                                    toast.success("Link copiado para a área de transferência!");
+                                                }}
+                                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 flex items-center gap-1 shrink-0"
+                                            >
+                                                <Copy className="w-3.5 h-3.5" />
+                                                        Copiar Link
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {/* Configuração de Checklist de Requisitos da Vaga */}
+                                    <div className="bg-white border rounded-xl p-4 shadow-sm">
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <h3 className="font-bold text-slate-800 text-sm">Checklist de Requisitos ({vacancyReqs.length})</h3>
+                                                <p className="text-xs text-slate-400">Critérios de avaliação para esta vaga.</p>
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setIsVacancyReqsExpanded(!isVacancyReqsExpanded)}
+                                                className="text-xs h-8 flex items-center gap-1 border-slate-200 text-slate-700 font-semibold"
+                                            >
+                                                {isVacancyReqsExpanded ? 'Fechar Editor' : '✏️ Configurar/Editar'}
+                                            </Button>
+                                        </div>
+
+                                        {isVacancyReqsExpanded && (
+                                            <div className="mt-4 space-y-4 border-t pt-4">
+                                                <div className="flex gap-2 items-end bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                                    <div className="flex-1 space-y-1">
+                                                        <label className="text-[10px] uppercase font-black text-slate-500 block">Novo Requisito</label>
+                                                        <input
+                                                            type="text"
+                                                            value={newReqText}
+                                                            onChange={(e) => setNewReqText(e.target.value)}
+                                                            placeholder="Ex: Não fumante, Possuir CNH D..."
+                                                            className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none"
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center gap-2 h-9 px-2 bg-white rounded border">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="vac-req-knockout"
+                                                            checked={newReqIsKnockout}
+                                                            onChange={(e) => setNewReqIsKnockout(e.target.checked)}
+                                                            className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                                        />
+                                                        <label htmlFor="vac-req-knockout" className="cursor-pointer text-xs font-semibold text-red-700 select-none">Eliminatório</label>
+                                                    </div>
+                                                    <Button 
+                                                        type="button" 
+                                                        onClick={handleAddVacancyReq}
+                                                        className="bg-slate-900 hover:bg-slate-800 text-white h-9"
+                                                        size="sm"
+                                                    >
+                                                        Adicionar
+                                                    </Button>
+                                                </div>
+
+                                                {/* Lista de Requisitos */}
+                                                <div className="space-y-2">
+                                                    {vacancyReqs.length === 0 ? (
+                                                        <div className="text-center py-4 text-xs text-slate-400">Nenhum requisito cadastrado ainda.</div>
+                                                    ) : (
+                                                        vacancyReqs.map((req) => (
+                                                            <div key={req.id} className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-100 text-xs">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-semibold text-slate-800">{req.name}</span>
+                                                                    {req.isKnockout && (
+                                                                        <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase tracking-wider">Eliminatório</span>
+                                                                    )}
+                                                                </div>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => handleRemoveVacancyReq(req.id)}
+                                                                    className="text-red-500 hover:text-red-700 h-6 w-6 p-0 flex items-center justify-center font-bold text-xs"
+                                                                >
+                                                                    ×
+                                                                </Button>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Upload Manual de Currículo para a Vaga */}
+                                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h4 className="text-sm font-bold text-slate-800">📎 Subir Candidato Manualmente</h4>
+                                                <p className="text-xs text-slate-500 mt-0.5">Anexe um currículo (PDF/imagem). A IA extrai os dados e avalia os requisitos da vaga automaticamente.</p>
+                                            </div>
+                                            <label className={`cursor-pointer shrink-0 inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 h-10 rounded-lg shadow-sm transition-all ${isUploadingVacancyCv ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                                                <Upload className="w-4 h-4" />
+                                                {isUploadingVacancyCv ? 'Processando...' : 'Anexar CV'}
+                                                <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={handleVacancyCvUpload} disabled={isUploadingVacancyCv} className="hidden" />
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Ranking de Candidatos com Checkboxes */}
+                                    <div className="bg-white border rounded-xl p-4 space-y-3 shadow-sm">
+                                        <div className="border-b pb-2 flex items-center justify-between">
+                                            <div>
+                                                <h3 className="font-bold text-slate-800 text-sm">Ranking de Candidatos ({rankedCandidates.length})</h3>
+                                                <p className="text-xs text-slate-400">Clique em um candidato para ver e avaliar os requisitos.</p>
+                                            </div>
+                                        </div>
+
+                                        {isLoadingRanked ? (
+                                            <div className="text-center py-6 text-xs text-slate-400">Carregando ranking...</div>
+                                        ) : rankedCandidates.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center py-8 text-center space-y-2">
+                                                <Upload className="w-8 h-8 text-slate-300" />
+                                                <p className="text-xs font-bold text-slate-500">Nenhum candidato nesta vaga ainda.</p>
+                                                <p className="text-xs text-slate-400">Use o botão "Anexar CV" acima para subir o primeiro currículo.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                                                {(() => {
+                                                    // Dynamic Client-side Live Sorting: Disqualified candidates at the bottom, then sorted by pct descending
+                                                    const sorted = [...rankedCandidates].sort((a, b) => {
+                                                        const evalA = (a.requirementsEvaluation as any) || {};
+                                                        const evalB = (b.requirementsEvaluation as any) || {};
+                                                        const reqs = vacancyReqs;
+                                                        
+                                                        // A
+                                                        const candEvalsA = rankEvals[a.id] || (evalA.customEvaluations as any[] || []);
+                                                        const checkedCountA = reqs.filter(r => { const e = candEvalsA.find((ev:any) => ev.reqId === r.id); return e ? (e.value === true || e.value === 'true') : false; }).length;
+                                                        const pctA = reqs.length > 0 ? Math.round((checkedCountA / reqs.length) * 100) : (evalA.adherenceScore ?? 0);
+                                                        const isDisqA = reqs.some(r => { const e = candEvalsA.find((ev:any) => ev.reqId === r.id); return r.isKnockout && e && (e.value === false || e.value === 'false'); }) || !!evalA.isDisqualified;
+                                                        
+                                                        // B
+                                                        const candEvalsB = rankEvals[b.id] || (evalB.customEvaluations as any[] || []);
+                                                        const checkedCountB = reqs.filter(r => { const e = candEvalsB.find((ev:any) => ev.reqId === r.id); return e ? (e.value === true || e.value === 'true') : false; }).length;
+                                                        const pctB = reqs.length > 0 ? Math.round((checkedCountB / reqs.length) * 100) : (evalB.adherenceScore ?? 0);
+                                                        const isDisqB = reqs.some(r => { const e = candEvalsB.find((ev:any) => ev.reqId === r.id); return r.isKnockout && e && (e.value === false || e.value === 'false'); }) || !!evalB.isDisqualified;
+                                                        
+                                                        if (isDisqA && !isDisqB) return 1;
+                                                        if (!isDisqA && isDisqB) return -1;
+                                                        return pctB - pctA;
+                                                    });
+
+                                                    return sorted.map((cand, idx) => {
+                                                        const evaluation = (cand.requirementsEvaluation as any) || {};
+                                                        const reqs: any[] = vacancyReqs;
+                                                        const candEvals: any[] = rankEvals[cand.id] || (evaluation.customEvaluations as any[] || []);
+                                                        
+                                                        // Live compliance count and percentage
+                                                        const checkedCount = reqs.filter(r => { const e = candEvals.find((ev:any) => ev.reqId === r.id); return e ? (e.value === true || e.value === 'true') : false; }).length;
+                                                        const pct = reqs.length > 0 ? Math.round((checkedCount / reqs.length) * 100) : (evaluation.adherenceScore ?? 0);
+                                                        const isExpanded = expandedRankId === cand.id;
+                                                        
+                                                        // Live disqualified check
+                                                        const isDisqualified = reqs.some(r => {
+                                                            const e = candEvals.find((ev:any) => ev.reqId === r.id);
+                                                            return r.isKnockout && e && (e.value === false || e.value === 'false');
+                                                        }) || !!evaluation.isDisqualified;
+
+                                                        return (
+                                                            <div key={cand.id} className={`rounded-xl border transition-all ${isExpanded ? 'border-indigo-300 bg-indigo-50/30' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                                                                {/* Header do candidato */}
+                                                                <div
+                                                                    className="w-full flex items-center justify-between p-3 text-left"
+                                                                >
+                                                                    <div
+                                                                        onClick={() => setExpandedRankId(isExpanded ? null : cand.id)}
+                                                                        className="flex items-center gap-3 cursor-pointer flex-1"
+                                                                    >
+                                                                        <span className="font-black text-slate-400 text-xs w-6">#{idx+1}</span>
+                                                                        <div>
+                                                                            <span className="font-semibold text-slate-800 text-sm block">{cand.name}</span>
+                                                                            <span className="text-[10px] text-slate-400 uppercase tracking-wide">{cand.stage?.name || 'Inscrição'}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 shrink-0">
+                                                                        {isDisqualified ? (
+                                                                            <span className="px-2 py-0.5 rounded bg-red-600 text-white text-[9px] font-black uppercase">Desclassificado</span>
+                                                                        ) : (
+                                                                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${pct >= 75 ? 'bg-emerald-100 text-emerald-800' : pct >= 50 ? 'bg-amber-100 text-amber-800' : pct > 0 ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-500'}`}>
+                                                                                {pct > 0 ? `${pct}%` : 'Sem Triagem'}
+                                                                            </span>
+                                                                        )}
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setExpandedRankId(isExpanded ? null : cand.id)}
+                                                                            className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
+                                                                        >
+                                                                            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => handleDeleteRankedCandidate(e, cand.id, cand.name)}
+                                                                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50/55 transition-all border border-transparent hover:border-red-100/50"
+                                                                            title="Excluir Candidato permanentemente"
+                                                                        >
+                                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Checklist expansível */}
+                                                                {isExpanded && (
+                                                                    <div className="px-4 pb-4 space-y-4 border-t border-slate-100 divide-y divide-slate-100">
+                                                                        
+                                                                        {/* Banner de desclassificação no topo da seção */}
+                                                                        {isDisqualified && (
+                                                                            <div className="pt-3.5">
+                                                                                <div className="bg-red-100 border border-red-200 text-red-800 text-xs rounded-lg p-3 flex items-start gap-2.5 animate-pulse">
+                                                                                    <AlertCircle className="w-4.5 h-4.5 text-red-600 shrink-0 mt-0.5" />
+                                                                                    <div>
+                                                                                        <span className="font-black block text-xs uppercase tracking-wider">Candidato Desclassificado</span>
+                                                                                        <span className="block mt-0.5 text-red-700">Não atende a um ou mais requisitos eliminatórios obrigatórios.</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Dados extraídos do CV */}
+                                                                        {evaluation.aiAnalysis ? (
+                                                                            <div className="pt-3.5 space-y-3">
+                                                                                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1">
+                                                                                    <span className="text-[10px] uppercase font-black text-slate-500 block">Parecer Técnico da IA</span>
+                                                                                    <p className="text-xs text-slate-700 italic">"{evaluation.aiAnalysis}"</p>
+                                                                                </div>
+
+                                                                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                                                                    <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                        <span className="text-[9px] uppercase font-black text-slate-400 block">Idade Extraída</span>
+                                                                                        <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.age ? `${evaluation.parsedDetails.age} anos` : 'Não especificado'}</span>
+                                                                                    </div>
+                                                                                    <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                        <span className="text-[9px] uppercase font-black text-slate-400 block">Estabilidade (Últimos Empregos)</span>
+                                                                                        <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.averageTenureMonths ? `${evaluation.parsedDetails.averageTenureMonths} meses / vaga` : 'Não especificado'}</span>
+                                                                                    </div>
+                                                                                    <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                        <span className="text-[9px] uppercase font-black text-slate-400 block">Distância Estimada</span>
+                                                                                        <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.distanceKm ? `${evaluation.parsedDetails.distanceKm} Km` : 'Não especificado'}</span>
+                                                                                    </div>
+                                                                                    <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                        <span className="text-[9px] uppercase font-black text-slate-400 block">Filhos menores de 5 anos</span>
+                                                                                        <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.hasChildrenUnderFive ? 'Sim' : 'Não'}</span>
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                {evaluation.warnings && evaluation.warnings.length > 0 && (
+                                                                                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 space-y-1">
+                                                                                        <span className="text-[9px] uppercase font-black text-amber-800 flex items-center gap-1">
+                                                                                            <AlertTriangle className="w-3.5 h-3.5" />
+                                                                                            Alertas de Risco
+                                                                                        </span>
+                                                                                        <ul className="list-disc pl-4 text-xs text-amber-900 space-y-0.5">
+                                                                                            {evaluation.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
+                                                                                        </ul>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="pt-3.5 text-center py-2 text-xs text-slate-400">
+                                                                                Nenhuma análise de currículo por IA disponível. Envie o CV acima para rodar a triagem.
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Visualizador de Currículo no Ranking da Vaga */}
+                                                                        {(() => {
+                                                                            const fileBase64 = evaluation.resumeFileBase64;
+                                                                            const fileMimeType = evaluation.resumeFileMimeType || 'application/pdf';
+                                                                            if (!fileBase64) return null;
+                                                                            return (
+                                                                                <div className="pt-3">
+                                                                                    <Button
+                                                                                        variant="outline"
+                                                                                        size="sm"
+                                                                                        className="w-full flex items-center justify-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 text-[11px] h-8 font-semibold"
+                                                                                        onClick={() => {
+                                                                                            try {
+                                                                                                const byteCharacters = atob(fileBase64);
+                                                                                                const byteNumbers = new Array(byteCharacters.length);
+                                                                                                for (let i = 0; i < byteCharacters.length; i++) {
+                                                                                                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                                                                                }
+                                                                                                const byteArray = new Uint8Array(byteNumbers);
+                                                                                                const blob = new Blob([byteArray], { type: fileMimeType });
+                                                                                                const blobUrl = URL.createObjectURL(blob);
+                                                                                                if (fileMimeType.includes('pdf')) {
+                                                                                                    window.open(blobUrl, '_blank');
+                                                                                                } else {
+                                                                                                    const a = document.createElement('a');
+                                                                                                    a.href = blobUrl;
+                                                                                                    a.download = `curriculo_${cand.name.replace(/\s+/g, '_')}.${fileMimeType.includes('png') ? 'png' : fileMimeType.includes('jpeg') || fileMimeType.includes('jpg') ? 'jpg' : 'pdf'}`;
+                                                                                                    document.body.appendChild(a);
+                                                                                                    a.click();
+                                                                                                    document.body.removeChild(a);
+                                                                                                }
+                                                                                            } catch (err) {
+                                                                                                toast.error("Erro ao abrir arquivo do currículo");
+                                                                                            }
+                                                                                        }}
+                                                                                    >
+                                                                                        <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                                                                                        Visualizar Currículo Original
+                                                                                    </Button>
+                                                                                </div>
+                                                                            );
+                                                                        })()}
+
+                                                                        {/* Barra de progresso */}
+                                                                        {reqs.length > 0 && (
+                                                                            <div className="pt-3.5 space-y-1">
+                                                                                <div className="flex justify-between text-xs">
+                                                                                    <span className="text-slate-500">{checkedCount} de {reqs.length} requisitos atendidos</span>
+                                                                                    <span className={`font-black ${pct >= 75 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{pct}%</span>
+                                                                                </div>
+                                                                                <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                                                                                    <div className={`h-full transition-all duration-500 ${pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Checkboxes por requisito */}
+                                                                        {reqs.length === 0 ? (
+                                                                            <p className="text-xs text-amber-600 py-2 pt-3">Nenhum requisito cadastrado nesta vaga. Adicione requisitos acima.</p>
+                                                                        ) : (
+                                                                            <div className="space-y-2 pt-3">
+                                                                                {reqs.map(req => {
+                                                                                    const evalItem = candEvals.find((ev:any) => ev.reqId === req.id);
+                                                                                    const checkedValue = evalItem ? (evalItem.value === null || evalItem.value === 'null' ? null : (evalItem.value === true || evalItem.value === 'true')) : null;
+                                                                                    const isFailedKnockout = req.isKnockout && checkedValue === false;
+                                                                                    return (
+                                                                                        <div key={req.id} className={`p-3 rounded-lg border transition-all ${checkedValue === true ? 'bg-emerald-50 border-emerald-200 text-emerald-950' : checkedValue === false ? 'bg-red-50 border-red-200 text-red-950 ring-1 ring-red-300' : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'}`}>
+                                                                                            <div className="flex justify-between items-center">
+                                                                                                <span className="text-xs font-semibold">{req.name}</span>
+                                                                                                {req.isKnockout && (
+                                                                                                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${isFailedKnockout ? 'bg-red-600 text-white animate-pulse' : 'bg-red-100 text-red-800'}`}>
+                                                                                                        {isFailedKnockout ? 'Não Atendido' : 'Eliminatório'}
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                            
+                                                                                            <div className="flex gap-4 mt-2">
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={() => handleToggleRankReq(cand.id, req.id, checkedValue === true ? null : true, req.name)}
+                                                                                                    className={`flex items-center gap-1.5 cursor-pointer text-xs select-none border rounded px-2.5 py-1 transition-all ${checkedValue === true ? 'bg-emerald-600 border-emerald-600 text-white font-bold' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                                                                                >
+                                                                                                    <input
+                                                                                                        type="checkbox"
+                                                                                                        checked={checkedValue === true}
+                                                                                                        readOnly
+                                                                                                        className="rounded border-gray-300 text-emerald-600 pointer-events-none w-3.5 h-3.5"
+                                                                                                    />
+                                                                                                    <span>Atende</span>
+                                                                                                </button>
+                                                                                                
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={() => handleToggleRankReq(cand.id, req.id, checkedValue === false ? null : false, req.name)}
+                                                                                                    className={`flex items-center gap-1.5 cursor-pointer text-xs select-none border rounded px-2.5 py-1 transition-all ${checkedValue === false ? 'bg-red-600 border-red-600 text-white font-bold' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                                                                                >
+                                                                                                    <input
+                                                                                                        type="checkbox"
+                                                                                                        checked={checkedValue === false}
+                                                                                                        readOnly
+                                                                                                        className="rounded border-gray-300 text-red-600 pointer-events-none w-3.5 h-3.5"
+                                                                                                    />
+                                                                                                    <span>Não Atende</span>
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    });
+                                                })()}
+                                            </div>                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-5 py-2">
+                                    {/* Modo Candidato */}
+                                    {/* Upload Manual do CV */}
+                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 flex items-center justify-between gap-4">
+                                        <div className="space-y-1">
+                                            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Subir/Atualizar Currículo (CV)</h4>
+                                            <p className="text-[11px] text-slate-500">Envie o arquivo PDF ou imagem do currículo para a IA analisar o perfil do candidato na hora.</p>
+                                        </div>
+                                        <label className={`cursor-pointer shrink-0 inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-3 h-9 rounded-lg shadow-sm transition-all
+                                            ${isUploadingCv ? 'opacity-50 cursor-not-allowed' : ''}
+                                        `}>
+                                            <Upload className="w-3.5 h-3.5" />
+                                            {isUploadingCv ? 'Analisando...' : 'Anexar CV'}
+                                            <input 
+                                                type="file" 
+                                                accept=".pdf,.png,.jpg,.jpeg" 
+                                                onChange={handleManualCvUpload} 
+                                                disabled={isUploadingCv}
+                                                className="hidden" 
+                                            />
+                                        </label>
+                                    </div>
+                       
+                                    {candidate.requirementsEvaluation ? (
+                                        <>
+                                            {/* Score de Aderência por IA */}
+                                            <div className="bg-white border rounded-xl p-4 space-y-3 shadow-sm">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Aderência por IA</span>
+                                                    <span className={`text-lg font-black ${candidate.requirementsEvaluation.isDisqualified ? 'text-red-600' : candidate.requirementsEvaluation.adherenceScore >= 75 ? 'text-emerald-600' : candidate.requirementsEvaluation.adherenceScore >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                                                        {candidate.requirementsEvaluation.isDisqualified ? 'Desclassificado' : `${candidate.requirementsEvaluation.adherenceScore}%`}
+                                                    </span>
+                                                </div>
+                                                {!candidate.requirementsEvaluation.isDisqualified && (
+                                                    <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                                                        <div className={`h-full transition-all duration-500 ${candidate.requirementsEvaluation.adherenceScore >= 75 ? 'bg-emerald-500' : candidate.requirementsEvaluation.adherenceScore >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${candidate.requirementsEvaluation.adherenceScore}%` }} />
+                                                    </div>
+                                                )}
+                                                {candidate.requirementsEvaluation.isDisqualified && (
+                                                    <div className="flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800 items-start">
+                                                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                                                        <div>
+                                                            <span className="font-bold block">Desclassificado por Requisito Eliminatório</span>
+                                                            <span className="mt-0.5 block">{candidate.requirementsEvaluation.disqualificationReason}</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {candidate.requirementsEvaluation.warnings && candidate.requirementsEvaluation.warnings.length > 0 && (
+                                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2 shadow-sm">
+                                                    <div className="flex items-center gap-1.5 text-amber-800 font-bold text-xs uppercase tracking-wider">
+                                                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                                                        Alertas de Risco
+                                                    </div>
+                                                    <ul className="list-disc pl-4 text-xs text-amber-800 space-y-1">
+                                                        {candidate.requirementsEvaluation.warnings.map((w: string, i: number) => (<li key={i}>{w}</li>))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                            {candidate.requirementsEvaluation.aiAnalysis && (
+                                                <div className="bg-white border rounded-xl p-4 space-y-2 shadow-sm">
+                                                    <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Parecer Técnico da IA</h3>
+                                                    <p className="text-xs text-slate-600 italic leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">"{candidate.requirementsEvaluation.aiAnalysis}"</p>
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-5 flex flex-col items-center justify-center text-center space-y-2">
+                                            <FileText className="w-8 h-8 text-slate-300" />
+                                            <h4 className="font-bold text-slate-600 text-xs uppercase tracking-wide">Sem triagem por IA</h4>
+                                            <p className="text-xs text-slate-400 max-w-xs">Faça o upload do currículo acima para rodar a triagem automática com o Gemini em segundos.</p>
+                                        </div>
+                                    )}
+
+                                    {/* ✅ CHECKLIST — SEMPRE VISÍVEL */}
+                                    {(candidate.vacancy?.customRequirements as any[] || []).length > 0 ? (
+                                        <div className="bg-white border rounded-xl p-4 space-y-3 shadow-sm">
+                                            <div className="border-b pb-2">
+                                                <h3 className="font-bold text-slate-800 text-sm">✅ Checklist de Requisitos</h3>
+                                                <p className="text-xs text-slate-400">Avalie se o candidato atende ou não atende aos requisitos definidos para a vaga.</p>
+                                            </div>
+                                            {(() => {
+                                                const reqs: any[] = (candidate.vacancy?.customRequirements as any[] || []);
+                                                const evals: any[] = (candidate.requirementsEvaluation?.customEvaluations as any[] || []);
+                                                const checked = reqs.filter(req => { const e = evals.find((ev: any) => ev.reqId === req.id); return e ? (e.value === true || e.value === 'true') : false; }).length;
+                                                const pct = reqs.length > 0 ? Math.round((checked / reqs.length) * 100) : 0;
+                                                return (
+                                                    <div className="space-y-1">
+                                                        <div className="flex justify-between text-xs">
+                                                            <span className="text-slate-500">{checked} de {reqs.length} itens atendidos</span>
+                                                            <span className={`font-black ${pct >= 75 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{pct}%</span>
+                                                        </div>
+                                                        <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                                                            <div className={`h-full transition-all duration-500 ${pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+                                            <div className="space-y-2">
+                                                {(candidate.vacancy?.customRequirements as any[] || []).map((req) => {
+                                                    const evalItem = ((candidate.requirementsEvaluation?.customEvaluations as any[]) || []).find((e: any) => e.reqId === req.id);
+                                                    
+                                                    // Três estados: true (atende), false (não atende), null (não avaliado)
+                                                    const checkedValue = evalItem ? (evalItem.value === null || evalItem.value === 'null' ? null : (evalItem.value === true || evalItem.value === 'true')) : null;
+                                                    const isFailedKnockout = req.isKnockout && checkedValue === false;
+                                                    return (
+                                                        <div key={req.id} className={`p-3 rounded-lg border transition-all ${checkedValue === true ? 'bg-emerald-50 border-emerald-200 text-emerald-950' : checkedValue === false ? 'bg-red-50 border-red-200 text-red-950 ring-1 ring-red-300' : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'}`}>
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-xs font-semibold">{req.name}</span>
+                                                                {req.isKnockout && (
+                                                                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${isFailedKnockout ? 'bg-red-600 text-white animate-pulse' : 'bg-red-100 text-red-800'}`}>
+                                                                        {isFailedKnockout ? 'Não Atendido' : 'Eliminatório'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            
+                                                            <div className="flex gap-4 mt-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleToggleCustomReq(req.id, checkedValue === true ? null : true)}
+                                                                    className={`flex items-center gap-1.5 cursor-pointer text-xs select-none border rounded px-2.5 py-1 transition-all ${checkedValue === true ? 'bg-emerald-600 border-emerald-600 text-white font-bold' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                                                >
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={checkedValue === true}
+                                                                        readOnly
+                                                                        className="rounded border-gray-300 text-emerald-600 pointer-events-none w-3.5 h-3.5"
+                                                                    />
+                                                                    <span>Atende</span>
+                                                                </button>
+                                                                
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleToggleCustomReq(req.id, checkedValue === false ? null : false)}
+                                                                    className={`flex items-center gap-1.5 cursor-pointer text-xs select-none border rounded px-2.5 py-1 transition-all ${checkedValue === false ? 'bg-red-600 border-red-600 text-white font-bold' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                                                >
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={checkedValue === false}
+                                                                        readOnly
+                                                                        className="rounded border-gray-300 text-red-600 pointer-events-none w-3.5 h-3.5"
+                                                                    />
+                                                                    <span>Não Atende</span>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            <div className="pt-2 border-t space-y-2">
+                                                <div className="flex justify-between items-center">
+                                                    <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Observações do Entrevistador</h4>
+                                                    <Button size="sm" onClick={handleSaveNotes} className="bg-indigo-600 hover:bg-indigo-700 text-white h-7 px-3 text-xs">
+                                                        <Save className="w-3.5 h-3.5 mr-1" />Salvar
+                                                    </Button>
+                                                </div>
+                                                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações coletadas durante a entrevista..." className="min-h-20 text-xs bg-slate-50 border-slate-200" />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-white border rounded-xl p-4 space-y-2 shadow-sm">
+                                            <div className="flex justify-between items-center">
+                                                <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Observações do Entrevistador</h4>
+                                                <Button size="sm" onClick={handleSaveNotes} className="bg-indigo-600 hover:bg-indigo-700 text-white h-7 px-3 text-xs">
+                                                    <Save className="w-3.5 h-3.5 mr-1" />Salvar
+                                                </Button>
+                                            </div>
+                                            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações coletadas durante a entrevista..." className="min-h-20 text-xs bg-slate-50 border-slate-200" />
+                                            <p className="text-xs text-amber-700 pt-1">Nenhum requisito cadastrado nesta vaga. Abra o card da Vaga - aba ATS - Checklist para adicionar.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                         </TabsContent>
 
                         <TabsContent value="history" className="mt-4">
