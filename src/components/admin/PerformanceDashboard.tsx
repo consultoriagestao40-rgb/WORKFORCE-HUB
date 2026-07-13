@@ -3975,7 +3975,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                     <TableCell className="font-bold text-xs text-slate-900 pl-6 py-3">{m.name}</TableCell>
                                                                     {activeConfigs.map((config: any) => {
                                                                         const val = getKpiValue(m, config);
-                                                                        const isAutomatic = config.metricType !== "MANUAL";
+                                                                        const isEditable = config.metricType === 'MANUAL' || config.metricType === 'CHECKLIST_FACIL';
+                                                                        const isClickableDetails = !isEditable && config.metricType !== 'VISITAS' && config.metricType !== 'CHECKLIST_FACIL';
                                                                         
                                                                         let colorClass = "text-slate-700";
                                                                         if (config.metricType === "EFETIVIDADE") colorClass = "text-emerald-600";
@@ -3984,14 +3985,45 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                                         else if (config.metricType === "RECLAMACOES") colorClass = "text-red-500";
                                                                         else if (config.metricType === "VISITAS") colorClass = "text-purple-650";
                                                                         else if (config.metricType === "REPOSICAO") colorClass = "text-blue-500";
- 
+
+                                                                        const cellKey = `${m.monthIndex}_${config.id}`;
+                                                                        const isEditingThisCell = editingCell === cellKey;
+
                                                                         return (
                                                                             <TableCell 
                                                                                 key={config.id}
-                                                                                onClick={() => isAutomatic && handleKpiClick(m, config)}
-                                                                                className={`text-center font-bold text-xs ${colorClass} py-3 select-none ${isAutomatic ? 'cursor-pointer hover:bg-slate-50 hover:scale-[1.02] transition-all' : ''}`}
+                                                                                className={`text-center font-bold text-xs ${colorClass} py-3 select-none transition-all ${
+                                                                                    isEditingThisCell ? 'bg-blue-50/50' : 
+                                                                                    isEditable ? 'cursor-pointer hover:bg-slate-100 hover:text-slate-900 border-b border-dashed border-slate-200/60' :
+                                                                                    isClickableDetails ? 'cursor-pointer hover:bg-slate-50 hover:scale-[1.02]' : ''
+                                                                                }`}
+                                                                                onClick={() => {
+                                                                                    if (isEditingThisCell) return;
+                                                                                    if (isEditable) {
+                                                                                        setEditingCell(cellKey);
+                                                                                    } else if (isClickableDetails) {
+                                                                                        handleKpiClick(m, config);
+                                                                                    }
+                                                                                }}
                                                                             >
-                                                                                {val}
+                                                                                {isEditingThisCell ? (
+                                                                                    <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            defaultValue={config.monthlyValues?.find((v: any) => v.month === m.monthIndex && v.year === selectedYear)?.value ?? (config.metricType === 'CHECKLIST_FACIL' ? 10 : 90)}
+                                                                                            onBlur={(e) => handleSaveCellManualValue(m.monthIndex, config.id, Number(e.target.value))}
+                                                                                            onKeyDown={(e) => {
+                                                                                                if (e.key === 'Enter') {
+                                                                                                    handleSaveCellManualValue(m.monthIndex, config.id, Number(e.currentTarget.value));
+                                                                                                }
+                                                                                            }}
+                                                                                            className="w-16 h-7 text-center border border-blue-400 rounded-lg font-bold text-xs bg-white text-slate-800 outline-none focus:ring-2 focus:ring-blue-200"
+                                                                                            autoFocus
+                                                                                        />
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    val
+                                                                                )}
                                                                             </TableCell>
                                                                         );
                                                                     })}
