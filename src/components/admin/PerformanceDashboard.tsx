@@ -380,6 +380,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [deletingRequest, setDeletingRequest] = useState<boolean>(false);
     const [kpiConfigOpen, setKpiConfigOpen] = useState<boolean>(false);
+    const [selectedKpiTypeForSla, setSelectedKpiTypeForSla] = useState<string>('');
     const [kpiFormOpen, setKpiFormOpen] = useState<boolean>(false);
     const [editingKpi, setEditingKpi] = useState<any | null>(null);
     const [selectedKpiType, setSelectedKpiType] = useState<string>('EFETIVIDADE');
@@ -964,8 +965,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 clientId: selectedClientId,
                 name: finalName,
                 metricType: finalMetricType,
-                weight: Number(kpiPeso),
-                targetValue: Number(kpiMeta),
+                weight: editingKpi ? editingKpi.weight : 0,
+                targetValue: editingKpi ? editingKpi.targetValue : 0,
                 ranges: editingKpi?.ranges || []
             });
             if (res.success) {
@@ -1033,18 +1034,28 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     };
 
     const handleDeleteSlaItemClick = async (id: string) => {
-        if (!confirm("Excluir este indicador de SLA?")) return;
+        if (!confirm('Remover este indicador do cálculo de SLA? Ele continuará visível como um KPI bruto na aba de Indicadores.')) return;
         try {
-            const res = await deleteSlaConfigItem(id);
+            const item = detailedData.slaConfigItems.find((i: any) => i.id === id);
+            if (!item) return;
+            const res = await upsertSlaConfigItem({
+                id: item.id,
+                clientId: selectedClientId,
+                name: item.name,
+                metricType: item.metricType,
+                weight: 0,
+                targetValue: 0,
+                ranges: item.ranges || []
+            });
             if (res.success) {
-                toast.success("SLA excluído.");
+                toast.success('Indicador removido do SLA. Ele continua existindo como KPI bruto.');
                 loadPerformanceData();
                 loadClientDetails();
             } else {
-                toast.error("Erro ao excluir.");
+                toast.error('Erro ao remover do SLA.');
             }
         } catch (e) {
-            toast.error("Erro de conexão.");
+            toast.error('Erro de conexão.');
         }
     };
 
@@ -4255,7 +4266,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                         return (
                                                             <TableRow key={m.monthIndex} className="hover:bg-slate-50/50">
                                                                 <TableCell className="text-xs font-bold text-slate-700 pl-6 py-3">{m.name}</TableCell>
-                                                                {detailedData.slaConfigItems.map((item: any) => {
+                                                                {detailedData.slaConfigItems.filter((item: any) => item.weight > 0).map((item: any) => {
                                                                     const realVal = getSlaMetricRealValForMonth(item, m.monthIndex);
                                                                     const postFaixaVal = calculateFrontAtingimento(realVal, item.ranges || []);
                                                                     return (
@@ -4387,6 +4398,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                 setEditingSlaItem(null);
                                                 setSlaName("");
                                                 setSlaMetricType("EFETIVIDADE");
+                                                setSelectedKpiTypeForSla("");
                                                 setSlaWeight(1);
                                                 setSlaTarget(90);
                                                 setSlaRanges([]);
@@ -4462,7 +4474,16 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                             </TableCell>
                                                             <TableCell className="text-center py-3">
                                                                 <div className="flex justify-center gap-1">
-                                                                    <Button size="sm" variant="ghost" onClick={() => { setEditingSlaItem(item); setSlaName(item.name); setSlaMetricType(item.metricType); setSlaWeight(item.weight); setSlaTarget(item.targetValue); setSlaRanges(item.ranges || []); setSlaDialogOpen(true); }} className="h-7 w-7 p-0 rounded">✏️</Button>
+                                                                    <Button size="sm" variant="ghost" onClick={() => { 
+                                                                        setEditingSlaItem(item); 
+                                                                        setSlaName(item.name); 
+                                                                        setSlaMetricType(item.metricType); 
+                                                                        setSelectedKpiTypeForSla(item.metricType === 'MANUAL' ? item.id : item.metricType);
+                                                                        setSlaWeight(item.weight); 
+                                                                        setSlaTarget(item.targetValue); 
+                                                                        setSlaRanges(item.ranges || []); 
+                                                                        setSlaDialogOpen(true); 
+                                                                    }} className="h-7 w-7 p-0 rounded">✏️</Button>
                                                                     <Button size="sm" variant="ghost" onClick={() => handleDeleteSlaItemClick(item.id)} className="h-7 w-7 p-0 rounded hover:bg-red-50">🗑️</Button>
                                                                 </div>
                                                             </TableCell>
@@ -5102,9 +5123,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 <TableHeader className="bg-slate-50">
                                     <TableRow>
                                         <TableHead className="font-bold text-slate-800 text-xs pl-4 py-3">KPI (Indicador)</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-xs py-3">Métrica</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Meta (%)</TableHead>
-                                        <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Peso</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs py-3">Métrica de Captura</TableHead>
                                         <TableHead className="font-bold text-slate-800 text-xs text-center py-3">Ações</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -5121,8 +5140,6 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                  item.metricType === 'RECLAMACOES' ? 'Índice Reclamações' : 
                                                  item.metricType === 'VISITAS' ? 'Visitas de Liderança' : 'SLA de Contratação'}
                                             </TableCell>
-                                            <TableCell className="text-center text-xs font-bold py-3">{item.targetValue}%</TableCell>
-                                            <TableCell className="text-center text-xs font-bold py-3">{item.weight}</TableCell>
                                             <TableCell className="text-center py-3">
                                                 <div className="flex justify-center gap-1">
                                                     <Button 
@@ -5221,28 +5238,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="text-xs font-bold text-slate-655">Meta de SLA (%) *</Label>
-                                    <Input
-                                        type="number"
-                                        value={kpiMeta}
-                                        onChange={(e) => setKpiMeta(Number(e.target.value))}
-                                        className="h-10 rounded-xl"
-                                        required
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className='text-xs font-bold text-slate-655'>Peso no SLA Global *</Label>
-                                    <Input
-                                        type="number"
-                                        value={kpiPeso}
-                                        onChange={(e) => setKpiPeso(Number(e.target.value))}
-                                        className="h-10 rounded-xl"
-                                        required
-                                    />
-                                </div>
-                            </div>
+
                         </div>
 
                         <DialogFooter className="pt-2 border-t border-slate-100">
