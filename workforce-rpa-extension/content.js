@@ -1,7 +1,7 @@
 // Workforce Hub - Chrome Extension RPA content.js
 
 const isWorkforceHub = window.location.hostname.includes("vercel.app") || window.location.hostname.includes("localhost");
-const isThomsonReuters = window.location.hostname.includes("thomsonreuters.com");
+const isThomsonReuters = window.location.hostname.includes("thomsonreuters.com") || window.location.hostname.includes("onvio.com.br") || window.location.hostname.includes("dominioatendimento.com.br");
 
 if (isWorkforceHub) {
     console.log("RPA Assistant: Loaded on Workforce Hub");
