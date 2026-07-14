@@ -164,40 +164,56 @@ function updateEmployeeInfoInWidget() {
 }
 
 // Semantic Autofill engine
-function fillFormSemantically(employee) {
+async function fillFormSemantically(employee) {
     console.log("RPA: Starting semantic form filling for", employee.name);
-    
-    // Mapping of labels to employee fields
-    const mappings = [
+    showFloatingNotification("Preenchendo formulário...");
+
+    const textFields = [
         { labels: ["cpf", "cadastro de pessoa", "pessoa fisica"], value: employee.cpf },
         { labels: ["nome", "completo", "razao social", "funcionario", "empregado"], value: employee.name },
         { labels: ["salario", "remuneracao", "valor", "base"], value: employee.salary },
-        { labels: ["cargo", "funcao", "ocupacao"], value: employee.role },
         { labels: ["admissao", "data de admissao", "inicio", "data de inicio", "contratacao"], value: employee.startDate },
         { labels: ["nascimento", "data de nascimento", "nascido"], value: employee.birthDate },
-        { labels: ["genero", "sexo"], value: employee.gender },
         { labels: ["endereco", "logradouro", "residencia"], value: employee.address },
         { labels: ["telefone", "celular", "fone"], value: employee.phone },
         { labels: ["email", "e-mail", "correio eletronico"], value: employee.email }
     ];
 
+    const dropdownFields = [
+        { label: "cargo", value: employee.role },
+        { label: "funcao", value: employee.role },
+        { label: "genero", value: employee.gender }
+    ];
+
     let filledCount = 0;
-    mappings.forEach(map => {
+
+    // 1. Fill standard text fields
+    textFields.forEach(map => {
         if (!map.value) return;
         const input = findInputBySemanticLabels(map.labels);
         if (input) {
             input.focus();
             input.value = map.value;
-            // Dispatch input and change events to notify page frameworks (React/Vue/Angular)
             input.dispatchEvent(new Event("input", { bubbles: true }));
             input.dispatchEvent(new Event("change", { bubbles: true }));
             input.blur();
             filledCount++;
-            console.log(`RPA: Successfully filled field for labels [${map.labels.join(", ")}] with value: ${map.value}`);
-        } else {
-            console.log(`RPA: Could not find element for labels [${map.labels.join(", ")}]`);
+            console.log(`RPA: Filled text field [${map.labels[0]}] with: ${map.value}`);
         }
     });
+
+    // 2. Fill custom dropdown select fields sequentially
+    for (const drop of dropdownFields) {
+        if (!drop.value) continue;
+        try {
+            const success = await fillDropdownSemantically(drop.label, drop.value);
+            if (success) {
+                filledCount++;
+            }
+        } catch (e) {
+            console.error(`RPA: Failed to fill dropdown for ${drop.label}:`, e);
+        }
+    }
 
     if (filledCount > 0) {
         showFloatingNotification(`Preenchidos ${filledCount} campos automaticamente!`);
@@ -205,6 +221,7 @@ function fillFormSemantically(employee) {
         alert("Nenhum campo correspondente foi encontrado na tela. Certifique-se de que você está na página de cadastro de admissão da Thomson Reuters contabilidade.");
     }
 }
+
 
 function findInputBySemanticLabels(labelsList) {
     for (const labelText of labelsList) {
@@ -282,3 +299,63 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
         updateEmployeeInfoInWidget();
     }
 });
+
+// Advanced semantic dropdown filling helper
+async function fillDropdownSemantically(labelText, valueToSelect) {
+    const inputOrSelect = findInputBySemanticLabels([labelText]);
+    if (!inputOrSelect) return false;
+
+    // Case 1: Standard HTML <select> tag
+    if (inputOrSelect.tagName === "SELECT") {
+        const options = Array.from(inputOrSelect.options);
+        const match = options.find(o => 
+            o.text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(
+                valueToSelect.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            )
+        );
+        if (match) {
+            inputOrSelect.value = match.value;
+            inputOrSelect.dispatchEvent(new Event("change", { bubbles: true }));
+            inputOrSelect.dispatchEvent(new Event("input", { bubbles: true }));
+            return true;
+        }
+        return false;
+    }
+
+    // Case 2: Custom dropdown component (clicks to expand, types search, clicks option)
+    try {
+        inputOrSelect.focus();
+        inputOrSelect.click();
+        
+        // Wait for list to open
+        await new Promise(resolve => setTimeout(resolve, 250));
+
+        // Type value if it is an input field (to filter options)
+        if (inputOrSelect.tagName === "INPUT" && !inputOrSelect.readOnly) {
+            inputOrSelect.value = valueToSelect;
+            inputOrSelect.dispatchEvent(new Event("input", { bubbles: true }));
+            inputOrSelect.dispatchEvent(new Event("change", { bubbles: true }));
+            await new Promise(resolve => setTimeout(resolve, 250));
+        }
+
+        const term = valueToSelect.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        
+        // Find visible matching option elements
+        const listItems = Array.from(document.querySelectorAll("li, [role='option'], .dropdown-item, .select-option, .option, a, div"));
+        const match = listItems.find(el => {
+            if (el.children.length > 1) return false; // Leaf nodes only
+            const text = el.innerText.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            return text.includes(term) && el.offsetParent !== null; // Must be visible on screen
+        });
+
+        if (match) {
+            match.click();
+            match.dispatchEvent(new Event("change", { bubbles: true }));
+            inputOrSelect.blur();
+            return true;
+        }
+    } catch (err) {
+        console.error("RPA: Dropdown filling failed:", err);
+    }
+    return false;
+}
