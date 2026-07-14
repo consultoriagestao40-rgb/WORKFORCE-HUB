@@ -33,9 +33,13 @@ if (isThomsonReuters) {
     
     // Inject the widget once the page is interactive
     if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", initAssistantWidget);
+        document.addEventListener("DOMContentLoaded", () => {
+            initAssistantWidget();
+            runNavigationFlow(); // Run active navigation checks on load
+        });
     } else {
         initAssistantWidget();
+        runNavigationFlow(); // Run active navigation checks on load
     }
 }
 
@@ -58,8 +62,9 @@ function initAssistantWidget() {
             <div id="rpa-employee-info">
                 <p class="rpa-info-placeholder">Nenhum funcionário carregado. Abra a ficha no Workforce Hub e clique em "Preencher na Thomson Reuters".</p>
             </div>
-            <div id="rpa-actions-container" style="display: none;">
-                <button id="rpa-fill-btn">⚡ Preencher Formulario Automático</button>
+            <div id="rpa-actions-container" style="display: none; display: flex; flex-direction: column; gap: 8px;">
+                <button id="rpa-nav-btn" class="rpa-btn-primary">🚀 Iniciar Fluxo Completo</button>
+                <button id="rpa-fill-btn" class="rpa-btn-secondary">⚡ Apenas Preencher Campos</button>
                 <div class="rpa-fields-list">
                     <span class="rpa-field-tag" data-field="name">Nome</span>
                     <span class="rpa-field-tag" data-field="cpf">CPF</span>
@@ -109,6 +114,14 @@ function initAssistantWidget() {
             if (data && data.activeEmployee) {
                 fillFormSemantically(data.activeEmployee);
             }
+        });
+    });
+
+    // Handle full navigation flow button click
+    const navBtn = document.getElementById("rpa-nav-btn");
+    navBtn.addEventListener("click", () => {
+        chrome.storage.local.set({ rpaStatus: "START_FLOW" }, () => {
+            runNavigationFlow();
         });
     });
 
@@ -396,4 +409,153 @@ async function fillDropdownSemantically(labelText, valueToSelect) {
         console.error("RPA: Dropdown filling failed:", err);
     }
     return false;
+}
+
+// --- AUTOMATED NAVIGATION FLOW ENGINE ---
+
+function findCompanySelectorTrigger() {
+    const divs = Array.from(document.querySelectorAll("div, span, button, a"));
+    return divs.find(d => {
+        const text = d.innerText.toUpperCase();
+        return text.includes("EMPRESA") && d.offsetParent !== null;
+    });
+}
+
+function findCurrentSelectedCompanyElement() {
+    const divs = Array.from(document.querySelectorAll("div, span"));
+    return divs.find(d => {
+        const parent = d.parentElement;
+        const parentText = parent ? parent.innerText.toUpperCase() : "";
+        return parentText.includes("EMPRESA") && !d.innerText.toUpperCase().includes("EMPRESA") && d.innerText.length > 2 && d.offsetParent !== null;
+    });
+}
+
+async function runNavigationFlow() {
+    chrome.storage.local.get(["activeEmployee", "rpaStatus"], async (data) => {
+        if (!data || !data.activeEmployee || !data.rpaStatus || data.rpaStatus === "IDLE") return;
+
+        const emp = data.activeEmployee;
+        const status = data.rpaStatus;
+
+        console.log(`RPA Flow: Running step -> "${status}" for employee "${emp.name}" (Company: "${emp.company}")`);
+
+        // STEP 1: Select/Switch Company
+        if (status === "START_FLOW") {
+            const currentCompanyEl = findCurrentSelectedCompanyElement();
+            const currentCompanyText = currentCompanyEl ? currentCompanyEl.innerText.toLowerCase() : "";
+            
+            // Clean target company name to make match flexible (e.g. "JVS FACILITIES" matches "JVS FACILITIES LTDA")
+            const targetCompanyClean = (emp.company || "").toLowerCase()
+                .replace(" ltda", "")
+                .replace(" s.a.", "")
+                .replace(" sa", "")
+                .trim();
+
+            if (targetCompanyClean && currentCompanyText.includes(targetCompanyClean)) {
+                console.log("RPA Flow: Correct company already selected. Proceeding to navigation...");
+                chrome.storage.local.set({ rpaStatus: "NAVIGATING_MENU" }, () => {
+                    runNavigationFlow();
+                });
+            } else {
+                console.log(`RPA Flow: Switching company from "${currentCompanyText}" to "${emp.company}"...`);
+                const trigger = findCompanySelectorTrigger();
+                if (trigger) {
+                    trigger.click();
+                    await new Promise(r => setTimeout(r, 450));
+                    
+                    // Search box in the open menu
+                    const searchInput = document.querySelector("input[placeholder*='Pesquisar'], input[placeholder*='empresa'], input[type='search']");
+                    if (searchInput) {
+                        searchInput.value = emp.company || "";
+                        searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+                        searchInput.dispatchEvent(new Event("change", { bubbles: true }));
+                        await new Promise(r => setTimeout(r, 400));
+                    }
+                    
+                    // Find option from list
+                    const listItems = Array.from(document.querySelectorAll("li, [role='option'], .dropdown-item, .company-item, span, a, div"));
+                    const match = listItems.find(el => {
+                        if (el.children.length > 1) return false;
+                        const text = el.innerText.toLowerCase();
+                        return text.includes(targetCompanyClean) && el.offsetParent !== null;
+                    });
+
+                    if (match) {
+                        chrome.storage.local.set({ rpaStatus: "NAVIGATING_MENU" }, () => {
+                            match.click();
+                            // Page will automatically reload with the new company session
+                        });
+                    } else {
+                        alert(`RPA Flow: Não conseguimos selecionar a empresa "${emp.company}" automaticamente. Por favor, selecione-a no canto superior esquerdo para continuar.`);
+                        chrome.storage.local.set({ rpaStatus: "IDLE" });
+                    }
+                } else {
+                    console.error("RPA Flow: Could not find company selector element");
+                }
+            }
+        } 
+        
+        // STEP 2: Navigate left menu
+        else if (status === "NAVIGATING_MENU") {
+            const menuItems = Array.from(document.querySelectorAll("span, a, div, li"));
+            
+            // 1. Find "Solicitação de Serviço"
+            const serviceRequestMenu = menuItems.find(el => {
+                const text = el.innerText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                return text === "solicitacao de servico" && el.offsetParent !== null;
+            });
+
+            if (serviceRequestMenu) {
+                // Click to expand parent menu if collapsed
+                serviceRequestMenu.click();
+                await new Promise(r => setTimeout(r, 400));
+
+                // 2. Find and click "Cadastro de Empregado"
+                const submenuItems = Array.from(document.querySelectorAll("span, a, div, li"));
+                const employeeMenu = submenuItems.find(el => {
+                    const text = el.innerText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    return text === "cadastro de empregado" && el.offsetParent !== null;
+                });
+
+                if (employeeMenu) {
+                    chrome.storage.local.set({ rpaStatus: "OPENING_FORM" }, () => {
+                        employeeMenu.click();
+                        // Navigation will happen
+                    });
+                }
+            }
+        } 
+        
+        // STEP 3: Click Add ("Adicionar") button
+        else if (status === "OPENING_FORM") {
+            // Check if we are on list page
+            if (window.location.pathname.endsWith("/employee-registration")) {
+                const buttons = Array.from(document.querySelectorAll("button, a, span"));
+                const addButton = buttons.find(b => {
+                    const text = b.innerText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    return (text === "adicionar" || text.includes("adicionar")) && b.offsetParent !== null;
+                });
+
+                if (addButton) {
+                    chrome.storage.local.set({ rpaStatus: "FILLING_FORM" }, () => {
+                        addButton.click();
+                        // Navigation to form will happen
+                    });
+                }
+            } else if (window.location.pathname.endsWith("/employee-registration/add")) {
+                chrome.storage.local.set({ rpaStatus: "FILLING_FORM" }, () => {
+                    runNavigationFlow();
+                });
+            }
+        } 
+        
+        // STEP 4: Fill the form
+        else if (status === "FILLING_FORM") {
+            if (window.location.pathname.endsWith("/employee-registration/add")) {
+                chrome.storage.local.set({ rpaStatus: "IDLE" }, () => {
+                    fillFormSemantically(emp);
+                });
+            }
+        }
+    });
 }
