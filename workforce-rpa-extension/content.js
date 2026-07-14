@@ -300,17 +300,37 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     }
 });
 
+// Dicionário de Sinônimos de Cargos (Tradução Workforce Hub -> Onvio)
+const ROLE_SYNONYMS = {
+    "auxiliar de limpeza": "servente de limpeza",
+    "auxiliar limpeza": "servente de limpeza",
+    "lider de limpeza": "encarregado de limpeza",
+    "lider limpeza": "encarregado de limpeza",
+    "porteiro": "vigia",
+    "portaria": "vigia"
+};
+
 // Advanced semantic dropdown filling helper
 async function fillDropdownSemantically(labelText, valueToSelect) {
     const inputOrSelect = findInputBySemanticLabels([labelText]);
     if (!inputOrSelect) return false;
+
+    // Normalize value and check for synonyms
+    const normalizedInput = valueToSelect.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    let searchVal = valueToSelect;
+    if (labelText.toLowerCase().includes("cargo") || labelText.toLowerCase().includes("funcao")) {
+        if (ROLE_SYNONYMS[normalizedInput]) {
+            searchVal = ROLE_SYNONYMS[normalizedInput];
+            console.log(`RPA: Traduzindo cargo "${valueToSelect}" para sinônimo contábil "${searchVal}"`);
+        }
+    }
 
     // Case 1: Standard HTML <select> tag
     if (inputOrSelect.tagName === "SELECT") {
         const options = Array.from(inputOrSelect.options);
         const match = options.find(o => 
             o.text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(
-                valueToSelect.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                searchVal.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
             )
         );
         if (match) {
@@ -328,30 +348,48 @@ async function fillDropdownSemantically(labelText, valueToSelect) {
         inputOrSelect.click();
         
         // Wait for list to open
-        await new Promise(resolve => setTimeout(resolve, 250));
+        await new Promise(resolve => setTimeout(resolve, 350));
 
         // Type value if it is an input field (to filter options)
         if (inputOrSelect.tagName === "INPUT" && !inputOrSelect.readOnly) {
-            inputOrSelect.value = valueToSelect;
+            inputOrSelect.value = searchVal;
             inputOrSelect.dispatchEvent(new Event("input", { bubbles: true }));
             inputOrSelect.dispatchEvent(new Event("change", { bubbles: true }));
-            await new Promise(resolve => setTimeout(resolve, 250));
+            // Trigger keydown/keyup events in case the framework requires them
+            inputOrSelect.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "a" }));
+            inputOrSelect.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "a" }));
+            await new Promise(resolve => setTimeout(resolve, 500)); // Wait slightly longer for AJAX results
         }
 
-        const term = valueToSelect.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        let term = searchVal.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         
-        // Find visible matching option elements
-        const listItems = Array.from(document.querySelectorAll("li, [role='option'], .dropdown-item, .select-option, .option, a, div"));
-        const match = listItems.find(el => {
-            if (el.children.length > 1) return false; // Leaf nodes only
+        // Find visible matching option elements (checking common option tags and inner texts)
+        let listItems = Array.from(document.querySelectorAll("li, [role='option'], .dropdown-item, .select-option, .option, a, div, span"));
+        let match = listItems.find(el => {
+            if (el.children.length > 1 && !el.classList.contains("dropdown-item")) return false; 
             const text = el.innerText.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            return text.includes(term) && el.offsetParent !== null; // Must be visible on screen
+            return text.includes(term) && el.offsetParent !== null; // Visible
         });
+
+        // Fallback: If exact term option is not found, try keyword approximation (e.g. matching last word "limpeza")
+        if (!match && term.includes(" ")) {
+            const words = term.split(" ").filter(w => w.length > 3);
+            const keyword = words[words.length - 1]; // e.g. "limpeza"
+            if (keyword) {
+                console.log(`RPA: Cargo exato não encontrado. Tentando aproximação por palavra-chave: "${keyword}"`);
+                match = listItems.find(el => {
+                    if (el.children.length > 1 && !el.classList.contains("dropdown-item")) return false;
+                    const text = el.innerText.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    return text.includes(keyword) && el.offsetParent !== null;
+                });
+            }
+        }
 
         if (match) {
             match.click();
             match.dispatchEvent(new Event("change", { bubbles: true }));
             inputOrSelect.blur();
+            console.log(`RPA: Selecionado com sucesso no dropdown: "${match.innerText}"`);
             return true;
         }
     } catch (err) {
