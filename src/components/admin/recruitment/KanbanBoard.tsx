@@ -49,6 +49,7 @@ interface Candidate {
         createdAt?: Date; // NEW
         plannedStartDate?: Date | string | null;
         customRequirements?: any;
+        candidates?: any[];
     };
     stage?: { id: string; name: string; approverId?: string | null }; // Needed for approval logic
 }
@@ -160,14 +161,20 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                 // Open Employee Sheet
                 setPendingMove(result);
 
+                // Extract the candidate from the vacancy card
+                const stageId = source.droppableId;
+                const candidatesInCurrentStage = candidateToMove.type === 'VACANCY'
+                    ? candidateToMove.vacancy.candidates?.filter((c: any) => c.stageId === stageId) || []
+                    : [];
+                const actualCandidate = candidatesInCurrentStage[0] || candidateToMove;
+
                 // Try to pre-fill data
                 setPrefilledEmployee({
-                    name: candidateToMove.name,
-                    email: candidateToMove.email || '',
-                    phone: candidateToMove.phone || '',
-                    // Try to map role if possible, or leave empty
-                    roleId: '', // Ideally we could map if names match, but safely leave for user
-                    companyId: '', // Could map from vacancy.company or vacancy.posto.client...
+                    name: actualCandidate.name || "",
+                    email: actualCandidate.email || "",
+                    phone: actualCandidate.phone || "",
+                    roleId: "",
+                    companyId: "",
 
                     // Automatic Link to Posto
                     postoId: candidateToMove.vacancy.posto?.id || '',

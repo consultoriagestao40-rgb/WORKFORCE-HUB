@@ -137,18 +137,18 @@ export function NewEmployeeSheet({
     };
 
     useEffect(() => {
-        if (initialData) {
-            if (initialData.name) setName(initialData.name);
-            if (initialData.cpf) setCpf(initialData.cpf);
-            if (initialData.phone) setPhone(initialData.phone);
-            if (initialData.email) setEmail(initialData.email);
-            if (initialData.roleId) setRoleId(initialData.roleId);
-            if (initialData.companyId) setCompanyId(initialData.companyId);
+        if (open && initialData) {
+            setName(initialData.name || "");
+            setCpf(initialData.cpf || "");
+            setPhone(initialData.phone || "");
+            setEmail(initialData.email || "");
+            setRoleId(initialData.roleId || "");
+            setCompanyId(initialData.companyId || "");
             if (initialData.postoId) {
                 handlePostoChange(initialData.postoId);
             }
         }
-    }, [initialData, postos]);
+    }, [open]);
 
     const handleCancel = () => {
         setOpen(false);
@@ -184,7 +184,7 @@ export function NewEmployeeSheet({
                     <Button><Plus className="w-4 h-4 mr-2" /> Novo Colaborador</Button>
                 </SheetTrigger>
             )}
-            <SheetContent className="px-8">
+            <SheetContent className="px-10 sm:max-w-[650px] w-full">
                 <SheetHeader>
                     <SheetTitle>Novo Colaborador</SheetTitle>
                     <SheetDescription>Cadastre um novo funcionário vinculando-o a um posto.</SheetDescription>

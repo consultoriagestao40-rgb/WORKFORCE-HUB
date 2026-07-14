@@ -414,7 +414,8 @@ export async function getRecruitmentBoardData() {
             reqAgeMin: v.reqAgeMin,
             reqAgeMax: v.reqAgeMax,
             plannedStartDate: v.plannedStartDate,
-            customRequirements: v.customRequirements
+            customRequirements: v.customRequirements,
+            candidates: v.candidates
         }
     });
 
