@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Workforce Hub - Assistente RPA",
+  "version": "1.0.0",
+  "description": "Assistente de preenchimento automático para o portal da contabilidade Thomson Reuters.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.thomsonreuters.com/*",
+    "*://workforce-hub-*.vercel.app/*",
+    "http://localhost/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.thomsonreuters.com/*",
+        "*://workforce-hub-*.vercel.app/*",
+        "http://localhost/*"
+      ],
+      "js": ["content.js"],
+      "css": ["styles.css"]
+    }
+  ]
+}

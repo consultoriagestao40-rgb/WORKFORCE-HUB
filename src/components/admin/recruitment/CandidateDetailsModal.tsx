@@ -1341,6 +1341,29 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                         </div>
 
                         <div className="flex gap-2">
+                            {candidate.type !== 'VACANCY' && currentStage?.name === 'Admissão' && (
+                                <Button
+                                    type="button"
+                                    onClick={() => {
+                                        const event = new CustomEvent("workforceRpaCapture", {
+                                            detail: {
+                                                name: candidate.name,
+                                                email: candidate.email || "",
+                                                phone: candidate.phone || "",
+                                                role: candidate.vacancy?.title || "",
+                                                salary: candidate.vacancy?.salary ? String(candidate.vacancy.salary) : "",
+                                                startDate: candidate.vacancy?.plannedStartDate ? new Date(candidate.vacancy.plannedStartDate).toLocaleDateString('pt-BR') : ""
+                                            }
+                                        });
+                                        document.dispatchEvent(event);
+                                        toast.success("Dados prontos! Abra o portal da Thomson Reuters e clique em Preencher.");
+                                    }}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                                >
+                                    ⚡ Preencher na Thomson Reuters
+                                </Button>
+                            )}
+
                             {candidate.type !== 'VACANCY' && (
                                 <Button
                                     variant="destructive"
