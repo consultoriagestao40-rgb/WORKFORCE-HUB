@@ -78,6 +78,7 @@ export function NewEmployeeSheet({
     const [address, setAddress] = useState("");
     const [phone, setPhone] = useState(initialData?.phone || "");
     const [email, setEmail] = useState(initialData?.email || "");
+    const [admissionDate, setAdmissionDate] = useState(new Date().toISOString().split('T')[0]);
 
     // Estado de carregamento da IA
     const [isExtracting, setIsExtracting] = useState(false);
@@ -159,6 +160,7 @@ export function NewEmployeeSheet({
         setAddress("");
         setPhone("");
         setEmail("");
+        setAdmissionDate(new Date().toISOString().split('T')[0]);
     };
 
     async function handleSubmit(formData: FormData) {
@@ -302,7 +304,7 @@ export function NewEmployeeSheet({
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="admissionDate">Data de Admissão</Label>
-                            <Input id="admissionDate" name="admissionDate" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
+                            <Input id="admissionDate" name="admissionDate" type="date" required value={admissionDate} onChange={e => setAdmissionDate(e.target.value)} />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="situationId">Situação Atual</Label>
@@ -368,7 +370,32 @@ export function NewEmployeeSheet({
                             </SelectContent>
                         </Select>
                     </div>
-                    <Button type="submit" className="w-full">Salvar</Button>
+                    <div className="flex gap-2 pt-2">
+                        <Button 
+                            type="button" 
+                            variant="outline"
+                            onClick={() => {
+                                const roleName = roles.find(r => r.id === roleId)?.name || "";
+                                const event = new CustomEvent("workforceRpaCapture", {
+                                    detail: {
+                                        name: name,
+                                        cpf: cpf,
+                                        phone: phone,
+                                        email: email,
+                                        role: roleName,
+                                        salary: salary,
+                                        startDate: admissionDate ? new Date(admissionDate + 'T12:00:00').toLocaleDateString('pt-BR') : ""
+                                    }
+                                });
+                                document.dispatchEvent(event);
+                                toast.success("Dados prontos! Vá para a aba da Thomson Reuters e clique em Preencher.");
+                            }}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 rounded-xl"
+                        >
+                            ⚡ Preencher na Thomson Reuters
+                        </Button>
+                        <Button type="submit" className="flex-1 h-10 rounded-xl">Salvar</Button>
+                    </div>
                 </form>
             </SheetContent>
         </Sheet>

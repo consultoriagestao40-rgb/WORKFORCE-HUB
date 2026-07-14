@@ -8,14 +8,14 @@
   ],
   "host_permissions": [
     "*://*.thomsonreuters.com/*",
-    "*://workforce-hub-*.vercel.app/*",
+    "*://*.vercel.app/*",
     "http://localhost/*"
   ],
   "content_scripts": [
     {
       "matches": [
         "*://*.thomsonreuters.com/*",
-        "*://workforce-hub-*.vercel.app/*",
+        "*://*.vercel.app/*",
         "http://localhost/*"
       ],
       "js": ["content.js"],
