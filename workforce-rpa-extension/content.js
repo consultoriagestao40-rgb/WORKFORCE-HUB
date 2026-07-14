@@ -176,68 +176,119 @@ function updateEmployeeInfoInWidget() {
     });
 }
 
-// Semantic Autofill engine
+// Semantic Autofill engine for multi-tab Onvio wizard
 async function fillFormSemantically(employee) {
-    console.log("RPA: Starting semantic form filling for", employee.name);
-    showFloatingNotification("Preenchendo formulário...");
+    console.log("RPA: Starting multi-tab semantic form filling...");
+    showFloatingNotification("Iniciando preenchimento sequencial...");
 
-    const textFields = [
-        { labels: ["cpf", "cadastro de pessoa", "pessoa fisica"], value: employee.cpf },
-        { labels: ["nome", "completo", "razao social", "funcionario", "empregado"], value: employee.name },
-        { labels: ["salario", "remuneracao", "valor", "base"], value: employee.salary },
-        { labels: ["admissao", "data de admissao", "inicio", "data de inicio", "contratacao"], value: employee.startDate },
-        { labels: ["nascimento", "data de nascimento", "nascido"], value: employee.birthDate },
-        { labels: ["endereco", "logradouro", "residencia"], value: employee.address },
-        { labels: ["telefone", "celular", "fone"], value: employee.phone },
-        { labels: ["email", "e-mail", "correio eletronico"], value: employee.email }
-    ];
+    // --- ETAPA 1: DADOS BÁSICOS ---
+    const nomeInput = findInputBySemanticLabels(["nome"]);
+    if (nomeInput && nomeInput.offsetParent !== null) {
+        console.log("RPA: Filling Tab 1 (Dados Básicos)...");
+        showFloatingNotification("Preenchendo: Dados Básicos...");
 
-    const dropdownFields = [
-        { label: "cargo", value: employee.role },
-        { label: "funcao", value: "" }, // Não precisa preencher segundo especificações do usuário
-        { label: "genero", value: employee.gender },
-        { label: "servico", value: employee.company }, // Sempre o mesmo nome da empresa associada
-        { label: "departamento", value: "Geral" }, // Sempre "Geral"
-        { label: "centro de custo", value: "Geral" }, // Sempre "Geral"
-        { label: "sindicato", value: "Siemaco" } // Sempre "Siemaco"
-    ];
-
-    let filledCount = 0;
-
-    // 1. Fill standard text fields
-    textFields.forEach(map => {
-        if (!map.value) return;
-        const input = findInputBySemanticLabels(map.labels);
-        if (input) {
-            input.focus();
-            input.value = map.value;
-            input.dispatchEvent(new Event("input", { bubbles: true }));
-            input.dispatchEvent(new Event("change", { bubbles: true }));
-            input.blur();
-            filledCount++;
-            console.log(`RPA: Filled text field [${map.labels[0]}] with: ${map.value}`);
-        }
-    });
-
-    // 2. Fill custom dropdown select fields sequentially
-    for (const drop of dropdownFields) {
-        if (!drop.value) continue;
-        try {
-            const success = await fillDropdownSemantically(drop.label, drop.value);
-            if (success) {
-                filledCount++;
+        const tab1TextFields = [
+            { labels: ["cpf"], value: employee.cpf },
+            { labels: ["nome"], value: employee.name }
+        ];
+        
+        tab1TextFields.forEach(map => {
+            if (!map.value) return;
+            const input = findInputBySemanticLabels(map.labels);
+            if (input) {
+                input.focus();
+                input.value = map.value;
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+                input.blur();
             }
-        } catch (e) {
-            console.error(`RPA: Failed to fill dropdown for ${drop.label}:`, e);
+        });
+
+        const tab1Dropdowns = [
+            { label: "cargo", value: employee.role },
+            { label: "servico", value: employee.company },
+            { label: "departamento", value: "Geral" },
+            { label: "centro de custo", value: "Geral" },
+            { label: "sindicato", value: "Siemaco" }
+        ];
+
+        for (const drop of tab1Dropdowns) {
+            if (drop.value) {
+                await fillDropdownSemantically(drop.label, drop.value);
+            }
         }
+
+        console.log("RPA: Tab 1 complete. Navigating to Tab 2...");
+        await clickNextTab("admissao");
+        await new Promise(r => setTimeout(r, 1200)); // Wait for tab transitions
     }
 
-    if (filledCount > 0) {
-        showFloatingNotification(`Preenchidos ${filledCount} campos automaticamente!`);
-    } else {
-        alert("Nenhum campo correspondente foi encontrado na tela. Certifique-se de que você está na página de cadastro de admissão da Thomson Reuters contabilidade.");
+    // --- ETAPA 2: ADMISSÃO ---
+    const salarioInput = findInputBySemanticLabels(["salario"]);
+    if (salarioInput && salarioInput.offsetParent !== null) {
+        console.log("RPA: Filling Tab 2 (Admissão)...");
+        showFloatingNotification("Preenchendo: Admissão...");
+
+        // Toggle Buttons default (NÃO)
+        await selectToggleButton("Professor", "NÃO");
+        await selectToggleButton("Primeiro Emprego", "NÃO");
+
+        // Dropdowns defaults
+        await fillDropdownSemantically("categoria", "Mensalista");
+        await fillDropdownSemantically("vinculo empregaticio", "Celetista");
+
+        // Date of Admission
+        const dateInput = findInputBySemanticLabels(["data"]);
+        if (dateInput) {
+            dateInput.focus();
+            dateInput.value = formatDateToInput(employee.startDate);
+            dateInput.dispatchEvent(new Event("input", { bubbles: true }));
+            dateInput.dispatchEvent(new Event("change", { bubbles: true }));
+            dateInput.blur();
+        }
+
+        // Salary
+        if (salarioInput) {
+            salarioInput.focus();
+            const cleanSalary = (employee.salary || "").replace(/[^0-9]/g, "");
+            salarioInput.value = cleanSalary;
+            salarioInput.dispatchEvent(new Event("input", { bubbles: true }));
+            salarioInput.dispatchEvent(new Event("change", { bubbles: true }));
+            salarioInput.blur();
+        }
+
+        console.log("RPA: Tab 2 complete. Navigating to Tab 3...");
+        await clickNextTab("contrato de experiencia");
+        await new Promise(r => setTimeout(r, 1200)); // Wait for tab transitions
+    }
+
+    // --- ETAPA 3: CONTRATO DE EXPERIÊNCIA ---
+    const expInput = findInputBySemanticLabels(["contrato de experiencia"]);
+    if (expInput && expInput.offsetParent !== null) {
+        console.log("RPA: Filling Tab 3 (Contrato de Experiência)...");
+        showFloatingNotification("Preenchendo: Contrato de Experiência...");
+
+        // Fill Contrato de Experiência (45)
+        expInput.focus();
+        expInput.value = "45";
+        expInput.dispatchEvent(new Event("input", { bubbles: true }));
+        expInput.dispatchEvent(new Event("change", { bubbles: true }));
+        expInput.blur();
+
+        // Fill Dias de Prorrogação (45)
+        const prorrInput = findInputBySemanticLabels(["dias de prorrogacao"]);
+        if (prorrInput) {
+            prorrInput.focus();
+            prorrInput.value = "45";
+            prorrInput.dispatchEvent(new Event("input", { bubbles: true }));
+            prorrInput.dispatchEvent(new Event("change", { bubbles: true }));
+            prorrInput.blur();
+        }
+
+        showFloatingNotification("🚀 Preenchimento completo concluído com sucesso!");
     }
 }
+
 
 
 function findInputBySemanticLabels(labelsList) {
@@ -562,4 +613,71 @@ async function runNavigationFlow() {
             }
         }
     });
+}
+
+// Helpers for multi-tab navigation and toggles
+async function clickNextTab(tabName) {
+    const term = tabName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    
+    // 1. Try to find the tab header by text
+    const tabs = Array.from(document.querySelectorAll("span, a, div, li"));
+    const match = tabs.find(el => {
+        if (el.children.length > 1) return false;
+        const text = el.innerText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        return text === term && el.offsetParent !== null;
+    });
+
+    if (match) {
+        match.click();
+        return true;
+    }
+
+    // 2. Fallback: Click the orange "PRÓXIMA" button
+    const buttons = Array.from(document.querySelectorAll("button, span"));
+    const nextBtn = buttons.find(b => b.innerText.trim().toUpperCase() === "PROXIMA" && b.offsetParent !== null);
+    if (nextBtn) {
+        nextBtn.click();
+        return true;
+    }
+    return false;
+}
+
+async function selectToggleButton(labelText, optionText) {
+    const term = labelText.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    
+    const elements = Array.from(document.querySelectorAll("div, span, p, label"));
+    const labelEl = elements.find(d => {
+        if (d.children.length > 1) return false;
+        const text = d.innerText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        return text === term && d.offsetParent !== null;
+    });
+
+    if (labelEl) {
+        let current = labelEl;
+        for (let depth = 0; depth < 3; depth++) {
+            if (!current) break;
+            const buttons = Array.from(current.querySelectorAll("button, span, div"));
+            const match = buttons.find(b => b.innerText.trim().toUpperCase() === optionText.toUpperCase() && b.offsetParent !== null);
+            if (match) {
+                match.click();
+                return true;
+            }
+            current = current.parentElement;
+        }
+    }
+    return false;
+}
+
+function formatDateToInput(dateStr) {
+    if (!dateStr) return "";
+    if (dateStr.includes("-") && dateStr.split("-")[0].length === 4) {
+        return dateStr;
+    }
+    if (dateStr.includes("/")) {
+        const parts = dateStr.split("/");
+        if (parts.length === 3) {
+            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+    }
+    return dateStr;
 }
