@@ -492,6 +492,17 @@ async function runNavigationFlow() {
         const emp = data.activeEmployee;
         const status = data.rpaStatus;
 
+        // Skip to filling if we are already on the add employee form page
+        if (window.location.pathname.endsWith("/employee-registration/add")) {
+            if (status === "START_FLOW" || status === "NAVIGATING_MENU" || status === "OPENING_FORM") {
+                console.log("RPA Flow: Already on add form page. Proceeding directly to fill form.");
+                chrome.storage.local.set({ rpaStatus: "FILLING_FORM" }, () => {
+                    runNavigationFlow();
+                });
+                return;
+            }
+        }
+
         console.log(`RPA Flow: Running step -> "${status}" for employee "${emp.name}" (Company: "${emp.company}")`);
 
         // STEP 1: Select/Switch Company

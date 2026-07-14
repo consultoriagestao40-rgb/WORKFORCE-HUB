@@ -20,7 +20,7 @@
 
 .workforce-rpa-collapsed {
     height: 48px;
-    width: 240px !important;
+    width: 320px !important;
 }
 
 .workforce-rpa-expanded {
@@ -42,6 +42,7 @@
 .rpa-widget-title {
     font-size: 13px;
     font-weight: 700;
+    white-space: nowrap;
 }
 
 #rpa-widget-toggle-btn {
