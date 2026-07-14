@@ -163,7 +163,7 @@ export function UpdateEmployeesFinanceDialog() {
                     Atualizar Salários/Benefícios
                 </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
+            <DialogContent className="max-w-[92vw] w-full max-h-[92vh] flex flex-col">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-2xl font-black text-slate-800 tracking-tight">
                         <FileSpreadsheet className="w-6 h-6 text-emerald-600 animate-pulse" />
@@ -227,10 +227,10 @@ export function UpdateEmployeesFinanceDialog() {
                                 <Table>
                                     <TableHeader className="bg-slate-50 sticky top-0 z-10">
                                         <TableRow>
-                                            <TableHead className="font-extrabold text-slate-700">Colaborador</TableHead>
-                                            <TableHead className="font-extrabold text-slate-700">CPF</TableHead>
-                                            <TableHead className="font-extrabold text-slate-700">Status da Simulação</TableHead>
-                                            <TableHead className="font-extrabold text-slate-700">Alterações Propostas</TableHead>
+                                            <TableHead className="font-extrabold text-slate-700 w-[300px]">Colaborador</TableHead>
+                                            <TableHead className="font-extrabold text-slate-700 w-[150px]">CPF</TableHead>
+                                            <TableHead className="font-extrabold text-slate-700 w-[150px]">Status da Simulação</TableHead>
+                                            <TableHead className="font-extrabold text-slate-700">Alterações Propostas (Salários & Benefícios)</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
