@@ -1,65 +1,44 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { addDays } from "date-fns";
 
 export async function GET() {
     try {
-        // Buscar todas as férias que iniciam em qualquer horário do dia 02/08/2026 em UTC
-        const vacations = await prisma.vacation.findMany({
+        const adriana = await prisma.employee.findFirst({
             where: {
-                startDate: {
-                    gte: new Date("2026-08-02T00:00:00.000Z"),
-                    lte: new Date("2026-08-02T23:59:59.999Z")
-                }
-            },
-            include: {
-                employee: true
+                OR: [
+                    { cpf: "04781824900" },
+                    { cpf: "047.818.249-00" }
+                ]
             }
         });
 
-        const updated = [];
-
-        for (const v of vacations) {
-            // Calcular novas datas seguras em UTC
-            const newStartDate = new Date("2026-08-03T00:00:00.000Z");
-            const newEndDate = addDays(newStartDate, v.daysTaken - 1);
-
-            // Atualizar no banco
-            await prisma.vacation.update({
-                where: { id: v.id },
-                data: {
-                    startDate: newStartDate,
-                    endDate: newEndDate
-                }
-            });
-
-            // Atualizar os campos legados do Employee correspondente
-            await prisma.employee.update({
-                where: { id: v.employeeId },
-                data: {
-                    lastVacationStart: newStartDate,
-                    lastVacationEnd: newEndDate
-                }
-            });
-
-            updated.push({
-                employeeName: v.employee.name,
-                oldStart: v.startDate.toISOString(),
-                newStart: newStartDate.toISOString(),
-                newEnd: newEndDate.toISOString(),
-                daysTaken: v.daysTaken
-            });
-        }
+        const adrielle = await prisma.employee.findFirst({
+            where: {
+                OR: [
+                    { cpf: "06451816922" },
+                    { cpf: "064.518.169-22" }
+                ]
+            }
+        });
 
         return NextResponse.json({
-            success: true,
-            message: `Atualizadas ${vacations.length} férias com sucesso de 02/08/2026 para 03/08/2026.`,
-            updated
+            explicacao: "Este endpoint mostra os dados reais salvos nas linhas do banco de dados do portal.",
+            adriana: adriana ? {
+                nome: adriana.name,
+                cpf: adriana.cpf,
+                salario_no_banco: adriana.salary,
+                valeAlimentacao_no_banco: adriana.valeAlimentacao,
+                valeTransporte_no_banco: adriana.valeTransporte
+            } : "Adriana não encontrada",
+            adrielle: adrielle ? {
+                nome: adrielle.name,
+                cpf: adrielle.cpf,
+                salario_no_banco: adrielle.salary,
+                valeAlimentacao_no_banco: adrielle.valeAlimentacao,
+                valeTransporte_no_banco: adrielle.valeTransporte
+            } : "Adrielle não encontrada"
         });
     } catch (error: any) {
-        return NextResponse.json({
-            success: false,
-            error: error.message
-        }, { status: 500 });
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }
