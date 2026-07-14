@@ -8,6 +8,8 @@
   ],
   "host_permissions": [
     "*://*.thomsonreuters.com/*",
+    "*://*.onvio.com.br/*",
+    "*://*.dominioatendimento.com.br/*",
     "*://*.vercel.app/*",
     "http://localhost/*"
   ],
@@ -15,6 +17,8 @@
     {
       "matches": [
         "*://*.thomsonreuters.com/*",
+        "*://*.onvio.com.br/*",
+        "*://*.dominioatendimento.com.br/*",
         "*://*.vercel.app/*",
         "http://localhost/*"
       ],
