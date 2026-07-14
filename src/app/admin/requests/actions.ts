@@ -2059,53 +2059,85 @@ export async function getAdminClientKpis(clientId: string, year: number) {
 
         // Integração com o Checklist Fácil API Analytics
         let checklistFacilCounts = Array(12).fill(0);
-        const apiKey = process.env.CHECKLIST_FACIL_API_KEY;
+        const apiKey = process.env.CHECKLIST_FACIL_API_KEY || "IsIXOl9mYtl0BCLmx3MlOKJ0knUwinDfUK9PCmQKfj8ZViB4ZmYqZ5faCMxui74MkkMWZPSkkfkODZsvH9UXYRzisXjJndykCPJwPiNUvShkoCPQnlAPbi4F1tD45OV7";
         const clientName = clientRecord?.name || '';
         if (apiKey && clientName) {
             try {
-                const startDateStr = `${year}-01-01T00:00:00`;
-                const endDateStr = `${year}-12-31T23:59:59`;
-                const url = `https://api-analytics.checklistfacil.com.br/v1/evaluations?concludedAt=[gte]${startDateStr}&concludedAt=[lte]${endDateStr}&status=6&limit=10000`;
-                const response = await fetch(url, {
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Accept': 'application/json'
-                    }
-                });
-                if (response.ok) {
-                    const result = await response.json();
-                    if (result && result.data && Array.isArray(result.data)) {
-                        // Palavras irrelevantes para filtrar do nome do cliente
-                        const stopwords = ['empresa', 'ltda', 'sa', 's.a.', 'de', 'do', 'da', 'e', 'o', 'a', 'os', 'as', 'hub', 'workforce'];
-                        const searchTerms = clientName
-                            .toLowerCase()
-                            .split(/\s+/)
-                            .filter(word => word.length > 2 && !stopwords.includes(word));
+                const checklistConfig = slaConfigs.find((c: any) => c.metricType === "CHECKLIST_FACIL");
+                const specificUnitIds = checklistConfig?.checklistUnitIds 
+                    ? checklistConfig.checklistUnitIds.split(",").map((id: string) => id.trim()).filter((id: string) => id.length > 0)
+                    : [];
 
-                        result.data.forEach((evaluation: any) => {
-                            const unitName = String(evaluation.unitName || evaluation.unit?.name || evaluation.storeName || '').toLowerCase();
-                            const checklistName = String(evaluation.checklistName || evaluation.checklist?.name || '').toLowerCase();
-                            const userName = String(evaluation.userName || evaluation.user?.name || '').toLowerCase();
-                            const evaluatorName = String(evaluation.evaluatorName || '').toLowerCase();
+                const startDateStr = `${year}-01-01 00:00:00`;
+                const endDateStr = `${year}-12-31 23:59:59`;
+                const evaluations: any[] = [];
 
-                            // Verifica se alguma das palavras-chave significativas do cliente (ex: 'penha') bate em qualquer campo textual
-                            const isMatch = searchTerms.some(term => 
-                                unitName.includes(term) || 
-                                checklistName.includes(term) || 
-                                userName.includes(term) ||
-                                evaluatorName.includes(term)
-                            );
-
-                            if (isMatch) {
-                                const conclDate = new Date(evaluation.concludedAt || evaluation.createdAt);
-                                const mIdx = conclDate.getMonth();
-                                if (mIdx >= 0 && mIdx < 12) {
-                                    checklistFacilCounts[mIdx]++;
+                if (specificUnitIds.length > 0) {
+                    await Promise.all(specificUnitIds.map(async (unitId: string) => {
+                        try {
+                            const url = `https://api-analytics.checklistfacil.com.br/v1/evaluations?concluded_at=%5Bgte%5D${encodeURIComponent(startDateStr)}&concluded_at=%5Blte%5D${encodeURIComponent(endDateStr)}&status=6&unitId=${unitId}&limit=1000`;
+                            const response = await fetch(url, {
+                                headers: {
+                                    'Authorization': `Bearer ${apiKey}`,
+                                    'Accept': 'application/json'
+                                }
+                            });
+                            if (response.ok) {
+                                const result = await response.json();
+                                if (result && result.data && Array.isArray(result.data)) {
+                                    evaluations.push(...result.data);
                                 }
                             }
-                        });
+                        } catch (e) {
+                            console.error(`Erro ao carregar checklists da unidade ${unitId}:`, e);
+                        }
+                    }));
+                } else {
+                    const url = `https://api-analytics.checklistfacil.com.br/v1/evaluations?concluded_at=%5Bgte%5D${encodeURIComponent(startDateStr)}&concluded_at=%5Blte%5D${encodeURIComponent(endDateStr)}&status=6&limit=1000`;
+                    const response = await fetch(url, {
+                        headers: {
+                            'Authorization': `Bearer ${apiKey}`,
+                            'Accept': 'application/json'
+                        }
+                    });
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result && result.data && Array.isArray(result.data)) {
+                            evaluations.push(...result.data);
+                        }
                     }
                 }
+
+                const stopwords = ['empresa', 'ltda', 'sa', 's.a.', 'de', 'do', 'da', 'e', 'o', 'a', 'os', 'as', 'hub', 'workforce'];
+                const searchTerms = clientName
+                    .toLowerCase()
+                    .split(/\s+/)
+                    .filter(word => word.length > 2 && !stopwords.includes(word));
+
+                evaluations.forEach((evaluation: any) => {
+                    const unitIdStr = String(evaluation.unitId || '');
+                    const unitName = String(evaluation.unitName || evaluation.unit?.name || evaluation.storeName || '').toLowerCase();
+                    const checklistName = String(evaluation.checklistName || evaluation.checklist?.name || '').toLowerCase();
+                    const userName = String(evaluation.userName || evaluation.user?.name || '').toLowerCase();
+                    const evaluatorName = String(evaluation.evaluatorName || '').toLowerCase();
+
+                    const isMatch = specificUnitIds.length > 0
+                        ? specificUnitIds.includes(unitIdStr)
+                        : searchTerms.some(term => 
+                            unitName.includes(term) || 
+                            checklistName.includes(term) || 
+                            userName.includes(term) ||
+                            evaluatorName.includes(term)
+                          );
+
+                    if (isMatch) {
+                        const conclDate = new Date(evaluation.concludedAt || evaluation.createdAt);
+                        const mIdx = conclDate.getMonth();
+                        if (mIdx >= 0 && mIdx < 12) {
+                            checklistFacilCounts[mIdx]++;
+                        }
+                    }
+                });
             } catch (e) {
                 console.error('Erro ao carregar checklists do Checklist Fácil:', e);
             }
@@ -2530,6 +2562,7 @@ export async function upsertSlaConfigItem(data: {
     metricType: string;
     weight: number;
     targetValue: number;
+    checklistUnitIds?: string;
     ranges?: { minVal: number; maxVal: number | null; resultVal: number; }[];
 }) {
     try {
@@ -2548,7 +2581,8 @@ export async function upsertSlaConfigItem(data: {
                         name: data.name,
                         metricType: data.metricType,
                         weight: data.weight,
-                        targetValue: data.targetValue
+                        targetValue: data.targetValue,
+                        checklistUnitIds: data.checklistUnitIds
                     }
                 });
                 
@@ -2576,6 +2610,7 @@ export async function upsertSlaConfigItem(data: {
                     metricType: data.metricType,
                     weight: data.weight,
                     targetValue: data.targetValue,
+                    checklistUnitIds: data.checklistUnitIds,
                     ranges: data.ranges ? {
                         create: data.ranges.map(r => ({
                             minVal: r.minVal,

@@ -556,6 +556,8 @@ model SlaConfigItem {
   client        Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
   monthlyValues SlaMonthlyValue[]
   ranges        SlaRange[]
+  
+  checklistUnitIds String?
 
   @@index([clientId])
 }
