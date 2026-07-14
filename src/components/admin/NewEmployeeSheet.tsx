@@ -137,8 +137,16 @@ export function NewEmployeeSheet({
     };
 
     useEffect(() => {
-        if (initialData?.postoId) {
-            handlePostoChange(initialData.postoId);
+        if (initialData) {
+            if (initialData.name) setName(initialData.name);
+            if (initialData.cpf) setCpf(initialData.cpf);
+            if (initialData.phone) setPhone(initialData.phone);
+            if (initialData.email) setEmail(initialData.email);
+            if (initialData.roleId) setRoleId(initialData.roleId);
+            if (initialData.companyId) setCompanyId(initialData.companyId);
+            if (initialData.postoId) {
+                handlePostoChange(initialData.postoId);
+            }
         }
     }, [initialData, postos]);
 

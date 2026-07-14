@@ -53,11 +53,15 @@ function initAssistantWidget() {
             <div id="rpa-actions-container" style="display: none;">
                 <button id="rpa-fill-btn">⚡ Preencher Formulario Automático</button>
                 <div class="rpa-fields-list">
-                    <span class="rpa-field-tag" data-field="cpf">CPF</span>
                     <span class="rpa-field-tag" data-field="name">Nome</span>
-                    <span class="rpa-field-tag" data-field="rg">RG</span>
-                    <span class="rpa-field-tag" data-field="salary">Salário</span>
+                    <span class="rpa-field-tag" data-field="cpf">CPF</span>
+                    <span class="rpa-field-tag" data-field="birthDate">Nascimento</span>
+                    <span class="rpa-field-tag" data-field="gender">Gênero</span>
+                    <span class="rpa-field-tag" data-field="phone">Telefone</span>
+                    <span class="rpa-field-tag" data-field="email">E-mail</span>
+                    <span class="rpa-field-tag" data-field="address">Endereço</span>
                     <span class="rpa-field-tag" data-field="role">Cargo</span>
+                    <span class="rpa-field-tag" data-field="salary">Salário</span>
                     <span class="rpa-field-tag" data-field="startDate">Admissão</span>
                 </div>
             </div>
@@ -127,9 +131,13 @@ function updateEmployeeInfoInWidget() {
                     <strong>👤 ${emp.name}</strong>
                     <div class="rpa-card-grid">
                         <span><strong>CPF:</strong> ${emp.cpf || '-'}</span>
-                        <span><strong>RG:</strong> ${emp.rg || '-'}</span>
-                        <span><strong>Salário:</strong> R$ ${emp.salary || '-'}</span>
+                        <span><strong>Nascimento:</strong> ${emp.birthDate || '-'}</span>
+                        <span><strong>Gênero:</strong> ${emp.gender || '-'}</span>
+                        <span><strong>Telefone:</strong> ${emp.phone || '-'}</span>
+                        <span><strong>E-mail:</strong> ${emp.email || '-'}</span>
+                        <span><strong>Endereço:</strong> ${emp.address || '-'}</span>
                         <span><strong>Cargo:</strong> ${emp.role || '-'}</span>
+                        <span><strong>Salário:</strong> R$ ${emp.salary || '-'}</span>
                         <span><strong>Admissão:</strong> ${emp.startDate || '-'}</span>
                     </div>
                 </div>
@@ -152,10 +160,14 @@ function fillFormSemantically(employee) {
     const mappings = [
         { labels: ["cpf", "cadastro de pessoa", "pessoa fisica"], value: employee.cpf },
         { labels: ["nome", "completo", "razao social", "funcionario", "empregado"], value: employee.name },
-        { labels: ["rg", "identidade", "registro geral"], value: employee.rg },
         { labels: ["salario", "remuneracao", "valor", "base"], value: employee.salary },
         { labels: ["cargo", "funcao", "ocupacao"], value: employee.role },
-        { labels: ["admissao", "data de admissao", "inicio", "data de inicio", "contratacao"], value: employee.startDate }
+        { labels: ["admissao", "data de admissao", "inicio", "data de inicio", "contratacao"], value: employee.startDate },
+        { labels: ["nascimento", "data de nascimento", "nascido"], value: employee.birthDate },
+        { labels: ["genero", "sexo"], value: employee.gender },
+        { labels: ["endereco", "logradouro", "residencia"], value: employee.address },
+        { labels: ["telefone", "celular", "fone"], value: employee.phone },
+        { labels: ["email", "e-mail", "correio eletronico"], value: employee.email }
     ];
 
     let filledCount = 0;
