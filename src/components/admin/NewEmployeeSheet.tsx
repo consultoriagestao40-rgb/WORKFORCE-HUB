@@ -384,6 +384,7 @@ export function NewEmployeeSheet({
                             variant="outline"
                             onClick={() => {
                                 const roleName = roles.find(r => r.id === roleId)?.name || "";
+                                const companyName = companies.find(c => c.id === companyId)?.name || "";
                                 const event = new CustomEvent("workforceRpaCapture", {
                                     detail: {
                                         name: name,
@@ -392,7 +393,11 @@ export function NewEmployeeSheet({
                                         email: email,
                                         role: roleName,
                                         salary: salary,
-                                        startDate: admissionDate ? new Date(admissionDate + 'T12:00:00').toLocaleDateString('pt-BR') : ""
+                                        company: companyName,
+                                        startDate: admissionDate ? new Date(admissionDate + 'T12:00:00').toLocaleDateString('pt-BR') : "",
+                                        birthDate: birthDate ? new Date(birthDate + 'T12:00:00').toLocaleDateString('pt-BR') : "",
+                                        gender: gender,
+                                        address: address
                                     }
                                 });
                                 document.dispatchEvent(event);
