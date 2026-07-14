@@ -21,6 +21,15 @@ export async function GET() {
             }
         });
 
+        const allan = await prisma.employee.findFirst({
+            where: {
+                OR: [
+                    { cpf: "05410661966" },
+                    { cpf: "054.106.619-66" }
+                ]
+            }
+        });
+
         return NextResponse.json({
             explicacao: "Este endpoint mostra os dados reais salvos nas linhas do banco de dados do portal.",
             adriana: adriana ? {
@@ -36,7 +45,14 @@ export async function GET() {
                 salario_no_banco: adrielle.salary,
                 valeAlimentacao_no_banco: adrielle.valeAlimentacao,
                 valeTransporte_no_banco: adrielle.valeTransporte
-            } : "Adrielle não encontrada"
+            } : "Adrielle não encontrada",
+            allan: allan ? {
+                nome: allan.name,
+                cpf: allan.cpf,
+                salario_no_banco: allan.salary,
+                valeAlimentacao_no_banco: allan.valeAlimentacao,
+                valeTransporte_no_banco: allan.valeTransporte
+            } : "Allan não encontrado"
         });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
