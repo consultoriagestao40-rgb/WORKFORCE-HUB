@@ -341,6 +341,16 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 ? `${m.avgRepositionDays.toFixed(1).replace('.', ',')} dias` 
                 : "-";
         }
+        if (config.metricType === "CHECKLIST_FACIL") {
+            const plannedValObj = config.monthlyValues?.find((v: any) => v.month === m.monthIndex && v.year === selectedYear);
+            const planned = plannedValObj ? plannedValObj.value : null;
+            const completed = m.checklistFacilCount ?? 0;
+            if (planned === null || planned === undefined) {
+                return `${completed} concluídos (Meta pendente)`;
+            }
+            const pct = planned > 0 ? (completed / planned) * 100 : 0;
+            return `${completed} de ${planned} (${pct.toFixed(1).replace('.', ',')}%)`;
+        }
         return "-";
     }, [selectedYear]);
 
