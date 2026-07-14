@@ -45,7 +45,7 @@ export function UpdateEmployeesFinanceDialog() {
                 const ws = wb.Sheets[wsname];
                 
                 // Read sheet as array of arrays (AOA) to process headers cleanly
-                const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+                const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false }) as any[][];
 
                 if (data.length < 2) {
                     toast.error("O arquivo parece estar vazio.");
