@@ -279,13 +279,15 @@ export function UpdateEmployeesFinanceDialog() {
                                 </Table>
                             </div>
 
-                            <Alert className="bg-amber-50 border-amber-200 rounded-xl">
-                                <AlertCircle className="h-4 w-4 text-amber-600" />
-                                <AlertTitle className="text-amber-800 font-bold">Importante: Validação de Dados</AlertTitle>
-                                <AlertDescription className="text-amber-700 text-xs">
-                                    Os colaboradores sinalizados como <strong className="text-emerald-700">Elegível</strong> terão apenas os valores mostrados atualizados. A data de admissão, férias, e demais dados não listados acima serão **permanentemente preservados**.
-                                </AlertDescription>
-                            </Alert>
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 items-start">
+                                <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <h4 className="text-amber-800 font-bold text-sm">Importante: Validação de Dados</h4>
+                                    <p className="text-amber-700 text-xs mt-1">
+                                        Os colaboradores sinalizados como <strong className="text-emerald-700">Elegível</strong> terão apenas os valores mostrados atualizados. A data de admissão, férias, e demais dados não listados acima serão **permanentemente preservados**.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>

@@ -1857,9 +1857,20 @@ export async function updateEmployeesFinanceBatch(data: any[], commit: boolean =
                 continue;
             }
 
-            // Find employee
-            const emp = await prisma.employee.findUnique({
-                where: { cpf: cpfClean }
+            // Helper to format CPF
+            const formatCPF = (c: string) => {
+                if (c.length !== 11) return c;
+                return `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9, 11)}`;
+            };
+
+            // Find employee matching either clean or formatted CPF
+            const emp = await prisma.employee.findFirst({
+                where: {
+                    OR: [
+                        { cpf: cpfClean },
+                        { cpf: formatCPF(cpfClean) }
+                    ]
+                }
             });
 
             if (!emp) {
