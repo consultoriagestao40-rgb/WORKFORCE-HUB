@@ -163,7 +163,7 @@ export function UpdateEmployeesFinanceDialog() {
                     Atualizar Salários/Benefícios
                 </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-[92vw] w-full max-h-[92vh] flex flex-col">
+            <DialogContent className="sm:max-w-[92vw] max-w-[92vw] w-full max-h-[92vh] flex flex-col">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-2xl font-black text-slate-800 tracking-tight">
                         <FileSpreadsheet className="w-6 h-6 text-emerald-600 animate-pulse" />
