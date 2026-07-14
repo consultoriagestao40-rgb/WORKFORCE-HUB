@@ -558,6 +558,7 @@ model SlaConfigItem {
   ranges        SlaRange[]
   
   checklistUnitIds String?
+  checklistIds     String?
 
   @@index([clientId])
 }

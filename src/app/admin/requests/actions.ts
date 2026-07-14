@@ -2067,12 +2067,35 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                 const specificUnitIds = checklistConfig?.checklistUnitIds 
                     ? checklistConfig.checklistUnitIds.split(",").map((id: string) => id.trim()).filter((id: string) => id.length > 0)
                     : [];
+                const specificChecklistIds = checklistConfig?.checklistIds 
+                    ? checklistConfig.checklistIds.split(",").map((id: string) => id.trim()).filter((id: string) => id.length > 0)
+                    : [];
 
                 const startDateStr = `${year}-01-01 00:00:00`;
                 const endDateStr = `${year}-12-31 23:59:59`;
                 const evaluations: any[] = [];
 
-                if (specificUnitIds.length > 0) {
+                if (specificChecklistIds.length > 0) {
+                    await Promise.all(specificChecklistIds.map(async (checklistId: string) => {
+                        try {
+                            const url = `https://api-analytics.checklistfacil.com.br/v1/evaluations?concluded_at=%5Bgte%5D${encodeURIComponent(startDateStr)}&concluded_at=%5Blte%5D${encodeURIComponent(endDateStr)}&status=6&checklistId=${checklistId}&limit=1000`;
+                            const response = await fetch(url, {
+                                headers: {
+                                    'Authorization': `Bearer ${apiKey}`,
+                                    'Accept': 'application/json'
+                                }
+                            });
+                            if (response.ok) {
+                                const result = await response.json();
+                                if (result && result.data && Array.isArray(result.data)) {
+                                    evaluations.push(...result.data);
+                                }
+                            }
+                        } catch (e) {
+                            console.error(`Erro ao carregar checklists do checklistId ${checklistId}:`, e);
+                        }
+                    }));
+                } else if (specificUnitIds.length > 0) {
                     await Promise.all(specificUnitIds.map(async (unitId: string) => {
                         try {
                             const url = `https://api-analytics.checklistfacil.com.br/v1/evaluations?concluded_at=%5Bgte%5D${encodeURIComponent(startDateStr)}&concluded_at=%5Blte%5D${encodeURIComponent(endDateStr)}&status=6&unitId=${unitId}&limit=1000`;
@@ -2093,17 +2116,28 @@ export async function getAdminClientKpis(clientId: string, year: number) {
                         }
                     }));
                 } else {
-                    const url = `https://api-analytics.checklistfacil.com.br/v1/evaluations?concluded_at=%5Bgte%5D${encodeURIComponent(startDateStr)}&concluded_at=%5Blte%5D${encodeURIComponent(endDateStr)}&status=6&limit=1000`;
-                    const response = await fetch(url, {
-                        headers: {
-                            'Authorization': `Bearer ${apiKey}`,
-                            'Accept': 'application/json'
-                        }
-                    });
-                    if (response.ok) {
-                        const result = await response.json();
-                        if (result && result.data && Array.isArray(result.data)) {
-                            evaluations.push(...result.data);
+                    for (let p = 1; p <= 4; p++) {
+                        try {
+                            const url = `https://api-analytics.checklistfacil.com.br/v1/evaluations?concluded_at=%5Bgte%5D${encodeURIComponent(startDateStr)}&concluded_at=%5Blte%5D${encodeURIComponent(endDateStr)}&status=6&limit=1000&page=${p}`;
+                            const response = await fetch(url, {
+                                headers: {
+                                    'Authorization': `Bearer ${apiKey}`,
+                                    'Accept': 'application/json'
+                                }
+                            });
+                            if (response.ok) {
+                                const result = await response.json();
+                                if (result && result.data && Array.isArray(result.data)) {
+                                    evaluations.push(...result.data);
+                                    if (result.data.length < 1000 || !result.meta?.hasMore) break;
+                                } else {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                        } catch (e) {
+                            break;
                         }
                     }
                 }
@@ -2116,12 +2150,15 @@ export async function getAdminClientKpis(clientId: string, year: number) {
 
                 evaluations.forEach((evaluation: any) => {
                     const unitIdStr = String(evaluation.unitId || '');
+                    const checklistIdStr = String(evaluation.checklistId || '');
                     const unitName = String(evaluation.unitName || evaluation.unit?.name || evaluation.storeName || '').toLowerCase();
                     const checklistName = String(evaluation.checklistName || evaluation.checklist?.name || '').toLowerCase();
                     const userName = String(evaluation.userName || evaluation.user?.name || '').toLowerCase();
                     const evaluatorName = String(evaluation.evaluatorName || '').toLowerCase();
 
-                    const isMatch = specificUnitIds.length > 0
+                    const isMatch = specificChecklistIds.length > 0
+                        ? specificChecklistIds.includes(checklistIdStr)
+                        : specificUnitIds.length > 0
                         ? specificUnitIds.includes(unitIdStr)
                         : searchTerms.some(term => 
                             unitName.includes(term) || 
@@ -2563,6 +2600,7 @@ export async function upsertSlaConfigItem(data: {
     weight: number;
     targetValue: number;
     checklistUnitIds?: string;
+    checklistIds?: string;
     ranges?: { minVal: number; maxVal: number | null; resultVal: number; }[];
 }) {
     try {
@@ -2582,7 +2620,8 @@ export async function upsertSlaConfigItem(data: {
                         metricType: data.metricType,
                         weight: data.weight,
                         targetValue: data.targetValue,
-                        checklistUnitIds: data.checklistUnitIds
+                        checklistUnitIds: data.checklistUnitIds,
+                        checklistIds: data.checklistIds
                     }
                 });
                 
@@ -2611,6 +2650,7 @@ export async function upsertSlaConfigItem(data: {
                     weight: data.weight,
                     targetValue: data.targetValue,
                     checklistUnitIds: data.checklistUnitIds,
+                    checklistIds: data.checklistIds,
                     ranges: data.ranges ? {
                         create: data.ranges.map(r => ({
                             minVal: r.minVal,

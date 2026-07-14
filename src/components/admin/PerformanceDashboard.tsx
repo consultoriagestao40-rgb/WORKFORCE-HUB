@@ -387,6 +387,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [selectedKpiType, setSelectedKpiType] = useState<string>('EFETIVIDADE');
     const [newKpiName, setNewKpiName] = useState<string>('');
     const [newKpiUnitIds, setNewKpiUnitIds] = useState<string>('');
+    const [newKpiChecklistIds, setNewKpiChecklistIds] = useState<string>('');
     const [kpiMeta, setKpiMeta] = useState<number>(90);
     const [kpiPeso, setKpiPeso] = useState<number>(1);
     const [isNewCustomKpi, setIsNewCustomKpi] = useState<boolean>(false);
@@ -979,6 +980,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 weight: editingKpi ? editingKpi.weight : 0,
                 targetValue: editingKpi ? editingKpi.targetValue : 0,
                 checklistUnitIds: finalMetricType === 'CHECKLIST_FACIL' ? newKpiUnitIds : undefined,
+                checklistIds: finalMetricType === 'CHECKLIST_FACIL' ? newKpiChecklistIds : undefined,
                 ranges: editingKpi?.ranges || []
             });
             if (res.success) {
@@ -5162,6 +5164,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 setSelectedKpiType('EFETIVIDADE');
                                 setNewKpiName('');
                                 setNewKpiUnitIds('');
+                                setNewKpiChecklistIds('');
                                 setKpiMeta(90);
                                 setKpiPeso(1);
                                 setIsNewCustomKpi(false);
@@ -5207,6 +5210,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                             setSelectedKpiType(item.metricType === 'MANUAL' ? 'CREATE_NEW' : item.metricType);
                                                             setNewKpiName(item.name);
                                                             setNewKpiUnitIds(item.checklistUnitIds || '');
+                                                            setNewKpiChecklistIds(item.checklistIds || '');
                                                             setIsNewCustomKpi(item.metricType === 'MANUAL');
                                                             setKpiMeta(item.targetValue); 
                                                             setKpiPeso(item.weight); 
@@ -5298,18 +5302,32 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                             </div>
 
                             {selectedKpiType === 'CHECKLIST_FACIL' && (
-                                <div className="space-y-1">
-                                    <Label className="text-xs font-bold text-slate-655">IDs das Unidades no Checklist Fácil *</Label>
-                                    <Input
-                                        placeholder="Ex: 65310, 65270, 61280"
-                                        value={newKpiUnitIds}
-                                        onChange={(e) => setNewKpiUnitIds(e.target.value)}
-                                        className="h-10 rounded-xl"
-                                        required
-                                    />
-                                    <span className="text-[10px] text-slate-500 block leading-tight">
-                                        Insira os IDs numéricos das unidades no Checklist Fácil correspondentes a este cliente, separados por vírgula.
-                                    </span>
+                                <div className="space-y-3 pt-2 border-t border-slate-100/60">
+                                    <div className="space-y-1">
+                                        <Label className="text-xs font-bold text-slate-655">IDs dos Checklists (Opcional)</Label>
+                                        <Input
+                                            placeholder="Ex: 766887, 766888"
+                                            value={newKpiChecklistIds}
+                                            onChange={(e) => setNewKpiChecklistIds(e.target.value)}
+                                            className="h-10 rounded-xl"
+                                        />
+                                        <span className="text-[10px] text-slate-500 block leading-tight">
+                                            Recomendado: Insira o ID do modelo de checklist. Exemplo para Penha: <strong className="text-slate-700">766887</strong>. Deixe em branco se preferir filtrar por unidades abaixo.
+                                        </span>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <Label className="text-xs font-bold text-slate-655">IDs das Unidades (Opcional)</Label>
+                                        <Input
+                                            placeholder="Ex: 65310, 65270, 61280"
+                                            value={newKpiUnitIds}
+                                            onChange={(e) => setNewKpiUnitIds(e.target.value)}
+                                            className="h-10 rounded-xl"
+                                        />
+                                        <span className="text-[10px] text-slate-500 block leading-tight">
+                                            Insira os IDs numéricos das unidades no Checklist Fácil correspondentes a este cliente, separados por vírgula.
+                                        </span>
+                                    </div>
                                 </div>
                             )}
 
