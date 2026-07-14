@@ -9,13 +9,21 @@ if (isWorkforceHub) {
     document.addEventListener("workforceRpaCapture", (event) => {
         const employeeData = event.detail;
         if (employeeData) {
-            chrome.storage.local.set({ activeEmployee: employeeData }, () => {
-                console.log("RPA Assistant: Employee data captured successfully:", employeeData);
-                // Dispatch response event back to the webpage to notify user
-                document.dispatchEvent(new CustomEvent("workforceRpaCaptureSuccess", {
-                    detail: { name: employeeData.name }
-                }));
-            });
+            try {
+                if (!chrome.runtime || !chrome.runtime.id) {
+                    console.warn("RPA Assistant: Context invalidated. Please reload the page.");
+                    return;
+                }
+                chrome.storage.local.set({ activeEmployee: employeeData }, () => {
+                    console.log("RPA Assistant: Employee data captured successfully:", employeeData);
+                    // Dispatch response event back to the webpage to notify user
+                    document.dispatchEvent(new CustomEvent("workforceRpaCaptureSuccess", {
+                        detail: { name: employeeData.name }
+                    }));
+                });
+            } catch (e) {
+                console.warn("RPA Assistant: Extension context invalidated, catch triggered. Please reload the page.", e);
+            }
         }
     });
 }
@@ -69,6 +77,9 @@ function initAssistantWidget() {
     `;
 
     document.body.appendChild(widget);
+
+    // Load initial data immediately
+    updateEmployeeInfoInWidget();
 
     // Event listeners for toggle collapse/expand
     const header = document.getElementById("rpa-widget-header");
@@ -263,3 +274,11 @@ function showFloatingNotification(msg) {
         setTimeout(() => toast.remove(), 400);
     }, 3000);
 }
+
+// Listen for storage changes to update the widget reactively in all tabs
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === "local" && changes.activeEmployee) {
+        console.log("RPA Assistant: Storage changed, updating widget info...");
+        updateEmployeeInfoInWidget();
+    }
+});
