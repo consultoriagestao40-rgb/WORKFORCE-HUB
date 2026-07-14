@@ -194,8 +194,12 @@ async function fillFormSemantically(employee) {
 
     const dropdownFields = [
         { label: "cargo", value: employee.role },
-        { label: "funcao", value: employee.role },
-        { label: "genero", value: employee.gender }
+        { label: "funcao", value: "" }, // Não precisa preencher segundo especificações do usuário
+        { label: "genero", value: employee.gender },
+        { label: "servico", value: employee.company }, // Sempre o mesmo nome da empresa associada
+        { label: "departamento", value: "Geral" }, // Sempre "Geral"
+        { label: "centro de custo", value: "Geral" }, // Sempre "Geral"
+        { label: "sindicato", value: "Siemaco" } // Sempre "Siemaco"
     ];
 
     let filledCount = 0;
