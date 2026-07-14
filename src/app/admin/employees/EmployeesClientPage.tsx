@@ -16,6 +16,7 @@ import { ptBR } from "date-fns/locale";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Demographics } from "@/components/admin/Demographics";
 import { ImportEmployeesDialog } from "@/components/admin/ImportEmployeesDialog";
+import { UpdateEmployeesFinanceDialog } from "@/components/admin/UpdateEmployeesFinanceDialog";
 import { deleteEmployee, deleteEmployeesBatch } from "@/app/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -214,6 +215,7 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                         Exportar Excel
                     </Button>
                     <ImportEmployeesDialog />
+                    <UpdateEmployeesFinanceDialog />
                     <NewEmployeeSheet situations={situations} roles={roles} companies={companies} postos={postos} />
                 </div>
             </div>

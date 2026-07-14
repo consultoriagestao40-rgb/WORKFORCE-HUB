@@ -1828,3 +1828,123 @@ export async function updateAssignmentSchedule(formData: FormData) {
     revalidatePath("/admin/clients");
     revalidatePath("/admin/employees");
 }
+
+export async function updateEmployeesFinanceBatch(data: any[], commit: boolean = false) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Unauthorized");
+
+    try {
+        let updatedCount = 0;
+        let skippedCount = 0;
+        let notFoundCount = 0;
+        const results: any[] = [];
+
+        for (const row of data) {
+            const nameSheet = String(row.name || "").trim();
+            const rawCpf = String(row.cpf || "").trim();
+            
+            // Clean CPF and pad with leading zeros to 11 digits
+            const cpfClean = rawCpf.replace(/\D/g, "").padStart(11, "0");
+
+            if (!cpfClean || cpfClean === "00000000000") {
+                results.push({
+                    name: nameSheet,
+                    cpf: rawCpf,
+                    status: "SKIPPED",
+                    reason: "CPF inválido ou em branco"
+                });
+                skippedCount++;
+                continue;
+            }
+
+            // Find employee
+            const emp = await prisma.employee.findUnique({
+                where: { cpf: cpfClean }
+            });
+
+            if (!emp) {
+                results.push({
+                    name: nameSheet,
+                    cpf: cpfClean,
+                    status: "NOT_FOUND",
+                    reason: "Colaborador não localizado no banco de dados"
+                });
+                notFoundCount++;
+                continue;
+            }
+
+            // Prepare update payload
+            const updateData: any = {};
+            const changes: string[] = [];
+
+            if (emp.salary === 0 && row.salary > 0) {
+                updateData.salary = row.salary;
+                changes.push(`Salário: R$ 0 ➔ R$ ${row.salary}`);
+            }
+            if (emp.insalubridade === 0 && row.insalubridade > 0) {
+                updateData.insalubridade = row.insalubridade;
+                changes.push(`Insalubridade: R$ 0 ➔ R$ ${row.insalubridade}`);
+            }
+            if (emp.periculosidade === 0 && row.periculosidade > 0) {
+                updateData.periculosidade = row.periculosidade;
+                changes.push(`Periculosidade: R$ 0 ➔ R$ ${row.periculosidade}`);
+            }
+            if (emp.gratificacao === 0 && row.gratificacao > 0) {
+                updateData.gratificacao = row.gratificacao;
+                changes.push(`Gratificação: R$ 0 ➔ R$ ${row.gratificacao}`);
+            }
+            if (emp.outrosAdicionais === 0 && row.outrosAdicionais > 0) {
+                updateData.outrosAdicionais = row.outrosAdicionais;
+                changes.push(`Outros Adicionais: R$ 0 ➔ R$ ${row.outrosAdicionais}`);
+            }
+            if (emp.valeAlimentacao === 0 && row.valeAlimentacao > 0) {
+                updateData.valeAlimentacao = row.valeAlimentacao;
+                changes.push(`Vale Alimentação: R$ 0 ➔ R$ ${row.valeAlimentacao}`);
+            }
+            if (emp.valeTransporte === 0 && row.valeTransporte > 0) {
+                updateData.valeTransporte = row.valeTransporte;
+                changes.push(`Vale Transporte: R$ 0 ➔ R$ ${row.valeTransporte}`);
+            }
+
+            if (Object.keys(updateData).length > 0) {
+                if (commit) {
+                    await prisma.employee.update({
+                        where: { id: emp.id },
+                        data: updateData
+                    });
+                }
+                results.push({
+                    name: emp.name,
+                    cpf: cpfClean,
+                    status: "UPDATED",
+                    changes: changes
+                });
+                updatedCount++;
+            } else {
+                results.push({
+                    name: emp.name,
+                    cpf: cpfClean,
+                    status: "SKIPPED",
+                    reason: "Sem campos zerados elegíveis para atualização"
+                });
+                skippedCount++;
+            }
+        }
+
+        if (commit) {
+            revalidatePath("/admin/employees");
+        }
+
+        return {
+            results,
+            summary: {
+                updated: updatedCount,
+                skipped: skippedCount,
+                notFound: notFoundCount
+            }
+        };
+    } catch (e: any) {
+        console.error("Error in updateEmployeesFinanceBatch:", e);
+        return { error: e.message || "Erro interno ao atualizar base de colaboradores." };
+    }
+}
