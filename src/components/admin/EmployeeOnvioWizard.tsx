@@ -33,9 +33,9 @@ const steps = [
 ];
 
 const wizardTabs = [
+    { step: 1, tab: "anexos", label: "Anexos" },
     { step: 1, tab: "dados_basicos", label: "Dados Básicos" },
     { step: 1, tab: "admissao", label: "Admissão" },
-    { step: 1, tab: "anexos", label: "Anexos" },
     
     { step: 2, tab: "ctps", label: "Carteira de Trabalho" },
     { step: 2, tab: "fgts", label: "FGTS" },
