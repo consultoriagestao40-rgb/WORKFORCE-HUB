@@ -712,12 +712,12 @@ export function EmployeeOnvioWizard({
                                 {/* Grupo 1: Dados Contratuais */}
                                 <div className="space-y-3">
                                     <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Dados Contratuais</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <input type="hidden" name="type" value={type} />
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div className="space-y-1">
                                             <Label htmlFor="admissionDate" className="text-slate-700 font-medium">Data de Admissão</Label>
                                             <Input id="admissionDate" name="admissionDate" type="date" value={admissionDate} onChange={e => setAdmissionDate(e.target.value)} required />
                                         </div>
-                                        <input type="hidden" name="type" value={type} />
                                         <div className="space-y-1">
                                             <Label htmlFor="categoriaAdmissao" className="text-slate-700 font-medium">Categoria</Label>
                                             <Select value={categoriaAdmissao} onValueChange={setCategoriaAdmissao}>
@@ -744,7 +744,7 @@ export function EmployeeOnvioWizard({
                                                 </SelectContent>
                                             </Select>
                                         </div>
-                                        <div className="space-y-1 col-span-1">
+                                        <div className="space-y-1">
                                             <Label htmlFor="situationId" className="text-slate-700 font-medium">Situação Atual</Label>
                                             <Select name="situationId" value={situationId} onValueChange={setSituationId} required>
                                                 <SelectTrigger>
@@ -756,6 +756,14 @@ export function EmployeeOnvioWizard({
                                                     ))}
                                                 </SelectContent>
                                             </Select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="experienciaDias1" className="text-slate-700 font-medium">Dias do 1º Período</Label>
+                                            <Input id="experienciaDias1" type="number" value={experienciaDias1} onChange={e => setExperienciaDias1(e.target.value)} placeholder="Ex: 45" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="experienciaDias2" className="text-slate-700 font-medium">Dias de Prorrogação (2º Período)</Label>
+                                            <Input id="experienciaDias2" type="number" value={experienciaDias2} onChange={e => setExperienciaDias2(e.target.value)} placeholder="Ex: 45" />
                                         </div>
                                     </div>
                                 </div>
@@ -825,21 +833,6 @@ export function EmployeeOnvioWizard({
                                         <div className="space-y-1">
                                             <Label htmlFor="valeTransporte" className="text-slate-700 font-medium">Vale Transporte (R$)</Label>
                                             <Input id="valeTransporte" name="valeTransporte" type="number" step="0.01" value={valeTransporte} onChange={e => setValeTransporte(e.target.value)} />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Grupo 4: Contrato de Experiência */}
-                                <div className="space-y-3 border-t pt-4">
-                                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Períodos de Experiência</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <Label htmlFor="experienciaDias1" className="text-slate-700 font-medium">Dias do 1º Período</Label>
-                                            <Input id="experienciaDias1" type="number" value={experienciaDias1} onChange={e => setExperienciaDias1(e.target.value)} placeholder="Ex: 45" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label htmlFor="experienciaDias2" className="text-slate-700 font-medium">Dias de Prorrogação (2º Período)</Label>
-                                            <Input id="experienciaDias2" type="number" value={experienciaDias2} onChange={e => setExperienciaDias2(e.target.value)} placeholder="Ex: 45" />
                                         </div>
                                     </div>
                                 </div>
