@@ -39,7 +39,17 @@ Extraia o máximo de informações que puder e retorne EXCLUSIVAMENTE um objeto 
   "tituloEleitorSecao": string | null,
   "tituloEleitorUf": string | null,
   "reservistaNumero": string | null,
-  "reservistaCategoria": string | null
+  "reservistaCategoria": string | null,
+  "dependents": [
+    {
+      "nome": string | null,
+      "cpf": string | null,
+      "dataNascimento": string | null,
+      "parentesco": string | null,
+      "salarioFamilia": "Sim" | "Não",
+      "irrf": "Sim" | "Não"
+    }
+  ] | null
 }
 
 Regras:

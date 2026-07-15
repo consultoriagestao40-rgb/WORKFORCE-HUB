@@ -591,6 +591,37 @@ export function EmployeeOnvioWizard({
                     if (data.tituloEleitorUf) setTituloEleitorUf(data.tituloEleitorUf);
                     if (data.reservistaNumero) setReservistaNumero(data.reservistaNumero);
                     if (data.reservistaCategoria) setReservistaCategoria(data.reservistaCategoria);
+                    
+                    // Preenche dependentes se retornados
+                    if (data.dependents && Array.isArray(data.dependents)) {
+                        setDependentes(prev => {
+                            const cleanedPrev = prev.filter(d => d.nome.trim() !== "");
+                            const extracted = data.dependents.map((dep: any) => {
+                                let parentesco = "Filho(a)";
+                                if (dep.parentesco) {
+                                    const p = dep.parentesco.toLowerCase();
+                                    if (p.includes("cônjuge") || p.includes("conjuge") || p.includes("espos")) {
+                                        parentesco = "Cônjuge";
+                                    } else if (p.includes("pai") || p.includes("mãe") || p.includes("mae")) {
+                                        parentesco = "Mãe / Pai";
+                                    } else if (p.includes("filh")) {
+                                        parentesco = "Filho(a)";
+                                    } else {
+                                        parentesco = "Outros";
+                                    }
+                                }
+                                return {
+                                    nome: dep.nome || "",
+                                    cpf: dep.cpf || "",
+                                    dataNascimento: dep.dataNascimento ? new Date(dep.dataNascimento).toISOString().split('T')[0] : "",
+                                    parentesco,
+                                    salarioFamilia: dep.salarioFamilia || "Sim",
+                                    irrf: dep.irrf || "Não"
+                                };
+                            });
+                            return [...cleanedPrev, ...extracted];
+                        });
+                    }
                 }
             } catch (e) {
                 console.error("Erro na extração IA:", e);
