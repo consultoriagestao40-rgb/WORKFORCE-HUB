@@ -53,27 +53,28 @@ export function UpdateEmployeesFinanceDialog() {
                     return;
                 }
 
-                // Helper to normalize strings for header matching
+                // Helper to normalize strings for header matching (immune to Windows-1252 character corruption)
                 const normalize = (str: any) => 
                     String(str || "")
                         .toLowerCase()
                         .normalize("NFD")
                         .replace(/[\u0300-\u036f]/g, "")
+                        .replace(/[^a-z0-9]/g, "") // Remove all non-alphanumeric garbage characters
                         .trim();
 
                 const headers = data[0].map(h => normalize(h));
 
-                // Find column indexes
+                // Find column indexes using simplified alphanumeric matches
                 const idx = {
                     name: headers.indexOf("nome"),
                     cpf: headers.indexOf("cpf"),
-                    salary: headers.findIndex(h => h.includes("salario") || h === "salario base"),
-                    insalubridade: headers.indexOf("insalubridade"),
-                    periculosidade: headers.indexOf("periculosidade"),
-                    gratificacao: headers.findIndex(h => h.includes("gratificacao")),
-                    outrosAdicionais: headers.findIndex(h => h.includes("outros adicionais")),
-                    valeAlimentacao: headers.findIndex(h => h.includes("vale alimentacao") || h.includes("va")),
-                    valeTransporte: headers.findIndex(h => h.includes("vale trans") || h.includes("vt"))
+                    salary: headers.findIndex(h => h.includes("salari")),
+                    insalubridade: headers.findIndex(h => h.includes("insalub")),
+                    periculosidade: headers.findIndex(h => h.includes("pericul")),
+                    gratificacao: headers.findIndex(h => h.includes("gratif")),
+                    outrosAdicionais: headers.findIndex(h => h.includes("outro")),
+                    valeAlimentacao: headers.findIndex(h => h.includes("aliment") || h === "va"),
+                    valeTransporte: headers.findIndex(h => h.includes("trans") || h === "vt")
                 };
 
                 if (idx.cpf === -1) {
