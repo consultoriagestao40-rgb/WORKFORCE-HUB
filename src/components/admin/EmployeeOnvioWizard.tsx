@@ -717,7 +717,7 @@ export function EmployeeOnvioWizard({
                                 </div>
                                 <input type="hidden" name="type" value={type} />
                                 <div className="space-y-1">
-                                    <Label htmlFor="categoriaAdmissao">Categoria Onvio</Label>
+                                    <Label htmlFor="categoriaAdmissao">Categoria</Label>
                                     <Select value={categoriaAdmissao} onValueChange={setCategoriaAdmissao}>
                                         <SelectTrigger>
                                             <SelectValue />
