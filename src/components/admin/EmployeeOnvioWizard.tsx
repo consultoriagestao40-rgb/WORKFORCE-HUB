@@ -139,6 +139,9 @@ export function EmployeeOnvioWizard({
     const [naturalidadeCidade, setNaturalidadeCidade] = useState("");
     const [naturalidadeUf, setNaturalidadeUf] = useState("");
 
+    const [attachments, setAttachments] = useState<{ name: string; fileName: string; fileData: string }[]>([]);
+    const [loadingSlot, setLoadingSlot] = useState<string | null>(null);
+
     const [rgNumero, setRgNumero] = useState("");
     const [rgOrgaoEmissor, setRgOrgaoEmissor] = useState("");
     const [rgDataEmissao, setRgDataEmissao] = useState("");
@@ -383,6 +386,7 @@ export function EmployeeOnvioWizard({
 
             setDependentes(extra.dependentes || []);
             setObservacoes(extra.observacoes || "");
+            setAttachments(extra.attachments || []);
         }
     }, [initialData, postos]);
 
@@ -514,7 +518,8 @@ export function EmployeeOnvioWizard({
         reservistaNumero,
         reservistaCategoria,
         dependentes,
-        observacoes
+        observacoes,
+        attachments
     };
 
     // Dependent list handlers
@@ -527,6 +532,86 @@ export function EmployeeOnvioWizard({
 
     const removeDependent = (idx: number) => {
         setDependentes(dependentes.filter((_, i) => i !== idx));
+    };
+
+    const handleUploadSlot = (key: string, label: string, file: File) => {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+            const base64Data = reader.result as string;
+            setAttachments(prev => {
+                const filtered = prev.filter(a => a.name !== label);
+                return [...filtered, { name: label, fileName: file.name, fileData: base64Data }];
+            });
+
+            setLoadingSlot(key);
+            try {
+                const formData = new FormData();
+                formData.append("file", file);
+
+                const res = await fetch("/api/extract-document", {
+                    method: "POST",
+                    body: formData
+                });
+                const result = await res.json();
+                if (result.success) {
+                    const data = result.data;
+                    
+                    if (data.name) setName(data.name);
+                    if (data.cpf) setCpf(data.cpf);
+                    if (data.birthDate) setBirthDate(data.birthDate);
+                    if (data.gender) setGender(data.gender);
+                    if (data.address) setAddress(data.address);
+                    if (data.phone) setPhone(data.phone);
+                    if (data.email) setEmail(data.email);
+                    if (data.nomeSocial) setNomeSocial(data.nomeSocial);
+                    if (data.funcao) setFuncao(data.funcao);
+                    if (data.ctpsNumero) setCtpsNumero(data.ctpsNumero);
+                    if (data.ctpsSerie) setCtpsSerie(data.ctpsSerie);
+                    if (data.ctpsUf) setCtpsUf(data.ctpsUf);
+                    if (data.ctpsDataEmissao) setCtpsDataEmissao(data.ctpsDataEmissao);
+                    if (data.pisNumero) setPisNumero(data.pisNumero);
+                    if (data.estadoCivil) setEstadoCivil(data.estadoCivil);
+                    if (data.grauInstrucao) setGrauInstrucao(data.grauInstrucao);
+                    if (data.nomePai) setNomePai(data.nomePai);
+                    if (data.nomeMae) setNomeMae(data.nomeMae);
+                    if (data.nacionalidade) setNacionalidade(data.nacionalidade);
+                    if (data.naturalidadeCidade) setNaturalidadeCidade(data.naturalidadeCidade);
+                    if (data.naturalidadeUf) setNaturalidadeUf(data.naturalidadeUf);
+                    if (data.rgNumero) setRgNumero(data.rgNumero);
+                    if (data.rgOrgaoEmissor) setRgOrgaoEmissor(data.rgOrgaoEmissor);
+                    if (data.rgDataEmissao) setRgDataEmissao(data.rgDataEmissao);
+                    if (data.rgUf) setRgUf(data.rgUf);
+                    if (data.cnhNumero) setCnhNumero(data.cnhNumero);
+                    if (data.cnhCategoria) setCnhCategoria(data.cnhCategoria);
+                    if (data.cnhValidade) setCnhValidade(data.cnhValidade);
+                    if (data.cnhUf) setCnhUf(data.cnhUf);
+                    if (data.tituloEleitorNumero) setTituloEleitorNumero(data.tituloEleitorNumero);
+                    if (data.tituloEleitorZona) setTituloEleitorZona(data.tituloEleitorZona);
+                    if (data.tituloEleitorSecao) setTituloEleitorSecao(data.tituloEleitorSecao);
+                    if (data.tituloEleitorUf) setTituloEleitorUf(data.tituloEleitorUf);
+                    if (data.reservistaNumero) setReservistaNumero(data.reservistaNumero);
+                    if (data.reservistaCategoria) setReservistaCategoria(data.reservistaCategoria);
+                }
+            } catch (e) {
+                console.error("Erro na extração IA:", e);
+            } finally {
+                setLoadingSlot(null);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleUploadGeneric = (file: File) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64Data = reader.result as string;
+            const docName = file.name.split('.').slice(0, -1).join('.') || file.name;
+            setAttachments(prev => {
+                const filtered = prev.filter(a => a.name !== docName);
+                return [...filtered, { name: docName, fileName: file.name, fileData: base64Data }];
+            });
+        };
+        reader.readAsDataURL(file);
     };
 
     const updateDependent = (idx: number, field: string, value: string) => {
@@ -897,16 +982,141 @@ export function EmployeeOnvioWizard({
 
                         {/* Tab: Anexos */}
                         {currentTab === "anexos" && (
-                            <div className="space-y-4">
-                                <Label className="text-slate-700 font-medium">Anexos de Admissão</Label>
-                                <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center justify-center text-center gap-2 bg-slate-50/50">
-                                    <div className="h-10 w-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400">
-                                        <Plus className="w-5 h-5" />
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <Label className="text-sm font-bold text-slate-800">Documentos de Admissão</Label>
+                                        <p className="text-[10px] text-slate-500 font-medium">Faça upload de cada documento. A IA processará os dados para preencher o cadastro automaticamente.</p>
                                     </div>
-                                    <span className="text-xs font-bold text-slate-700">Arraste seus arquivos aqui</span>
-                                    <span className="text-[10px] text-slate-400">Suporta PDFs, Imagens, CNH, RG e comprovante de residência (Até 10MB)</span>
-                                    <Button type="button" variant="outline" size="sm" className="mt-2 text-xs font-bold h-8">Selecionar Arquivos</Button>
+                                    <div className="relative">
+                                        <Button type="button" variant="outline" size="sm" className="text-xs font-bold gap-1 rounded-xl h-8">
+                                            <Plus className="w-3.5 h-3.5" /> Adicionar Outro Documento
+                                            <input 
+                                                type="file" 
+                                                accept="image/*,application/pdf" 
+                                                className="absolute inset-0 opacity-0 cursor-pointer" 
+                                                onChange={e => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) handleUploadGeneric(file);
+                                                    e.target.value = "";
+                                                }}
+                                            />
+                                        </Button>
+                                    </div>
                                 </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {[
+                                        { key: "cnh", label: "CNH", description: "Carteira Nacional de Habilitação" },
+                                        { key: "rg", label: "Identidade (RG)", description: "Cédula de Identidade" },
+                                        { key: "aso", label: "ASO", description: "Atestado de Saúde Ocupacional" },
+                                        { key: "endereco", label: "Comprovante de endereço", description: "Conta recente de consumo" },
+                                        { key: "titulo", label: "Título de Eleitor", description: "Título Eleitoral" },
+                                        { key: "pis", label: "PIS", description: "Cadastro PIS/PASEP" },
+                                        { key: "certidao_filhos", label: "Certidão de nascimento de filhos", description: "Certidão de dependentes" }
+                                    ].map(slot => {
+                                        const uploadedFile = attachments.find(a => a.name === slot.label);
+                                        const isLoading = loadingSlot === slot.key;
+
+                                        return (
+                                            <div 
+                                                key={slot.key} 
+                                                className={`border rounded-2xl p-4 flex items-center justify-between gap-4 transition-all ${
+                                                    uploadedFile 
+                                                        ? "border-green-200 bg-green-50/20" 
+                                                        : "border-slate-100 bg-slate-50/40 hover:bg-slate-50/80"
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${
+                                                        uploadedFile 
+                                                            ? "bg-green-100 text-green-700" 
+                                                            : "bg-slate-100 text-slate-500"
+                                                    }`}>
+                                                        <Plus className="w-4 h-4 rotate-45" />
+                                                    </div>
+                                                    <div className="space-y-0.5">
+                                                        <span className="text-xs font-bold text-slate-800">{slot.label}</span>
+                                                        <p className="text-[10px] text-slate-400 font-medium leading-none">
+                                                            {uploadedFile 
+                                                                ? `Enviado: ${uploadedFile.fileName.slice(0, 30)}${uploadedFile.fileName.length > 30 ? "..." : ""}` 
+                                                                : slot.description
+                                                            }
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="relative">
+                                                    <Button 
+                                                        type="button" 
+                                                        variant={uploadedFile ? "ghost" : "outline"} 
+                                                        size="sm" 
+                                                        disabled={isLoading}
+                                                        className="text-[10px] font-bold h-8 rounded-xl shrink-0 gap-1.5"
+                                                    >
+                                                        {isLoading ? (
+                                                            <>
+                                                                <div className="w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                                                                Lendo...
+                                                            </>
+                                                        ) : uploadedFile ? (
+                                                            <span className="text-green-600">Substituir</span>
+                                                        ) : (
+                                                            <span>Upload</span>
+                                                        )}
+                                                        <input 
+                                                            type="file" 
+                                                            accept="image/*,application/pdf" 
+                                                            className="absolute inset-0 opacity-0 cursor-pointer" 
+                                                            disabled={isLoading}
+                                                            onChange={e => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) handleUploadSlot(slot.key, slot.label, file);
+                                                                e.target.value = "";
+                                                            }}
+                                                        />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {attachments.filter(a => ![
+                                    "CNH", "Identidade (RG)", "ASO", "Comprovante de endereço", "Título de Eleitor", "PIS", "Certidão de nascimento de filhos"
+                                ].includes(a.name)).length > 0 && (
+                                    <div className="space-y-3 border-t pt-4 mt-4">
+                                        <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Outros Anexos</Label>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {attachments.filter(a => ![
+                                                "CNH", "Identidade (RG)", "ASO", "Comprovante de endereço", "Título de Eleitor", "PIS", "Certidão de nascimento de filhos"
+                                            ].includes(a.name)).map((extraDoc, i) => (
+                                                <div key={i} className="border border-slate-100 rounded-2xl p-4 flex items-center justify-between gap-4 bg-slate-50/20">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="h-9 w-9 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500">
+                                                            <Plus className="w-4 h-4 rotate-45" />
+                                                        </div>
+                                                        <div className="space-y-0.5">
+                                                            <span className="text-xs font-bold text-slate-800">{extraDoc.name}</span>
+                                                            <p className="text-[10px] text-slate-400 font-medium leading-none">
+                                                                {extraDoc.fileName}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <Button 
+                                                        type="button" 
+                                                        variant="ghost" 
+                                                        size="sm"
+                                                        onClick={() => setAttachments(prev => prev.filter(a => a.name !== extraDoc.name))}
+                                                        className="text-[10px] font-bold text-red-500 hover:text-red-700 h-8 rounded-xl"
+                                                    >
+                                                        Excluir
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </>

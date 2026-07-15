@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const PROMPT = `Você é um especialista em OCR inteligente de documentos pessoais para sistemas de RH.
-Analise a imagem ou PDF anexado (RG, CNH, CPF, CTPS, Passaporte ou comprovante de residência).
-Extraia as informações e retorne EXCLUSIVAMENTE um objeto JSON puro, sem markdown, no formato:
+Analise a imagem ou PDF anexado (RG, CNH, CPF, CTPS, Título de Eleitor, ASO, reservista, certidão de filhos ou comprovante de residência).
+Extraia o máximo de informações que puder e retorne EXCLUSIVAMENTE um objeto JSON puro, sem markdown, no formato:
 
 {
   "name": string | null,
@@ -11,15 +11,43 @@ Extraia as informações e retorne EXCLUSIVAMENTE um objeto JSON puro, sem markd
   "gender": "Masculino" | "Feminino" | "Outro" | null,
   "address": string | null,
   "phone": string | null,
-  "email": string | null
+  "email": string | null,
+  "nomeSocial": string | null,
+  "funcao": string | null,
+  "ctpsNumero": string | null,
+  "ctpsSerie": string | null,
+  "ctpsUf": string | null,
+  "ctpsDataEmissao": string | null,
+  "pisNumero": string | null,
+  "estadoCivil": string | null,
+  "grauInstrucao": string | null,
+  "nomePai": string | null,
+  "nomeMae": string | null,
+  "nacionalidade": string | null,
+  "naturalidadeCidade": string | null,
+  "naturalidadeUf": string | null,
+  "rgNumero": string | null,
+  "rgOrgaoEmissor": string | null,
+  "rgDataEmissao": string | null,
+  "rgUf": string | null,
+  "cnhNumero": string | null,
+  "cnhCategoria": string | null,
+  "cnhValidade": string | null,
+  "cnhUf": string | null,
+  "tituloEleitorNumero": string | null,
+  "tituloEleitorZona": string | null,
+  "tituloEleitorSecao": string | null,
+  "tituloEleitorUf": string | null,
+  "reservistaNumero": string | null,
+  "reservistaCategoria": string | null
 }
 
 Regras:
 1. Retorne apenas o JSON puro, sem \`\`\`json ou texto extra.
-2. birthDate no formato YYYY-MM-DD.
+2. Todas as datas devem ser formatadas como YYYY-MM-DD.
 3. cpf no formato 000.000.000-00.
 4. name em MAIÚSCULAS.
-5. Se um campo não existir no documento, use null.`;
+5. Se um campo não puder ser extraído ou não existir no documento analisado, use null.`;
 
 // Modelos hardcoded como fallback (caso ListModels falhe ou retorne vazio)
 const FALLBACK_MODELS = [
