@@ -182,6 +182,15 @@ export function EmployeeOnvioWizard({
         }
     }, [currentPostoId, postos]);
 
+    // Sync type based on vinculoEmpregaticio (Onvio Vínculo -> legacy Tipo de Contrato)
+    useEffect(() => {
+        if (vinculoEmpregaticio === "Celetista") {
+            setType("CLT");
+        } else {
+            setType(vinculoEmpregaticio);
+        }
+    }, [vinculoEmpregaticio]);
+
     const handlePostoChangeInternal = (val: string) => {
         if (setControlledPostoId) {
             setControlledPostoId(val);
@@ -262,7 +271,9 @@ export function EmployeeOnvioWizard({
             setSindicato(extra.sindicato || "SIEMACO");
             
             setCategoriaAdmissao(extra.categoriaAdmissao || "Mensalista");
-            setVinculoEmpregaticio(extra.vinculoEmpregaticio || "Celetista");
+            const resolvedVinculo = extra.vinculoEmpregaticio || 
+                ((initialData.type === "CLT" || initialData.type === "Celetista") ? "Celetista" : (initialData.type || "Celetista"));
+            setVinculoEmpregaticio(resolvedVinculo);
             setExperienciaDias1(extra.experienciaDias1 || "45");
             setExperienciaDias2(extra.experienciaDias2 || "45");
             setEscalaHorario(extra.escalaHorario || "");
@@ -647,20 +658,7 @@ export function EmployeeOnvioWizard({
                                     <Label htmlFor="admissionDate">Data de Admissão</Label>
                                     <Input id="admissionDate" name="admissionDate" type="date" value={admissionDate} onChange={e => setAdmissionDate(e.target.value)} required />
                                 </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="type">Tipo de Contrato</Label>
-                                    <Select name="type" value={type} onValueChange={setType}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="CLT">CLT (Efetivo)</SelectItem>
-                                            <SelectItem value="Reserva Técnica">Reserva Técnica</SelectItem>
-                                            <SelectItem value="Estagiário">Estagiário</SelectItem>
-                                            <SelectItem value="Temporário">Temporário</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                                <input type="hidden" name="type" value={type} />
                                 <div className="space-y-1">
                                     <Label htmlFor="categoriaAdmissao">Categoria Onvio</Label>
                                     <Select value={categoriaAdmissao} onValueChange={setCategoriaAdmissao}>
