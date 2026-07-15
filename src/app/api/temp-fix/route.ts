@@ -3,56 +3,29 @@ import { prisma } from "@/lib/db";
 
 export async function GET() {
     try {
-        const adriana = await prisma.employee.findFirst({
+        const list = await prisma.employee.findMany({
             where: {
-                OR: [
-                    { cpf: "04781824900" },
-                    { cpf: "047.818.249-00" }
-                ]
-            }
-        });
-
-        const adrielle = await prisma.employee.findFirst({
-            where: {
-                OR: [
-                    { cpf: "06451816922" },
-                    { cpf: "064.518.169-22" }
-                ]
-            }
-        });
-
-        const allan = await prisma.employee.findFirst({
-            where: {
-                OR: [
-                    { cpf: "05410661966" },
-                    { cpf: "054.106.619-66" }
-                ]
+                cpf: {
+                    in: [
+                        "04431387889", "044.313.878-89", // Antonio
+                        "05410661966", "054.106.619-66", // Allan
+                        "04781824900", "047.818.249-00", // Adriana
+                        "12862655523", "128.62655.52-3", "128.626.555-23" // Adriele
+                    ]
+                }
+            },
+            select: {
+                name: true,
+                cpf: true,
+                salary: true,
+                valeAlimentacao: true,
+                valeTransporte: true
             }
         });
 
         return NextResponse.json({
-            explicacao: "Este endpoint mostra os dados reais salvos nas linhas do banco de dados do portal.",
-            adriana: adriana ? {
-                nome: adriana.name,
-                cpf: adriana.cpf,
-                salario_no_banco: adriana.salary,
-                valeAlimentacao_no_banco: adriana.valeAlimentacao,
-                valeTransporte_no_banco: adriana.valeTransporte
-            } : "Adriana não encontrada",
-            adrielle: adrielle ? {
-                nome: adrielle.name,
-                cpf: adrielle.cpf,
-                salario_no_banco: adrielle.salary,
-                valeAlimentacao_no_banco: adrielle.valeAlimentacao,
-                valeTransporte_no_banco: adrielle.valeTransporte
-            } : "Adrielle não encontrada",
-            allan: allan ? {
-                nome: allan.name,
-                cpf: allan.cpf,
-                salario_no_banco: allan.salary,
-                valeAlimentacao_no_banco: allan.valeAlimentacao,
-                valeTransporte_no_banco: allan.valeTransporte
-            } : "Allan não encontrado"
+            explicacao: "Este endpoint mostra os dados reais salvos no banco de dados de produção.",
+            colaboradores: list
         });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
