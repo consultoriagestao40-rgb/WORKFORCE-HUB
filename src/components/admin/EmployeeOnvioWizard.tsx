@@ -276,9 +276,20 @@ export function EmployeeOnvioWizard({
     // Populate data when initialData changes
     useEffect(() => {
         if (initialData) {
+            // Get Posto link from assignments
+            const resolvedPostoId = (initialData.assignments && initialData.assignments.length > 0)
+                ? (initialData.assignments.find((a: any) => !a.endDate)?.postoId || "")
+                : (initialData.postoId || "");
+
+            if (resolvedPostoId) {
+                setPostoId(resolvedPostoId);
+            }
+
+            const selectedPosto = postos.find(p => p.id === resolvedPostoId);
+
             setName(initialData.name || "");
             setCpf(initialData.cpf || "");
-            setRoleId(initialData.roleId || "");
+            setRoleId(initialData.roleId || (selectedPosto ? selectedPosto.roleId : ""));
             setCompanyId(initialData.companyId || "");
             setType(initialData.type || "CLT");
             setStatus(initialData.status || "Ativo");
@@ -286,15 +297,17 @@ export function EmployeeOnvioWizard({
             if (initialData.admissionDate) {
                 setAdmissionDate(new Date(initialData.admissionDate).toISOString().split("T")[0]);
             }
-            setSalary(String(initialData.salary || 0));
-            setInsalubridade(String(initialData.insalubridade || 0));
-            setPericulosidade(String(initialData.periculosidade || 0));
-            setGratificacao(String(initialData.gratificacao || 0));
-            setOutrosAdicionais(String(initialData.outrosAdicionais || 0));
-            setWorkload(String(initialData.workload || 220));
-            setValeAlimentacao(String(initialData.valeAlimentacao || 0));
-            setValeTransporte(String(initialData.valeTransporte || 0));
             
+            // Sincroniza valores do posto se não houver valor salvo ou se for 0
+            setSalary(initialData.salary ? String(initialData.salary) : (selectedPosto ? String(selectedPosto.baseSalary || 0) : "0"));
+            setInsalubridade(initialData.insalubridade ? String(initialData.insalubridade) : (selectedPosto ? String(selectedPosto.insalubridade || 0) : "0"));
+            setPericulosidade(initialData.periculosidade ? String(initialData.periculosidade) : (selectedPosto ? String(selectedPosto.periculosidade || 0) : "0"));
+            setGratificacao(initialData.gratificacao ? String(initialData.gratificacao) : (selectedPosto ? String(selectedPosto.gratificacao || 0) : "0"));
+            setOutrosAdicionais(initialData.outrosAdicionais ? String(initialData.outrosAdicionais) : (selectedPosto ? String(selectedPosto.outrosAdicionais || 0) : "0"));
+            setValeAlimentacao(initialData.valeAlimentacao ? String(initialData.valeAlimentacao) : (selectedPosto ? String(selectedPosto.valeAlimentacao || 0) : "0"));
+            setValeTransporte(initialData.valeTransporte ? String(initialData.valeTransporte) : (selectedPosto ? String(selectedPosto.valeTransporte || 0) : "0"));
+            setWorkload(initialData.workload ? String(initialData.workload) : (selectedPosto ? String(selectedPosto.requiredWorkload || 220) : "220"));
+
             if (initialData.birthDate) {
                 setBirthDate(new Date(initialData.birthDate).toISOString().split("T")[0]);
             }
@@ -302,16 +315,6 @@ export function EmployeeOnvioWizard({
             setAddress(initialData.address || "");
             setPhone(initialData.phone || "");
             setEmail(initialData.email || "");
-
-            // Get Posto link from assignments
-            if (initialData.assignments && initialData.assignments.length > 0) {
-                const active = initialData.assignments.find((a: any) => !a.endDate);
-                if (active) {
-                    setPostoId(active.postoId);
-                }
-            } else if (initialData.postoId) {
-                setPostoId(initialData.postoId);
-            }
 
             // Load extraFields from JSON
             const extra = initialData.extraFields || {};
@@ -329,8 +332,13 @@ export function EmployeeOnvioWizard({
             setVinculoEmpregaticio(resolvedVinculo);
             setExperienciaDias1(extra.experienciaDias1 || "45");
             setExperienciaDias2(extra.experienciaDias2 || "45");
-            setEscalaHorario(extra.escalaHorario || "");
-            setJornadaHoras(extra.jornadaHoras || "");
+
+            setEscalaHorario(extra.escalaHorario || (selectedPosto ? (selectedPosto.schedule || "") : ""));
+            const resolvedJornada = extra.jornadaHoras || 
+                (selectedPosto && selectedPosto.startTime && selectedPosto.endTime 
+                    ? `${selectedPosto.startTime} - ${selectedPosto.endTime}` 
+                    : "");
+            setJornadaHoras(resolvedJornada);
 
             setCtpsNumero(extra.ctpsNumero || "");
             setCtpsSerie(extra.ctpsSerie || "");
@@ -376,7 +384,7 @@ export function EmployeeOnvioWizard({
             setDependentes(extra.dependentes || []);
             setObservacoes(extra.observacoes || "");
         }
-    }, [initialData]);
+    }, [initialData, postos]);
 
     const activeTabObj = wizardTabs[currentTabIdx];
     const currentStep = activeTabObj.step;
