@@ -3,29 +3,45 @@ import { prisma } from "@/lib/db";
 
 export async function GET() {
     try {
-        const list = await prisma.employee.findMany({
-            where: {
-                cpf: {
-                    in: [
-                        "04431387889", "044.313.878-89", // Antonio
-                        "05410661966", "054.106.619-66", // Allan
-                        "04781824900", "047.818.249-00", // Adriana
-                        "12862655523", "128.62655.52-3", "128.626.555-23" // Adriele
-                    ]
-                }
-            },
-            select: {
-                name: true,
-                cpf: true,
-                salary: true,
-                valeAlimentacao: true,
-                valeTransporte: true
-            }
+        const targetNames = [
+            "ANDREIA FAUSTIN DE SOUZA",
+            "ELISANGELA SANTOS DE PAULA",
+            "ELIZABETE BRUM ANTONIO",
+            "FERNANDA STIIRMER DE MATTOS YAMAGUCHI",
+            "GABRIELY BRASQUE ALVES PEREIRA",
+            "GENESIS GABRIELA MARTINEZ GONZALEZ",
+            "JOSINEIDE MARTINS VIDAL",
+            "LUZIA CORDEIRO DE OLIVEIRA",
+            "MARLY DALVA DE AZEVEDO",
+            "NIZIA TASSIA DA SILVA",
+            "SANDRA PEREIRA MOREIRA",
+            "ZURIMA ROXANA LEON GARCIA"
+        ];
+
+        const allEmployees = await prisma.employee.findMany();
+
+        const matches = targetNames.map(targetName => {
+            const emp = allEmployees.find(e => 
+                e.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(
+                    targetName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                )
+            );
+
+            return {
+                targetName,
+                found: emp ? {
+                    name: emp.name,
+                    cpf: emp.cpf,
+                    salary: emp.salary,
+                    valeAlimentacao: emp.valeAlimentacao,
+                    valeTransporte: emp.valeTransporte
+                } : null
+            };
         });
 
         return NextResponse.json({
-            explicacao: "Este endpoint mostra os dados reais salvos no banco de dados de produção.",
-            colaboradores: list
+            explicacao: "Este endpoint mostra os dados reais salvos no banco de dados de produção para as 12 pessoas.",
+            matches
         });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
