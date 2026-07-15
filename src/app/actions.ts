@@ -339,6 +339,9 @@ export async function createEmployee(formData: FormData) {
 
     const admissionDate = admissionDateStr ? new Date(admissionDateStr) : new Date();
 
+    const extraFieldsStr = formData.get("extraFields") as string;
+    const extraFields = extraFieldsStr ? JSON.parse(extraFieldsStr) : null;
+
     await prisma.$transaction(async (tx) => {
         // 1. Create Employee
         const newEmployee = await tx.employee.create({
@@ -363,7 +366,8 @@ export async function createEmployee(formData: FormData) {
                 phone: (formData.get("phone") as string) || null,
                 email: (formData.get("email") as string) || null,
                 birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : null,
-                gender: (formData.get("gender") as string) || null
+                gender: (formData.get("gender") as string) || null,
+                extraFields: extraFields || undefined
             }
         });
 
@@ -848,6 +852,9 @@ export async function updateEmployee(formData: FormData) {
     const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
     const valeTransporte = parseFloat(formData.get("valeTransporte") as string) || 0;
 
+    const extraFieldsStr = formData.get("extraFields") as string;
+    const extraFields = extraFieldsStr ? JSON.parse(extraFieldsStr) : null;
+
     // Constraint Check: Situation Change vs Active Assignment
     if (situationId) {
         const activeAssignments = await prisma.assignment.count({
@@ -907,7 +914,8 @@ export async function updateEmployee(formData: FormData) {
                 phone: (formData.get("phone") as string) || null,
                 email: (formData.get("email") as string) || null,
                 dismissalReason: (formData.get("dismissalReason") as string) || null,
-                dismissalNotes: (formData.get("dismissalNotes") as string) || null
+                dismissalNotes: (formData.get("dismissalNotes") as string) || null,
+                extraFields: extraFields || undefined
             },
             include: { role: true, situation: true }
         });

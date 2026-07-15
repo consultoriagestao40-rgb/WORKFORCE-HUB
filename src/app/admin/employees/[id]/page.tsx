@@ -32,7 +32,7 @@ import { EmployeeTimeline } from "@/components/admin/EmployeeTimeline";
 import { VacationHistory } from "@/components/admin/VacationHistory";
 
 async function getEmployeeDetails(id: string) {
-    const [employee, situations, roles, companies] = await Promise.all([
+    const [employee, situations, roles, companies, postos] = await Promise.all([
         prisma.employee.findUnique({
             where: { id },
             include: {
@@ -54,9 +54,12 @@ async function getEmployeeDetails(id: string) {
         }),
         prisma.situation.findMany({ orderBy: { name: 'asc' } }),
         prisma.role.findMany({ orderBy: { name: 'asc' } }),
-        prisma.company.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } })
+        prisma.company.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } }),
+        prisma.posto.findMany({
+            include: { client: true, role: true }
+        })
     ]);
-    return { employee, situations, roles, companies };
+    return { employee, situations, roles, companies, postos };
 }
 
 export default async function EmployeeProfilePage(props: { 
@@ -66,7 +69,7 @@ export default async function EmployeeProfilePage(props: {
     const params = await props.params;
     const resolvedSearchParams = props.searchParams ? await props.searchParams : {};
     const backTo = resolvedSearchParams.backTo || "/admin/employees";
-    const { employee, situations, roles, companies } = await getEmployeeDetails(params.id);
+    const { employee, situations, roles, companies, postos } = await getEmployeeDetails(params.id);
     const timelineEvents = employee ? await getEmployeeTimeline(employee.id) : [];
 
     if (!employee) return (
@@ -120,7 +123,7 @@ export default async function EmployeeProfilePage(props: {
                     </Button>
                 </Link>
                 <div className="flex gap-3">
-                    <EditEmployeeSheet employee={employee} situations={situations} roles={roles} companies={companies} />
+                    <EditEmployeeSheet employee={employee} situations={situations} roles={roles} companies={companies} postos={postos} />
                 </div>
             </div>
 

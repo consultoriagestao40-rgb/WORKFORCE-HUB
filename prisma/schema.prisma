@@ -199,6 +199,7 @@ model Employee {
   vacations              Vacation[]
   attendances            Attendance[]        @relation("EmployeeAttendance")
   coveredAttendances     Attendance[]        @relation("AttendanceCoveredBy")
+  extraFields            Json?
 }
 
 model Vacancy {
@@ -277,6 +278,7 @@ model RecruitmentCandidate {
   requirementsEvaluation Json?
   resumeText             String?
   appliedFromPublicForm  Boolean @default(false)
+  extraFields            Json?
 }
 
 model RecruitmentStage {

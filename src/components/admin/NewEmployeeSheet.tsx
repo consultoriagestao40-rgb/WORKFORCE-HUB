@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Sparkles } from "lucide-react";
 import { createEmployee } from "@/app/actions";
 import { toast } from "sonner";
+import { EmployeeOnvioWizard } from "./EmployeeOnvioWizard";
 
 export interface NewEmployeeSheetProps {
     situations: { id: string, name: string }[];
@@ -177,6 +178,26 @@ export function NewEmployeeSheet({
         if (onSuccess) onSuccess();
     }
 
+    const wizardData = {
+        name,
+        cpf,
+        birthDate,
+        gender,
+        address,
+        phone,
+        email,
+        roleId,
+        companyId,
+        postoId: selectedPostoId,
+        salary,
+        insalubridade,
+        periculosidade,
+        gratificacao,
+        outrosAdicionais,
+        workload,
+        admissionDate
+    };
+
     return (
         <Sheet open={open} onOpenChange={setOpen}>
             {!isControlled && (
@@ -184,7 +205,7 @@ export function NewEmployeeSheet({
                     <Button><Plus className="w-4 h-4 mr-2" /> Novo Colaborador</Button>
                 </SheetTrigger>
             )}
-            <SheetContent className="px-10 sm:max-w-[650px] w-full">
+            <SheetContent className="px-10 sm:max-w-5xl w-full">
                 <SheetHeader>
                     <SheetTitle>Novo Colaborador</SheetTitle>
                     <SheetDescription>Cadastre um novo funcionário vinculando-o a um posto.</SheetDescription>
@@ -221,183 +242,58 @@ export function NewEmployeeSheet({
                         )}
                     </div>
 
-                    <div className="space-y-2">
-                        <Label htmlFor="postoId">Posto de Trabalho (Obrigatório)</Label>
-                        <Select
-                            name="postoId"
-                            value={selectedPostoId}
-                            onValueChange={handlePostoChange}
-                            required
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Selecione o posto..." />
-                            </SelectTrigger>
-                            <SelectContent className="max-h-[250px]">
-                                {availablePostos.map(p => (
-                                    <SelectItem key={p.id} value={p.id}>
-                                        {p.client?.name} - {p.role?.name} ({p.schedule || "N/A"}: {p.startTime || "00:00"}-{p.endTime || "00:00"})
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    <EmployeeOnvioWizard
+                        initialData={wizardData}
+                        situations={situations}
+                        roles={roles}
+                        companies={companies}
+                        postos={postos}
+                        selectedPostoId={selectedPostoId}
+                        setSelectedPostoId={handlePostoChange}
+                    />
 
-                    <div className="space-y-2">
-                        <Label htmlFor="name">Nome Completo</Label>
-                        <Input id="name" name="name" required value={name} onChange={e => setName(e.target.value)} />
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label htmlFor="companyId">Empresa Vinculada</Label>
-                        <Select name="companyId" value={companyId} onValueChange={setCompanyId}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Selecione a empresa" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {companies.map(c => (
-                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="cpf">CPF</Label>
-                            <Input id="cpf" name="cpf" placeholder="000.000.000-00" required value={cpf} onChange={e => setCpf(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="workload">Carga Horária Mensal</Label>
-                            <Input id="workload" name="workload" type="number" value={workload} onChange={e => setWorkload(e.target.value)} required />
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="birthDate">Data de Nascimento</Label>
-                            <Input id="birthDate" name="birthDate" type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="gender">Gênero</Label>
-                            <Select name="gender" value={gender} onValueChange={setGender}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Masculino">Masculino</SelectItem>
-                                    <SelectItem value="Feminino">Feminino</SelectItem>
-                                    <SelectItem value="Outro">Outro</SelectItem>
-                                    <SelectItem value="Prefiro não dizer">Prefiro não dizer</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-
-                    <div className="text-sm font-semibold border-b pt-4 pb-1">Contato e Endereço</div>
-                    <div className="space-y-2">
-                        <Label htmlFor="address">Endereço Completo</Label>
-                        <Input id="address" name="address" placeholder="Rua, Número, Bairro, Cidade - UF" value={address} onChange={e => setAddress(e.target.value)} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="phone">Telefone / Celular</Label>
-                            <Input id="phone" name="phone" placeholder="(00) 00000-0000" value={phone} onChange={e => setPhone(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="email">Email Pessoal</Label>
-                            <Input id="email" name="email" type="email" placeholder="email@exemplo.com" value={email} onChange={e => setEmail(e.target.value)} />
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="admissionDate">Data de Admissão</Label>
-                            <Input id="admissionDate" name="admissionDate" type="date" required value={admissionDate} onChange={e => setAdmissionDate(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="situationId">Situação Atual</Label>
-                            <Select name="situationId" required>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {situations.map(s => (
-                                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="roleId">Cargo</Label>
-                        <Select name="roleId" required value={roleId} onValueChange={setRoleId}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Selecione o cargo" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {roles.map(r => (
-                                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="text-sm font-semibold border-b pt-4 pb-1">Financeiro (Mensal)</div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="salary">Salário Base (R$)</Label>
-                            <Input id="salary" name="salary" type="number" step="0.01" value={salary} onChange={e => setSalary(e.target.value)} placeholder="0.00" />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="insalubridade">Insalubridade (R$)</Label>
-                            <Input id="insalubridade" name="insalubridade" type="number" step="0.01" value={insalubridade} onChange={e => setInsalubridade(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="periculosidade">Periculosidade (R$)</Label>
-                            <Input id="periculosidade" name="periculosidade" type="number" step="0.01" value={periculosidade} onChange={e => setPericulosidade(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="gratificacao">Gratificacao CCT (R$)</Label>
-                            <Input id="gratificacao" name="gratificacao" type="number" step="0.01" value={gratificacao} onChange={e => setGratificacao(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="outrosAdicionais">Outros Adicionais (R$)</Label>
-                            <Input id="outrosAdicionais" name="outrosAdicionais" type="number" step="0.01" value={outrosAdicionais} onChange={e => setOutrosAdicionais(e.target.value)} />
-                        </div>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label htmlFor="type">Tipo de Contrato</Label>
-                        <Select name="type" required defaultValue="CLT">
-                            <SelectTrigger>
-                                <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="CLT">CLT (Efetivo)</SelectItem>
-                                <SelectItem value="Reserva Técnica">Reserva Técnica</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="flex gap-2 pt-2">
+                    <div className="flex gap-2 pt-2 border-t mt-4">
                         <Button 
                             type="button" 
                             variant="outline"
                             onClick={() => {
-                                const roleName = roles.find(r => r.id === roleId)?.name || "";
-                                const companyName = companies.find(c => c.id === companyId)?.name || "";
+                                const nameVal = (document.getElementById("name") as HTMLInputElement)?.value || name;
+                                const cpfVal = (document.getElementById("cpf") as HTMLInputElement)?.value || cpf;
+                                const phoneVal = (document.getElementById("phone") as HTMLInputElement)?.value || phone;
+                                const emailVal = (document.getElementById("email") as HTMLInputElement)?.value || email;
+                                
+                                const roleSelect = document.querySelector('select[name="roleId"]') as HTMLSelectElement;
+                                const roleVal = roles.find(r => r.id === roleSelect?.value)?.name || "";
+                                
+                                const companySelect = document.querySelector('select[name="companyId"]') as HTMLSelectElement;
+                                const companyVal = companies.find(c => c.id === companySelect?.value)?.name || "";
+                                
+                                const admissionVal = (document.getElementById("admissionDate") as HTMLInputElement)?.value || admissionDate;
+                                const birthVal = (document.getElementById("birthDate") as HTMLInputElement)?.value || birthDate;
+                                
+                                const genderSelect = document.querySelector('select[name="gender"]') as HTMLSelectElement;
+                                const genderVal = genderSelect?.value || gender;
+                                
+                                const addressVal = (document.getElementById("address") as HTMLInputElement)?.value || address;
+                                const salaryVal = (document.getElementById("salary") as HTMLInputElement)?.value || salary;
+
+                                const extraFieldsInput = document.querySelector('input[name="extraFields"]') as HTMLInputElement;
+                                const extraFields = extraFieldsInput ? JSON.parse(extraFieldsInput.value) : {};
+
                                 const event = new CustomEvent("workforceRpaCapture", {
                                     detail: {
-                                        name: name,
-                                        cpf: cpf,
-                                        phone: phone,
-                                        email: email,
-                                        role: roleName,
-                                        salary: salary,
-                                        company: companyName,
-                                        startDate: admissionDate ? new Date(admissionDate + 'T12:00:00').toLocaleDateString('pt-BR') : "",
-                                        birthDate: birthDate ? new Date(birthDate + 'T12:00:00').toLocaleDateString('pt-BR') : "",
-                                        gender: gender,
-                                        address: address
+                                        name: nameVal,
+                                        cpf: cpfVal,
+                                        phone: phoneVal,
+                                        email: emailVal,
+                                        role: roleVal,
+                                        salary: salaryVal,
+                                        company: companyVal,
+                                        startDate: admissionVal ? new Date(admissionVal + 'T12:00:00').toLocaleDateString('pt-BR') : "",
+                                        birthDate: birthVal ? new Date(birthVal + 'T12:00:00').toLocaleDateString('pt-BR') : "",
+                                        gender: genderVal,
+                                        address: addressVal,
+                                        ...extraFields
                                     }
                                 });
                                 document.dispatchEvent(event);
