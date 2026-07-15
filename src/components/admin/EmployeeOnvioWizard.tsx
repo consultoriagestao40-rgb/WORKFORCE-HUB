@@ -548,7 +548,7 @@ export function EmployeeOnvioWizard({
             </div>
 
             {/* Container do Formulário */}
-            <div className="flex-1 overflow-y-auto px-1 min-h-[40vh] max-h-[52vh] pr-2 space-y-4">
+            <div className="flex-1 px-1 pr-2 space-y-4">
                 
                 {/* --- SEÇÃO 1: GERAL --- */}
                 {currentStep === 1 && (
