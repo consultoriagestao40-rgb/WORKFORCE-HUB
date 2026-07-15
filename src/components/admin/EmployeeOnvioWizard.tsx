@@ -187,6 +187,52 @@ export function EmployeeOnvioWizard({
         }
     }, [currentPostoId, postos]);
 
+    // Auto-fill fields from selected Posto when currentPostoId changes (on initial load or conversion)
+    useEffect(() => {
+        if (currentPostoId && postos && postos.length > 0) {
+            const selectedPosto = postos.find(p => p.id === currentPostoId);
+            if (selectedPosto) {
+                // Sincroniza apenas se estiver vazio ou com o valor padrão para não sobrescrever edições salvas
+                if (!salary || salary === "0") {
+                    setSalary(String(selectedPosto.baseSalary || 0));
+                }
+                if (!insalubridade || insalubridade === "0") {
+                    setInsalubridade(String(selectedPosto.insalubridade || 0));
+                }
+                if (!periculosidade || periculosidade === "0") {
+                    setPericulosidade(String(selectedPosto.periculosidade || 0));
+                }
+                if (!gratificacao || gratificacao === "0") {
+                    setGratificacao(String(selectedPosto.gratificacao || 0));
+                }
+                if (!outrosAdicionais || outrosAdicionais === "0") {
+                    setOutrosAdicionais(String(selectedPosto.outrosAdicionais || 0));
+                }
+                if (!valeAlimentacao || valeAlimentacao === "0") {
+                    setValeAlimentacao(String(selectedPosto.valeAlimentacao || 0));
+                }
+                if (!valeTransporte || valeTransporte === "0") {
+                    setValeTransporte(String(selectedPosto.valeTransporte || 0));
+                }
+                if (!workload || workload === "220") {
+                    setWorkload(String(selectedPosto.requiredWorkload || 220));
+                }
+                if (!roleId) {
+                    setRoleId(selectedPosto.roleId || "");
+                }
+                if (!escalaHorario) {
+                    setEscalaHorario(selectedPosto.schedule || "");
+                }
+                if (!jornadaHoras) {
+                    const hoursStr = (selectedPosto.startTime && selectedPosto.endTime) 
+                        ? `${selectedPosto.startTime} - ${selectedPosto.endTime}` 
+                        : "";
+                    setJornadaHoras(hoursStr);
+                }
+            }
+        }
+    }, [currentPostoId, postos]);
+
     // Sync type based on vinculoEmpregaticio (Onvio Vínculo -> legacy Tipo de Contrato)
     useEffect(() => {
         if (vinculoEmpregaticio === "Celetista") {
@@ -214,13 +260,15 @@ export function EmployeeOnvioWizard({
             setPericulosidade(String(selectedPosto.periculosidade || 0));
             setGratificacao(String(selectedPosto.gratificacao || 0));
             setOutrosAdicionais(String(selectedPosto.outrosAdicionais || 0));
+            setValeAlimentacao(String(selectedPosto.valeAlimentacao || 0));
+            setValeTransporte(String(selectedPosto.valeTransporte || 0));
             setWorkload(String(selectedPosto.requiredWorkload || 220));
             setRoleId(selectedPosto.roleId || "");
             
-            // Set Schedule details in Horário tab too
-            const scaleStr = selectedPosto.schedule || "";
-            const hoursStr = `${selectedPosto.startTime || "00:00"} - ${selectedPosto.endTime || "00:00"}`;
-            setEscalaHorario(scaleStr);
+            setEscalaHorario(selectedPosto.schedule || "");
+            const hoursStr = (selectedPosto.startTime && selectedPosto.endTime) 
+                ? `${selectedPosto.startTime} - ${selectedPosto.endTime}` 
+                : "";
             setJornadaHoras(hoursStr);
         }
     };
