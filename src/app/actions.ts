@@ -1967,3 +1967,54 @@ export async function updateEmployeesFinanceBatch(data: any[], commit: boolean =
         return { error: e.message || "Erro interno ao atualizar base de colaboradores." };
     }
 }
+
+export async function getWizardDropdowns() {
+    let [departments, costCenters, unions] = await Promise.all([
+        prisma.department.findMany({ orderBy: { name: 'asc' } }),
+        prisma.costCenter.findMany({ orderBy: { name: 'asc' } }),
+        prisma.union.findMany({ orderBy: { name: 'asc' } })
+    ]);
+
+    let needsRefresh = false;
+
+    if (departments.length === 0) {
+        await prisma.department.create({ data: { name: "Geral" } });
+        needsRefresh = true;
+    }
+    if (costCenters.length === 0) {
+        await prisma.costCenter.create({ data: { name: "Geral" } });
+        needsRefresh = true;
+    }
+    if (unions.length === 0) {
+        await prisma.union.create({ data: { name: "SIEMACO" } });
+        needsRefresh = true;
+    }
+
+    if (needsRefresh) {
+        [departments, costCenters, unions] = await Promise.all([
+            prisma.department.findMany({ orderBy: { name: 'asc' } }),
+            prisma.costCenter.findMany({ orderBy: { name: 'asc' } }),
+            prisma.union.findMany({ orderBy: { name: 'asc' } })
+        ]);
+    }
+
+    return { departments, costCenters, unions };
+}
+
+export async function addDepartment(name: string) {
+    const existing = await prisma.department.findUnique({ where: { name } });
+    if (existing) return existing;
+    return await prisma.department.create({ data: { name } });
+}
+
+export async function addCostCenter(name: string) {
+    const existing = await prisma.costCenter.findUnique({ where: { name } });
+    if (existing) return existing;
+    return await prisma.costCenter.create({ data: { name } });
+}
+
+export async function addUnion(name: string) {
+    const existing = await prisma.union.findUnique({ where: { name } });
+    if (existing) return existing;
+    return await prisma.union.create({ data: { name } });
+}

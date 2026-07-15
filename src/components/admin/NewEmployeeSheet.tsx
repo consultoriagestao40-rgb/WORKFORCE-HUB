@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Sparkles } from "lucide-react";
-import { createEmployee } from "@/app/actions";
+import { createEmployee, getWizardDropdowns } from "@/app/actions";
 import { toast } from "sonner";
 import { EmployeeOnvioWizard } from "./EmployeeOnvioWizard";
 
@@ -83,6 +83,21 @@ export function NewEmployeeSheet({
 
     // Estado de carregamento da IA
     const [isExtracting, setIsExtracting] = useState(false);
+
+    // States for custom dropdown options
+    const [departments, setDepartments] = useState<{ id: string, name: string }[]>([]);
+    const [costCenters, setCostCenters] = useState<{ id: string, name: string }[]>([]);
+    const [unions, setUnions] = useState<{ id: string, name: string }[]>([]);
+
+    useEffect(() => {
+        if (open) {
+            getWizardDropdowns().then(res => {
+                setDepartments(res.departments);
+                setCostCenters(res.costCenters);
+                setUnions(res.unions);
+            });
+        }
+    }, [open]);
 
     const handlePostoChange = (postoId: string) => {
         setSelectedPostoId(postoId);
@@ -250,6 +265,9 @@ export function NewEmployeeSheet({
                         postos={postos}
                         selectedPostoId={selectedPostoId}
                         setSelectedPostoId={handlePostoChange}
+                        departments={departments}
+                        costCenters={costCenters}
+                        unions={unions}
                     />
 
                     <div className="flex gap-2 pt-2 border-t mt-4">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Edit } from "lucide-react";
-import { updateEmployee } from "@/app/actions";
+import { updateEmployee, getWizardDropdowns } from "@/app/actions";
 import { VacationHistory } from "./VacationHistory";
 import { toast } from "sonner";
 import { EmployeeOnvioWizard } from "./EmployeeOnvioWizard";
@@ -27,6 +27,19 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [],
     const [selectedPostoId, setSelectedPostoId] = useState(
         employee.assignments?.find((a: any) => !a.endDate)?.postoId || ""
     );
+    const [departments, setDepartments] = useState<{ id: string, name: string }[]>([]);
+    const [costCenters, setCostCenters] = useState<{ id: string, name: string }[]>([]);
+    const [unions, setUnions] = useState<{ id: string, name: string }[]>([]);
+
+    useEffect(() => {
+        if (open) {
+            getWizardDropdowns().then(res => {
+                setDepartments(res.departments);
+                setCostCenters(res.costCenters);
+                setUnions(res.unions);
+            });
+        }
+    }, [open]);
 
     async function handleSubmit(formData: FormData) {
         try {
@@ -71,6 +84,9 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [],
                         postos={postos}
                         selectedPostoId={selectedPostoId}
                         setSelectedPostoId={setSelectedPostoId}
+                        departments={departments}
+                        costCenters={costCenters}
+                        unions={unions}
                     />
 
                     {/* Férias / Histórico */}

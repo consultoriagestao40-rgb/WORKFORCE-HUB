@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, ChevronRight, ChevronLeft } from "lucide-react";
+import { addDepartment, addCostCenter, addUnion } from "@/app/actions";
 
 interface EmployeeOnvioWizardProps {
     initialData?: any;
@@ -16,6 +17,9 @@ interface EmployeeOnvioWizardProps {
     onPostoChange?: (postoId: string) => void;
     selectedPostoId?: string;
     setSelectedPostoId?: (postoId: string) => void;
+    departments?: { id: string; name: string }[];
+    costCenters?: { id: string; name: string }[];
+    unions?: { id: string; name: string }[];
 }
 
 const steps = [
@@ -57,7 +61,10 @@ export function EmployeeOnvioWizard({
     postos = [],
     onPostoChange,
     selectedPostoId: controlledPostoId,
-    setSelectedPostoId: setControlledPostoId
+    setSelectedPostoId: setControlledPostoId,
+    departments = [],
+    costCenters = [],
+    unions = []
 }: EmployeeOnvioWizardProps) {
     const [currentTabIdx, setCurrentTabIdx] = useState(0);
 
@@ -89,9 +96,16 @@ export function EmployeeOnvioWizard({
     const [nomeSocial, setNomeSocial] = useState("");
     const [matricula, setMatrícula] = useState("");
     const [funcao, setFuncao] = useState("");
-    const [departamento, setDepartamento] = useState("");
-    const [centroCusto, setCentroCusto] = useState("");
-    const [sindicato, setSindicato] = useState("");
+    
+    // Dynamic Dropdown Lists
+    const [localDepartments, setLocalDepartments] = useState<{ id: string; name: string }[]>(departments);
+    const [localCostCenters, setLocalCostCenters] = useState<{ id: string; name: string }[]>(costCenters);
+    const [localUnions, setLocalUnions] = useState<{ id: string; name: string }[]>(unions);
+
+    // Dropdown value states (with defaults)
+    const [departamento, setDepartamento] = useState("Geral");
+    const [centroCusto, setCentroCusto] = useState("Geral");
+    const [sindicato, setSindicato] = useState("SIEMACO");
     
     const [categoriaAdmissao, setCategoriaAdmissao] = useState("Mensalista");
     const [vinculoEmpregaticio, setVinculoEmpregaticio] = useState("Celetista");
@@ -144,8 +158,30 @@ export function EmployeeOnvioWizard({
     const [dependentes, setDependentes] = useState<any[]>([]);
     const [observacoes, setObservacoes] = useState("");
 
+    // Synchronize parent lists
+    useEffect(() => {
+        if (departments && departments.length > 0) setLocalDepartments(departments);
+    }, [departments]);
+    useEffect(() => {
+        if (costCenters && costCenters.length > 0) setLocalCostCenters(costCenters);
+    }, [costCenters]);
+    useEffect(() => {
+        if (unions && unions.length > 0) setLocalUnions(unions);
+    }, [unions]);
+
     // Synchronize controlled and internal state for Posto
     const currentPostoId = controlledPostoId !== undefined ? controlledPostoId : postoId;
+    
+    // RULE: Prefill companyId (Serviço) based on currentPostoId
+    useEffect(() => {
+        if (currentPostoId) {
+            const selectedPosto = postos.find(p => p.id === currentPostoId);
+            if (selectedPosto && selectedPosto.client?.companyId) {
+                setCompanyId(selectedPosto.client.companyId);
+            }
+        }
+    }, [currentPostoId, postos]);
+
     const handlePostoChangeInternal = (val: string) => {
         if (setControlledPostoId) {
             setControlledPostoId(val);
@@ -166,7 +202,6 @@ export function EmployeeOnvioWizard({
             setOutrosAdicionais(String(selectedPosto.outrosAdicionais || 0));
             setWorkload(String(selectedPosto.requiredWorkload || 220));
             setRoleId(selectedPosto.roleId || "");
-            setCompanyId(selectedPosto.client?.companyId || "");
             
             // Set Schedule details in Horário tab too
             const scaleStr = selectedPosto.schedule || "";
@@ -221,9 +256,10 @@ export function EmployeeOnvioWizard({
             setNomeSocial(extra.nomeSocial || "");
             setMatrícula(extra.matricula || "");
             setFuncao(extra.funcao || "");
-            setDepartamento(extra.departamento || "");
-            setCentroCusto(extra.centroCusto || "");
-            setSindicato(extra.sindicato || "");
+            
+            setDepartamento(extra.departamento || "Geral");
+            setCentroCusto(extra.centroCusto || "Geral");
+            setSindicato(extra.sindicato || "SIEMACO");
             
             setCategoriaAdmissao(extra.categoriaAdmissao || "Mensalista");
             setVinculoEmpregaticio(extra.vinculoEmpregaticio || "Celetista");
@@ -294,6 +330,52 @@ export function EmployeeOnvioWizard({
     const handleBack = () => {
         if (currentTabIdx > 0) {
             setCurrentTabIdx(currentTabIdx - 1);
+        }
+    };
+
+    // Dynamic additions (+) click handlers
+    const handleAddDepartment = async () => {
+        const name = window.prompt("Digite o nome do novo Departamento:");
+        if (!name || name.trim() === "") return;
+        try {
+            const newDept = await addDepartment(name.trim());
+            setLocalDepartments(prev => {
+                if (prev.some(d => d.id === newDept.id)) return prev;
+                return [...prev, newDept].sort((a,b) => a.name.localeCompare(b.name));
+            });
+            setDepartamento(newDept.name);
+        } catch (e) {
+            alert("Erro ao adicionar departamento.");
+        }
+    };
+
+    const handleAddCostCenter = async () => {
+        const name = window.prompt("Digite o nome do novo Centro de Custo:");
+        if (!name || name.trim() === "") return;
+        try {
+            const newCC = await addCostCenter(name.trim());
+            setLocalCostCenters(prev => {
+                if (prev.some(c => c.id === newCC.id)) return prev;
+                return [...prev, newCC].sort((a,b) => a.name.localeCompare(b.name));
+            });
+            setCentroCusto(newCC.name);
+        } catch (e) {
+            alert("Erro ao adicionar centro de custo.");
+        }
+    };
+
+    const handleAddUnion = async () => {
+        const name = window.prompt("Digite o nome do novo Sindicato:");
+        if (!name || name.trim() === "") return;
+        try {
+            const newUnion = await addUnion(name.trim());
+            setLocalUnions(prev => {
+                if (prev.some(u => u.id === newUnion.id)) return prev;
+                return [...prev, newUnion].sort((a,b) => a.name.localeCompare(b.name));
+            });
+            setSindicato(newUnion.name);
+        } catch (e) {
+            alert("Erro ao adicionar sindicato.");
         }
     };
 
@@ -385,7 +467,6 @@ export function EmployeeOnvioWizard({
                             key={s.number}
                             type="button"
                             onClick={() => {
-                                // Find index of first tab of selected step
                                 const firstTabIdx = wizardTabs.findIndex(t => t.step === s.number);
                                 if (firstTabIdx !== -1) setCurrentTabIdx(firstTabIdx);
                             }}
@@ -490,17 +571,71 @@ export function EmployeeOnvioWizard({
                                         </SelectContent>
                                     </Select>
                                 </div>
+
+                                {/* Dynamic Dropdown: Departamento */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="departamento">Departamento <span className="text-slate-400 text-[10px]">(opcional)</span></Label>
-                                    <Input id="departamento" value={departamento} onChange={e => setDepartamento(e.target.value)} placeholder="Ex: Operacional" />
+                                    <Label htmlFor="departamento">Departamento</Label>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1">
+                                            <Select value={departamento} onValueChange={setDepartamento}>
+                                                <SelectTrigger id="departamento">
+                                                    <SelectValue placeholder="Selecione o departamento" />
+                                                </SelectTrigger>
+                                                <SelectContent className="max-h-[160px]">
+                                                    {localDepartments.map(d => (
+                                                        <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <Button type="button" size="icon" variant="outline" onClick={handleAddDepartment} className="h-9 w-9 shrink-0" title="Adicionar Departamento">
+                                            <Plus className="w-4 h-4" />
+                                        </Button>
+                                    </div>
                                 </div>
+
+                                {/* Dynamic Dropdown: Centro de Custo */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="centroCusto">Centro de Custo <span className="text-slate-400 text-[10px]">(opcional)</span></Label>
-                                    <Input id="centroCusto" value={centroCusto} onChange={e => setCentroCusto(e.target.value)} placeholder="Ex: ADMIN" />
+                                    <Label htmlFor="centroCusto">Centro de Custo</Label>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1">
+                                            <Select value={centroCusto} onValueChange={setCentroCusto}>
+                                                <SelectTrigger id="centroCusto">
+                                                    <SelectValue placeholder="Selecione o centro de custo" />
+                                                </SelectTrigger>
+                                                <SelectContent className="max-h-[160px]">
+                                                    {localCostCenters.map(cc => (
+                                                        <SelectItem key={cc.id} value={cc.name}>{cc.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <Button type="button" size="icon" variant="outline" onClick={handleAddCostCenter} className="h-9 w-9 shrink-0" title="Adicionar Centro de Custo">
+                                            <Plus className="w-4 h-4" />
+                                        </Button>
+                                    </div>
                                 </div>
+
+                                {/* Dynamic Dropdown: Sindicato */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="sindicato">Sindicato <span className="text-slate-400 text-[10px]">(opcional)</span></Label>
-                                    <Input id="sindicato" value={sindicato} onChange={e => setSindicato(e.target.value)} placeholder="Ex: Siemaco" />
+                                    <Label htmlFor="sindicato">Sindicato</Label>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1">
+                                            <Select value={sindicato} onValueChange={setSindicato}>
+                                                <SelectTrigger id="sindicato">
+                                                    <SelectValue placeholder="Selecione o sindicato" />
+                                                </SelectTrigger>
+                                                <SelectContent className="max-h-[160px]">
+                                                    {localUnions.map(u => (
+                                                        <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <Button type="button" size="icon" variant="outline" onClick={handleAddUnion} className="h-9 w-9 shrink-0" title="Adicionar Sindicato">
+                                            <Plus className="w-4 h-4" />
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         )}
