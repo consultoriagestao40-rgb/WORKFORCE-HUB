@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Sparkles } from "lucide-react";
+import { Plus } from "lucide-react";
 import { createEmployee, getWizardDropdowns } from "@/app/actions";
 import { toast } from "sonner";
 import { EmployeeOnvioWizard } from "./EmployeeOnvioWizard";
@@ -81,8 +81,6 @@ export function NewEmployeeSheet({
     const [email, setEmail] = useState(initialData?.email || "");
     const [admissionDate, setAdmissionDate] = useState(new Date().toISOString().split('T')[0]);
 
-    // Estado de carregamento da IA
-    const [isExtracting, setIsExtracting] = useState(false);
 
     // States for custom dropdown options
     const [departments, setDepartments] = useState<{ id: string, name: string }[]>([]);
@@ -116,43 +114,6 @@ export function NewEmployeeSheet({
         }
     };
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        setIsExtracting(true);
-        const formData = new FormData();
-        formData.append("file", file);
-
-        try {
-            const res = await fetch("/api/extract-document", {
-                method: "POST",
-                body: formData
-            });
-
-            const result = await res.json();
-            if (!result.success) {
-                toast.error(result.error || "Ocorreu um erro ao extrair os dados.");
-                return;
-            }
-
-            const data = result.data;
-            if (data.name) setName(data.name);
-            if (data.cpf) setCpf(data.cpf);
-            if (data.birthDate) setBirthDate(data.birthDate);
-            if (data.gender) setGender(data.gender);
-            if (data.address) setAddress(data.address);
-            if (data.phone) setPhone(data.phone);
-            if (data.email) setEmail(data.email);
-
-            toast.success("Dados cadastrais extraídos com sucesso via IA!");
-        } catch (error: any) {
-            toast.error("Erro ao conectar com o serviço de extração.");
-        } finally {
-            setIsExtracting(false);
-            e.target.value = ""; // Limpar input
-        }
-    };
 
     useEffect(() => {
         if (open && initialData) {
@@ -235,29 +196,6 @@ export function NewEmployeeSheet({
                     )}
                 </SheetHeader>
                 <form action={handleSubmit} className="space-y-4 mt-6 h-[80vh] overflow-y-auto pr-4">
-                    {/* Área de Preenchimento Inteligente por IA */}
-                    <div className="p-4 bg-orange-50/60 border border-dashed border-orange-200 rounded-2xl flex flex-col items-center justify-center text-center gap-2">
-                        {isExtracting ? (
-                            <div className="flex flex-col items-center gap-2 py-2">
-                                <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                                <span className="text-xs font-bold text-orange-700">Analisando documento com IA...</span>
-                            </div>
-                        ) : (
-                            <label className="cursor-pointer w-full flex flex-col items-center gap-1.5 py-1">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-orange-700">
-                                    <Sparkles className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
-                                    Preenchimento Inteligente (IA)
-                                </div>
-                                <span className="text-[10px] text-slate-500 font-medium">Anexe CNH, RG ou Comprovante de Residência (PDF ou imagem)</span>
-                                <input
-                                    type="file"
-                                    accept="image/*,application/pdf"
-                                    className="hidden"
-                                    onChange={handleFileChange}
-                                />
-                            </label>
-                        )}
-                    </div>
 
                     <EmployeeOnvioWizard
                         initialData={wizardData}
