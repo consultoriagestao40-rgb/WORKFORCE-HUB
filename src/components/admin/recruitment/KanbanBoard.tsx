@@ -86,7 +86,8 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
         situations: { id: string, name: string }[];
         roles: { id: string, name: string }[];
         companies: { id: string, name: string }[];
-    }>({ situations: [], roles: [], companies: [] });
+        postos: any[];
+    }>({ situations: [], roles: [], companies: [], postos: [] });
     const [prefilledEmployee, setPrefilledEmployee] = useState<any>(null);
 
     // FIX: Sync local state with server state when revalidatePath occurs
@@ -658,6 +659,7 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                 situations={employeeFormData.situations}
                 roles={employeeFormData.roles}
                 companies={employeeFormData.companies}
+                postos={employeeFormData.postos}
                 initialData={prefilledEmployee}
                 onSuccess={() => {
                     if (pendingMove) {

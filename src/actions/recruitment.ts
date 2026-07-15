@@ -903,15 +903,19 @@ export async function getBacklogItems() {
 }
 
 export async function getEmployeeFormData() {
-    const [situations, roles, companies] = await Promise.all([
+    const [situations, roles, companies, postos] = await Promise.all([
         prisma.situation.findMany({ orderBy: { name: 'asc' } }),
         prisma.role.findMany({ orderBy: { name: 'asc' } }),
         prisma.company.findMany({
             select: { id: true, name: true },
             orderBy: { name: 'asc' }
+        }),
+        prisma.posto.findMany({
+            include: { client: true, role: true },
+            orderBy: { client: { name: 'asc' } }
         })
     ]);
-    return { situations, roles, companies };
+    return { situations, roles, companies, postos };
 }
 
 // --- NEW: Delete Vacancy ---
