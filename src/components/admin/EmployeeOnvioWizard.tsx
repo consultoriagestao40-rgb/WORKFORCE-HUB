@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, ChevronRight, ChevronLeft } from "lucide-react";
+import { Plus, Trash2, ChevronRight, ChevronLeft, CheckCircle2, FileText, Download, UploadCloud } from "lucide-react";
 import { addDepartment, addCostCenter, addUnion, addJobFunction } from "@/app/actions";
 
 interface EmployeeOnvioWizardProps {
@@ -613,7 +613,14 @@ export function EmployeeOnvioWizard({
         };
         reader.readAsDataURL(file);
     };
-
+    const handleDownloadFile = (fileData: string, fileName: string) => {
+        const link = document.createElement("a");
+        link.href = fileData;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
     const updateDependent = (idx: number, field: string, value: string) => {
         const updated = dependentes.map((d, i) => {
             if (i === idx) {
@@ -1005,7 +1012,7 @@ export function EmployeeOnvioWizard({
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-3">
                                     {[
                                         { key: "cnh", label: "CNH", description: "Carteira Nacional de Habilitação" },
                                         { key: "rg", label: "Identidade (RG)", description: "Cédula de Identidade" },
@@ -1028,54 +1035,100 @@ export function EmployeeOnvioWizard({
                                                 }`}
                                             >
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${
+                                                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
                                                         uploadedFile 
                                                             ? "bg-green-100 text-green-700" 
                                                             : "bg-slate-100 text-slate-500"
                                                     }`}>
-                                                        <Plus className="w-4 h-4 rotate-45" />
+                                                        {uploadedFile ? (
+                                                            <CheckCircle2 className="w-5 h-5" />
+                                                        ) : (
+                                                            <FileText className="w-5 h-5" />
+                                                        )}
                                                     </div>
                                                     <div className="space-y-0.5">
                                                         <span className="text-xs font-bold text-slate-800">{slot.label}</span>
                                                         <p className="text-[10px] text-slate-400 font-medium leading-none">
                                                             {uploadedFile 
-                                                                ? `Enviado: ${uploadedFile.fileName.slice(0, 30)}${uploadedFile.fileName.length > 30 ? "..." : ""}` 
+                                                                ? `Arquivo: ${uploadedFile.fileName}` 
                                                                 : slot.description
                                                             }
                                                         </p>
                                                     </div>
                                                 </div>
 
-                                                <div className="relative">
-                                                    <Button 
-                                                        type="button" 
-                                                        variant={uploadedFile ? "ghost" : "outline"} 
-                                                        size="sm" 
-                                                        disabled={isLoading}
-                                                        className="text-[10px] font-bold h-8 rounded-xl shrink-0 gap-1.5"
-                                                    >
-                                                        {isLoading ? (
-                                                            <>
-                                                                <div className="w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                                                                Lendo...
-                                                            </>
-                                                        ) : uploadedFile ? (
-                                                            <span className="text-green-600">Substituir</span>
-                                                        ) : (
-                                                            <span>Upload</span>
-                                                        )}
-                                                        <input 
-                                                            type="file" 
-                                                            accept="image/*,application/pdf" 
-                                                            className="absolute inset-0 opacity-0 cursor-pointer" 
-                                                            disabled={isLoading}
-                                                            onChange={e => {
-                                                                const file = e.target.files?.[0];
-                                                                if (file) handleUploadSlot(slot.key, slot.label, file);
-                                                                e.target.value = "";
-                                                            }}
-                                                        />
-                                                    </Button>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    {isLoading ? (
+                                                        <div className="flex items-center gap-1.5 px-3 py-1 bg-orange-50 text-orange-700 rounded-xl text-[10px] font-bold">
+                                                            <div className="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                                                            IA Lendo...
+                                                        </div>
+                                                    ) : uploadedFile ? (
+                                                        <div className="flex items-center gap-1">
+                                                            <Button 
+                                                                type="button" 
+                                                                variant="ghost" 
+                                                                size="icon" 
+                                                                title="Visualizar / Baixar"
+                                                                onClick={() => handleDownloadFile(uploadedFile.fileData, uploadedFile.fileName)}
+                                                                className="h-8 w-8 text-slate-500 hover:text-blue-600 rounded-xl"
+                                                            >
+                                                                <Download className="w-4 h-4" />
+                                                            </Button>
+                                                            <Button 
+                                                                type="button" 
+                                                                variant="ghost" 
+                                                                size="icon" 
+                                                                title="Excluir"
+                                                                onClick={() => setAttachments(prev => prev.filter(a => a.name !== slot.label))}
+                                                                className="h-8 w-8 text-slate-500 hover:text-red-600 rounded-xl"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </Button>
+                                                            <div className="relative">
+                                                                <Button 
+                                                                    type="button" 
+                                                                    variant="outline" 
+                                                                    size="sm" 
+                                                                    className="text-[10px] font-bold h-8 rounded-xl"
+                                                                >
+                                                                    Substituir
+                                                                    <input 
+                                                                        type="file" 
+                                                                        accept="image/*,application/pdf" 
+                                                                        className="absolute inset-0 opacity-0 cursor-pointer" 
+                                                                        onChange={e => {
+                                                                            const file = e.target.files?.[0];
+                                                                            if (file) handleUploadSlot(slot.key, slot.label, file);
+                                                                            e.target.value = "";
+                                                                        }}
+                                                                    />
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="relative">
+                                                            <Button 
+                                                                type="button" 
+                                                                variant="outline" 
+                                                                size="sm" 
+                                                                className="text-[10px] font-bold h-8 rounded-xl gap-1"
+                                                            >
+                                                                <UploadCloud className="w-3.5 h-3.5" />
+                                                                Upload
+                                                                <input 
+                                                                    type="file" 
+                                                                    accept="image/*,application/pdf" 
+                                                                    className="absolute inset-0 opacity-0 cursor-pointer" 
+                                                                    onChange={e => {
+                                                                        const file = e.target.files?.[0];
+                                                                        if (file) handleUploadSlot(slot.key, slot.label, file);
+                                                                        e.target.value = "";
+                                                                    }}
+                                                                />
+                                                            </Button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );
@@ -1087,14 +1140,14 @@ export function EmployeeOnvioWizard({
                                 ].includes(a.name)).length > 0 && (
                                     <div className="space-y-3 border-t pt-4 mt-4">
                                         <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Outros Anexos</Label>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-3">
                                             {attachments.filter(a => ![
                                                 "CNH", "Identidade (RG)", "ASO", "Comprovante de endereço", "Título de Eleitor", "PIS", "Certidão de nascimento de filhos"
                                             ].includes(a.name)).map((extraDoc, i) => (
                                                 <div key={i} className="border border-slate-100 rounded-2xl p-4 flex items-center justify-between gap-4 bg-slate-50/20">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="h-9 w-9 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500">
-                                                            <Plus className="w-4 h-4 rotate-45" />
+                                                        <div className="h-10 w-10 bg-slate-100 rounded-xl flex items-center justify-center shrink-0 text-slate-500">
+                                                            <CheckCircle2 className="w-5 h-5 text-green-600" />
                                                         </div>
                                                         <div className="space-y-0.5">
                                                             <span className="text-xs font-bold text-slate-800">{extraDoc.name}</span>
@@ -1103,15 +1156,28 @@ export function EmployeeOnvioWizard({
                                                             </p>
                                                         </div>
                                                     </div>
-                                                    <Button 
-                                                        type="button" 
-                                                        variant="ghost" 
-                                                        size="sm"
-                                                        onClick={() => setAttachments(prev => prev.filter(a => a.name !== extraDoc.name))}
-                                                        className="text-[10px] font-bold text-red-500 hover:text-red-700 h-8 rounded-xl"
-                                                    >
-                                                        Excluir
-                                                    </Button>
+                                                    <div className="flex items-center gap-1">
+                                                        <Button 
+                                                            type="button" 
+                                                            variant="ghost" 
+                                                            size="icon" 
+                                                            title="Visualizar / Baixar"
+                                                            onClick={() => handleDownloadFile(extraDoc.fileData, extraDoc.fileName)}
+                                                            className="h-8 w-8 text-slate-500 hover:text-blue-600 rounded-xl"
+                                                        >
+                                                            <Download className="w-4 h-4" />
+                                                        </Button>
+                                                        <Button 
+                                                            type="button" 
+                                                            variant="ghost" 
+                                                            size="icon" 
+                                                            title="Excluir"
+                                                            onClick={() => setAttachments(prev => prev.filter(a => a.name !== extraDoc.name))}
+                                                            className="h-8 w-8 text-slate-500 hover:text-red-600 rounded-xl"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
