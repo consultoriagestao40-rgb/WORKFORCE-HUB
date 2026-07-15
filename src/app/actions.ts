@@ -1839,6 +1839,9 @@ export async function updateEmployeesFinanceBatch(data: any[], commit: boolean =
         let notFoundCount = 0;
         const results: any[] = [];
 
+        // Pre-fetch all employees to do robust memory matching (immune to DB formatting issues)
+        const allEmployees = await prisma.employee.findMany();
+
         for (const row of data) {
             const nameSheet = String(row.name || "").trim();
             const rawCpf = String(row.cpf || "").trim();
@@ -1863,14 +1866,10 @@ export async function updateEmployeesFinanceBatch(data: any[], commit: boolean =
                 return `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9, 11)}`;
             };
 
-            // Find employee matching either clean or formatted CPF
-            const emp = await prisma.employee.findFirst({
-                where: {
-                    OR: [
-                        { cpf: cpfClean },
-                        { cpf: formatCPF(cpfClean) }
-                    ]
-                }
+            // Find employee by comparing cleaned CPFs (memory search matches all formatting typos in DB)
+            const emp = allEmployees.find((e: any) => {
+                const cleanDbCpf = (e.cpf || "").replace(/\D/g, "").padStart(11, "0");
+                return cleanDbCpf === cpfClean;
             });
 
             if (!emp) {
@@ -1944,6 +1943,7 @@ export async function updateEmployeesFinanceBatch(data: any[], commit: boolean =
 
         if (commit) {
             revalidatePath("/admin/employees");
+            revalidatePath("/admin/financial-costs");
         }
 
         return {

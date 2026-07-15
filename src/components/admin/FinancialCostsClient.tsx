@@ -1,4 +1,5 @@
 "use client";
+import * as XLSX from "xlsx";
 
 import React, { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -6,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, DollarSign, Users, AlertTriangle, TrendingUp, TrendingDown, Info, Search, ShieldAlert, Award, ExternalLink, ChevronUp, ChevronDown } from "lucide-react";
+import { Calendar, DollarSign, Users, AlertTriangle, TrendingUp, TrendingDown, Info, Search, ShieldAlert, Award, ExternalLink, ChevronUp, ChevronDown, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -155,6 +156,119 @@ export function FinancialCostsClient({
         setTaxRate(rate);
         localStorage.setItem("workforce_hub_tax_rate", String(rate));
         toast.success(`Alíquota de encargos salva em ${rate}% com sucesso!`);
+    };
+
+    const handleExportExcel = () => {
+        const wb = XLSX.utils.book_new();
+
+        if (activeTab === "ferias") {
+            const headers = [
+                "Colaborador",
+                "Cargo",
+                "Contrato",
+                "Empresa",
+                "Tipo",
+                "Data Admissão",
+                "Início Período Aquis.",
+                "Meses Acumulados",
+                "Dias Devidos",
+                "Salário Base (R$)",
+                "Férias Proporcional (R$)",
+                "1/3 Constitucional (R$)",
+                `Encargos (${taxRate}%) (R$)`,
+                "Total Acumulado (R$)"
+            ];
+            const rows = feriasData.map(item => [
+                item.name,
+                item.role,
+                item.contractName,
+                item.companyName,
+                item.type,
+                item.admissionDate ? new Date(item.admissionDate).toLocaleDateString('pt-BR') : "-",
+                item.startOfPeriod ? new Date(item.startOfPeriod).toLocaleDateString('pt-BR') : "-",
+                item.monthsAcrued,
+                item.daysAccrued,
+                item.salary,
+                item.proporcionalVal,
+                item.thirdConstitucional,
+                item.incidentesLegais,
+                item.totalVal
+            ]);
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+            XLSX.utils.book_append_sheet(wb, ws, "Férias Proporcionais");
+            XLSX.writeFile(wb, "Gestao_Custos_Ferias_Proporcionais.xlsx");
+            toast.success("Excel de Férias exportado com sucesso!");
+        } else if (activeTab === "decimo") {
+            const headers = [
+                "Colaborador",
+                "Cargo",
+                "Contrato",
+                "Empresa",
+                "Tipo",
+                "Data Admissão",
+                "Salário Base (R$)",
+                "Meses Trabalhados",
+                "13º Proporcional (R$)",
+                "Deduções (Est.) (R$)",
+                "13º Líquido Acum. (R$)",
+                `Encargos (${taxRate}%) (R$)`,
+                "1ª Parcela (50% Bruto) (R$)",
+                "2ª Parcela (Est. Líquida) (R$)",
+                "Risco Demissional / Turnover"
+            ];
+            const rows = decimoTerceiroData.map(item => [
+                item.name,
+                item.role,
+                item.contractName,
+                item.companyName,
+                item.type,
+                item.admissionDate ? new Date(item.admissionDate).toLocaleDateString('pt-BR') : "-",
+                item.salary,
+                item.monthsInYear,
+                item.valorAcumulado,
+                item.valorAcumulado - item.valorAcumuladoLiquido,
+                item.valorAcumuladoLiquido,
+                item.valorAcumulado * (taxRate / 100),
+                item.primeiraParcela,
+                item.segundaParcela,
+                `Token: ${item.riskStatus} (${item.riskPercentage}%)`
+            ]);
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+            XLSX.utils.book_append_sheet(wb, ws, "13º Salário Proporcional");
+            XLSX.writeFile(wb, "Gestao_Custos_Decimo_Terceiro.xlsx");
+            toast.success("Excel de 13º Salário exportado com sucesso!");
+        } else if (activeTab === "folha") {
+            const headers = [
+                "Colaborador",
+                "Cargo",
+                "Contrato",
+                "Empresa",
+                "Tipo",
+                "Salário Base (R$)",
+                "Adicionais (R$)",
+                "Remuneração Total (R$)",
+                "Vale Transporte (VT) (R$)",
+                "Vale Alimentação (VA) (R$)",
+                "Custo Mensal (R$)"
+            ];
+            const rows = folhaData.map(item => [
+                item.name,
+                item.role,
+                item.contractName,
+                item.companyName,
+                item.type,
+                item.salary,
+                item.totalAdicionais,
+                item.remuneracaoTotal,
+                item.vtMensal,
+                item.vaMensal,
+                item.totalCustoMensal
+            ]);
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+            XLSX.utils.book_append_sheet(wb, ws, "Folha de Pagamento");
+            XLSX.writeFile(wb, "Gestao_Custos_Folha_Pagamento.xlsx");
+            toast.success("Excel de Folha de Pagamento exportado com sucesso!");
+        }
     };
 
     const today = useMemo(() => new Date(), []);
@@ -452,7 +566,8 @@ export function FinancialCostsClient({
                 vaMensal,
                 totalCustoMensal,
                 contractName: clientName,
-                companyName
+                companyName,
+                type: emp.type
             };
         }).filter(item => {
             const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase());
@@ -786,23 +901,34 @@ export function FinancialCostsClient({
                         </TabsTrigger>
                     </TabsList>
 
-                    <div className="flex items-center gap-3 text-xs">
-                        <span className="font-semibold text-slate-500">Incidentes Legais (FGTS + Impostos):</span>
-                        <div className="flex items-center gap-1">
-                            <Input
-                                type="text"
-                                value={taxRateInput}
-                                onChange={(e) => setTaxRateInput(e.target.value)}
-                                className="w-16 h-8 text-center font-bold text-slate-800 text-xs px-1"
-                            />
-                            <span className="font-bold text-slate-700">%</span>
-                        </div>
-                        <Button 
-                            onClick={handleSaveTaxRate}
-                            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm transition-all"
+                    <div className="flex items-center gap-4">
+                        <Button
+                            onClick={handleExportExcel}
+                            variant="outline"
+                            className="h-8 gap-2 border-slate-200 text-slate-600 hover:text-indigo-600 hover:bg-slate-50 text-xs font-bold shadow-sm rounded-lg transition-all"
                         >
-                            Salvar
+                            <Download className="w-3.5 h-3.5 text-emerald-600 animate-bounce" />
+                            Exportar {activeTab === "ferias" ? "Férias" : activeTab === "decimo" ? "13º" : "Folha"} (Excel)
                         </Button>
+
+                        <div className="flex items-center gap-3 text-xs border-l pl-4 border-slate-200">
+                            <span className="font-semibold text-slate-500">Incidentes Legais (FGTS + Impostos):</span>
+                            <div className="flex items-center gap-1">
+                                <Input
+                                    type="text"
+                                    value={taxRateInput}
+                                    onChange={(e) => setTaxRateInput(e.target.value)}
+                                    className="w-16 h-8 text-center font-bold text-slate-800 text-xs px-1"
+                                />
+                                <span className="font-bold text-slate-700">%</span>
+                            </div>
+                            <Button 
+                                onClick={handleSaveTaxRate}
+                                className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm transition-all"
+                            >
+                                Salvar
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
