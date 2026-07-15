@@ -35,8 +35,6 @@ const steps = [
 const wizardTabs = [
     { step: 1, tab: "dados_basicos", label: "Dados Básicos" },
     { step: 1, tab: "admissao", label: "Admissão" },
-    { step: 1, tab: "experiencia", label: "Contrato de Experiência" },
-    { step: 1, tab: "horario", label: "Horário" },
     { step: 1, tab: "anexos", label: "Anexos" },
     
     { step: 2, tab: "ctps", label: "Carteira de Trabalho" },
@@ -710,125 +708,140 @@ export function EmployeeOnvioWizard({
 
                         {/* Tab: Admissão */}
                         {currentTab === "admissao" && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label htmlFor="admissionDate">Data de Admissão</Label>
-                                    <Input id="admissionDate" name="admissionDate" type="date" value={admissionDate} onChange={e => setAdmissionDate(e.target.value)} required />
+                            <div className="space-y-6">
+                                {/* Grupo 1: Dados Contratuais */}
+                                <div className="space-y-3">
+                                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Dados Contratuais</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="admissionDate" className="text-slate-700 font-medium">Data de Admissão</Label>
+                                            <Input id="admissionDate" name="admissionDate" type="date" value={admissionDate} onChange={e => setAdmissionDate(e.target.value)} required />
+                                        </div>
+                                        <input type="hidden" name="type" value={type} />
+                                        <div className="space-y-1">
+                                            <Label htmlFor="categoriaAdmissao" className="text-slate-700 font-medium">Categoria</Label>
+                                            <Select value={categoriaAdmissao} onValueChange={setCategoriaAdmissao}>
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Mensalista">Mensalista</SelectItem>
+                                                    <SelectItem value="Horista">Horista</SelectItem>
+                                                    <SelectItem value="Diarista">Diarista</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="vinculoEmpregaticio" className="text-slate-700 font-medium">Vínculo Empregatício</Label>
+                                            <Select value={vinculoEmpregaticio} onValueChange={setVinculoEmpregaticio}>
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Celetista">Celetista</SelectItem>
+                                                    <SelectItem value="Estatutário">Estatutário</SelectItem>
+                                                    <SelectItem value="Avulso">Avulso</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-1 col-span-1">
+                                            <Label htmlFor="situationId" className="text-slate-700 font-medium">Situação Atual</Label>
+                                            <Select name="situationId" value={situationId} onValueChange={setSituationId} required>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Selecione a situação" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {situations.map(s => (
+                                                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
                                 </div>
-                                <input type="hidden" name="type" value={type} />
-                                <div className="space-y-1">
-                                    <Label htmlFor="categoriaAdmissao">Categoria</Label>
-                                    <Select value={categoriaAdmissao} onValueChange={setCategoriaAdmissao}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Mensalista">Mensalista</SelectItem>
-                                            <SelectItem value="Horista">Horista</SelectItem>
-                                            <SelectItem value="Diarista">Diarista</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="vinculoEmpregaticio">Vínculo Empregatício</Label>
-                                    <Select value={vinculoEmpregaticio} onValueChange={setVinculoEmpregaticio}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Celetista">Celetista</SelectItem>
-                                            <SelectItem value="Estatutário">Estatutário</SelectItem>
-                                            <SelectItem value="Avulso">Avulso</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="workload">Carga Horária Mensal</Label>
-                                    <Input id="workload" name="workload" type="number" value={workload} onChange={e => setWorkload(e.target.value)} required />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="salary">Salário Base (R$)</Label>
-                                    <Input id="salary" name="salary" type="number" step="0.01" value={salary} onChange={e => setSalary(e.target.value)} required />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="insalubridade">Insalubridade (R$)</Label>
-                                    <Input id="insalubridade" name="insalubridade" type="number" step="0.01" value={insalubridade} onChange={e => setInsalubridade(e.target.value)} />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="periculosidade">Periculosidade (R$)</Label>
-                                    <Input id="periculosidade" name="periculosidade" type="number" step="0.01" value={periculosidade} onChange={e => setPericulosidade(e.target.value)} />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="gratificacao">Gratificação CCT (R$)</Label>
-                                    <Input id="gratificacao" name="gratificacao" type="number" step="0.01" value={gratificacao} onChange={e => setGratificacao(e.target.value)} />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="outrosAdicionais">Outros Adicionais (R$)</Label>
-                                    <Input id="outrosAdicionais" name="outrosAdicionais" type="number" step="0.01" value={outrosAdicionais} onChange={e => setOutrosAdicionais(e.target.value)} />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="valeAlimentacao">Vale Alimentação (Mensal - R$)</Label>
-                                    <Input id="valeAlimentacao" name="valeAlimentacao" type="number" step="0.01" value={valeAlimentacao} onChange={e => setValeAlimentacao(e.target.value)} />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="valeTransporte">Vale Transporte (Mensal - R$)</Label>
-                                    <Input id="valeTransporte" name="valeTransporte" type="number" step="0.01" value={valeTransporte} onChange={e => setValeTransporte(e.target.value)} />
-                                </div>
-                                <div className="space-y-1 col-span-2">
-                                    <Label htmlFor="situationId">Situação Atual</Label>
-                                    <Select name="situationId" value={situationId} onValueChange={setSituationId} required>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Selecione a situação atual" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {situations.map(s => (
-                                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                        )}
 
-                        {/* Tab: Contrato de Experiência */}
-                        {currentTab === "experiencia" && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label htmlFor="experienciaDias1">Dias do 1º Período</Label>
-                                    <Input id="experienciaDias1" type="number" value={experienciaDias1} onChange={e => setExperienciaDias1(e.target.value)} placeholder="Ex: 45" />
+                                {/* Grupo 2: Posto e Horário */}
+                                <div className="space-y-3 border-t pt-4">
+                                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Alocação e Horário</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1 col-span-2">
+                                            <Label htmlFor="postoId" className="text-slate-700 font-medium">Vincular Posto de Trabalho</Label>
+                                            <Select name="postoId" value={currentPostoId} onValueChange={handlePostoChangeInternal}>
+                                                <SelectTrigger id="postoId">
+                                                    <SelectValue placeholder="Selecione o posto de trabalho..." />
+                                                </SelectTrigger>
+                                                <SelectContent className="max-h-[200px]">
+                                                    {postos.map(p => (
+                                                        <SelectItem key={p.id} value={p.id}>
+                                                            {p.client?.name} - {p.role?.name} ({p.schedule || "N/A"})
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="escalaHorario" className="text-slate-700 font-medium">Escala / Tipo de Escala</Label>
+                                            <Input id="escalaHorario" value={escalaHorario} onChange={e => setEscalaHorario(e.target.value)} placeholder="Ex: 12x36 ou 5x2" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="jornadaHoras" className="text-slate-700 font-medium">Jornada de Trabalho (Horário)</Label>
+                                            <Input id="jornadaHoras" value={jornadaHoras} onChange={e => setJornadaHoras(e.target.value)} placeholder="Ex: 07:00 às 19:00" />
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="experienciaDias2">Dias de Prorrogação (2º Período)</Label>
-                                    <Input id="experienciaDias2" type="number" value={experienciaDias2} onChange={e => setExperienciaDias2(e.target.value)} placeholder="Ex: 45" />
-                                </div>
-                            </div>
-                        )}
 
-                        {/* Tab: Horário */}
-                        {currentTab === "horario" && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1 col-span-2">
-                                    <Label htmlFor="postoId">Vincular Posto de Trabalho</Label>
-                                    <Select name="postoId" value={currentPostoId} onValueChange={handlePostoChangeInternal}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Selecione o posto de trabalho..." />
-                                        </SelectTrigger>
-                                        <SelectContent className="max-h-[200px]">
-                                            {postos.map(p => (
-                                                <SelectItem key={p.id} value={p.id}>
-                                                    {p.client?.name} - {p.role?.name} ({p.schedule || "N/A"})
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                {/* Grupo 3: Remuneração e Benefícios */}
+                                <div className="space-y-3 border-t pt-4">
+                                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Remuneração e Benefícios</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="workload" className="text-slate-700 font-medium">Carga Horária Mensal</Label>
+                                            <Input id="workload" name="workload" type="number" value={workload} onChange={e => setWorkload(e.target.value)} required />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="salary" className="text-slate-700 font-medium">Salário Base (R$)</Label>
+                                            <Input id="salary" name="salary" type="number" step="0.01" value={salary} onChange={e => setSalary(e.target.value)} required />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="insalubridade" className="text-slate-700 font-medium">Insalubridade (R$)</Label>
+                                            <Input id="insalubridade" name="insalubridade" type="number" step="0.01" value={insalubridade} onChange={e => setInsalubridade(e.target.value)} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="periculosidade" className="text-slate-700 font-medium">Periculosidade (R$)</Label>
+                                            <Input id="periculosidade" name="periculosidade" type="number" step="0.01" value={periculosidade} onChange={e => setPericulosidade(e.target.value)} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="gratificacao" className="text-slate-700 font-medium">Gratificação CCT (R$)</Label>
+                                            <Input id="gratificacao" name="gratificacao" type="number" step="0.01" value={gratificacao} onChange={e => setGratificacao(e.target.value)} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="outrosAdicionais" className="text-slate-700 font-medium">Outros Adicionais (R$)</Label>
+                                            <Input id="outrosAdicionais" name="outrosAdicionais" type="number" step="0.01" value={outrosAdicionais} onChange={e => setOutrosAdicionais(e.target.value)} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="valeAlimentacao" className="text-slate-700 font-medium">Vale Alimentação (R$)</Label>
+                                            <Input id="valeAlimentacao" name="valeAlimentacao" type="number" step="0.01" value={valeAlimentacao} onChange={e => setValeAlimentacao(e.target.value)} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="valeTransporte" className="text-slate-700 font-medium">Vale Transporte (R$)</Label>
+                                            <Input id="valeTransporte" name="valeTransporte" type="number" step="0.01" value={valeTransporte} onChange={e => setValeTransporte(e.target.value)} />
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="escalaHorario">Escala / Tipo de Escala</Label>
-                                    <Input id="escalaHorario" value={escalaHorario} onChange={e => setEscalaHorario(e.target.value)} placeholder="Ex: 12x36 ou 5x2" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="jornadaHoras">Jornada de Trabalho (Horário)</Label>
-                                    <Input id="jornadaHoras" value={jornadaHoras} onChange={e => setJornadaHoras(e.target.value)} placeholder="Ex: 07:00 às 19:00" />
+
+                                {/* Grupo 4: Contrato de Experiência */}
+                                <div className="space-y-3 border-t pt-4">
+                                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Períodos de Experiência</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="experienciaDias1" className="text-slate-700 font-medium">Dias do 1º Período</Label>
+                                            <Input id="experienciaDias1" type="number" value={experienciaDias1} onChange={e => setExperienciaDias1(e.target.value)} placeholder="Ex: 45" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="experienciaDias2" className="text-slate-700 font-medium">Dias de Prorrogação (2º Período)</Label>
+                                            <Input id="experienciaDias2" type="number" value={experienciaDias2} onChange={e => setExperienciaDias2(e.target.value)} placeholder="Ex: 45" />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
