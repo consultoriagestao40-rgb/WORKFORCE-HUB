@@ -1969,10 +1969,11 @@ export async function updateEmployeesFinanceBatch(data: any[], commit: boolean =
 }
 
 export async function getWizardDropdowns() {
-    let [departments, costCenters, unions] = await Promise.all([
+    let [departments, costCenters, unions, jobFunctions] = await Promise.all([
         prisma.department.findMany({ orderBy: { name: 'asc' } }),
         prisma.costCenter.findMany({ orderBy: { name: 'asc' } }),
-        prisma.union.findMany({ orderBy: { name: 'asc' } })
+        prisma.union.findMany({ orderBy: { name: 'asc' } }),
+        prisma.jobFunction.findMany({ orderBy: { name: 'asc' } })
     ]);
 
     let needsRefresh = false;
@@ -1991,14 +1992,15 @@ export async function getWizardDropdowns() {
     }
 
     if (needsRefresh) {
-        [departments, costCenters, unions] = await Promise.all([
+        [departments, costCenters, unions, jobFunctions] = await Promise.all([
             prisma.department.findMany({ orderBy: { name: 'asc' } }),
             prisma.costCenter.findMany({ orderBy: { name: 'asc' } }),
-            prisma.union.findMany({ orderBy: { name: 'asc' } })
+            prisma.union.findMany({ orderBy: { name: 'asc' } }),
+            prisma.jobFunction.findMany({ orderBy: { name: 'asc' } })
         ]);
     }
 
-    return { departments, costCenters, unions };
+    return { departments, costCenters, unions, jobFunctions };
 }
 
 export async function addDepartment(name: string) {
@@ -2017,4 +2019,10 @@ export async function addUnion(name: string) {
     const existing = await prisma.union.findUnique({ where: { name } });
     if (existing) return existing;
     return await prisma.union.create({ data: { name } });
+}
+
+export async function addJobFunction(name: string) {
+    const existing = await prisma.jobFunction.findUnique({ where: { name } });
+    if (existing) return existing;
+    return await prisma.jobFunction.create({ data: { name } });
 }

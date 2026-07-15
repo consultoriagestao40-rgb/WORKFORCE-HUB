@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, ChevronRight, ChevronLeft } from "lucide-react";
-import { addDepartment, addCostCenter, addUnion } from "@/app/actions";
+import { addDepartment, addCostCenter, addUnion, addJobFunction } from "@/app/actions";
 
 interface EmployeeOnvioWizardProps {
     initialData?: any;
@@ -20,6 +20,7 @@ interface EmployeeOnvioWizardProps {
     departments?: { id: string; name: string }[];
     costCenters?: { id: string; name: string }[];
     unions?: { id: string; name: string }[];
+    jobFunctions?: { id: string; name: string }[];
 }
 
 const steps = [
@@ -36,6 +37,7 @@ const wizardTabs = [
     { step: 1, tab: "admissao", label: "Admissão" },
     { step: 1, tab: "experiencia", label: "Contrato de Experiência" },
     { step: 1, tab: "horario", label: "Horário" },
+    { step: 1, tab: "anexos", label: "Anexos" },
     
     { step: 2, tab: "ctps", label: "Carteira de Trabalho" },
     { step: 2, tab: "fgts", label: "FGTS" },
@@ -64,7 +66,8 @@ export function EmployeeOnvioWizard({
     setSelectedPostoId: setControlledPostoId,
     departments = [],
     costCenters = [],
-    unions = []
+    unions = [],
+    jobFunctions = []
 }: EmployeeOnvioWizardProps) {
     const [currentTabIdx, setCurrentTabIdx] = useState(0);
 
@@ -101,6 +104,7 @@ export function EmployeeOnvioWizard({
     const [localDepartments, setLocalDepartments] = useState<{ id: string; name: string }[]>(departments);
     const [localCostCenters, setLocalCostCenters] = useState<{ id: string; name: string }[]>(costCenters);
     const [localUnions, setLocalUnions] = useState<{ id: string; name: string }[]>(unions);
+    const [localJobFunctions, setLocalJobFunctions] = useState<{ id: string; name: string }[]>(jobFunctions);
 
     // Dropdown value states (with defaults)
     const [departamento, setDepartamento] = useState("Geral");
@@ -168,6 +172,9 @@ export function EmployeeOnvioWizard({
     useEffect(() => {
         if (unions && unions.length > 0) setLocalUnions(unions);
     }, [unions]);
+    useEffect(() => {
+        if (jobFunctions && jobFunctions.length > 0) setLocalJobFunctions(jobFunctions);
+    }, [jobFunctions]);
 
     // Synchronize controlled and internal state for Posto
     const currentPostoId = controlledPostoId !== undefined ? controlledPostoId : postoId;
@@ -390,6 +397,21 @@ export function EmployeeOnvioWizard({
         }
     };
 
+    const handleAddJobFunction = async () => {
+        const name = window.prompt("Digite o nome da nova Função:");
+        if (!name || name.trim() === "") return;
+        try {
+            const newFunc = await addJobFunction(name.trim());
+            setLocalJobFunctions(prev => {
+                if (prev.some(f => f.id === newFunc.id)) return prev;
+                return [...prev, newFunc].sort((a,b) => a.name.localeCompare(b.name));
+            });
+            setFuncao(newFunc.name);
+        } catch (e) {
+            alert("Erro ao adicionar função.");
+        }
+    };
+
     // Pack extra fields to JSON
     const extraFieldsData = {
         nomeSocial,
@@ -535,23 +557,30 @@ export function EmployeeOnvioWizard({
                     <>
                         {/* Tab: Dados Básicos */}
                         {currentTab === "dados_basicos" && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1 col-span-2 md:col-span-1">
-                                    <Label htmlFor="name">Nome Completo</Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                                {/* Row 1 */}
+                                <div className="space-y-1">
+                                    <Label htmlFor="name" className="text-slate-700 font-medium">Nome</Label>
                                     <Input id="name" name="name" value={name} onChange={e => setName(e.target.value)} required placeholder="Nome do funcionário" />
                                 </div>
-                                <div className="space-y-1 col-span-2 md:col-span-1">
-                                    <Label htmlFor="nomeSocial">Nome Social <span className="text-slate-400 text-[10px]">(opcional)</span></Label>
+                                <div className="space-y-1">
+                                    <Label htmlFor="nomeSocial" className="text-slate-700 font-medium">
+                                        Nome social <span className="text-slate-400 font-normal italic">- opcional</span>
+                                    </Label>
                                     <Input id="nomeSocial" value={nomeSocial} onChange={e => setNomeSocial(e.target.value)} placeholder="Nome social" />
                                 </div>
+
+                                {/* Row 2 */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="cpf">CPF</Label>
+                                    <Label htmlFor="cpf" className="text-slate-700 font-medium">CPF</Label>
                                     <Input id="cpf" name="cpf" value={cpf} onChange={e => setCpf(e.target.value)} required placeholder="000.000.000-00" />
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="roleId">Cargo</Label>
-                                    <Select name="roleId" value={roleId} onValueChange={setRoleId} required>
-                                        <SelectTrigger>
+                                    <Label htmlFor="roleId" className="text-slate-700 font-medium">
+                                        Cargo <span className="text-slate-400 font-normal italic">- opcional</span>
+                                    </Label>
+                                    <Select name="roleId" value={roleId} onValueChange={setRoleId}>
+                                        <SelectTrigger id="roleId">
                                             <SelectValue placeholder="Selecione o cargo" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -561,31 +590,57 @@ export function EmployeeOnvioWizard({
                                         </SelectContent>
                                     </Select>
                                 </div>
+
+                                {/* Row 3 */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="funcao">Função <span className="text-slate-400 text-[10px]">(opcional)</span></Label>
-                                    <Input id="funcao" value={funcao} onChange={e => setFuncao(e.target.value)} placeholder="Especificação detalhada" />
+                                    <Label htmlFor="funcao" className="text-slate-700 font-medium">
+                                        Função <span className="text-slate-400 font-normal italic">- opcional</span>
+                                    </Label>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1">
+                                            <Select value={funcao} onValueChange={setFuncao}>
+                                                <SelectTrigger id="funcao">
+                                                    <SelectValue placeholder="Selecione a função" />
+                                                </SelectTrigger>
+                                                <SelectContent className="max-h-[160px]">
+                                                    {localJobFunctions.map(f => (
+                                                        <SelectItem key={f.id} value={f.name}>{f.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <Button type="button" size="icon" variant="outline" onClick={handleAddJobFunction} className="h-9 w-9 shrink-0" title="Adicionar Função">
+                                            <Plus className="w-4 h-4" />
+                                        </Button>
+                                    </div>
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="matricula">Matrícula <span className="text-slate-400 text-[10px]">(opcional)</span></Label>
+                                    <Label htmlFor="matricula" className="text-slate-700 font-medium">
+                                        Matrícula <span className="text-slate-400 font-normal italic">- opcional</span>
+                                    </Label>
                                     <Input id="matricula" value={matricula} onChange={e => setMatrícula(e.target.value)} placeholder="Ex: 0142" />
                                 </div>
+
+                                {/* Row 4 */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="companyId">Serviço (Sede onde ficará alocado)</Label>
+                                    <Label htmlFor="companyId" className="text-slate-700 font-medium">
+                                        Serviço (sede onde ficará alocado) <span className="text-slate-400 font-normal italic">- opcional</span>
+                                    </Label>
                                     <Select name="companyId" value={companyId} onValueChange={setCompanyId}>
-                                        <SelectTrigger>
+                                        <SelectTrigger id="companyId">
                                             <SelectValue placeholder="Selecione a empresa/cliente" />
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent className="max-h-[200px]">
                                             {companies.map(c => (
                                                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
-
-                                {/* Dynamic Dropdown: Departamento */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="departamento">Departamento</Label>
+                                    <Label htmlFor="departamento" className="text-slate-700 font-medium">
+                                        Departamento <span className="text-slate-400 font-normal italic">- opcional</span>
+                                    </Label>
                                     <div className="flex gap-2">
                                         <div className="flex-1">
                                             <Select value={departamento} onValueChange={setDepartamento}>
@@ -605,9 +660,11 @@ export function EmployeeOnvioWizard({
                                     </div>
                                 </div>
 
-                                {/* Dynamic Dropdown: Centro de Custo */}
+                                {/* Row 5 */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="centroCusto">Centro de Custo</Label>
+                                    <Label htmlFor="centroCusto" className="text-slate-700 font-medium">
+                                        Centro de custo <span className="text-slate-400 font-normal italic">- opcional</span>
+                                    </Label>
                                     <div className="flex gap-2">
                                         <div className="flex-1">
                                             <Select value={centroCusto} onValueChange={setCentroCusto}>
@@ -626,10 +683,10 @@ export function EmployeeOnvioWizard({
                                         </Button>
                                     </div>
                                 </div>
-
-                                {/* Dynamic Dropdown: Sindicato */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="sindicato">Sindicato</Label>
+                                    <Label htmlFor="sindicato" className="text-slate-700 font-medium">
+                                        Sindicato <span className="text-slate-400 font-normal italic">- opcional</span>
+                                    </Label>
                                     <div className="flex gap-2">
                                         <div className="flex-1">
                                             <Select value={sindicato} onValueChange={setSindicato}>
@@ -772,6 +829,21 @@ export function EmployeeOnvioWizard({
                                 <div className="space-y-1">
                                     <Label htmlFor="jornadaHoras">Jornada de Trabalho (Horário)</Label>
                                     <Input id="jornadaHoras" value={jornadaHoras} onChange={e => setJornadaHoras(e.target.value)} placeholder="Ex: 07:00 às 19:00" />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Tab: Anexos */}
+                        {currentTab === "anexos" && (
+                            <div className="space-y-4">
+                                <Label className="text-slate-700 font-medium">Anexos de Admissão</Label>
+                                <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center justify-center text-center gap-2 bg-slate-50/50">
+                                    <div className="h-10 w-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400">
+                                        <Plus className="w-5 h-5" />
+                                    </div>
+                                    <span className="text-xs font-bold text-slate-700">Arraste seus arquivos aqui</span>
+                                    <span className="text-[10px] text-slate-400">Suporta PDFs, Imagens, CNH, RG e comprovante de residência (Até 10MB)</span>
+                                    <Button type="button" variant="outline" size="sm" className="mt-2 text-xs font-bold h-8">Selecionar Arquivos</Button>
                                 </div>
                             </div>
                         )}

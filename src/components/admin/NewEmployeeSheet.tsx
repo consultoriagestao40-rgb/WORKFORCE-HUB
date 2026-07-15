@@ -88,6 +88,7 @@ export function NewEmployeeSheet({
     const [departments, setDepartments] = useState<{ id: string, name: string }[]>([]);
     const [costCenters, setCostCenters] = useState<{ id: string, name: string }[]>([]);
     const [unions, setUnions] = useState<{ id: string, name: string }[]>([]);
+    const [jobFunctions, setJobFunctions] = useState<{ id: string, name: string }[]>([]);
 
     useEffect(() => {
         if (open) {
@@ -95,6 +96,7 @@ export function NewEmployeeSheet({
                 setDepartments(res.departments);
                 setCostCenters(res.costCenters);
                 setUnions(res.unions);
+                setJobFunctions(res.jobFunctions || []);
             });
         }
     }, [open]);
@@ -268,6 +270,7 @@ export function NewEmployeeSheet({
                         departments={departments}
                         costCenters={costCenters}
                         unions={unions}
+                        jobFunctions={jobFunctions}
                     />
 
                     <div className="flex gap-2 pt-2 border-t mt-4">

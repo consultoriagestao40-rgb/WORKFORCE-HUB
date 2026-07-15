@@ -30,6 +30,7 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [],
     const [departments, setDepartments] = useState<{ id: string, name: string }[]>([]);
     const [costCenters, setCostCenters] = useState<{ id: string, name: string }[]>([]);
     const [unions, setUnions] = useState<{ id: string, name: string }[]>([]);
+    const [jobFunctions, setJobFunctions] = useState<{ id: string, name: string }[]>([]);
 
     useEffect(() => {
         if (open) {
@@ -37,6 +38,7 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [],
                 setDepartments(res.departments);
                 setCostCenters(res.costCenters);
                 setUnions(res.unions);
+                setJobFunctions(res.jobFunctions || []);
             });
         }
     }, [open]);
@@ -87,6 +89,7 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [],
                         departments={departments}
                         costCenters={costCenters}
                         unions={unions}
+                        jobFunctions={jobFunctions}
                     />
 
                     {/* Férias / Histórico */}

@@ -649,3 +649,9 @@ model Union {
   name      String   @unique
   createdAt DateTime @default(now())
 }
+
+model JobFunction {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
