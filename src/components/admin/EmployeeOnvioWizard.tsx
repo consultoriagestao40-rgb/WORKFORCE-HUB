@@ -484,7 +484,7 @@ export function EmployeeOnvioWizard({
     };
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="space-y-6">
             {/* Serialized JSON value to pass back to server action */}
             <input type="hidden" name="extraFields" value={JSON.stringify(extraFieldsData)} />
 
@@ -548,7 +548,7 @@ export function EmployeeOnvioWizard({
             </div>
 
             {/* Container do Formulário */}
-            <div className="flex-1 px-1 pr-2 space-y-4">
+            <div className="space-y-4 px-1">
                 
                 {/* --- SEÇÃO 1: GERAL --- */}
                 {currentStep === 1 && (
