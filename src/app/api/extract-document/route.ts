@@ -209,7 +209,7 @@ export async function POST(req: NextRequest) {
                 try {
                     const cleanedJson = cleanJsonResponse(responseText);
                     const data = JSON.parse(cleanedJson);
-                    console.log(`Sucesso com modelo: ${model}`);
+                    console.log(`Sucesso com modelo: ${model}`, JSON.stringify(data));
                     return NextResponse.json({ success: true, data, modelUsed: model });
                 } catch {
                     lastError = "A IA não retornou dados em formato legível.";

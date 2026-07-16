@@ -593,13 +593,15 @@ export function EmployeeOnvioWizard({
                     if (data.reservistaCategoria) setReservistaCategoria(data.reservistaCategoria);
                     
                     // Preenche dependentes se retornados
-                    if (data.dependents && Array.isArray(data.dependents)) {
+                    const extractedDeps = data.dependents || data.dependentes;
+                    if (extractedDeps && Array.isArray(extractedDeps)) {
                         setDependentes(prev => {
                             const cleanedPrev = prev.filter(d => d.nome.trim() !== "");
-                            const extracted = data.dependents.map((dep: any) => {
+                            const extracted = extractedDeps.map((dep: any) => {
                                 let parentesco = "Filho(a)";
-                                if (dep.parentesco) {
-                                    const p = dep.parentesco.toLowerCase();
+                                const depParentesco = dep.parentesco || dep.relationship || "";
+                                if (depParentesco) {
+                                    const p = depParentesco.toLowerCase();
                                     if (p.includes("cônjuge") || p.includes("conjuge") || p.includes("espos")) {
                                         parentesco = "Cônjuge";
                                     } else if (p.includes("pai") || p.includes("mãe") || p.includes("mae")) {
@@ -611,14 +613,15 @@ export function EmployeeOnvioWizard({
                                     }
                                 }
                                 let birthDateStr = "";
-                                if (dep.dataNascimento) {
+                                const depBirth = dep.dataNascimento || dep.birthDate || dep.data_nascimento || "";
+                                if (depBirth) {
                                     try {
-                                        const cleanDate = dep.dataNascimento.split('T')[0];
+                                        const cleanDate = String(depBirth).split('T')[0];
                                         const parts = cleanDate.split('-');
                                         if (parts.length === 3 && parts[0].length === 4) {
                                             birthDateStr = cleanDate;
                                         } else {
-                                            const d = new Date(dep.dataNascimento);
+                                            const d = new Date(String(depBirth));
                                             if (!isNaN(d.getTime())) {
                                                 birthDateStr = d.toISOString().split('T')[0];
                                             }
@@ -628,11 +631,11 @@ export function EmployeeOnvioWizard({
                                     }
                                 }
                                 return {
-                                    nome: dep.nome || "",
+                                    nome: dep.nome || dep.name || "",
                                     cpf: dep.cpf || "",
                                     dataNascimento: birthDateStr,
                                     parentesco,
-                                    salarioFamilia: dep.salarioFamilia || "Sim",
+                                    salarioFamilia: dep.salarioFamilia || dep.salario_familia || "Sim",
                                     irrf: dep.irrf || "Não"
                                 };
                             });
@@ -651,13 +654,119 @@ export function EmployeeOnvioWizard({
 
     const handleUploadGeneric = (file: File) => {
         const reader = new FileReader();
-        reader.onloadend = () => {
+        reader.onloadend = async () => {
             const base64Data = reader.result as string;
             const docName = file.name.split('.').slice(0, -1).join('.') || file.name;
             setAttachments(prev => {
                 const filtered = prev.filter(a => a.name !== docName);
                 return [...filtered, { name: docName, fileName: file.name, fileData: base64Data }];
             });
+
+            setLoadingSlot(`generic-${docName}`);
+            try {
+                const formData = new FormData();
+                formData.append("file", file);
+
+                const res = await fetch("/api/extract-document", {
+                    method: "POST",
+                    body: formData
+                });
+                const result = await res.json();
+                if (result.success) {
+                    const data = result.data;
+                    
+                    if (data.name) setName(data.name);
+                    if (data.cpf) setCpf(data.cpf);
+                    if (data.birthDate) setBirthDate(data.birthDate);
+                    if (data.gender) setGender(data.gender);
+                    if (data.address) setAddress(data.address);
+                    if (data.phone) setPhone(data.phone);
+                    if (data.email) setEmail(data.email);
+                    if (data.nomeSocial) setNomeSocial(data.nomeSocial);
+                    if (data.funcao) setFuncao(data.funcao);
+                    if (data.ctpsNumero) setCtpsNumero(data.ctpsNumero);
+                    if (data.ctpsSerie) setCtpsSerie(data.ctpsSerie);
+                    if (data.ctpsUf) setCtpsUf(data.ctpsUf);
+                    if (data.ctpsDataEmissao) setCtpsDataEmissao(data.ctpsDataEmissao);
+                    if (data.pisNumero) setPisNumero(data.pisNumero);
+                    if (data.estadoCivil) setEstadoCivil(data.estadoCivil);
+                    if (data.grauInstrucao) setGrauInstrucao(data.grauInstrucao);
+                    if (data.nomePai) setNomePai(data.nomePai);
+                    if (data.nomeMae) setNomeMae(data.nomeMae);
+                    if (data.nacionalidade) setNacionalidade(data.nacionalidade);
+                    if (data.naturalidadeCidade) setNaturalidadeCidade(data.naturalidadeCidade);
+                    if (data.naturalidadeUf) setNaturalidadeUf(data.naturalidadeUf);
+                    if (data.rgNumero) setRgNumero(data.rgNumero);
+                    if (data.rgOrgaoEmissor) setRgOrgaoEmissor(data.rgOrgaoEmissor);
+                    if (data.rgDataEmissao) setRgDataEmissao(data.rgDataEmissao);
+                    if (data.rgUf) setRgUf(data.rgUf);
+                    if (data.cnhNumero) setCnhNumero(data.cnhNumero);
+                    if (data.cnhCategoria) setCnhCategoria(data.cnhCategoria);
+                    if (data.cnhValidade) setCnhValidade(data.cnhValidade);
+                    if (data.cnhUf) setCnhUf(data.cnhUf);
+                    if (data.tituloEleitorNumero) setTituloEleitorNumero(data.tituloEleitorNumero);
+                    if (data.tituloEleitorZona) setTituloEleitorZona(data.tituloEleitorZona);
+                    if (data.tituloEleitorSecao) setTituloEleitorSecao(data.tituloEleitorSecao);
+                    if (data.tituloEleitorUf) setTituloEleitorUf(data.tituloEleitorUf);
+                    if (data.reservistaNumero) setReservistaNumero(data.reservistaNumero);
+                    if (data.reservistaCategoria) setReservistaCategoria(data.reservistaCategoria);
+
+                    // Preenche dependentes se retornados
+                    const extractedDeps = data.dependents || data.dependentes;
+                    if (extractedDeps && Array.isArray(extractedDeps)) {
+                        setDependentes(prev => {
+                            const cleanedPrev = prev.filter(d => d.nome.trim() !== "");
+                            const extracted = extractedDeps.map((dep: any) => {
+                                let parentesco = "Filho(a)";
+                                const depParentesco = dep.parentesco || dep.relationship || "";
+                                if (depParentesco) {
+                                    const p = depParentesco.toLowerCase();
+                                    if (p.includes("cônjuge") || p.includes("conjuge") || p.includes("espos")) {
+                                        parentesco = "Cônjuge";
+                                    } else if (p.includes("pai") || p.includes("mãe") || p.includes("mae")) {
+                                        parentesco = "Mãe / Pai";
+                                    } else if (p.includes("filh")) {
+                                        parentesco = "Filho(a)";
+                                    } else {
+                                        parentesco = "Outros";
+                                    }
+                                }
+                                let birthDateStr = "";
+                                const depBirth = dep.dataNascimento || dep.birthDate || dep.data_nascimento || "";
+                                if (depBirth) {
+                                    try {
+                                        const cleanDate = String(depBirth).split('T')[0];
+                                        const parts = cleanDate.split('-');
+                                        if (parts.length === 3 && parts[0].length === 4) {
+                                            birthDateStr = cleanDate;
+                                        } else {
+                                            const d = new Date(String(depBirth));
+                                            if (!isNaN(d.getTime())) {
+                                                birthDateStr = d.toISOString().split('T')[0];
+                                            }
+                                        }
+                                    } catch (e) {
+                                        console.error(e);
+                                    }
+                                }
+                                return {
+                                    nome: dep.nome || dep.name || "",
+                                    cpf: dep.cpf || "",
+                                    dataNascimento: birthDateStr,
+                                    parentesco,
+                                    salarioFamilia: dep.salarioFamilia || dep.salario_familia || "Sim",
+                                    irrf: dep.irrf || "Não"
+                                };
+                            });
+                            return [...cleanedPrev, ...extracted];
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error("Erro na extração IA genérica:", e);
+            } finally {
+                setLoadingSlot(null);
+            }
         };
         reader.readAsDataURL(file);
     };
@@ -1207,26 +1316,35 @@ export function EmployeeOnvioWizard({
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-1">
-                                                        <Button 
-                                                            type="button" 
-                                                            variant="ghost" 
-                                                            size="icon" 
-                                                            title="Visualizar / Baixar"
-                                                            onClick={() => handleDownloadFile(extraDoc.fileData, extraDoc.fileName)}
-                                                            className="h-8 w-8 text-slate-500 hover:text-blue-600 rounded-xl"
-                                                        >
-                                                            <Download className="w-4 h-4" />
-                                                        </Button>
-                                                        <Button 
-                                                            type="button" 
-                                                            variant="ghost" 
-                                                            size="icon" 
-                                                            title="Excluir"
-                                                            onClick={() => setAttachments(prev => prev.filter(a => a.name !== extraDoc.name))}
-                                                            className="h-8 w-8 text-slate-500 hover:text-red-600 rounded-xl"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </Button>
+                                                        {loadingSlot === `generic-${extraDoc.name}` ? (
+                                                            <div className="flex items-center gap-1.5 px-3 py-1 bg-orange-50 text-orange-700 rounded-xl text-[10px] font-bold">
+                                                                <div className="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                                                                IA Lendo...
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <Button 
+                                                                    type="button" 
+                                                                    variant="ghost" 
+                                                                    size="icon" 
+                                                                    title="Visualizar / Baixar"
+                                                                    onClick={() => handleDownloadFile(extraDoc.fileData, extraDoc.fileName)}
+                                                                    className="h-8 w-8 text-slate-500 hover:text-blue-600 rounded-xl"
+                                                                >
+                                                                    <Download className="w-4 h-4" />
+                                                                </Button>
+                                                                <Button 
+                                                                    type="button" 
+                                                                    variant="ghost" 
+                                                                    size="icon" 
+                                                                    title="Excluir"
+                                                                    onClick={() => setAttachments(prev => prev.filter(a => a.name !== extraDoc.name))}
+                                                                    className="h-8 w-8 text-slate-500 hover:text-red-600 rounded-xl"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </Button>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}
