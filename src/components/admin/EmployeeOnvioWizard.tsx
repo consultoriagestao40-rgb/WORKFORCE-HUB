@@ -610,10 +610,27 @@ export function EmployeeOnvioWizard({
                                         parentesco = "Outros";
                                     }
                                 }
+                                let birthDateStr = "";
+                                if (dep.dataNascimento) {
+                                    try {
+                                        const cleanDate = dep.dataNascimento.split('T')[0];
+                                        const parts = cleanDate.split('-');
+                                        if (parts.length === 3 && parts[0].length === 4) {
+                                            birthDateStr = cleanDate;
+                                        } else {
+                                            const d = new Date(dep.dataNascimento);
+                                            if (!isNaN(d.getTime())) {
+                                                birthDateStr = d.toISOString().split('T')[0];
+                                            }
+                                        }
+                                    } catch (e) {
+                                        console.error(e);
+                                    }
+                                }
                                 return {
                                     nome: dep.nome || "",
                                     cpf: dep.cpf || "",
-                                    dataNascimento: dep.dataNascimento ? new Date(dep.dataNascimento).toISOString().split('T')[0] : "",
+                                    dataNascimento: birthDateStr,
                                     parentesco,
                                     salarioFamilia: dep.salarioFamilia || "Sim",
                                     irrf: dep.irrf || "Não"
@@ -1051,6 +1068,8 @@ export function EmployeeOnvioWizard({
                                         { key: "endereco", label: "Comprovante de endereço", description: "Conta recente de consumo" },
                                         { key: "titulo", label: "Título de Eleitor", description: "Título Eleitoral" },
                                         { key: "pis", label: "PIS", description: "Cadastro PIS/PASEP" },
+                                        { key: "reservista", label: "Certificado de Reservista", description: "Certificado de Reservista ou Dispensa" },
+                                        { key: "comprovante_escolar", label: "Comprovante Escolar", description: "Declaração de escolaridade ou diploma" },
                                         { key: "certidao_filhos", label: "Certidão de nascimento de filhos", description: "Certidão de dependentes" }
                                     ].map(slot => {
                                         const uploadedFile = attachments.find(a => a.name === slot.label);
@@ -1167,13 +1186,13 @@ export function EmployeeOnvioWizard({
                                 </div>
 
                                 {attachments.filter(a => ![
-                                    "CNH", "Identidade (RG)", "ASO", "Comprovante de endereço", "Título de Eleitor", "PIS", "Certidão de nascimento de filhos"
+                                    "CNH", "Identidade (RG)", "ASO", "Comprovante de endereço", "Título de Eleitor", "PIS", "Certidão de nascimento de filhos", "Comprovante Escolar", "Certificado de Reservista"
                                 ].includes(a.name)).length > 0 && (
                                     <div className="space-y-3 border-t pt-4 mt-4">
                                         <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Outros Anexos</Label>
                                         <div className="space-y-3">
                                             {attachments.filter(a => ![
-                                                "CNH", "Identidade (RG)", "ASO", "Comprovante de endereço", "Título de Eleitor", "PIS", "Certidão de nascimento de filhos"
+                                                "CNH", "Identidade (RG)", "ASO", "Comprovante de endereço", "Título de Eleitor", "PIS", "Certidão de nascimento de filhos", "Comprovante Escolar", "Certificado de Reservista"
                                             ].includes(a.name)).map((extraDoc, i) => (
                                                 <div key={i} className="border border-slate-100 rounded-2xl p-4 flex items-center justify-between gap-4 bg-slate-50/20">
                                                     <div className="flex items-center gap-3">

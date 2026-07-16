@@ -57,7 +57,8 @@ Regras:
 2. Todas as datas devem ser formatadas como YYYY-MM-DD.
 3. cpf no formato 000.000.000-00.
 4. name em MAIÚSCULAS.
-5. Se um campo não puder ser extraído ou não existir no documento analisado, use null.`;
+5. Se um campo não puder ser extraído ou não existir no documento analisado, use null.
+6. Especificamente para CERTIDÕES DE NASCIMENTO (de filhos/dependentes), extraia o nome do filho (nome completo do registrando), data de nascimento e CPF (se houver), e preencha estes dados exclusivamente dentro da lista de "dependents", definindo o "parentesco" como "Filho(a)". Não coloque o nome do filho no campo "name" principal da raiz (que representa o colaborador/pai).`;
 
 // Modelos hardcoded como fallback (caso ListModels falhe ou retorne vazio)
 const FALLBACK_MODELS = [
