@@ -553,8 +553,11 @@ export function EmployeeOnvioWizard({
                     body: formData
                 });
                 const result = await res.json();
-                if (result.success) {
-                    const data = result.data;
+                if (!result.success) {
+                    alert(`Erro na leitura do documento: ${result.error || "Erro desconhecido"}`);
+                    return;
+                }
+                const data = result.data;
                     
                     if (data.name) setName(data.name);
                     if (data.cpf) setCpf(data.cpf);
@@ -642,9 +645,9 @@ export function EmployeeOnvioWizard({
                             return [...cleanedPrev, ...extracted];
                         });
                     }
-                }
             } catch (e) {
                 console.error("Erro na extração IA:", e);
+                alert(`Erro de conexão ao processar documento: ${(e as any)?.message || e}`);
             } finally {
                 setLoadingSlot(null);
             }
@@ -672,8 +675,11 @@ export function EmployeeOnvioWizard({
                     body: formData
                 });
                 const result = await res.json();
-                if (result.success) {
-                    const data = result.data;
+                if (!result.success) {
+                    alert(`Erro na leitura do documento: ${result.error || "Erro desconhecido"}`);
+                    return;
+                }
+                const data = result.data;
                     
                     if (data.name) setName(data.name);
                     if (data.cpf) setCpf(data.cpf);
@@ -761,9 +767,9 @@ export function EmployeeOnvioWizard({
                             return [...cleanedPrev, ...extracted];
                         });
                     }
-                }
             } catch (e) {
                 console.error("Erro na extração IA genérica:", e);
+                alert(`Erro de conexão ao processar documento: ${(e as any)?.message || e}`);
             } finally {
                 setLoadingSlot(null);
             }
