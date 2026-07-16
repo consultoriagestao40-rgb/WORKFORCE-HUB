@@ -53,6 +53,67 @@ const wizardTabs = [
     { step: 6, tab: "observacoes", label: "Observações" }
 ];
 
+const compressImageIfNeeded = (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+        if (!file.type.startsWith("image/")) {
+            resolve(file);
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                let width = img.width;
+                let height = img.height;
+
+                const MAX_WIDTH = 1600;
+                const MAX_HEIGHT = 1600;
+
+                if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+                    if (width > height) {
+                        height = Math.round((height * MAX_WIDTH) / width);
+                        width = MAX_WIDTH;
+                    } else {
+                        width = Math.round((width * MAX_HEIGHT) / height);
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+
+                const ctx = canvas.getContext("2d");
+                if (ctx) {
+                    ctx.drawImage(img, 0, 0, width, height);
+                    canvas.toBlob(
+                        (blob) => {
+                            if (blob) {
+                                const compressedFile = new File([blob], file.name, {
+                                    type: "image/jpeg",
+                                    lastModified: Date.now(),
+                                });
+                                resolve(compressedFile);
+                            } else {
+                                resolve(file);
+                            }
+                        },
+                        "image/jpeg",
+                        0.75
+                    );
+                } else {
+                    resolve(file);
+                }
+            };
+            img.onerror = () => resolve(file);
+            img.src = event.target?.result as string;
+        };
+        reader.onerror = () => resolve(file);
+        reader.readAsDataURL(file);
+    });
+};
+
 export function EmployeeOnvioWizard({
     initialData,
     situations,
@@ -534,7 +595,18 @@ export function EmployeeOnvioWizard({
         setDependentes(dependentes.filter((_, i) => i !== idx));
     };
 
-    const handleUploadSlot = (key: string, label: string, file: File) => {
+    const handleUploadSlot = async (key: string, label: string, rawFile: File) => {
+        if (rawFile.size > 4.2 * 1024 * 1024 && !rawFile.type.startsWith("image/")) {
+            alert("O arquivo PDF é muito grande (maior que 4MB). Por favor, otimize ou comprima o PDF antes de enviar.");
+            return;
+        }
+
+        const file = await compressImageIfNeeded(rawFile);
+        if (file.size > 4.2 * 1024 * 1024) {
+            alert("O arquivo é muito grande (maior que 4MB). Por favor, otimize/comprima o arquivo antes de enviar.");
+            return;
+        }
+
         const reader = new FileReader();
         reader.onloadend = async () => {
             const base64Data = reader.result as string;
@@ -655,7 +727,18 @@ export function EmployeeOnvioWizard({
         reader.readAsDataURL(file);
     };
 
-    const handleUploadGeneric = (file: File) => {
+    const handleUploadGeneric = async (rawFile: File) => {
+        if (rawFile.size > 4.2 * 1024 * 1024 && !rawFile.type.startsWith("image/")) {
+            alert("O arquivo PDF é muito grande (maior que 4MB). Por favor, otimize ou comprima o PDF antes de enviar.");
+            return;
+        }
+
+        const file = await compressImageIfNeeded(rawFile);
+        if (file.size > 4.2 * 1024 * 1024) {
+            alert("O arquivo é muito grande (maior que 4MB). Por favor, otimize/comprima o arquivo antes de enviar.");
+            return;
+        }
+
         const reader = new FileReader();
         reader.onloadend = async () => {
             const base64Data = reader.result as string;
