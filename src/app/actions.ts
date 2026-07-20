@@ -22,8 +22,25 @@ export async function cleanupVacantRotativoPostos(tx?: any) {
 
     for (const posto of rotativoPostos) {
         if (posto.assignments.length === 0) {
+            // Cascade delete all dependent relations manually to avoid FK constraint errors in PostgreSQL
             await db.vacancy.deleteMany({ where: { postoId: posto.id } });
+            await db.attendance.deleteMany({ where: { postoId: posto.id } });
+            await db.coverage.deleteMany({ where: { postoId: posto.id } });
+            await db.occurrence.deleteMany({ where: { postoId: posto.id } });
+            await db.scheduleOverride.deleteMany({ where: { postoId: posto.id } });
+            await db.workRoutine.deleteMany({ where: { postoId: posto.id } });
+            await db.request.deleteMany({ where: { postoId: posto.id } });
+
+            // Set originPostoId to null in any assignments pointing to this posto
+            await db.assignment.updateMany({
+                where: { originPostoId: posto.id },
+                data: { originPostoId: null }
+            });
+
+            // Now safely delete all assignments for this posto
             await db.assignment.deleteMany({ where: { postoId: posto.id } });
+
+            // Finally delete the posto itself
             await db.posto.delete({ where: { id: posto.id } });
             console.log(`[ROTATIVO] Cleaned up vacant posto: ${posto.id}`);
         }
