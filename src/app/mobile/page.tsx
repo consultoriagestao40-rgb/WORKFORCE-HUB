@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MapPin, Users, Clock, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/mobile/SearchInput";
+import { Suspense } from "react";
 
 export const dynamic = 'force-dynamic';
 
@@ -32,24 +33,18 @@ async function getMobilePostos(query?: string) {
     });
 }
 
-export default async function MobileDashboard({ searchParams }: { searchParams: { q?: string } }) {
-    // Await params in Next.js 15+ if necessary, but in current setup usually direct access.
-    // However, safest to just use it directly or await if it's a promise (latest Next.js).
-    // Assuming Next.js 14-ish stable behavior or 15 without strict async params yet?
-    // Let's assume direct access first. If error, I'll fix.
-
-    // Actually, in Next.js 15, searchParams is a Promise. It's safer to await it if we are on latest.
-    // But let's check package.json or just await it to be safe if possible? No, await needs it to be a promise.
-    // To be safe for both, I'll access it directly. If it breaks, I'll fix.
-
-    const query = searchParams?.q || "";
+export default async function MobileDashboard({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+    const resolvedParams = await searchParams;
+    const query = resolvedParams?.q || "";
     const postos = await getMobilePostos(query);
 
     return (
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-xl font-bold text-slate-800 mb-4 px-1">Meus Postos</h2>
 
-            <SearchInput />
+            <Suspense fallback={<div className="h-10 bg-white rounded-lg border border-slate-200 animate-pulse mb-4" />}>
+                <SearchInput />
+            </Suspense>
 
             <div className="grid gap-4">
                 {postos.length === 0 ? (
