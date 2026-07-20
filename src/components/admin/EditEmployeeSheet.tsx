@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,10 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Edit } from "lucide-react";
-import { updateEmployee, getWizardDropdowns } from "@/app/actions";
+import { updateEmployee } from "@/app/actions";
 import { VacationHistory } from "./VacationHistory";
 import { toast } from "sonner";
-import { EmployeeOnvioWizard } from "./EmployeeOnvioWizard";
 
 interface EditEmployeeSheetProps {
     employee: any;
@@ -21,27 +20,9 @@ interface EditEmployeeSheetProps {
     postos?: any[];
 }
 
-export function EditEmployeeSheet({ employee, situations, roles, companies = [], postos = [] }: EditEmployeeSheetProps) {
+export function EditEmployeeSheet({ employee, situations, roles, companies = [] }: EditEmployeeSheetProps) {
     const [open, setOpen] = useState(false);
     const [status, setStatus] = useState(employee.status);
-    const [selectedPostoId, setSelectedPostoId] = useState(
-        employee.assignments?.find((a: any) => !a.endDate)?.postoId || ""
-    );
-    const [departments, setDepartments] = useState<{ id: string, name: string }[]>([]);
-    const [costCenters, setCostCenters] = useState<{ id: string, name: string }[]>([]);
-    const [unions, setUnions] = useState<{ id: string, name: string }[]>([]);
-    const [jobFunctions, setJobFunctions] = useState<{ id: string, name: string }[]>([]);
-
-    useEffect(() => {
-        if (open) {
-            getWizardDropdowns().then(res => {
-                setDepartments(res.departments);
-                setCostCenters(res.costCenters);
-                setUnions(res.unions);
-                setJobFunctions(res.jobFunctions || []);
-            });
-        }
-    }, [open]);
 
     async function handleSubmit(formData: FormData) {
         try {
@@ -57,11 +38,6 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [],
         }
     }
 
-    const initialWizardData = {
-        ...employee,
-        postoId: selectedPostoId
-    };
-
     return (
         <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
@@ -70,27 +46,138 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [],
                     Editar Perfil
                 </Button>
             </SheetTrigger>
-            <SheetContent className="px-8 sm:max-w-5xl w-full">
+            <SheetContent className="px-8 sm:max-w-2xl w-full">
                 <SheetHeader>
                     <SheetTitle>Editar Colaborador</SheetTitle>
                     <SheetDescription>Atualize os dados de {employee.name}.</SheetDescription>
                 </SheetHeader>
-                <form action={handleSubmit} className="space-y-4 mt-6 h-[85vh] overflow-y-auto pr-2 scrollbar-hide">
+                <form action={handleSubmit} className="space-y-4 mt-6 h-[85vh] overflow-y-auto pr-2 scrollbar-hide pb-8">
                     <input type="hidden" name="id" value={employee.id} />
 
-                    <EmployeeOnvioWizard
-                        initialData={initialWizardData}
-                        situations={situations}
-                        roles={roles}
-                        companies={companies}
-                        postos={postos}
-                        selectedPostoId={selectedPostoId}
-                        setSelectedPostoId={setSelectedPostoId}
-                        departments={departments}
-                        costCenters={costCenters}
-                        unions={unions}
-                        jobFunctions={jobFunctions}
-                    />
+                    <div className="space-y-2">
+                        <Label htmlFor="name">Nome Completo</Label>
+                        <Input id="name" name="name" defaultValue={employee.name} required />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="companyId">Empresa Vinculada</Label>
+                        <Select name="companyId" defaultValue={employee.companyId || "no_company"}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Selecione a empresa" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="no_company">Sem Empresa Vinculada</SelectItem>
+                                {companies.map(c => (
+                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="birthDate">Data de Nascimento</Label>
+                            <Input
+                                id="birthDate"
+                                name="birthDate"
+                                type="date"
+                                defaultValue={employee.birthDate ? new Date(employee.birthDate).toISOString().split('T')[0] : ""}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="gender">Gênero</Label>
+                            <Select name="gender" defaultValue={employee.gender || undefined}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Masculino">Masculino</SelectItem>
+                                    <SelectItem value="Feminino">Feminino</SelectItem>
+                                    <SelectItem value="Outro">Outro</SelectItem>
+                                    <SelectItem value="Prefiro não dizer">Prefiro não dizer</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="text-sm font-semibold border-b pt-4 pb-1">Contato e Endereço</div>
+                    <div className="space-y-2">
+                        <Label htmlFor="address">Endereço Completo</Label>
+                        <Input id="address" name="address" defaultValue={employee.address || ""} placeholder="Rua, Número, Bairro, Cidade - UF" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="phone">Telefone / Celular</Label>
+                            <Input id="phone" name="phone" defaultValue={employee.phone || ""} placeholder="(00) 00000-0000" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="email">Email Pessoal</Label>
+                            <Input id="email" name="email" type="email" defaultValue={employee.email || ""} placeholder="email@exemplo.com" />
+                        </div>
+                    </div>
+
+                    <div className="text-sm font-semibold border-b pt-4 pb-1">Dados de Contrato</div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="cpf">CPF</Label>
+                            <Input id="cpf" name="cpf" defaultValue={employee.cpf} required />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="workload">Carga Horária (h)</Label>
+                            <Input id="workload" name="workload" type="number" defaultValue={employee.workload} required />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="admissionDate">Data de Admissão</Label>
+                            <Input
+                                id="admissionDate"
+                                name="admissionDate"
+                                type="date"
+                                defaultValue={employee.admissionDate ? new Date(employee.admissionDate).toISOString().split('T')[0] : ""}
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="situationId">Situação Atual</Label>
+                            <Select
+                                name="situationId"
+                                defaultValue={employee.situationId || undefined}
+                                onValueChange={(val) => {
+                                    const selectedSituation = situations.find(s => s.id === val);
+                                    if (selectedSituation &&
+                                        (selectedSituation.name.toLowerCase().includes("demitido") ||
+                                            selectedSituation.name.toLowerCase().includes("desligado"))) {
+                                        setStatus("Desligado");
+                                    }
+                                }}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {situations.map(s => (
+                                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="roleId">Cargo</Label>
+                        <Select name="roleId" defaultValue={employee.roleId} required>
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {roles.map(r => (
+                                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
 
                     {/* Férias / Histórico */}
                     <div className="pt-4 border-t mt-6">
@@ -101,7 +188,7 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [],
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div className="grid grid-cols-2 gap-4 mt-6">
                         <div className="space-y-2">
                             <Label htmlFor="status">Status (Legado)</Label>
                             <Select name="status" value={status} onValueChange={setStatus}>
@@ -162,7 +249,44 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [],
                         </div>
                     )}
 
-                    <div className="flex gap-2 pt-4 border-t">
+                    <div className="text-sm font-semibold border-b pt-4 pb-1">Financeiro (Mensal)</div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="salary">Salário Base (R$)</Label>
+                            <Input id="salary" name="salary" type="number" step="0.01" defaultValue={employee.salary} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="insalubridade">Insalubridade (R$)</Label>
+                            <Input id="insalubridade" name="insalubridade" type="number" step="0.01" defaultValue={employee.insalubridade} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="periculosidade">Periculosidade (R$)</Label>
+                            <Input id="periculosidade" name="periculosidade" type="number" step="0.01" defaultValue={employee.periculosidade} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="gratificacao">Gratificacao CCT (R$)</Label>
+                            <Input id="gratificacao" name="gratificacao" type="number" step="0.01" defaultValue={employee.gratificacao} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="outrosAdicionais">Outros Adicionais (R$)</Label>
+                            <Input id="outrosAdicionais" name="outrosAdicionais" type="number" step="0.01" defaultValue={employee.outrosAdicionais} />
+                        </div>
+                    </div>
+
+                    <div className="text-sm font-semibold border-b pt-4 pb-1">Benefícios Mensais</div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="valeAlimentacao">Vale Alimentação (R$)</Label>
+                            <Input id="valeAlimentacao" name="valeAlimentacao" type="number" step="0.01" defaultValue={employee.valeAlimentacao} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="valeTransporte">Vale Transporte (R$)</Label>
+                            <Input id="valeTransporte" name="valeTransporte" type="number" step="0.01" defaultValue={employee.valeTransporte} />
+                        </div>
+                    </div>
+
+                    {/* Actions Block */}
+                    <div className="flex gap-2 pt-4 border-t sticky bottom-0 bg-white z-10 pb-4">
                         <Button 
                             type="button" 
                             variant="outline"
@@ -187,9 +311,6 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [],
                                 const addressVal = (document.getElementById("address") as HTMLInputElement)?.value || employee.address;
                                 const salaryVal = (document.getElementById("salary") as HTMLInputElement)?.value || employee.salary;
 
-                                const extraFieldsInput = document.querySelector('input[name="extraFields"]') as HTMLInputElement;
-                                const extraFields = extraFieldsInput ? JSON.parse(extraFieldsInput.value) : {};
-
                                 const event = new CustomEvent("workforceRpaCapture", {
                                     detail: {
                                         name: nameVal,
@@ -202,8 +323,7 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [],
                                         startDate: admissionVal ? new Date(admissionVal + 'T12:00:00').toLocaleDateString('pt-BR') : "",
                                         birthDate: birthVal ? new Date(birthVal + 'T12:00:00').toLocaleDateString('pt-BR') : "",
                                         gender: genderVal,
-                                        address: addressVal,
-                                        ...extraFields
+                                        address: addressVal
                                     }
                                 });
                                 document.dispatchEvent(event);
