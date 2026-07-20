@@ -23,6 +23,7 @@ interface EditEmployeeSheetProps {
 export function EditEmployeeSheet({ employee, situations, roles, companies = [] }: EditEmployeeSheetProps) {
     const [open, setOpen] = useState(false);
     const [status, setStatus] = useState(employee.status);
+    const [situationId, setSituationId] = useState(employee.situationId || "");
 
     async function handleSubmit(formData: FormData) {
         try {
@@ -143,13 +144,21 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                             <Label htmlFor="situationId">Situação Atual</Label>
                             <Select
                                 name="situationId"
-                                defaultValue={employee.situationId || undefined}
+                                value={situationId || undefined}
                                 onValueChange={(val) => {
+                                    setSituationId(val);
                                     const selectedSituation = situations.find(s => s.id === val);
-                                    if (selectedSituation &&
-                                        (selectedSituation.name.toLowerCase().includes("demitido") ||
-                                            selectedSituation.name.toLowerCase().includes("desligado"))) {
-                                        setStatus("Desligado");
+                                    if (selectedSituation) {
+                                        const name = selectedSituation.name.toLowerCase();
+                                        if (name.includes("desligado") || name.includes("demitido")) {
+                                            setStatus("Desligado");
+                                        } else if (name.includes("férias") || name.includes("ferias")) {
+                                            setStatus("Férias");
+                                        } else if (name.includes("afastado")) {
+                                            setStatus("Afastado");
+                                        } else {
+                                            setStatus("Ativo");
+                                        }
                                     }
                                 }}
                             >
@@ -191,7 +200,24 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                     <div className="grid grid-cols-2 gap-4 mt-6">
                         <div className="space-y-2">
                             <Label htmlFor="status">Status (Legado)</Label>
-                            <Select name="status" value={status} onValueChange={setStatus}>
+                            <Select
+                                name="status"
+                                value={status}
+                                onValueChange={(val) => {
+                                    setStatus(val);
+                                    const matchingSituation = situations.find(s => {
+                                        const name = s.name.toLowerCase();
+                                        if (val === "Desligado") return name.includes("desligado") || name.includes("demitido");
+                                        if (val === "Ativo") return name === "ativo" || name.includes("ativo");
+                                        if (val === "Férias") return name.includes("férias") || name.includes("ferias");
+                                        if (val === "Afastado") return name.includes("afastado");
+                                        return false;
+                                    });
+                                    if (matchingSituation) {
+                                        setSituationId(matchingSituation.id);
+                                    }
+                                }}
+                            >
                                 <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>
