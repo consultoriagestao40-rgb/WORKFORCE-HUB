@@ -241,16 +241,26 @@ export async function GET(request: Request) {
             where: { status: "Ativo" }
         });
 
-        const admissions = await prisma.employee.count({
+        const admissionsList = await prisma.employee.findMany({
             where: {
                 admissionDate: {
                     gte: startDate,
                     lte: endDate
                 }
-            }
+            },
+            include: {
+                role: true,
+                company: true,
+                assignments: {
+                    where: { endDate: null },
+                    include: { posto: { include: { client: true } } }
+                }
+            },
+            orderBy: { admissionDate: 'desc' }
         });
+        const admissions = admissionsList.length;
 
-        const dismissals = await prisma.employee.count({
+        const dismissalsList = await prisma.employee.findMany({
             where: {
                 OR: [
                     { status: { in: ["Demitido", "Desligado", "Inativo"] } },
@@ -261,8 +271,15 @@ export async function GET(request: Request) {
                     gte: startDate,
                     lte: endDate
                 }
-            }
+            },
+            include: {
+                role: true,
+                company: true,
+                situation: true
+            },
+            orderBy: { updatedAt: 'desc' }
         });
+        const dismissals = dismissalsList.length;
 
         const turnoverRate = totalActive > 0 ? (((admissions + dismissals) / 2) / totalActive) * 100 : 0;
         const absenteismRate = totalExpectedShifts > 0 ? (totalAbsences / totalExpectedShifts) * 100 : 0;
@@ -285,6 +302,8 @@ export async function GET(request: Request) {
                 totalVacantDays,
                 admissions,
                 dismissals,
+                admissionsList,
+                dismissalsList,
                 reasons: [
                     { name: "Atestado Médico", value: reasons.atestado },
                     { name: "Falta Injustificada", value: reasons.injustificada },
