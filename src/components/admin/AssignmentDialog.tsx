@@ -75,7 +75,11 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
             if (createVacancy) {
                 formData.append("createVacancy", "on");
             }
-            await unassignEmployee(formData);
+            const result = await unassignEmployee(formData);
+            if (result?.error) {
+                setError(result.error);
+                return;
+            }
             setOpen(false);
             setCreateVacancy(false);
             setSelectedSituation("");

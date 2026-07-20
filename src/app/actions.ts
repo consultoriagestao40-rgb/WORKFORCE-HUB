@@ -634,132 +634,139 @@ export async function assignEmployee(formData: FormData) {
 }
 
 export async function unassignEmployee(formData: FormData) {
-    const postoId = formData.get("postoId") as string;
-    const situationId = formData.get("situationId") as string;
-    const createVacancy = formData.get("createVacancy") === "on";
-    const endDate = new Date();
+    try {
+        const postoId = formData.get("postoId") as string;
+        const situationId = formData.get("situationId") as string;
+        const createVacancy = formData.get("createVacancy") === "on";
+        const endDate = new Date();
 
-    if (!situationId) {
-        throw new Error("Situação é obrigatória ao desvincular colaborador");
-    }
+        if (!situationId) {
+            return { error: "Situação é obrigatória ao desvincular colaborador" };
+        }
 
-    const currentAssignment = await prisma.assignment.findFirst({
-        where: {
-            postoId,
-            endDate: null
-        },
-        include: { employee: true, posto: { include: { client: true, role: true } } }
-    });
-
-    if (!currentAssignment) return;
-
-    // Get situation details
-    const situation = await prisma.situation.findUnique({ where: { id: situationId } });
-    if (!situation) throw new Error("Situação não encontrada");
-
-    await prisma.$transaction(async (tx) => {
-        // 1. End current assignment
-        await tx.assignment.update({
-            where: { id: currentAssignment.id },
-            data: { endDate }
+        const currentAssignment = await prisma.assignment.findFirst({
+            where: {
+                postoId,
+                endDate: null
+            },
+            include: { employee: true, posto: { include: { client: true, role: true } } }
         });
 
-        // 2. Update employee situation
-        await tx.employee.update({
-            where: { id: currentAssignment.employeeId },
-            data: { situationId }
-        });
+        if (!currentAssignment) return { error: "Nenhuma alocação ativa encontrada para este posto." };
 
-        // 3. Check if should allocate to Rotativo
-        const activeStatuses = ['Ativo', 'Férias', 'Afastamento', 'Licença INSS'];
-        const shouldAllocateToRotativo = activeStatuses.includes(situation.name);
+        // Get situation details
+        const situation = await prisma.situation.findUnique({ where: { id: situationId } });
+        if (!situation) return { error: "Situação não encontrada" };
 
-        if (shouldAllocateToRotativo) {
-            // Find or create ROTATIVO client
-            let rotativoClient = await tx.client.findFirst({ where: { name: { equals: 'ROTATIVO', mode: 'insensitive' } } });
-            if (!rotativoClient) {
-                rotativoClient = await tx.client.create({
+        await prisma.$transaction(async (tx) => {
+            // 1. End current assignment
+            await tx.assignment.update({
+                where: { id: currentAssignment.id },
+                data: { endDate }
+            });
+
+            // 2. Update employee situation
+            await tx.employee.update({
+                where: { id: currentAssignment.employeeId },
+                data: { situationId }
+            });
+
+            // 3. Check if should allocate to Rotativo
+            const activeStatuses = ['Ativo', 'Férias', 'Afastamento', 'Licença INSS'];
+            const shouldAllocateToRotativo = activeStatuses.includes(situation.name);
+
+            if (shouldAllocateToRotativo) {
+                // Find or create ROTATIVO client
+                let rotativoClient = await tx.client.findFirst({ where: { name: { equals: 'ROTATIVO', mode: 'insensitive' } } });
+                if (!rotativoClient) {
+                    rotativoClient = await tx.client.create({
+                        data: {
+                            name: 'ROTATIVO',
+                            address: 'Centro de Custo Virtual',
+                            companyId: null
+                        }
+                    });
+                }
+
+                const prevPosto = currentAssignment.posto;
+                const emp = currentAssignment.employee;
+
+                // Create dedicated posto under ROTATIVO client specifically for this employee inheriting from prevPosto
+                const rotativoPosto = await tx.posto.create({
                     data: {
-                        name: 'ROTATIVO',
-                        address: 'Centro de Custo Virtual',
-                        companyId: null
+                        clientId: rotativoClient.id,
+                        roleId: prevPosto.roleId,
+                        schedule: prevPosto.schedule || 'Variável',
+                        startTime: prevPosto.startTime || '00:00',
+                        endTime: prevPosto.endTime || '23:59',
+                        billingValue: 0,
+                        requiredWorkload: prevPosto.requiredWorkload || emp.workload || 220,
+                        isNightShift: prevPosto.isNightShift || false,
+                        baseSalary: emp.salary || prevPosto.baseSalary || 0,
+                        insalubridade: emp.insalubridade || prevPosto.insalubridade || 0,
+                        periculosidade: emp.periculosidade || prevPosto.periculosidade || 0,
+                        gratificacao: emp.gratificacao || prevPosto.gratificacao || 0,
+                        outrosAdicionais: emp.outrosAdicionais || prevPosto.outrosAdicionais || 0
+                    }
+                });
+
+                // For vacations, save origin posto
+                const isVacation = situation.name === 'Férias';
+
+                await tx.assignment.create({
+                    data: {
+                        employeeId: currentAssignment.employeeId,
+                        postoId: rotativoPosto.id,
+                        startDate: endDate,
+                        originPostoId: isVacation ? postoId : null
+                    }
+                });
+
+                const currentUser = await getCurrentUser();
+                await tx.log.create({
+                    data: {
+                        action: isVacation ? "ALOCACAO_ROTATIVO_FERIAS" : "ALOCACAO_ROTATIVO",
+                        details: `${currentAssignment.employee.name} alocado no Rotativo (${situation.name})${isVacation ? ' - posto origem salvo' : ''}`,
+                        employeeId: currentAssignment.employeeId,
+                        userId: currentUser?.id
+                    }
+                });
+            } else {
+                // Just log desvinculação for inactive statuses (Desligado, etc)
+                const currentUser = await getCurrentUser();
+                await tx.log.create({
+                    data: {
+                        action: "DESVINCULACAO",
+                        details: `Colaborador ${currentAssignment.employee.name} desvinculado do posto ${currentAssignment.posto.role.name} em ${currentAssignment.posto.client.name} (${situation.name})`,
+                        employeeId: currentAssignment.employeeId,
+                        userId: currentUser?.id
                     }
                 });
             }
 
-            const prevPosto = currentAssignment.posto;
-            const emp = currentAssignment.employee;
+            // Cleanup vacant rotativo postos in same transaction
+            await cleanupVacantRotativoPostos(tx);
+        });
 
-            // Create dedicated posto under ROTATIVO client specifically for this employee inheriting from prevPosto
-            const rotativoPosto = await tx.posto.create({
-                data: {
-                    clientId: rotativoClient.id,
-                    roleId: prevPosto.roleId,
-                    schedule: prevPosto.schedule || 'Variável',
-                    startTime: prevPosto.startTime || '00:00',
-                    endTime: prevPosto.endTime || '23:59',
-                    billingValue: 0,
-                    requiredWorkload: prevPosto.requiredWorkload || emp.workload || 220,
-                    isNightShift: prevPosto.isNightShift || false,
-                    baseSalary: emp.salary || prevPosto.baseSalary || 0,
-                    insalubridade: emp.insalubridade || prevPosto.insalubridade || 0,
-                    periculosidade: emp.periculosidade || prevPosto.periculosidade || 0,
-                    gratificacao: emp.gratificacao || prevPosto.gratificacao || 0,
-                    outrosAdicionais: emp.outrosAdicionais || prevPosto.outrosAdicionais || 0
-                }
-            });
-
-            // For vacations, save origin posto
-            const isVacation = situation.name === 'Férias';
-
-            await tx.assignment.create({
-                data: {
-                    employeeId: currentAssignment.employeeId,
-                    postoId: rotativoPosto.id,
-                    startDate: endDate,
-                    originPostoId: isVacation ? postoId : null
-                }
-            });
-
-            const currentUser = await getCurrentUser();
-            await tx.log.create({
-                data: {
-                    action: isVacation ? "ALOCACAO_ROTATIVO_FERIAS" : "ALOCACAO_ROTATIVO",
-                    details: `${currentAssignment.employee.name} alocado no Rotativo (${situation.name})${isVacation ? ' - posto origem salvo' : ''}`,
-                    employeeId: currentAssignment.employeeId,
-                    userId: currentUser?.id
-                }
-            });
-        } else {
-            // Just log desvinculação for inactive statuses (Desligado, etc)
-            const currentUser = await getCurrentUser();
-            await tx.log.create({
-                data: {
-                    action: "DESVINCULACAO",
-                    details: `Colaborador ${currentAssignment.employee.name} desvinculado do posto ${currentAssignment.posto.role.name} em ${currentAssignment.posto.client.name} (${situation.name})`,
-                    employeeId: currentAssignment.employeeId,
-                    userId: currentUser?.id
-                }
-            });
+        // 4. Create vacancy if requested (outside transaction)
+        if (createVacancy) {
+            try {
+                await createVacancyFromPosto(postoId);
+            } catch (error) {
+                console.error("Error creating vacancy:", error);
+            }
         }
 
-        // Cleanup vacant rotativo postos in same transaction
-        await cleanupVacantRotativoPostos(tx);
-    });
+        revalidatePath(`/admin/clients`);
+        revalidatePath("/admin");
+        revalidatePath("/admin/employees");
+        revalidatePath("/admin/recrutamento");
 
-    // 4. Create vacancy if requested (outside transaction)
-    if (createVacancy) {
-        try {
-            await createVacancyFromPosto(postoId);
-        } catch (error) {
-            console.error("Error creating vacancy:", error);
-        }
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error in unassignEmployee server action:", e);
+        return { error: e.message || "Erro inesperado ao processar a desvinculação." };
     }
-
-    revalidatePath(`/admin/clients`);
-    revalidatePath("/admin");
-    revalidatePath("/admin/employees");
-    revalidatePath("/admin/recrutamento");
 }
 export async function createSchedule(formData: FormData) {
     const name = formData.get("name") as string;
@@ -943,202 +950,201 @@ export async function updatePosto(formData: FormData) {
 }
 
 export async function updateEmployee(formData: FormData) {
-    const id = formData.get("id") as string;
-    const name = formData.get("name") as string;
-    const cpf = formData.get("cpf") as string;
-    const roleId = formData.get("roleId") as string;
-    const type = formData.get("type") as string;
-    const status = formData.get("status") as string;
-    const salary = parseFloat(formData.get("salary") as string) || 0;
-    const insalubridade = parseFloat(formData.get("insalubridade") as string) || 0;
-    const periculosidade = parseFloat(formData.get("periculosidade") as string) || 0;
-    const gratificacao = parseFloat(formData.get("gratificacao") as string) || 0;
-    const outrosAdicionais = parseFloat(formData.get("outrosAdicionais") as string) || 0;
-    const workload = parseInt(formData.get("workload") as string) || 220;
-    const admissionDateStr = formData.get("admissionDate") as string;
-    const situationId = formData.get("situationId") as string;
-    const lastVacationStartStr = formData.get("lastVacationStart") as string;
-    const lastVacationEndStr = formData.get("lastVacationEnd") as string;
-    const totalVacationDaysTaken = parseInt(formData.get("totalVacationDaysTaken") as string) || 0;
-    const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
-    const valeTransporte = parseFloat(formData.get("valeTransporte") as string) || 0;
+    try {
+        const id = formData.get("id") as string;
+        const name = formData.get("name") as string;
+        const cpf = formData.get("cpf") as string;
+        const roleId = formData.get("roleId") as string;
+        const type = formData.get("type") as string;
+        const status = formData.get("status") as string;
+        const salary = parseFloat(formData.get("salary") as string) || 0;
+        const insalubridade = parseFloat(formData.get("insalubridade") as string) || 0;
+        const periculosidade = parseFloat(formData.get("periculosidade") as string) || 0;
+        const gratificacao = parseFloat(formData.get("gratificacao") as string) || 0;
+        const outrosAdicionais = parseFloat(formData.get("outrosAdicionais") as string) || 0;
+        const workload = parseInt(formData.get("workload") as string) || 220;
+        const admissionDateStr = formData.get("admissionDate") as string;
+        const situationId = formData.get("situationId") as string;
+        const lastVacationStartStr = formData.get("lastVacationStart") as string;
+        const lastVacationEndStr = formData.get("lastVacationEnd") as string;
+        const totalVacationDaysTaken = parseInt(formData.get("totalVacationDaysTaken") as string) || 0;
+        const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
+        const valeTransporte = parseFloat(formData.get("valeTransporte") as string) || 0;
 
-    const extraFieldsStr = formData.get("extraFields") as string;
-    const extraFields = extraFieldsStr ? JSON.parse(extraFieldsStr) : null;
+        const extraFieldsStr = formData.get("extraFields") as string;
+        const extraFields = extraFieldsStr ? JSON.parse(extraFieldsStr) : null;
 
-    // Constraint Check: Situation Change vs Active Assignment
-    if (situationId) {
-        const activeAssignments = await prisma.assignment.count({
-            where: {
-                employeeId: id,
-                endDate: null,
-                posto: {
-                    client: {
-                        name: { not: "ROTATIVO" }
+        // Constraint Check: Situation Change vs Active Assignment
+        if (situationId) {
+            const activeAssignments = await prisma.assignment.count({
+                where: {
+                    employeeId: id,
+                    endDate: null,
+                    posto: {
+                        client: {
+                            name: { not: "ROTATIVO" }
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        if (activeAssignments > 0) {
-            const newSituation = await prisma.situation.findUnique({ where: { id: situationId } });
-            // If situation requires absence (assuming anything other than 'Ativo' implies non-working)
-            // You might want to refine this list or add a flag to Situation model later.
-            if (newSituation && newSituation.name !== 'Ativo') {
-                return { error: `Colaborador vinculado a um posto. Desvincule do posto antes de alterar para "${newSituation.name}".` };
+            if (activeAssignments > 0) {
+                const newSituation = await prisma.situation.findUnique({ where: { id: situationId } });
+                // If situation requires absence (assuming anything other than 'Ativo' implies non-working)
+                // You might want to refine this list or add a flag to Situation model later.
+                if (newSituation && newSituation.name !== 'Ativo') {
+                    return { error: `Colaborador vinculado a um posto. Desvincule do posto antes de alterar para "${newSituation.name}".` };
+                }
             }
         }
-    }
 
-    const oldEmployee = await prisma.employee.findUnique({
-        where: { id },
-        include: { role: true, situation: true }
-    });
-
-    const result = await prisma.$transaction(async (tx) => {
-        const updated = await tx.employee.update({
+        const oldEmployee = await prisma.employee.findUnique({
             where: { id },
-            data: {
-                name,
-                cpf,
-                roleId,
-                companyId: (formData.get("companyId") === "no_company" || !formData.get("companyId")) ? null : (formData.get("companyId") as string),
-                type,
-                status,
-                situationId: situationId || undefined,
-                admissionDate: admissionDateStr ? new Date(admissionDateStr) : undefined,
-                lastVacationStart: lastVacationStartStr ? new Date(lastVacationStartStr) : null,
-                lastVacationEnd: lastVacationEndStr ? new Date(lastVacationEndStr) : null,
-                totalVacationDaysTaken,
-                salary,
-                insalubridade,
-                periculosidade,
-                gratificacao,
-                outrosAdicionais,
-                workload,
-
-                valeAlimentacao,
-                valeTransporte,
-                birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : null,
-                gender: (formData.get("gender") as string) || null,
-                address: (formData.get("address") as string) || null,
-                phone: (formData.get("phone") as string) || null,
-                email: (formData.get("email") as string) || null,
-                dismissalReason: (formData.get("dismissalReason") as string) || null,
-                dismissalNotes: (formData.get("dismissalNotes") as string) || null,
-                extraFields: extraFields || undefined
-            },
             include: { role: true, situation: true }
         });
 
-        // Change Logging
-        if (oldEmployee) {
-            if (oldEmployee.salary !== salary) {
-                const currentUser = await getCurrentUser();
-                await tx.log.create({
-                    data: {
-                        action: "ALTERACAO_SALARIAL",
-                        details: `Salário base alterado de R$ ${oldEmployee.salary.toFixed(2)} para R$ ${salary.toFixed(2)}`,
-                        employeeId: id,
-                        userId: currentUser?.id
-                    }
-                });
-            }
+        const result = await prisma.$transaction(async (tx) => {
+            const updated = await tx.employee.update({
+                where: { id },
+                data: {
+                    name,
+                    cpf,
+                    roleId,
+                    companyId: (formData.get("companyId") === "no_company" || !formData.get("companyId")) ? null : (formData.get("companyId") as string),
+                    type,
+                    status,
+                    situationId: situationId || undefined,
+                    admissionDate: admissionDateStr ? new Date(admissionDateStr) : undefined,
+                    lastVacationStart: lastVacationStartStr ? new Date(lastVacationStartStr) : null,
+                    lastVacationEnd: lastVacationEndStr ? new Date(lastVacationEndStr) : null,
+                    totalVacationDaysTaken,
+                    salary,
+                    insalubridade,
+                    periculosidade,
+                    gratificacao,
+                    outrosAdicionais,
+                    workload,
 
-            if (oldEmployee.roleId !== roleId) {
-                console.log("[DEBUG] Role Change Detected:", { old: oldEmployee.roleId, new: roleId });
-                console.log("[DEBUG] Roles:", { oldName: oldEmployee.role.name, newName: updated.role.name });
+                    valeAlimentacao,
+                    valeTransporte,
+                    birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : null,
+                    gender: (formData.get("gender") as string) || null,
+                    address: (formData.get("address") as string) || null,
+                    phone: (formData.get("phone") as string) || null,
+                    email: (formData.get("email") as string) || null,
+                    dismissalReason: (formData.get("dismissalReason") as string) || null,
+                    dismissalNotes: (formData.get("dismissalNotes") as string) || null,
+                    extraFields: extraFields || undefined
+                },
+                include: { role: true, situation: true }
+            });
 
-                const currentUser = await getCurrentUser();
-                await tx.log.create({
-                    data: {
-                        action: "PROMOCAO_CARGO",
-                        details: `Cargo alterado de ${oldEmployee.role.name} para ${updated.role.name}`,
-                        employeeId: id,
-                        userId: currentUser?.id
-                    }
-                });
-            } else {
-                console.log("[DEBUG] No Role Change:", { old: oldEmployee.roleId, new: roleId });
-            }
-
-            if (oldEmployee.workload !== workload) {
-                const currentUser = await getCurrentUser();
-                await tx.log.create({
-                    data: {
-                        action: "ALTERACAO_CARGA_HORARIA",
-                        details: `Carga horária alterada de ${oldEmployee.workload}h para ${workload}h`,
-                        employeeId: id,
-                        userId: currentUser?.id
-                    }
-                });
-            }
-
-            if (oldEmployee.situationId !== situationId && updated.situation) {
-                const currentUser = await getCurrentUser();
-                await tx.log.create({
-                    data: {
-                        action: "MUDANCA_SITUACAO",
-                        details: `Situação alterada de ${oldEmployee.situation?.name || 'Sem Situação'} para ${updated.situation.name}`,
-                        employeeId: id,
-                        userId: currentUser?.id
-                    }
-                });
-
-                // Auto-create vacancy if situation implies leaving
-                // Assuming "Desligado" or "Afastado" based on user req.
-                // Since Situation is dynamic, we check strict names or maybe add a flag later.
-                // For now, let's match "Desligado" or "Inativo" or "Afastado"
-                const situationName = updated.situation.name.toLowerCase();
-                if (situationName.includes("desligado") || situationName.includes("demitido")) {
-                    // We need to call this after transaction or inside?
-                    // Triggers use independent prisma calls, so better AFTER transaction or inside via separate call.
-                    // But `createVacancyFromDismissal` creates a vacancy using prisma.
-                    // If we want it to be part of transaction, we'd need to pass `tx` to it.
-                    // The current implementation of triggers uses `prisma` global.
-                    // So we should call it OUTSIDE the transaction or let it run independently.
-                    // We'll call it after the transaction block for safety.
-                }
-            }
-        }
-
-        // If employee is being dismissed/desligado, end their active assignment
-        if (situationId) {
-            const situation = await tx.situation.findUnique({ where: { id: situationId } });
-            if (situation && (situation.name.toLowerCase().includes("desligado") || situation.name.toLowerCase().includes("demitido"))) {
-                // Find all active assignments
-                const activeAssignmentsList = await tx.assignment.findMany({
-                    where: {
-                        employeeId: id,
-                        endDate: null
-                    }
-                });
-
-                for (const activeAss of activeAssignmentsList) {
-                    await tx.assignment.update({
-                        where: { id: activeAss.id },
-                        data: { endDate: new Date() }
+            // Change Logging
+            if (oldEmployee) {
+                if (oldEmployee.salary !== salary) {
+                    const currentUser = await getCurrentUser();
+                    await tx.log.create({
+                        data: {
+                            action: "ALTERACAO_SALARIAL",
+                            details: `Salário base alterado de R$ ${oldEmployee.salary.toFixed(2)} para R$ ${salary.toFixed(2)}`,
+                            employeeId: id,
+                            userId: currentUser?.id
+                        }
                     });
                 }
+
+                if (oldEmployee.roleId !== roleId) {
+                    console.log("[DEBUG] Role Change Detected:", { old: oldEmployee.roleId, new: roleId });
+                    console.log("[DEBUG] Roles:", { oldName: oldEmployee.role.name, newName: updated.role.name });
+
+                    const currentUser = await getCurrentUser();
+                    await tx.log.create({
+                        data: {
+                            action: "PROMOCAO_CARGO",
+                            details: `Cargo alterado de ${oldEmployee.role.name} para ${updated.role.name}`,
+                            employeeId: id,
+                            userId: currentUser?.id
+                        }
+                    });
+                } else {
+                    console.log("[DEBUG] No Role Change:", { old: oldEmployee.roleId, new: roleId });
+                }
+
+                if (oldEmployee.workload !== workload) {
+                    const currentUser = await getCurrentUser();
+                    await tx.log.create({
+                        data: {
+                            action: "ALTERACAO_CARGA_HORARIA",
+                            details: `Carga horária alterada de ${oldEmployee.workload}h para ${workload}h`,
+                            employeeId: id,
+                            userId: currentUser?.id
+                        }
+                    });
+                }
+
+                if (oldEmployee.situationId !== situationId && updated.situation) {
+                    const currentUser = await getCurrentUser();
+                    await tx.log.create({
+                        data: {
+                            action: "MUDANCA_SITUACAO",
+                            details: `Situação alterada de ${oldEmployee.situation?.name || 'Sem Situação'} para ${updated.situation.name}`,
+                            employeeId: id,
+                            userId: currentUser?.id
+                        }
+                    });
+
+                    // Auto-create vacancy if situation implies leaving
+                    // Assuming "Desligado" or "Afastado" based on user req.
+                    // Since Situation is dynamic, we check strict names or maybe add a flag later.
+                    // For now, let's match "Desligado" or "Inativo" or "Afastado"
+                    const situationName = updated.situation.name.toLowerCase();
+                    if (situationName.includes("desligado") || situationName.includes("demitido")) {
+                        // We need to call this after transaction or inside?
+                        // Triggers use independent prisma calls, so better AFTER transaction or inside via separate call.
+                        // But `createVacancyFromDismissal` creates a vacancy using prisma.
+                        // If we want it to be part of transaction, we'd need to pass `tx` to it.
+                        // The current implementation of triggers uses `prisma` global.
+                        // So we should call it OUTSIDE the transaction or let it run independently.
+                        // We'll call it after the transaction block for safety.
+                    }
+                }
             }
-        }
 
-        // Cleanup vacant rotativo postos in same transaction
-        await cleanupVacantRotativoPostos(tx);
+            // If employee is being dismissed/desligado, end their active assignment
+            if (situationId) {
+                const situation = await tx.situation.findUnique({ where: { id: situationId } });
+                if (situation && (situation.name.toLowerCase().includes("desligado") || situation.name.toLowerCase().includes("demitido"))) {
+                    // Find all active assignments
+                    const activeAssignmentsList = await tx.assignment.findMany({
+                        where: {
+                            employeeId: id,
+                            endDate: null
+                        }
+                    });
 
-        return updated;
-    });
+                    for (const activeAss of activeAssignmentsList) {
+                        await tx.assignment.update({
+                            where: { id: activeAss.id },
+                            data: { endDate: new Date() }
+                        });
+                    }
+                }
+            }
 
-    // Post-transaction triggers deleted
-    /* 
-    if (result && result.situation && (result.situation.name.toLowerCase().includes("desligado") || result.situation.name.toLowerCase().includes("demitido"))) {
-        // Run in background to not block UI
-        createVacancyFromDismissal(result.id, result.dismissalReason || undefined).catch(console.error);
+            // Cleanup vacant rotativo postos in same transaction
+            await cleanupVacantRotativoPostos(tx);
+
+            return updated;
+        });
+
+        revalidatePath("/admin/employees");
+        revalidatePath(`/admin/employees/${id}`);
+
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error in updateEmployee server action:", e);
+        return { error: e.message || "Erro inesperado ao atualizar colaborador." };
     }
-    */
-
-    revalidatePath("/admin/employees");
-    revalidatePath(`/admin/employees/${id}`);
 }
 
 function validateCLTStartDate(date: Date): { isValid: boolean; reason?: string } {
