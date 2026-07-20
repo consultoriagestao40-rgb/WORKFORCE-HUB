@@ -178,8 +178,8 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                     companyId: "",
 
                     // Automatic Link to Posto
-                    postoId: candidateToMove.vacancy.posto?.id || '',
-                    postoName: candidateToMove.vacancy.posto ? `${candidateToMove.vacancy.posto.name || 'Sem Nome'} - ${candidateToMove.vacancy.posto.client.name}` : undefined
+                    postoId: candidateToMove.vacancy?.posto?.id || '',
+                    postoName: candidateToMove.vacancy?.posto ? `${candidateToMove.vacancy.posto.name || 'Sem Nome'} - ${candidateToMove.vacancy.posto.client.name}` : undefined
                 });
 
                 setIsEmployeeSheetOpen(true);
@@ -511,8 +511,8 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                             </div>
                                                                         )}
                                                                     </div>
-                                                                    <Badge variant={candidate.vacancy.priority === 'URGENT' ? 'destructive' : 'secondary'} className="text-[10px] px-1.5 py-0 h-5 shrink-0">
-                                                                        {candidate.vacancy.priority === 'URGENT' ? 'Urg' : candidate.vacancy.priority === 'HIGH' ? 'Alta' : 'Nor'}
+                                                                    <Badge variant={candidate.vacancy?.priority === 'URGENT' ? 'destructive' : 'secondary'} className="text-[10px] px-1.5 py-0 h-5 shrink-0">
+                                                                        {candidate.vacancy?.priority === 'URGENT' ? 'Urg' : candidate.vacancy?.priority === 'HIGH' ? 'Alta' : 'Nor'}
                                                                     </Badge>
                                                                 </div>
 
@@ -521,12 +521,12 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                     {candidate.type === 'VACANCY' ? (
                                                                         <div className="flex items-center gap-1">
                                                                             <Briefcase className="w-3 h-3 text-indigo-400" />
-                                                                            <span>{candidate.vacancy.role?.name || "Sem Cargo"}</span>
+                                                                            <span>{candidate.vacancy?.role?.name || "Sem Cargo"}</span>
                                                                         </div>
                                                                     ) : (
                                                                         <div className="flex items-center gap-1">
                                                                             <Briefcase className="w-3 h-3 text-slate-400" />
-                                                                            <span>{candidate.vacancy.role?.name || candidate.vacancy.title}</span>
+                                                                            <span>{candidate.vacancy?.role?.name || candidate.vacancy?.title || "Sem Vaga"}</span>
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -537,7 +537,7 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                     <div className="flex flex-col gap-1 text-[10px] text-slate-400">
                                                                         <div className="flex items-center gap-1" title="Data de Abertura da Vaga">
                                                                             <Briefcase className="w-3 h-3 text-slate-300" />
-                                                                            <span>Abertura: {candidate.vacancy.createdAt ? new Date(candidate.vacancy.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A'}</span>
+                                                                            <span>Abertura: {candidate.vacancy?.createdAt ? new Date(candidate.vacancy.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A'}</span>
                                                                         </div>
                                                                         {candidate.type !== 'VACANCY' && (
                                                                             <div className="flex items-center gap-1" title="Data de Inscrição do Candidato">
@@ -548,8 +548,8 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                     </div>
 
                                                                     <div className="flex justify-between items-center text-[11px] text-slate-400">
-                                                                        <span className="truncate max-w-[120px]" title={candidate.vacancy.posto?.client?.name}>
-                                                                            {candidate.vacancy.posto?.client?.name || candidate.vacancy.company?.name || "N/A"}
+                                                                        <span className="truncate max-w-[120px]" title={candidate.vacancy?.posto?.client?.name}>
+                                                                            {candidate.vacancy?.posto?.client?.name || candidate.vacancy?.company?.name || "N/A"}
                                                                         </span>
 
                                                                         {/* RESCUE BUTTON: Finalize Hiring if in Posto */}
@@ -564,8 +564,8 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                                         name: candidate.name,
                                                                                         email: candidate.email || '',
                                                                                         phone: candidate.phone || '',
-                                                                                        postoId: candidate.vacancy.posto?.id || '',
-                                                                                        postoName: candidate.vacancy.posto ? `${candidate.vacancy.posto.name || 'Sem Nome'} - ${candidate.vacancy.posto.client.name}` : undefined
+                                                                                        postoId: candidate.vacancy?.posto?.id || '',
+                                                                                        postoName: candidate.vacancy?.posto ? `${candidate.vacancy.posto.name || 'Sem Nome'} - ${candidate.vacancy.posto.client.name}` : undefined
                                                                                     });
                                                                                     setIsEmployeeSheetOpen(true);
                                                                                 }}

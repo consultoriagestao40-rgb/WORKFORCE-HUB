@@ -151,9 +151,17 @@ export function NewEmployeeSheet({
     };
 
     async function handleSubmit(formData: FormData) {
-        await createEmployee(formData);
-        handleCancel();
-        if (onSuccess) onSuccess();
+        try {
+            const res = await createEmployee(formData);
+            if (res?.error) {
+                toast.error(res.error);
+                return;
+            }
+            handleCancel();
+            if (onSuccess) onSuccess();
+        } catch (e: any) {
+            toast.error(e.message || "Erro ao cadastrar colaborador");
+        }
     }
 
     const wizardData = {

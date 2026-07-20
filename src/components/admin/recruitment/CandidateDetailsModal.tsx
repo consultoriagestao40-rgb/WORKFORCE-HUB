@@ -488,7 +488,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                     defaultValue={candidate.vacancy?.priority}
                                                     onValueChange={async (val) => {
                                                         try {
-                                                            await updateVacancy(candidate.vacancy.id, { priority: val });
+                                                            if (candidate.vacancy) await updateVacancy(candidate.vacancy.id, { priority: val });
                                                             toast.success("Prioridade atualizada");
                                                         } catch (e) { toast.error("Erro ao atualizar"); }
                                                     }}
@@ -510,7 +510,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                     defaultValue={candidate.vacancy?.recruiter?.id || candidate.vacancy?.recruiterId}
                                                     onValueChange={async (val) => {
                                                         try {
-                                                            await updateVacancy(candidate.vacancy.id, { recruiterId: val });
+                                                            if (candidate.vacancy) await updateVacancy(candidate.vacancy.id, { recruiterId: val });
                                                             toast.success("Recrutador atualizado");
                                                         } catch (e) { toast.error("Erro ao atualizar"); }
                                                     }}
