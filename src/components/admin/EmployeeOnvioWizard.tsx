@@ -1173,6 +1173,9 @@ export function EmployeeOnvioWizard({
                                                     <SelectValue placeholder="Selecione o posto de trabalho..." />
                                                 </SelectTrigger>
                                                 <SelectContent className="max-h-[200px]">
+                                                    <SelectItem value="ROTATIVO_VIRTUAL" className="font-semibold text-blue-600">
+                                                        🔄 ROTATIVO (Transição / Reserva Técnica)
+                                                    </SelectItem>
                                                     {postos.map(p => (
                                                         <SelectItem key={p.id} value={p.id}>
                                                             {p.client?.name} - {p.role?.name} ({p.schedule || "N/A"})

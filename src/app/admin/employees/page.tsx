@@ -2,8 +2,15 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/db";
 import { EmployeesClientPage } from "./EmployeesClientPage";
 import { getCurrentUserRole } from "@/lib/auth";
+import { cleanupVacantRotativoPostos } from "@/app/actions";
 
 async function getData() {
+    try {
+        await cleanupVacantRotativoPostos();
+    } catch (e) {
+        console.error("Error cleaning up vacant rotativo postos on page load:", e);
+    }
+
     const [employees, situations, roles, companies, postos] = await Promise.all([
         prisma.employee.findMany({
             orderBy: { name: 'asc' },

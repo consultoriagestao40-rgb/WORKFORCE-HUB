@@ -8,6 +8,27 @@ import { webcrypto } from "crypto";
 import { getCurrentUserRole, getCurrentUser } from "@/lib/auth";
 import { createVacancyFromPosto } from "@/actions/recruitment";
 
+export async function cleanupVacantRotativoPostos(tx?: any) {
+    const db = tx || prisma;
+    const rotativoClient = await db.client.findFirst({
+        where: { name: { equals: 'ROTATIVO', mode: 'insensitive' } }
+    });
+    if (!rotativoClient) return;
+
+    const rotativoPostos = await db.posto.findMany({
+        where: { clientId: rotativoClient.id },
+        include: { assignments: { where: { endDate: null } } }
+    });
+
+    for (const posto of rotativoPostos) {
+        if (posto.assignments.length === 0) {
+            await db.vacancy.deleteMany({ where: { postoId: posto.id } });
+            await db.assignment.deleteMany({ where: { postoId: posto.id } });
+            await db.posto.delete({ where: { id: posto.id } });
+            console.log(`[ROTATIVO] Cleaned up vacant posto: ${posto.id}`);
+        }
+    }
+}
 
 // Simple hash helper using Web Crypto API available in Next.js Edge/Server
 async function hashPassword(password: string) {
@@ -373,17 +394,50 @@ export async function createEmployee(formData: FormData) {
 
         // 2. Create Assignment if Posto Provided
         if (postoId) {
-            // Check if Posto exists
-            const posto = await tx.posto.findUnique({ where: { id: postoId } });
-            if (!posto) {
-                throw new Error("Posto informado para vínculo não encontrado.");
+            let finalPostoId = postoId;
+            if (postoId === "ROTATIVO_VIRTUAL") {
+                let rotativoClient = await tx.client.findFirst({ where: { name: { equals: 'ROTATIVO', mode: 'insensitive' } } });
+                if (!rotativoClient) {
+                    rotativoClient = await tx.client.create({
+                        data: {
+                            name: 'ROTATIVO',
+                            address: 'Centro de Custo Virtual',
+                            companyId: null
+                        }
+                    });
+                }
+
+                const newPosto = await tx.posto.create({
+                    data: {
+                        clientId: rotativoClient.id,
+                        roleId: roleId,
+                        schedule: 'Variável',
+                        startTime: '00:00',
+                        endTime: '23:59',
+                        billingValue: 0,
+                        requiredWorkload: workload,
+                        isNightShift: false,
+                        baseSalary: salary,
+                        insalubridade: insalubridade,
+                        periculosidade: periculosidade,
+                        gratificacao: gratificacao,
+                        outrosAdicionais: outrosAdicionais
+                    }
+                });
+                finalPostoId = newPosto.id;
+            } else {
+                // Check if Posto exists
+                const posto = await tx.posto.findUnique({ where: { id: postoId } });
+                if (!posto) {
+                    throw new Error("Posto informado para vínculo não encontrado.");
+                }
             }
 
             // Create Active Assignment
             await tx.assignment.create({
                 data: {
                     employeeId: newEmployee.id,
-                    postoId: postoId,
+                    postoId: finalPostoId,
                     startDate: admissionDate, // Starts at admission
                     endDate: null // Active
                 }
@@ -400,6 +454,9 @@ export async function createEmployee(formData: FormData) {
                 }
             });
         }
+        
+        // Cleanup vacant rotativo postos in same transaction
+        await cleanupVacantRotativoPostos(tx);
     });
 
     revalidatePath("/admin/employees");
@@ -528,6 +585,9 @@ export async function assignEmployee(formData: FormData) {
                 userId: currentUser?.id
             }
         });
+
+        // Cleanup vacant rotativo postos in same transaction
+        await cleanupVacantRotativoPostos(tx);
     });
 
     // 4. Create vacancy if requested (OUTSIDE transaction to avoid nested transactions)
@@ -598,8 +658,39 @@ export async function unassignEmployee(formData: FormData) {
         const shouldAllocateToRotativo = activeStatuses.includes(situation.name);
 
         if (shouldAllocateToRotativo) {
-            const { getOrCreateRotativoPosto } = await import("@/lib/rotativo");
-            const rotativoPosto = await getOrCreateRotativoPosto();
+            // Find or create ROTATIVO client
+            let rotativoClient = await tx.client.findFirst({ where: { name: { equals: 'ROTATIVO', mode: 'insensitive' } } });
+            if (!rotativoClient) {
+                rotativoClient = await tx.client.create({
+                    data: {
+                        name: 'ROTATIVO',
+                        address: 'Centro de Custo Virtual',
+                        companyId: null
+                    }
+                });
+            }
+
+            const prevPosto = currentAssignment.posto;
+            const emp = currentAssignment.employee;
+
+            // Create dedicated posto under ROTATIVO client specifically for this employee inheriting from prevPosto
+            const rotativoPosto = await tx.posto.create({
+                data: {
+                    clientId: rotativoClient.id,
+                    roleId: prevPosto.roleId,
+                    schedule: prevPosto.schedule || 'Variável',
+                    startTime: prevPosto.startTime || '00:00',
+                    endTime: prevPosto.endTime || '23:59',
+                    billingValue: 0,
+                    requiredWorkload: prevPosto.requiredWorkload || emp.workload || 220,
+                    isNightShift: prevPosto.isNightShift || false,
+                    baseSalary: emp.salary || prevPosto.baseSalary || 0,
+                    insalubridade: emp.insalubridade || prevPosto.insalubridade || 0,
+                    periculosidade: emp.periculosidade || prevPosto.periculosidade || 0,
+                    gratificacao: emp.gratificacao || prevPosto.gratificacao || 0,
+                    outrosAdicionais: emp.outrosAdicionais || prevPosto.outrosAdicionais || 0
+                }
+            });
 
             // For vacations, save origin posto
             const isVacation = situation.name === 'Férias';
@@ -634,6 +725,9 @@ export async function unassignEmployee(formData: FormData) {
                 }
             });
         }
+
+        // Cleanup vacant rotativo postos in same transaction
+        await cleanupVacantRotativoPostos(tx);
     });
 
     // 4. Create vacancy if requested (outside transaction)
@@ -990,6 +1084,31 @@ export async function updateEmployee(formData: FormData) {
                 }
             }
         }
+
+        // If employee is being dismissed/desligado, end their active assignment
+        if (situationId) {
+            const situation = await tx.situation.findUnique({ where: { id: situationId } });
+            if (situation && (situation.name.toLowerCase().includes("desligado") || situation.name.toLowerCase().includes("demitido"))) {
+                // Find all active assignments
+                const activeAssignmentsList = await tx.assignment.findMany({
+                    where: {
+                        employeeId: id,
+                        endDate: null
+                    }
+                });
+
+                for (const activeAss of activeAssignmentsList) {
+                    await tx.assignment.update({
+                        where: { id: activeAss.id },
+                        data: { endDate: new Date() }
+                    });
+                }
+            }
+        }
+
+        // Cleanup vacant rotativo postos in same transaction
+        await cleanupVacantRotativoPostos(tx);
+
         return updated;
     });
 
@@ -1504,6 +1623,9 @@ export async function deleteEmployeesBatch(ids: string[]) {
                     id: { in: ids }
                 }
             });
+
+            // Cleanup vacant rotativo postos in same transaction
+            await cleanupVacantRotativoPostos(tx);
         });
 
         revalidatePath("/admin/employees");
@@ -1612,7 +1734,10 @@ export async function deleteEmployee(id: string) {
     }
 
     try {
-        await prisma.employee.delete({ where: { id } });
+        await prisma.$transaction(async (tx) => {
+            await tx.employee.delete({ where: { id } });
+            await cleanupVacantRotativoPostos(tx);
+        });
         revalidatePath("/admin/employees");
         return { success: true };
     } catch (e: any) {
