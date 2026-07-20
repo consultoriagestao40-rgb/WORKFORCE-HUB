@@ -29,7 +29,6 @@ export async function cleanupVacantRotativoPostos(tx?: any) {
             await db.occurrence.deleteMany({ where: { postoId: posto.id } });
             await db.scheduleOverride.deleteMany({ where: { postoId: posto.id } });
             await db.workRoutine.deleteMany({ where: { postoId: posto.id } });
-            await db.request.deleteMany({ where: { postoId: posto.id } });
 
             // Set originPostoId to null in any assignments pointing to this posto
             await db.assignment.updateMany({
