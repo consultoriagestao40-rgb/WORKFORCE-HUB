@@ -20,7 +20,9 @@ import {
     Gem,
     History as HistoryIcon,
     ChevronRight,
-    CheckCircle2
+    CheckCircle2,
+    FileText,
+    Download
 } from "lucide-react";
 import Link from "next/link";
 import { format, differenceInMonths, differenceInYears, addYears, isBefore, isAfter, subMonths } from "date-fns";
@@ -123,6 +125,11 @@ export default async function EmployeeProfilePage(props: {
                     </Button>
                 </Link>
                 <div className="flex gap-3">
+                    <Link href={`/admin/employees/${employee.id}/print`} target="_blank">
+                        <Button className="gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold border-none h-9 px-4 rounded-xl shadow-sm text-xs uppercase tracking-wider">
+                            <FileText className="w-4 h-4" /> Exportar Ficha
+                        </Button>
+                    </Link>
                     <EditEmployeeSheet employee={employee} situations={situations} roles={roles} companies={companies} postos={postos} />
                 </div>
             </div>
@@ -306,6 +313,46 @@ export default async function EmployeeProfilePage(props: {
                         </div>
 
                         <EmployeeTimeline events={timelineEvents} />
+                    </Card>
+
+                    {/* Documentos & Anexos Card */}
+                    <Card className="border-none shadow-premium overflow-hidden bg-white p-8 rounded-[2.5rem] border border-slate-100">
+                        <div className="flex items-center gap-3 mb-6">
+                            <FileText className="w-5 h-5 text-orange-500" />
+                            <h3 className="text-lg font-black text-slate-800">Documentos Anexados</h3>
+                        </div>
+                        <div className="space-y-3">
+                            {(() => {
+                                const extra = (employee.extraFields as any) || {};
+                                const attachments = (extra.attachments as { name: string; fileName: string; fileData: string }[]) || [];
+                                if (attachments.length === 0) {
+                                    return (
+                                        <p className="text-xs text-slate-400 font-bold text-center py-4 bg-slate-50 border border-dashed rounded-2xl">
+                                            Nenhum anexo encontrado.
+                                        </p>
+                                    );
+                                }
+                                return attachments.map((doc, idx) => (
+                                    <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-3 text-xs">
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                            <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
+                                            <div className="overflow-hidden">
+                                                <div className="font-bold text-slate-800 truncate">{doc.name}</div>
+                                                <div className="text-[10px] text-slate-400 truncate">{doc.fileName}</div>
+                                            </div>
+                                        </div>
+                                        <a 
+                                            href={doc.fileData} 
+                                            download={doc.fileName}
+                                            className="h-8 w-8 rounded-lg text-indigo-600 hover:text-indigo-850 hover:bg-indigo-50 flex items-center justify-center shrink-0 border border-slate-200"
+                                            title="Baixar arquivo"
+                                        >
+                                            <Download className="w-3.5 h-3.5" />
+                                        </a>
+                                    </div>
+                                ));
+                            })()}
+                        </div>
                     </Card>
 
                     {/* Quick Access Sidebar Card */}

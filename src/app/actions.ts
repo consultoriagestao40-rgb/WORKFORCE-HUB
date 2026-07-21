@@ -1091,6 +1091,13 @@ export async function updateEmployee(formData: FormData) {
         const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
         const valeTransporte = parseFloat(formData.get("valeTransporte") as string) || 0;
 
+        const vtOptInStr = formData.get("vtOptIn") as string;
+        const vtOptIn = vtOptInStr === "true";
+        const vtPaymentMethod = (formData.get("vtPaymentMethod") as string) || null;
+        const vtCustomPaymentDetails = (formData.get("vtCustomPaymentDetails") as string) || null;
+        const vaPaymentMethod = (formData.get("vaPaymentMethod") as string) || null;
+        const vaCustomPaymentDetails = (formData.get("vaCustomPaymentDetails") as string) || null;
+
         const extraFieldsStr = formData.get("extraFields") as string;
         const extraFields = extraFieldsStr ? JSON.parse(extraFieldsStr) : null;
 
@@ -1147,6 +1154,11 @@ export async function updateEmployee(formData: FormData) {
 
                     valeAlimentacao,
                     valeTransporte,
+                    vtOptIn,
+                    vtPaymentMethod,
+                    vtCustomPaymentDetails,
+                    vaPaymentMethod,
+                    vaCustomPaymentDetails,
                     birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : null,
                     gender: (formData.get("gender") as string) || null,
                     address: (formData.get("address") as string) || null,
