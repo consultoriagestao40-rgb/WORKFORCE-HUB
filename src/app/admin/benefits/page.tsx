@@ -28,7 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
-import { getBenefitsCalculation, updateBenefitsConfig, markBenefitAsPaid, getSystemUsers, BenefitsCalculationItem } from "@/actions/benefits";
+import { getBenefitsCalculation, updateBenefitsConfig, markBenefitAsPaid, getSystemUsers, markMultipleBenefitsAsPaid, BenefitsCalculationItem } from "@/actions/benefits";
 import { syncSecullumOccurrences, testSecullumConnectionAction } from "@/actions/secullum";
 
 export default function BenefitsPage() {
@@ -76,6 +76,16 @@ export default function BenefitsPage() {
     const [systemUsers, setSystemUsers] = useState<{ id: string; name: string; email: string | null }[]>([]);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [fractionedAlertModalOpen, setFractionedAlertModalOpen] = useState(false);
+
+    // Batch Payment & Selection States
+    const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+    const [batchPaymentModalOpen, setBatchPaymentModalOpen] = useState(false);
+    const [batchPaymentNotes, setBatchPaymentNotes] = useState("");
+    const [isSubmittingBatchPayment, setIsSubmittingBatchPayment] = useState(false);
+
+    useEffect(() => {
+        setSelectedEmployeeIds([]);
+    }, [activeTab, filterOption, searchTerm, selectedMonth, selectedYear]);
 
     const loadData = async () => {
         setIsLoading(true);
@@ -330,6 +340,59 @@ export default function BenefitsPage() {
         }
     };
 
+    const handleBatchPaymentSubmit = async () => {
+        if (selectedEmployeeIds.length === 0) return;
+        setIsSubmittingBatchPayment(true);
+        try {
+            const targetItems = items.filter(item => 
+                selectedEmployeeIds.includes(item.employeeId) && !item.isPaid
+            );
+
+            if (targetItems.length === 0) {
+                toast.error("Nenhum lote pendente de pagamento selecionado.");
+                setIsSubmittingBatchPayment(false);
+                return;
+            }
+
+            const paymentItems = targetItems.map(item => {
+                let benefitType: "VT" | "VA" | "AMBOS" = "AMBOS";
+                if (activeTab === "BUY") {
+                    benefitType = item.vtOptIn ? "AMBOS" : "VA";
+                } else if (activeTab === "ALERTS") {
+                    if (item.vtNeedsAlert && item.vaNeedsAlert) benefitType = "AMBOS";
+                    else if (item.vtNeedsAlert) benefitType = "VT";
+                    else benefitType = "VA";
+                }
+
+                return {
+                    employeeId: item.employeeId,
+                    benefitType,
+                    vtAmount: item.vtOptIn ? item.vtTotalValue : 0,
+                    vaAmount: item.vaTotalValue
+                };
+            });
+
+            const res = await markMultipleBenefitsAsPaid({
+                items: paymentItems,
+                month: selectedMonth,
+                year: selectedYear,
+                notes: batchPaymentNotes
+            });
+
+            if (res.success) {
+                toast.success(`Pagamento de ${targetItems.length} lote(s) confirmado com sucesso!`);
+                setBatchPaymentModalOpen(false);
+                setBatchPaymentNotes("");
+                setSelectedEmployeeIds([]);
+                loadData();
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Erro ao realizar pagamento em lote.");
+        } finally {
+            setIsSubmittingBatchPayment(false);
+        }
+    };
+
     // Export Excel (.xls / .xlsx formatted Spreadsheet XML)
     const exportToExcel = () => {
         if (items.length === 0) {
@@ -530,6 +593,39 @@ export default function BenefitsPage() {
 
         return true;
     });
+
+    // Batch Selection Variables & Handlers
+    const unpaidFilteredItems = (activeTab === "BUY" 
+        ? filteredItems 
+        : items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert || i.isNewHire)
+    ).filter(i => !i.isPaid);
+    
+    const isAllSelected = unpaidFilteredItems.length > 0 && unpaidFilteredItems.every(i => selectedEmployeeIds.includes(i.employeeId));
+    const isSomeSelected = unpaidFilteredItems.length > 0 && unpaidFilteredItems.some(i => selectedEmployeeIds.includes(i.employeeId)) && !isAllSelected;
+
+    const handleSelectAllToggle = () => {
+        if (isAllSelected) {
+            setSelectedEmployeeIds(prev => prev.filter(id => !unpaidFilteredItems.map(i => i.employeeId).includes(id)));
+        } else {
+            const newSelected = [...selectedEmployeeIds];
+            unpaidFilteredItems.forEach(i => {
+                if (!newSelected.includes(i.employeeId)) {
+                    newSelected.push(i.employeeId);
+                }
+            });
+            setSelectedEmployeeIds(newSelected);
+        }
+    };
+
+    const handleSelectItemToggle = (employeeId: string) => {
+        setSelectedEmployeeIds(prev => {
+            if (prev.includes(employeeId)) {
+                return prev.filter(id => id !== employeeId);
+            } else {
+                return [...prev, employeeId];
+            }
+        });
+    };
 
     // Totals
     const totalVT = items.reduce((acc, curr) => acc + (curr.vtOptIn ? curr.vtTotalValue : 0), 0);
@@ -758,6 +854,19 @@ export default function BenefitsPage() {
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-black text-slate-500 uppercase tracking-wider">
+                                        <th className="py-4 px-4 w-10 text-center">
+                                            <input 
+                                                type="checkbox"
+                                                checked={isAllSelected}
+                                                ref={el => {
+                                                    if (el) {
+                                                        el.indeterminate = isSomeSelected;
+                                                    }
+                                                }}
+                                                onChange={handleSelectAllToggle}
+                                                className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
+                                            />
+                                        </th>
                                         <th className="py-4 px-4">Colaborador / CPF</th>
                                         <th className="py-4 px-4">Posto &amp; Cliente</th>
                                         <th className="py-4 px-4">Optante VT?</th>
@@ -772,20 +881,29 @@ export default function BenefitsPage() {
                                 <tbody className="divide-y divide-slate-100 text-xs">
                                     {isLoading ? (
                                         <tr>
-                                            <td colSpan={9} className="text-center py-12 text-slate-400 font-medium">
+                                            <td colSpan={10} className="text-center py-12 text-slate-400 font-medium">
                                                 <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-orange-500" />
                                                 Calculando benefícios do mês...
                                             </td>
                                         </tr>
                                     ) : filteredItems.length === 0 ? (
                                         <tr>
-                                            <td colSpan={9} className="text-center py-12 text-slate-400 font-medium">
+                                            <td colSpan={10} className="text-center py-12 text-slate-400 font-medium">
                                                 Nenhum colaborador encontrado com os filtros aplicados.
                                             </td>
                                         </tr>
                                     ) : (
                                         filteredItems.map(item => (
-                                            <tr key={item.employeeId} className="hover:bg-slate-50/60 transition-colors">
+                                            <tr key={item.employeeId} className={`hover:bg-slate-50/60 transition-colors ${selectedEmployeeIds.includes(item.employeeId) ? 'bg-orange-50/20' : ''}`}>
+                                                <td className="py-3.5 px-4 text-center">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={selectedEmployeeIds.includes(item.employeeId)}
+                                                        onChange={() => handleSelectItemToggle(item.employeeId)}
+                                                        disabled={item.isPaid}
+                                                        className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                                    />
+                                                </td>
                                                 <td className="py-3.5 px-4 font-bold text-slate-900">
                                                     <div>{item.employeeName}</div>
                                                     <div className="text-[10px] font-mono text-slate-400">{item.employeeCpf}</div>
@@ -916,6 +1034,19 @@ export default function BenefitsPage() {
                             <table className="w-full text-left text-xs border-collapse">
                                 <thead className="bg-slate-50 border-b border-slate-200">
                                     <tr className="font-bold text-slate-500 uppercase text-[10px]">
+                                        <th className="py-3 px-4 w-10 text-center">
+                                            <input 
+                                                type="checkbox"
+                                                checked={isAllSelected}
+                                                ref={el => {
+                                                    if (el) {
+                                                        el.indeterminate = isSomeSelected;
+                                                    }
+                                                }}
+                                                onChange={handleSelectAllToggle}
+                                                className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
+                                            />
+                                        </th>
                                         <th className="py-3 px-4">Colaborador</th>
                                         <th className="py-3 px-4">Posto / Cliente</th>
                                         <th className="py-3 px-4 text-center">Admissão</th>
@@ -929,13 +1060,22 @@ export default function BenefitsPage() {
                                 <tbody className="divide-y divide-slate-100 font-medium">
                                     {items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert || i.isNewHire).length === 0 ? (
                                         <tr>
-                                            <td colSpan={8} className="py-8 text-center text-slate-400 font-medium">
+                                            <td colSpan={9} className="py-8 text-center text-slate-400 font-medium">
                                                 Nenhum alerta de lote fracionado pendente para o mês selecionado.
                                             </td>
                                         </tr>
                                     ) : (
                                         items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert || i.isNewHire).map(item => (
-                                            <tr key={item.employeeId} className="hover:bg-slate-50/50">
+                                            <tr key={item.employeeId} className={`hover:bg-slate-50/50 ${selectedEmployeeIds.includes(item.employeeId) ? 'bg-orange-50/20' : ''}`}>
+                                                <td className="py-3 px-4 text-center">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={selectedEmployeeIds.includes(item.employeeId)}
+                                                        onChange={() => handleSelectItemToggle(item.employeeId)}
+                                                        disabled={item.isPaid}
+                                                        className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                                    />
+                                                </td>
                                                 <td className="py-3 px-4">
                                                     <div className="font-bold text-slate-800">{item.employeeName}</div>
                                                     <div className="text-[10px] text-slate-400 font-bold">{item.employeeCpf}</div>
@@ -1391,6 +1531,75 @@ export default function BenefitsPage() {
                     </form>
                 </DialogContent>
             </Dialog>
+
+            {/* BATCH PAYMENT CONFIRMATION MODAL */}
+            <Dialog open={batchPaymentModalOpen} onOpenChange={setBatchPaymentModalOpen}>
+                <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-3xl">
+                    <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-orange-50/50">
+                        <DialogTitle className="flex items-center gap-2 text-lg font-black text-orange-700">
+                            <CheckCircle2 className="w-5 h-5 text-orange-600" /> Confirmar Pagamento em Lote
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-orange-850">
+                            Você está registrando o pagamento para <span className="font-extrabold">{selectedEmployeeIds.length}</span> colaborador(es) selecionados de uma só vez.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60 font-bold text-slate-700">
+                            Previsão de pagamento em lote:
+                            <ul className="list-disc list-inside font-medium text-slate-600 mt-2 space-y-1">
+                                <li>Lançamentos criados: <strong className="text-slate-800">{selectedEmployeeIds.length}</strong></li>
+                                <li>Referência de data de pagamento: <strong className="text-slate-800">Hoje ({new Date().toLocaleDateString('pt-BR')})</strong></li>
+                                <li>Janela de corte ativa: <strong className="text-slate-800">{config?.payrollCutoffStartDay || 26} a {config?.payrollCutoffEndDay || 25}</strong></li>
+                            </ul>
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label className="font-bold text-slate-700">Observação / Nota do Lote (Opcional)</Label>
+                            <Input
+                                placeholder="Ex: Pago via lote Pix financeiro #04..."
+                                value={batchPaymentNotes}
+                                onChange={e => setBatchPaymentNotes(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <DialogFooter className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={() => setBatchPaymentModalOpen(false)}>Cancelar</Button>
+                        <Button 
+                            onClick={handleBatchPaymentSubmit} 
+                            disabled={isSubmittingBatchPayment}
+                            className="bg-orange-500 hover:bg-orange-600 text-white font-bold gap-2"
+                        >
+                            {isSubmittingBatchPayment ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Confirmar Lote
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Floating Batch Payment Action Bar */}
+            {selectedEmployeeIds.length > 0 && (
+                <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-3xl shadow-xl flex items-center gap-6 z-50 border border-slate-800 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="text-xs font-bold">
+                        <span className="text-orange-400 font-extrabold">{selectedEmployeeIds.length}</span> colaborador(es) selecionado(s) para pagamento.
+                    </div>
+                    <div className="flex gap-2">
+                        <Button 
+                            onClick={() => setBatchPaymentModalOpen(true)}
+                            className="bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl text-xs h-9 px-4 gap-1.5"
+                        >
+                            <Check className="w-4 h-4" /> Dar Baixa em Lote
+                        </Button>
+                        <Button 
+                            variant="ghost" 
+                            onClick={() => setSelectedEmployeeIds([])}
+                            className="text-slate-400 hover:text-white font-bold text-xs h-9 px-3"
+                        >
+                            Cancelar
+                        </Button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

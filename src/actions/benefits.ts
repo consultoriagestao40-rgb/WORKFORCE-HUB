@@ -174,6 +174,51 @@ export async function markBenefitAsPaid(data: {
     return { success: true };
 }
 
+// 3.1 Mark Multiple Benefits as Paid (Batch Payment)
+export async function markMultipleBenefitsAsPaid(data: {
+    items: {
+        employeeId: string;
+        benefitType: "VT" | "VA" | "AMBOS";
+        vtAmount: number;
+        vaAmount: number;
+    }[];
+    month: number;
+    year: number;
+    notes?: string;
+}) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado.");
+
+    const config = await getBenefitsConfig();
+    const paidAt = new Date();
+
+    const paymentCreates = data.items.map(item => {
+        const daysToAdd = item.benefitType === "VT" ? config.vtFractionDays : config.vaFractionDays;
+        const nextPaymentDue = new Date(paidAt);
+        nextPaymentDue.setDate(nextPaymentDue.getDate() + daysToAdd);
+
+        return prisma.benefitsPayment.create({
+            data: {
+                employeeId: item.employeeId,
+                month: data.month,
+                year: data.year,
+                benefitType: item.benefitType,
+                vtAmount: Number(item.vtAmount || 0),
+                vaAmount: Number(item.vaAmount || 0),
+                paidAt,
+                paidByUserId: user?.id,
+                nextPaymentDue,
+                notes: data.notes || "Pago em lote via Painel de Benefícios"
+            }
+        });
+    });
+
+    await prisma.$transaction(paymentCreates);
+
+    revalidatePath("/admin/benefits");
+    return { success: true };
+}
+
 // 4. Main Benefits Calculation Action
 export async function getBenefitsCalculation(year: number, month: number) {
     const user = await getCurrentUser();
