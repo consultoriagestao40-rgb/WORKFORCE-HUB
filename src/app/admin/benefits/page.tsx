@@ -1218,8 +1218,8 @@ export default function BenefitsPage() {
 
             {/* CONFIG MODAL */}
             <Dialog open={configModalOpen} onOpenChange={setConfigModalOpen}>
-                <DialogContent className="sm:max-w-xl">
-                    <DialogHeader>
+                <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-3xl">
+                    <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-slate-50/50">
                         <DialogTitle className="flex items-center gap-2 text-lg font-black">
                             <Settings className="w-5 h-5 text-orange-500" /> Configurações Globais de Benefícios
                         </DialogTitle>
@@ -1228,161 +1228,163 @@ export default function BenefitsPage() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <form onSubmit={handleConfigSubmit} className="space-y-4 py-2 text-xs">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">Dia Início Janela de Folha (Anterior)</Label>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    max={31}
-                                    value={configFormData.payrollCutoffStartDay}
-                                    onChange={e => setConfigFormData({ ...configFormData, payrollCutoffStartDay: Number(e.target.value) })}
-                                />
-                                <span className="text-[10px] text-slate-400">Padrão: 26</span>
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">Dia Fim Janela de Folha (Atual)</Label>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    max={31}
-                                    value={configFormData.payrollCutoffEndDay}
-                                    onChange={e => setConfigFormData({ ...configFormData, payrollCutoffEndDay: Number(e.target.value) })}
-                                />
-                                <span className="text-[10px] text-slate-400">Padrão: 25</span>
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">Dia do Pagamento da Folha</Label>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    max={31}
-                                    value={configFormData.payrollPaymentDay}
-                                    onChange={e => setConfigFormData({ ...configFormData, payrollPaymentDay: Number(e.target.value) })}
-                                />
-                                <span className="text-[10px] text-slate-400">Padrão: 5º dia útil</span>
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">Lote VT Admissão (Dias)</Label>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    max={30}
-                                    value={configFormData.vtFractionDays}
-                                    onChange={e => setConfigFormData({ ...configFormData, vtFractionDays: Number(e.target.value) })}
-                                />
-                                <span className="text-[10px] text-slate-400">Padrão: 5 dias</span>
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">Lote VA Admissão (Dias)</Label>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    max={30}
-                                    value={configFormData.vaFractionDays}
-                                    onChange={e => setConfigFormData({ ...configFormData, vaFractionDays: Number(e.target.value) })}
-                                />
-                                <span className="text-[10px] text-slate-400">Padrão: 10 dias</span>
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">Estimativa Entrega Cartão VA (Dias)</Label>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    max={30}
-                                    value={configFormData.vaCardDeliveryEstimateDays}
-                                    onChange={e => setConfigFormData({ ...configFormData, vaCardDeliveryEstimateDays: Number(e.target.value) })}
-                                />
-                                <span className="text-[10px] text-slate-400">Padrão: 10 dias</span>
-                            </div>
-                        </div>
-
-                        <div className="pt-3 border-t border-slate-100 space-y-1">
-                            <Label className="font-bold text-slate-700">Usuário Responsável pelos Alertas de Lote</Label>
-                            <Select
-                                value={configFormData.alertUserId || "none"}
-                                onValueChange={val => setConfigFormData(prev => ({ ...prev, alertUserId: val === "none" ? "" : val }))}
-                            >
-                                <SelectTrigger className="rounded-xl border-slate-200 text-xs font-semibold h-9">
-                                    <SelectValue placeholder="Selecione o usuário..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">Nenhum (Desativar alertas automáticos)</SelectItem>
-                                    {systemUsers.map(u => (
-                                        <SelectItem key={u.id} value={u.id}>{u.name} ({u.email})</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <span className="text-[10px] text-slate-400 block font-medium">Este usuário verá o modal de alerta automaticamente caso haja lotes vencendo hoje.</span>
-                        </div>
-
-                        <div className="pt-4 border-t border-slate-100 space-y-3">
-                            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                                <RefreshCw className="w-4 h-4 text-orange-500" /> API Integração Secullum Ponto Web
-                            </h4>
-                            <div className="space-y-3">
+                    <form onSubmit={handleConfigSubmit} className="flex-1 flex flex-col overflow-hidden text-xs">
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">URL da API Secullum</Label>
+                                    <Label className="font-bold text-slate-700">Dia Início Janela de Folha (Anterior)</Label>
                                     <Input
-                                        value={configFormData.secullumApiUrl}
-                                        onChange={e => setConfigFormData({ ...configFormData, secullumApiUrl: e.target.value })}
-                                        placeholder="https://pontowebintegracaoexterna.secullum.com.br"
+                                        type="number"
+                                        min={1}
+                                        max={31}
+                                        value={configFormData.payrollCutoffStartDay}
+                                        onChange={e => setConfigFormData({ ...configFormData, payrollCutoffStartDay: Number(e.target.value) })}
                                     />
+                                    <span className="text-[10px] text-slate-400">Padrão: 26</span>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1">
-                                        <Label className="font-bold text-slate-700">E-mail do Secullum</Label>
-                                        <Input
-                                            value={configFormData.secullumEmail}
-                                            onChange={e => setConfigFormData({ ...configFormData, secullumEmail: e.target.value })}
-                                            placeholder="cristiano@grupojvsserv.com.br"
-                                        />
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <Label className="font-bold text-slate-700">Senha do Secullum</Label>
-                                        <Input
-                                            type="password"
-                                            value={configFormData.secullumPassword}
-                                            onChange={e => setConfigFormData({ ...configFormData, secullumPassword: e.target.value })}
-                                            placeholder="Sua senha do Ponto Web..."
-                                        />
-                                    </div>
+                                <div className="space-y-1">
+                                    <Label className="font-bold text-slate-700">Dia Fim Janela de Folha (Atual)</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={31}
+                                        value={configFormData.payrollCutoffEndDay}
+                                        onChange={e => setConfigFormData({ ...configFormData, payrollCutoffEndDay: Number(e.target.value) })}
+                                    />
+                                    <span className="text-[10px] text-slate-400">Padrão: 25</span>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1">
-                                        <Label className="font-bold text-slate-700">ID do Banco Selecionado</Label>
-                                        <Input
-                                            value={configFormData.secullumCompanyId}
-                                            onChange={e => setConfigFormData({ ...configFormData, secullumCompanyId: e.target.value })}
-                                            placeholder="Ex: 85740"
-                                        />
-                                    </div>
+                                <div className="space-y-1">
+                                    <Label className="font-bold text-slate-700">Dia do Pagamento da Folha</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={31}
+                                        value={configFormData.payrollPaymentDay}
+                                        onChange={e => setConfigFormData({ ...configFormData, payrollPaymentDay: Number(e.target.value) })}
+                                    />
+                                    <span className="text-[10px] text-slate-400">Padrão: 5º dia útil</span>
                                 </div>
 
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleTestSecullum}
-                                    disabled={isTestingSecullum}
-                                    className="w-full text-xs font-bold gap-2 border-slate-300"
+                                <div className="space-y-1">
+                                    <Label className="font-bold text-slate-700">Lote VT Admissão (Dias)</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={30}
+                                        value={configFormData.vtFractionDays}
+                                        onChange={e => setConfigFormData({ ...configFormData, vtFractionDays: Number(e.target.value) })}
+                                    />
+                                    <span className="text-[10px] text-slate-400">Padrão: 5 dias</span>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label className="font-bold text-slate-700">Lote VA Admissão (Dias)</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={30}
+                                        value={configFormData.vaFractionDays}
+                                        onChange={e => setConfigFormData({ ...configFormData, vaFractionDays: Number(e.target.value) })}
+                                    />
+                                    <span className="text-[10px] text-slate-400">Padrão: 10 dias</span>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label className="font-bold text-slate-700">Estimativa Entrega Cartão VA (Dias)</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={30}
+                                        value={configFormData.vaCardDeliveryEstimateDays}
+                                        onChange={e => setConfigFormData({ ...configFormData, vaCardDeliveryEstimateDays: Number(e.target.value) })}
+                                    />
+                                    <span className="text-[10px] text-slate-400">Padrão: 10 dias</span>
+                                </div>
+                            </div>
+
+                            <div className="pt-3 border-t border-slate-100 space-y-1">
+                                <Label className="font-bold text-slate-700">Usuário Responsável pelos Alertas de Lote</Label>
+                                <Select
+                                    value={configFormData.alertUserId || "none"}
+                                    onValueChange={val => setConfigFormData(prev => ({ ...prev, alertUserId: val === "none" ? "" : val }))}
                                 >
-                                    {isTestingSecullum ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
-                                    Testar Conexão com Secullum Ponto Web
-                                </Button>
+                                    <SelectTrigger className="rounded-xl border-slate-200 text-xs font-semibold h-9">
+                                        <SelectValue placeholder="Selecione o usuário..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">Nenhum (Desativar alertas automáticos)</SelectItem>
+                                        {systemUsers.map(u => (
+                                            <SelectItem key={u.id} value={u.id}>{u.name} ({u.email})</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <span className="text-[10px] text-slate-400 block font-medium">Este usuário verá o modal de alerta automaticamente caso haja lotes vencendo hoje.</span>
+                            </div>
+
+                            <div className="pt-4 border-t border-slate-100 space-y-3">
+                                <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                                    <RefreshCw className="w-4 h-4 text-orange-500" /> API Integração Secullum Ponto Web
+                                </h4>
+                                <div className="space-y-3">
+                                    <div className="space-y-1">
+                                        <Label className="font-bold text-slate-700">URL da API Secullum</Label>
+                                        <Input
+                                            value={configFormData.secullumApiUrl}
+                                            onChange={e => setConfigFormData({ ...configFormData, secullumApiUrl: e.target.value })}
+                                            placeholder="https://pontowebintegracaoexterna.secullum.com.br"
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <Label className="font-bold text-slate-700">E-mail do Secullum</Label>
+                                            <Input
+                                                value={configFormData.secullumEmail}
+                                                onChange={e => setConfigFormData({ ...configFormData, secullumEmail: e.target.value })}
+                                                placeholder="cristiano@grupojvsserv.com.br"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <Label className="font-bold text-slate-700">Senha do Secullum</Label>
+                                            <Input
+                                                type="password"
+                                                value={configFormData.secullumPassword}
+                                                onChange={e => setConfigFormData({ ...configFormData, secullumPassword: e.target.value })}
+                                                placeholder="Sua senha do Ponto Web..."
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <Label className="font-bold text-slate-700">ID do Banco Selecionado</Label>
+                                            <Input
+                                                value={configFormData.secullumCompanyId}
+                                                onChange={e => setConfigFormData({ ...configFormData, secullumCompanyId: e.target.value })}
+                                                placeholder="Ex: 85740"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleTestSecullum}
+                                        disabled={isTestingSecullum}
+                                        className="w-full text-xs font-bold gap-2 border-slate-300"
+                                    >
+                                        {isTestingSecullum ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+                                        Testar Conexão com Secullum Ponto Web
+                                    </Button>
+                                </div>
                             </div>
                         </div>
 
-                        <DialogFooter className="pt-4 border-t border-slate-100">
+                        <DialogFooter className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2">
                             <Button type="button" variant="outline" onClick={() => setConfigModalOpen(false)}>Cancelar</Button>
                             <Button type="submit" className="bg-orange-500 hover:bg-orange-600 text-white font-bold">Salvar Configurações</Button>
                         </DialogFooter>
