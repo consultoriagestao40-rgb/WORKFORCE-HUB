@@ -40,9 +40,9 @@ import {
 
 interface PopsManagementSectionProps {
     clientId: string;
-    clientName: string;
-    postos: any[];
-    initialPops: any[];
+    clientName?: string;
+    postos?: any[];
+    initialPops?: any[];
     isClientUser?: boolean;
     isAdminUser?: boolean;
 }

@@ -2639,6 +2639,16 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                             </Card>
                         </div>
                     )}
+
+                    {activeTab === "pops" && (
+                        <PopsManagementSection
+                            clientId={activeContractId || (contracts[0] as any)?.clientId || contracts[0]?.id || ""}
+                            clientName={contracts.find(c => c.id === (activeContractId || contracts[0]?.id))?.name || "Cliente"}
+                            initialPops={pops}
+                            isClientUser={true}
+                            isAdminUser={false}
+                        />
+                    )}
                 </main>
             </div>
         {/* Modal de Detalhamento de KPIs Operacionais (Auditoria Mensal) */}

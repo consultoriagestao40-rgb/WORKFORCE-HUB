@@ -40,12 +40,14 @@ import {
     getRequestComments,
     deleteRequest
 } from "@/app/admin/requests/actions";
+import { getPopDocuments } from "@/actions/pops";
+import { PopsManagementSection } from "@/components/client/PopsManagementSection";
 import { 
     ArrowLeft, Award, Calendar, Users, DollarSign, 
     Plus, Clock, LogOut, Star, Info,
     Trash2, Edit3, Inbox, FileText, Smile, 
     BarChart2, ClipboardList, ChevronLeft, ChevronRight, RefreshCw, Download,
-    UserCheck, UserX, Building, Briefcase, AlertCircle, Filter, ChevronDown
+    UserCheck, UserX, Building, Briefcase, AlertCircle, Filter, ChevronDown, FileCheck
 } from "lucide-react";
 
 interface PerformanceDashboardProps {
@@ -64,7 +66,9 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [date, setDate] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
 
     // Active sub-tab matching client portal tabs exactly
-    const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report" | "nps" | "kpis" | "sla" | "service_plan">("presence");
+    const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report" | "nps" | "kpis" | "sla" | "service_plan" | "pops">("presence");
+    const [pops, setPops] = useState<any[]>([]);
+    const [loadingPops, setLoadingPops] = useState<boolean>(false);
 
     // Sorting state for consolidated list
     const [sortBy, setSortBy] = useState<"abc" | "billing" | "name">("abc");
@@ -269,7 +273,20 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [npsQWeight, setNpsQWeight] = useState<number>(1);
     const [savingNpsQ, setSavingNpsQ] = useState<boolean>(false);
 
-    // Dynamic daily presence data for individual view
+    useEffect(() => {
+        if (activeTab === "pops") {
+            const fetchPopsData = async () => {
+                setLoadingPops(true);
+                const targetClientId = selectedClientId !== "all" ? selectedClientId : initialClients[0]?.id;
+                if (targetClientId) {
+                    const data = await getPopDocuments(targetClientId);
+                    setPops(data);
+                }
+                setLoadingPops(false);
+            };
+            fetchPopsData();
+        }
+    }, [activeTab, selectedClientId, initialClients]);
     const [dailyAttendances, setDailyAttendances] = useState<any[]>([]);
     const [loadingDaily, setLoadingDaily] = useState<boolean>(false);
 
@@ -1208,7 +1225,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
         { id: "nps", label: "NPS / Avaliação", icon: Smile },
         { id: "kpis", label: "Indicadores (KPIs)", icon: BarChart2 },
         { id: "sla", label: "SLA / Desempenho", icon: Award },
-        { id: "service_plan", label: "Plano de Serviços", icon: ClipboardList }
+        { id: "service_plan", label: "Plano de Serviços", icon: ClipboardList },
+        { id: "pops", label: "Documentos POP", icon: FileCheck }
     ];
 
     // Sorting Logic for consolidated view
@@ -4750,6 +4768,48 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         )}
                                     </CardContent>
                                 </Card>
+                            )}
+                        </div>
+                    )}
+
+                    {/* TAB 9: DOCUMENTOS POP / SGQ */}
+                    {activeTab === "pops" && (
+                        <div className="space-y-6">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
+                                <div className="space-y-1">
+                                    <h3 className="text-md font-bold text-slate-850">Documentos POP & Sistema de Qualidade (SGQ)</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Controle de Procedimentos Operacionais Padrão e histórico de revisões.</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <select
+                                        value={selectedClientId}
+                                        onChange={(e) => setSelectedClientId(e.target.value)}
+                                        className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
+                                    >
+                                        <option value="all">-- Escolha um Cliente --</option>
+                                        {initialClients.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {selectedClientId === "all" ? (
+                                <Card className="border border-slate-200/50 shadow-premium bg-white p-8 text-center">
+                                    <FileCheck className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                                    <h4 className="text-sm font-bold text-slate-700">Selecione um Cliente</h4>
+                                    <p className="text-xs text-slate-500 mt-1">Selecione um cliente no filtro acima para visualizar e gerenciar os documentos POP vinculados.</p>
+                                </Card>
+                            ) : loadingPops ? (
+                                <div className="text-center py-12 text-slate-450 italic text-xs animate-pulse">Carregando documentos POP...</div>
+                            ) : (
+                                <PopsManagementSection
+                                    clientId={selectedClientId}
+                                    clientName={initialClients.find(c => c.id === selectedClientId)?.name || "Cliente"}
+                                    initialPops={pops}
+                                    isClientUser={false}
+                                    isAdminUser={true}
+                                />
                             )}
                         </div>
                     )}
