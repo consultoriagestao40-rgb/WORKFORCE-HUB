@@ -152,9 +152,39 @@ export function NewEmployeeSheet({
 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    async function handleSubmit(formData: FormData) {
+    async function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
+        e.preventDefault();
+        if (isSubmitting) return;
+        setIsSubmitting(true);
+
         try {
-            const res = await createEmployee(formData);
+            const rawFormData = new FormData(e.currentTarget);
+            const cleanFormData = new FormData();
+
+            // Append only string values to avoid Next.js Server Action File serialization crash
+            for (const [key, value] of rawFormData.entries()) {
+                if (typeof value === "string") {
+                    cleanFormData.append(key, value);
+                }
+            }
+
+            // Explicitly set controlled state values if present
+            if (name) cleanFormData.set("name", name);
+            if (cpf) cleanFormData.set("cpf", cpf);
+            if (phone) cleanFormData.set("phone", phone);
+            if (email) cleanFormData.set("email", email);
+            if (roleId) cleanFormData.set("roleId", roleId);
+            if (companyId) cleanFormData.set("companyId", companyId);
+            if (selectedPostoId) cleanFormData.set("postoId", selectedPostoId);
+            if (salary) cleanFormData.set("salary", salary);
+            if (insalubridade) cleanFormData.set("insalubridade", insalubridade);
+            if (periculosidade) cleanFormData.set("periculosidade", periculosidade);
+            if (gratificacao) cleanFormData.set("gratificacao", gratificacao);
+            if (outrosAdicionais) cleanFormData.set("outrosAdicionais", outrosAdicionais);
+            if (workload) cleanFormData.set("workload", workload);
+            if (admissionDate) cleanFormData.set("admissionDate", admissionDate);
+
+            const res = await createEmployee(cleanFormData);
             if (res?.error) {
                 toast.error(res.error);
                 return;
@@ -164,6 +194,8 @@ export function NewEmployeeSheet({
             if (onSuccess) onSuccess();
         } catch (e: any) {
             toast.error(e.message || "Erro ao cadastrar colaborador");
+        } finally {
+            setIsSubmitting(false);
         }
     }
 
@@ -207,17 +239,7 @@ export function NewEmployeeSheet({
                     )}
                 </SheetHeader>
                 <form
-                    onSubmit={async (e) => {
-                        e.preventDefault();
-                        if (isSubmitting) return;
-                        setIsSubmitting(true);
-                        try {
-                            const formData = new FormData(e.currentTarget);
-                            await handleSubmit(formData);
-                        } finally {
-                            setIsSubmitting(false);
-                        }
-                    }}
+                    onSubmit={handleFormSubmit}
                     className="space-y-4 mt-6 h-[80vh] overflow-y-auto pr-4"
                 >
 
