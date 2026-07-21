@@ -1159,53 +1159,7 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
 
                     {/* Actions Block */}
                     <div className="flex gap-2 pt-4 border-t sticky bottom-0 bg-white z-10 pb-4">
-                        <Button 
-                            type="button" 
-                            variant="outline"
-                            onClick={() => {
-                                const nameVal = (document.getElementById("name") as HTMLInputElement)?.value || employee.name;
-                                const cpfVal = (document.getElementById("cpf") as HTMLInputElement)?.value || employee.cpf;
-                                const phoneVal = (document.getElementById("phone") as HTMLInputElement)?.value || employee.phone;
-                                const emailVal = (document.getElementById("email") as HTMLInputElement)?.value || employee.email;
-                                
-                                const roleSelect = document.querySelector('select[name="roleId"]') as HTMLSelectElement;
-                                const roleVal = roles.find(r => r.id === roleSelect?.value)?.name || "";
-                                
-                                const companySelect = document.querySelector('select[name="companyId"]') as HTMLSelectElement;
-                                const companyVal = companies.find(c => c.id === companySelect?.value)?.name || "";
-                                
-                                const admissionVal = (document.getElementById("admissionDate") as HTMLInputElement)?.value || employee.admissionDate;
-                                const birthVal = (document.getElementById("birthDate") as HTMLInputElement)?.value || employee.birthDate;
-                                
-                                const genderSelect = document.querySelector('select[name="gender"]') as HTMLSelectElement;
-                                const genderVal = genderSelect?.value || employee.gender;
-                                
-                                const addressVal = (document.getElementById("address") as HTMLInputElement)?.value || employee.address;
-                                const salaryVal = (document.getElementById("salary") as HTMLInputElement)?.value || employee.salary;
- 
-                                const event = new CustomEvent("workforceRpaCapture", {
-                                    detail: {
-                                        name: nameVal,
-                                        cpf: cpfVal,
-                                        phone: phoneVal,
-                                        email: emailVal,
-                                        role: roleVal,
-                                        salary: salaryVal,
-                                        company: companyVal,
-                                        startDate: admissionVal ? new Date(admissionVal + 'T12:00:00').toLocaleDateString('pt-BR') : "",
-                                        birthDate: birthVal ? new Date(birthVal + 'T12:00:00').toLocaleDateString('pt-BR') : "",
-                                        gender: genderVal,
-                                        address: addressVal
-                                    }
-                                });
-                                document.dispatchEvent(event);
-                                toast.success("Dados prontos! Vá para a aba da Thomson Reuters e clique em Preencher.");
-                            }}
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 rounded-xl"
-                        >
-                            ⚡ Preencher na Thomson Reuters
-                        </Button>
-                        <Button type="submit" className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold h-10 rounded-xl">Salvar Alterações</Button>
+                        <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold h-10 rounded-xl">Salvar Alterações</Button>
                     </div>
                 </form>
             </SheetContent>

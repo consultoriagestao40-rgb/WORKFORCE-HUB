@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { notFound } from "next/navigation";
+import { PrintFichaClient } from "@/components/admin/PrintFichaClient";
 
 async function getEmployeePrintData(id: string) {
     return await prisma.employee.findUnique({
@@ -52,6 +53,9 @@ export default async function PrintEmployeeProfilePage(props: {
 
     return (
         <div className="p-10 max-w-[800px] mx-auto bg-white text-slate-900 font-sans text-xs space-y-6 print:p-0 print:max-w-full">
+            {/* Print control banner */}
+            <PrintFichaClient />
+
             {/* Title / Header */}
             <div className="border-2 border-slate-950 p-4 flex justify-between items-center bg-slate-50">
                 <div className="space-y-1">
@@ -307,9 +311,6 @@ export default async function PrintEmployeeProfilePage(props: {
                     </div>
                 </div>
             </div>
-
-            {/* Browser print execution */}
-            <script dangerouslySetInnerHTML={{ __html: "window.onload = function() { window.print(); }" }} />
         </div>
     );
 }
