@@ -85,10 +85,17 @@ export async function GET(request: Request) {
             absRate: number;
         }[] = [];
 
+        const allAbsences: any[] = [];
+
         for (const day of daysInRange) {
             const dayOfWeek = day.getDay();
             const dayStr = day.toDateString();
             let dayExpected = 0;
+            let dayAbsences = 0;
+            let dayGlosas = 0;
+            let dayCoverages = 0;
+
+            const dayAttendance = attendances.filter(a => a.date.toDateString() === dayStr);
 
             for (const posto of postos) {
                 // Encontrar override se houver
@@ -143,27 +150,38 @@ export async function GET(request: Request) {
                         const existingR = vacantDaysByRoleMap.get(rKey) || { name: posto.role.name, count: 0 };
                         existingR.count++;
                         vacantDaysByRoleMap.set(rKey, existingR);
+                    } else {
+                        // Tem titular. Verifica se tem batida no banco
+                        const att = dayAttendance.find(a => a.postoId === posto.id);
+                        if (att) {
+                            if (att.status === "FALTA") {
+                                dayAbsences++;
+                                const isCovered = att.coveredById || att.coverageType === "DIARISTA" || att.coverageType === "RESERVA_TECNICA";
+                                if (isCovered) {
+                                    dayCoverages++;
+                                } else {
+                                    dayGlosas++;
+                                }
+                                allAbsences.push(att);
+                            }
+                        } else {
+                            // Sem batida -> conta como falta dinâmica sem cobertura
+                            dayAbsences++;
+                            dayGlosas++;
+                            allAbsences.push({
+                                id: `dyn-${posto.id}-${dayStr}`,
+                                postoId: posto.id,
+                                employeeId: activeAssignment.employee.id,
+                                date: day,
+                                status: "FALTA",
+                                notes: "Falta de ponto no sistema.",
+                                employee: activeAssignment.employee,
+                                posto: posto
+                            });
+                        }
                     }
                 }
             }
-
-            // Agregações diárias para o gráfico
-            const dayStrString = day.toDateString();
-            const dayAttendance = attendances.filter(a => a.date.toDateString() === dayStrString);
-            const dayAbsenceRecords = dayAttendance.filter(a => a.status === "FALTA");
-            const dayAbsences = dayAbsenceRecords.length;
-
-            const dayCoverages = dayAbsenceRecords.filter(a => 
-                a.coverageType === "RESERVA_TECNICA" || 
-                a.coverageType === "DIARISTA" || 
-                a.coveredById !== null
-            ).length;
-
-            const dayGlosas = dayAbsenceRecords.filter(a => 
-                !a.coveredById && 
-                a.coverageType !== "DIARISTA" && 
-                a.coverageType !== "RESERVA_TECNICA"
-            ).length;
 
             const formattedDate = format(day, "dd/MM");
 
@@ -178,28 +196,30 @@ export async function GET(request: Request) {
         }
 
         // 5. Agregações das Batidas de Presença
-        const absences = attendances.filter(a => a.status === "FALTA");
-        const totalAbsences = absences.length;
+        const totalAbsences = allAbsences.length;
 
         // Faltas com cobertura ativada (Reserva ou Diarista)
-        const coveredAbsences = absences.filter(a => 
+        const coveredAbsences = allAbsences.filter(a => 
             a.coverageType === "RESERVA_TECNICA" || 
             a.coverageType === "DIARISTA" || 
             a.coveredById !== null
         ).length;
 
         // Faltas sem cobertura (Glosas financeiras)
-        const glosas = absences.filter(a => 
+        const glosas = allAbsences.filter(a => 
             !a.coveredById && 
             a.coverageType !== "DIARISTA" && 
             a.coverageType !== "RESERVA_TECNICA"
         );
         const glosasCount = glosas.length;
-        const glosasValue = glosas.reduce((acc, curr) => acc + (curr.posto.billingValue / 30), 0);
+        const glosasValue = glosas.reduce((acc, curr) => {
+            const val = curr.posto?.billingValue || 0;
+            return acc + (val / 30);
+        }, 0);
 
         // 6. Ranking de ausências por colaborador
         const employeeAbsenceMap = new Map<string, { name: string; cpf: string; count: number }>();
-        absences.forEach(a => {
+        allAbsences.forEach(a => {
             if (a.employee) {
                 const key = a.employee.id;
                 const existing = employeeAbsenceMap.get(key) || { 
@@ -223,7 +243,7 @@ export async function GET(request: Request) {
             outros: 0
         };
 
-        absences.forEach(a => {
+        allAbsences.forEach(a => {
             const note = (a.notes || "").toLowerCase();
             if (!note || note.includes("injustificada") || note.includes("sem just") || note.includes("sem avisar")) {
                 reasons.injustificada++;

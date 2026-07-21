@@ -1759,8 +1759,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     >
                                         <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Postos Não Cobertos</span>
                                         <div className="flex items-center justify-between mt-1">
-                                            <span className="text-lg font-black text-amber-605">{consolidatedData.uncoveredShiftsCount || 0}</span>
-                                            <AlertCircle className="w-5 h-5 text-amber-605 bg-amber-50 p-1 rounded-lg" />
+                                            <span className="text-lg font-black text-red-600">{consolidatedData.uncoveredShiftsCount || 0}</span>
+                                            <AlertCircle className="w-5 h-5 text-red-500 bg-red-50 p-1 rounded-lg" />
                                         </div>
                                     </Card>
 
