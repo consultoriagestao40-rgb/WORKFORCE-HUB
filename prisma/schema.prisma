@@ -786,7 +786,6 @@ model MonthlyDocumentFile {
   uploadedAt    DateTime                   @default(now())
   requirement   MonthlyDocumentRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
 
-  @@unique([requirementId, month])
   @@index([requirementId])
 }
 

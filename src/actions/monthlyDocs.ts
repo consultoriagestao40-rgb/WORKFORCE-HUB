@@ -84,19 +84,8 @@ export async function uploadMonthlyDocumentFile(
             return { error: "Arquivo ou dados inválidos." };
         }
 
-        await prisma.monthlyDocumentFile.upsert({
-            where: {
-                requirementId_month: {
-                    requirementId,
-                    month
-                }
-            },
-            update: {
-                fileName,
-                fileData,
-                uploadedAt: new Date()
-            },
-            create: {
+        await prisma.monthlyDocumentFile.create({
+            data: {
                 requirementId,
                 month,
                 fileName,
