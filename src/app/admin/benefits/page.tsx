@@ -15,15 +15,20 @@ import {
     XCircle,
     UserCheck,
     Clock,
-    RefreshCw
+    RefreshCw,
+    FileSpreadsheet,
+    Info,
+    Check,
+    AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
-import { getBenefitsCalculation, updateBenefitsConfig, BenefitsCalculationItem } from "@/actions/benefits";
+import { getBenefitsCalculation, updateBenefitsConfig, markBenefitAsPaid, BenefitsCalculationItem } from "@/actions/benefits";
 
 export default function BenefitsPage() {
     const today = new Date();
@@ -35,7 +40,7 @@ export default function BenefitsPage() {
     const [config, setConfig] = useState<any>(null);
 
     const [searchTerm, setSearchTerm] = useState("");
-    const [filterOption, setFilterOption] = useState<"ALL" | "VT_ONLY" | "VA_ONLY" | "NON_VT">("ALL");
+    const [filterOption, setFilterOption] = useState<"ALL" | "VT_ONLY" | "VA_ONLY" | "NON_VT" | "PAID" | "PENDING">("ALL");
     const [activeTab, setActiveTab] = useState<"BUY" | "ALERTS" | "CONFIG">("BUY");
 
     // Config Modal State
@@ -48,6 +53,12 @@ export default function BenefitsPage() {
         vaFractionDays: 10,
         vaCardDeliveryEstimateDays: 10
     });
+
+    // Payment Modal State
+    const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+    const [selectedItemForPayment, setSelectedItemForPayment] = useState<BenefitsCalculationItem | null>(null);
+    const [paymentNotes, setPaymentNotes] = useState("");
+    const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
 
     const loadData = async () => {
         setIsLoading(true);
@@ -90,59 +101,116 @@ export default function BenefitsPage() {
         }
     };
 
-    // Export CSV
-    const exportToCSV = () => {
+    const handleMarkAsPaid = async () => {
+        if (!selectedItemForPayment) return;
+        setIsSubmittingPayment(true);
+        try {
+            await markBenefitAsPaid({
+                employeeId: selectedItemForPayment.employeeId,
+                month: selectedMonth,
+                year: selectedYear,
+                benefitType: "AMBOS",
+                vtAmount: selectedItemForPayment.vtOptIn ? selectedItemForPayment.vtTotalValue : 0,
+                vaAmount: selectedItemForPayment.vaTotalValue,
+                notes: paymentNotes
+            });
+            toast.success(`Benefício de ${selectedItemForPayment.employeeName} marcado como PAGO!`);
+            setPaymentModalOpen(false);
+            setSelectedItemForPayment(null);
+            setPaymentNotes("");
+            loadData();
+        } catch (err: any) {
+            toast.error(err.message || "Erro ao registrar pagamento.");
+        } finally {
+            setIsSubmittingPayment(false);
+        }
+    };
+
+    // Export Excel (.xls / .xlsx formatted Spreadsheet XML)
+    const exportToExcel = () => {
         if (items.length === 0) {
             toast.error("Nenhum dado disponível para exportar.");
             return;
         }
 
-        const headers = [
-            "Colaborador",
-            "CPF",
-            "Posto",
-            "Cliente",
-            "Data Admissão",
-            "Optante VT",
-            "VT R$/Dia",
-            "VT Faltas/Abatimentos (26-25)",
-            "VT Valor Total (R$)",
-            "VT Destino Depósito",
-            "VA Mensal Base (R$)",
-            "VA Faltas/Abatimentos (26-25)",
-            "VA Valor Total (R$)",
-            "VA Destino Depósito",
-            "Observações / Lote"
-        ];
+        const monthName = monthNames[selectedMonth - 1];
 
-        const rows = filteredItems.map(item => [
-            `"${item.employeeName}"`,
-            `"${item.employeeCpf}"`,
-            `"${item.postoName}"`,
-            `"${item.clientName}"`,
-            `"${item.admissionDate}"`,
-            `"${item.vtOptIn ? 'Sim' : 'Não'}"`,
-            item.vtDailyValue.toFixed(2),
-            item.vtOccurrencesDeducted,
-            item.vtTotalValue.toFixed(2),
-            `"${item.vtDestination}"`,
-            item.vaMonthlyValue.toFixed(2),
-            item.vaOccurrencesDeducted,
-            item.vaTotalValue.toFixed(2),
-            `"${item.vaDestination}"`,
-            `"${item.vtBatchNote || item.vaBatchNote || ''}"`
-        ]);
+        let xml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#EA580C" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+  <Style ss:ID="Currency">
+   <NumberFormat ss:Format="R$#,##0.00"/>
+  </Style>
+  <Style ss:ID="Center">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Compra de Beneficios">
+  <Table>
+   <Row ss:Height="24" ss:StyleID="Header">
+    <Cell><Data ss:Type="String">Colaborador</Data></Cell>
+    <Cell><Data ss:Type="String">CPF</Data></Cell>
+    <Cell><Data ss:Type="String">Posto</Data></Cell>
+    <Cell><Data ss:Type="String">Cliente</Data></Cell>
+    <Cell><Data ss:Type="String">Data Admissao</Data></Cell>
+    <Cell><Data ss:Type="String">Optante VT</Data></Cell>
+    <Cell><Data ss:Type="String">VT R$/Dia</Data></Cell>
+    <Cell><Data ss:Type="String">Faltas/Atestados (26-25)</Data></Cell>
+    <Cell><Data ss:Type="String">VT Valor Total (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">Destino VT</Data></Cell>
+    <Cell><Data ss:Type="String">VA Mensal Base (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">VA Valor Total (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">Destino VA</Data></Cell>
+    <Cell><Data ss:Type="String">Status Pagamento</Data></Cell>
+    <Cell><Data ss:Type="String">Data Pagamento</Data></Cell>
+    <Cell><Data ss:Type="String">Observacao / Lote</Data></Cell>
+   </Row>`;
 
-        const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(";"), ...rows.map(e => e.join(";"))].join("\n");
-        const encodedUri = encodeURI(csvContent);
+        filteredItems.forEach(item => {
+            xml += `
+   <Row>
+    <Cell><Data ss:Type="String">${item.employeeName}</Data></Cell>
+    <Cell><Data ss:Type="String">${item.employeeCpf}</Data></Cell>
+    <Cell><Data ss:Type="String">${item.postoName}</Data></Cell>
+    <Cell><Data ss:Type="String">${item.clientName}</Data></Cell>
+    <Cell ss:StyleID="Center"><Data ss:Type="String">${item.admissionDate}</Data></Cell>
+    <Cell ss:StyleID="Center"><Data ss:Type="String">${item.vtOptIn ? 'Sim' : 'Não'}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vtDailyValue}</Data></Cell>
+    <Cell ss:StyleID="Center"><Data ss:Type="Number">${item.vtOccurrencesDeducted}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vtOptIn ? item.vtTotalValue : 0}</Data></Cell>
+    <Cell><Data ss:Type="String">${item.vtDestination}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaMonthlyValue}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaTotalValue}</Data></Cell>
+    <Cell><Data ss:Type="String">${item.vaDestination}</Data></Cell>
+    <Cell ss:StyleID="Center"><Data ss:Type="String">${item.isPaid ? 'PAGO' : 'PENDENTE'}</Data></Cell>
+    <Cell ss:StyleID="Center"><Data ss:Type="String">${item.paidAt || '-'}</Data></Cell>
+    <Cell><Data ss:Type="String">${item.vtBatchNote || item.vaBatchNote || ''}</Data></Cell>
+   </Row>`;
+        });
+
+        xml += `
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+        const blob = new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8" });
         const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `compra_beneficios_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.csv`);
+        link.href = URL.createObjectURL(blob);
+        link.download = `compra_beneficios_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.xls`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
 
-        toast.success("Planilha de benefícios baixada com sucesso!");
+        toast.success("Planilha Excel baixada com sucesso!");
     };
 
     // Filter Items
@@ -158,6 +226,8 @@ export default function BenefitsPage() {
         if (filterOption === "VT_ONLY") return item.vtOptIn && item.vtTotalValue > 0;
         if (filterOption === "VA_ONLY") return item.vaTotalValue > 0;
         if (filterOption === "NON_VT") return !item.vtOptIn;
+        if (filterOption === "PAID") return item.isPaid;
+        if (filterOption === "PENDING") return !item.isPaid;
 
         return true;
     });
@@ -167,6 +237,7 @@ export default function BenefitsPage() {
     const totalVA = items.reduce((acc, curr) => acc + curr.vaTotalValue, 0);
     const vtOptInCount = items.filter(i => i.vtOptIn).length;
     const alertCount = items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert).length;
+    const paidCount = items.filter(i => i.isPaid).length;
     const totalOccurrencesDeducted = items.reduce((acc, curr) => acc + curr.vtOccurrencesDeducted, 0);
 
     const monthNames = [
@@ -227,10 +298,10 @@ export default function BenefitsPage() {
                     </Button>
 
                     <Button 
-                        onClick={exportToCSV}
+                        onClick={exportToExcel}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-2 rounded-2xl shadow-md h-11 px-5"
                     >
-                        <Download className="w-4 h-4" /> Exportar Planilha (CSV)
+                        <FileSpreadsheet className="w-4 h-4" /> Exportar Planilha (Excel)
                     </Button>
                 </div>
             </div>
@@ -276,14 +347,14 @@ export default function BenefitsPage() {
                     </div>
                 </div>
 
-                {/* Alertas de Admissão Recente */}
+                {/* Status de Pagamentos */}
                 <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-2">
-                    <div className="flex items-center gap-2 text-amber-600 text-xs font-bold uppercase tracking-wider">
-                        <Clock className="w-4 h-4 text-amber-500" /> Alertas de Admissão
+                    <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold uppercase tracking-wider">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Compras Pagas
                     </div>
-                    <div className="text-3xl font-black text-amber-600">{alertCount}</div>
+                    <div className="text-3xl font-black text-emerald-600">{paidCount} <span className="text-sm font-bold text-slate-400">/ {items.length}</span></div>
                     <div className="text-[11px] text-slate-500 font-medium">
-                        Admissões com lotes fracionados (5d VT / 10d VA) no mês.
+                        {items.length - paidCount} compras pendentes de marcação.
                     </div>
                 </div>
             </div>
@@ -305,7 +376,7 @@ export default function BenefitsPage() {
                         activeTab === "ALERTS" ? "text-orange-600 border-b-2 border-orange-500 font-black" : "text-slate-400 hover:text-slate-600"
                     }`}
                 >
-                    <Clock className="w-4 h-4 inline mr-2" /> Alertas de Admissão ({alertCount})
+                    <Clock className="w-4 h-4 inline mr-2" /> Alertas de Admissão &amp; Lotes ({alertCount})
                 </button>
             </div>
 
@@ -327,11 +398,13 @@ export default function BenefitsPage() {
                         <div className="flex items-center gap-3 w-full md:w-auto">
                             <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Filtrar por:</span>
                             <Select value={filterOption} onValueChange={(val: any) => setFilterOption(val)}>
-                                <SelectTrigger className="w-[200px] h-9 text-xs font-bold rounded-xl border-slate-200">
+                                <SelectTrigger className="w-[220px] h-9 text-xs font-bold rounded-xl border-slate-200">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="ALL">Todos os Colaboradores</SelectItem>
+                                    <SelectItem value="PENDING">Apenas Pendentes de Pagamento</SelectItem>
+                                    <SelectItem value="PAID">Apenas Já Pagos</SelectItem>
                                     <SelectItem value="VT_ONLY">Apenas com VT &gt; R$0</SelectItem>
                                     <SelectItem value="VA_ONLY">Apenas com VA &gt; R$0</SelectItem>
                                     <SelectItem value="NON_VT">Não Optantes pelo VT</SelectItem>
@@ -347,14 +420,14 @@ export default function BenefitsPage() {
                                 <thead>
                                     <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-black text-slate-500 uppercase tracking-wider">
                                         <th className="py-4 px-4">Colaborador / CPF</th>
-                                        <th className="py-4 px-4">Posto & Cliente</th>
+                                        <th className="py-4 px-4">Posto &amp; Cliente</th>
                                         <th className="py-4 px-4">Optante VT?</th>
-                                        <th className="py-4 px-4 text-center">Faltas (26-25)</th>
+                                        <th className="py-4 px-4 text-center">Faltas / Ocorrências</th>
                                         <th className="py-4 px-4 text-right">VT a Comprar</th>
                                         <th className="py-4 px-4">Destino VT</th>
                                         <th className="py-4 px-4 text-right">VA a Comprar</th>
                                         <th className="py-4 px-4">Destino VA</th>
-                                        <th className="py-4 px-4">Observação / Lote</th>
+                                        <th className="py-4 px-4 text-center">Status / Ação</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 text-xs">
@@ -396,13 +469,37 @@ export default function BenefitsPage() {
                                                     )}
                                                 </td>
 
-                                                <td className="py-3.5 px-4 text-center font-bold">
+                                                {/* Ocorrências com Popover detalhado */}
+                                                <td className="py-3.5 px-4 text-center">
                                                     {item.vtOccurrencesDeducted > 0 ? (
-                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-red-100 text-red-700">
-                                                            -{item.vtOccurrencesDeducted} dia(s)
-                                                        </span>
+                                                        <Popover>
+                                                            <PopoverTrigger asChild>
+                                                                <button className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-red-100 text-red-700 hover:bg-red-200 transition-colors cursor-pointer gap-1">
+                                                                    <AlertCircle className="w-3 h-3 text-red-600" />
+                                                                    -{item.vtOccurrencesDeducted} dia(s) <Info className="w-3 h-3 ml-0.5 opacity-60" />
+                                                                </button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-72 p-3 text-xs space-y-2">
+                                                                <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">
+                                                                    Faltas / Atestados na Janela (26-25)
+                                                                </div>
+                                                                <div className="space-y-1 max-h-48 overflow-y-auto">
+                                                                    {item.occurrencesList.map(occ => (
+                                                                        <div key={occ.id} className="p-2 bg-slate-50 rounded-xl border border-slate-100 text-[11px]">
+                                                                            <div className="font-bold text-red-600 flex justify-between">
+                                                                                <span>{occ.type}</span>
+                                                                                <span>{occ.date}</span>
+                                                                            </div>
+                                                                            {occ.notes && <div className="text-[10px] text-slate-500 mt-0.5 italic">{occ.notes}</div>}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </PopoverContent>
+                                                        </Popover>
                                                     ) : (
-                                                        <span className="text-slate-400 font-medium">0</span>
+                                                        <span className="text-emerald-600 font-semibold text-[11px] flex items-center justify-center gap-1">
+                                                            <Check className="w-3 h-3" /> Nenhuma
+                                                        </span>
                                                     )}
                                                 </td>
 
@@ -426,13 +523,27 @@ export default function BenefitsPage() {
                                                     </span>
                                                 </td>
 
-                                                <td className="py-3.5 px-4 text-[11px] text-slate-500 font-medium max-w-[200px]">
-                                                    {item.vtNeedsAlert || item.vaNeedsAlert ? (
-                                                        <span className="text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 inline-block">
-                                                            ⚠️ {item.vtBatchNote || item.vaBatchNote}
-                                                        </span>
+                                                {/* Status / Ação de Pagamento */}
+                                                <td className="py-3.5 px-4 text-center">
+                                                    {item.isPaid ? (
+                                                        <div className="space-y-0.5">
+                                                            <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                                                <CheckCircle2 className="w-3 h-3 mr-1" /> PAGO
+                                                            </span>
+                                                            <div className="text-[9px] text-slate-400 font-medium">{item.paidAt}</div>
+                                                        </div>
                                                     ) : (
-                                                        item.vtBatchNote || item.vaBatchNote || "-"
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => {
+                                                                setSelectedItemForPayment(item);
+                                                                setPaymentModalOpen(true);
+                                                            }}
+                                                            className="text-[10px] font-bold h-7 px-3 rounded-xl border-orange-300 text-orange-600 hover:bg-orange-50 hover:border-orange-400"
+                                                        >
+                                                            Marcar como Pago
+                                                        </Button>
                                                     )}
                                                 </td>
                                             </tr>
@@ -445,35 +556,57 @@ export default function BenefitsPage() {
                 </div>
             )}
 
-            {/* TAB 2: ALERTAS DE ADMISSÃO RECENTE */}
+            {/* TAB 2: ALERTAS DE ADMISSÃO RECENTE E PROXIMAS COMPRAS */}
             {activeTab === "ALERTS" && (
                 <div className="space-y-4">
                     <div className="bg-amber-50 border border-amber-200 p-5 rounded-3xl text-amber-900 space-y-1">
                         <h3 className="font-black text-sm flex items-center gap-2">
-                            <Clock className="w-5 h-5 text-amber-600" /> Regra de Fracionamento de Admissões Recentes
+                            <Clock className="w-5 h-5 text-amber-600" /> Acompanhamento de Fracionamentos &amp; Vencimentos
                         </h3>
                         <p className="text-xs text-amber-700 font-medium">
-                            Para novos colaboradores admitidos no mês corrente, o <strong>VT é liberado em lotes de {config?.vtFractionDays || 5} em {config?.vtFractionDays || 5} dias</strong> para evitar compras desnecessárias em caso de desligamento precoce. O <strong>VA é pago em lotes de {config?.vaFractionDays || 10} dias após {config?.vaCardDeliveryEstimateDays || 10} dias da chegada do cartão</strong>.
+                            Para novos admitidos no mês, o VT é liberado em lotes de <strong>{config?.vtFractionDays || 5} em {config?.vtFractionDays || 5} dias</strong>. Aqui você acompanha a <strong>data do último pagamento</strong> e a <strong>data prevista do próximo pagamento</strong>.
                         </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert).length === 0 ? (
+                        {items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert || i.isNewHire).length === 0 ? (
                             <div className="col-span-2 bg-white p-8 rounded-3xl border border-slate-200 text-center text-slate-400 font-medium">
                                 Nenhum alerta de lote fracionado pendente para o mês selecionado.
                             </div>
                         ) : (
-                            items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert).map(item => (
+                            items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert || i.isNewHire).map(item => (
                                 <div key={item.employeeId} className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm space-y-3">
                                     <div className="flex justify-between items-start">
                                         <div>
                                             <h4 className="font-bold text-slate-900 text-sm">{item.employeeName}</h4>
                                             <p className="text-xs text-slate-500 font-semibold">{item.postoName} ({item.clientName})</p>
-                                            <p className="text-[10px] text-slate-400 font-bold mt-0.5">Admissão: {item.admissionDate}</p>
+                                            <p className="text-[10px] text-slate-400 font-bold mt-0.5">📅 Data de Admissão: {item.admissionDate}</p>
                                         </div>
-                                        <span className="px-2.5 py-1 bg-amber-100 text-amber-800 font-black text-[10px] rounded-xl uppercase tracking-wider">
-                                            Admissão Recente
-                                        </span>
+                                        {item.isPaid ? (
+                                            <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-black text-[10px] rounded-xl uppercase tracking-wider">
+                                                Lote Pago
+                                            </span>
+                                        ) : (
+                                            <span className="px-2.5 py-1 bg-amber-100 text-amber-800 font-black text-[10px] rounded-xl uppercase tracking-wider">
+                                                Próxima Compra Vencendo
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Datas do Último e Próximo Pagamento */}
+                                    <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-100 text-xs">
+                                        <div>
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase">Último Pagamento</div>
+                                            <div className="font-bold text-slate-800 mt-0.5">
+                                                {item.lastPaymentDate ? item.lastPaymentDate : "Nenhum efetuado"}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] font-bold text-amber-600 uppercase">Próximo Vencimento (5 Dias)</div>
+                                            <div className="font-black text-amber-700 mt-0.5">
+                                                {item.nextPaymentDueDate ? item.nextPaymentDueDate : "A calcular"}
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div className="space-y-2 border-t border-slate-100 pt-3">
@@ -501,6 +634,61 @@ export default function BenefitsPage() {
                     </div>
                 </div>
             )}
+
+            {/* MARCAR COMO PAGO MODAL */}
+            <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-lg font-black text-emerald-700">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600" /> Confirmar Pagamento de Benefícios
+                        </DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Registra a compra como paga e agenda a data do próximo lote (+5 dias para VT / +10 dias para VA).
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {selectedItemForPayment && (
+                        <div className="space-y-4 py-2 text-xs">
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
+                                <div className="font-bold text-slate-900">{selectedItemForPayment.employeeName}</div>
+                                <div className="text-[11px] text-slate-500">{selectedItemForPayment.postoName} ({selectedItemForPayment.clientName})</div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <div className="flex justify-between p-2 bg-indigo-50 rounded-xl text-indigo-900 font-bold">
+                                    <span>Vale Transporte (VT):</span>
+                                    <span>R$ {selectedItemForPayment.vtOptIn ? selectedItemForPayment.vtTotalValue.toFixed(2) : "0,00"} ({selectedItemForPayment.vtDestination})</span>
+                                </div>
+
+                                <div className="flex justify-between p-2 bg-orange-50 rounded-xl text-orange-900 font-bold">
+                                    <span>Vale Alimentação (VA):</span>
+                                    <span>R$ {selectedItemForPayment.vaTotalValue.toFixed(2)} ({selectedItemForPayment.vaDestination})</span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <Label className="font-bold text-slate-700">Observação / Comprovante (Opcional)</Label>
+                                <Input
+                                    placeholder="Ex: Pago via Pix pelo lote 1..."
+                                    value={paymentNotes}
+                                    onChange={e => setPaymentNotes(e.target.value)}
+                                />
+                            </div>
+
+                            <DialogFooter className="pt-4 border-t border-slate-100">
+                                <Button type="button" variant="outline" onClick={() => setPaymentModalOpen(false)}>Cancelar</Button>
+                                <Button 
+                                    onClick={handleMarkAsPaid} 
+                                    disabled={isSubmittingPayment}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
+                                >
+                                    {isSubmittingPayment ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Confirmar Pagamento
+                                </Button>
+                            </DialogFooter>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
 
             {/* CONFIG MODAL */}
             <Dialog open={configModalOpen} onOpenChange={setConfigModalOpen}>

@@ -4,6 +4,13 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
+export interface BenefitOccurrenceDetail {
+    id: string;
+    date: string;
+    type: string;
+    notes?: string;
+}
+
 export interface BenefitsCalculationItem {
     employeeId: string;
     employeeName: string;
@@ -14,11 +21,21 @@ export interface BenefitsCalculationItem {
     admissionDate: string;
     isNewHire: boolean;
     
+    // Ocorrências Detalhadas (26 a 25)
+    occurrencesList: BenefitOccurrenceDetail[];
+    vtOccurrencesDeducted: number;
+    vaOccurrencesDeducted: number;
+
+    // Pagamentos / Datas
+    isPaid: boolean;
+    paidAt?: string;
+    lastPaymentDate?: string;
+    nextPaymentDueDate?: string;
+
     // VT
     vtOptIn: boolean;
     vtDailyValue: number;
     vtWorkingDays: number;
-    vtOccurrencesDeducted: number;
     vtTotalValue: number;
     vtDestination: string;
     vtBatchNote?: string;
@@ -26,7 +43,6 @@ export interface BenefitsCalculationItem {
 
     // VA
     vaMonthlyValue: number;
-    vaOccurrencesDeducted: number;
     vaTotalValue: number;
     vaDestination: string;
     vaBatchNote?: string;
@@ -95,7 +111,47 @@ export async function updateBenefitsConfig(data: {
     return { success: true };
 }
 
-// 3. Main Benefits Calculation Action
+// 3. Mark Benefit as Paid
+export async function markBenefitAsPaid(data: {
+    employeeId: string;
+    month: number;
+    year: number;
+    benefitType: "VT" | "VA" | "AMBOS";
+    vtAmount: number;
+    vaAmount: number;
+    notes?: string;
+}) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado.");
+
+    const config = await getBenefitsConfig();
+    const paidAt = new Date();
+
+    // Calculate next payment due date (+5 days for VT, +10 days for VA)
+    const daysToAdd = data.benefitType === "VT" ? config.vtFractionDays : config.vaFractionDays;
+    const nextPaymentDue = new Date(paidAt);
+    nextPaymentDue.setDate(nextPaymentDue.getDate() + daysToAdd);
+
+    await prisma.benefitsPayment.create({
+        data: {
+            employeeId: data.employeeId,
+            month: data.month,
+            year: data.year,
+            benefitType: data.benefitType,
+            vtAmount: Number(data.vtAmount || 0),
+            vaAmount: Number(data.vaAmount || 0),
+            paidAt,
+            paidByUserId: user?.id,
+            nextPaymentDue,
+            notes: data.notes || "Pago via Painel de Benefícios"
+        }
+    });
+
+    revalidatePath("/admin/benefits");
+    return { success: true };
+}
+
+// 4. Main Benefits Calculation Action
 export async function getBenefitsCalculation(year: number, month: number) {
     const user = await getCurrentUser();
     if (!user) return { items: [], config: null };
@@ -139,7 +195,15 @@ export async function getBenefitsCalculation(year: number, month: number) {
                         lte: windowEnd
                     },
                     type: { in: ["FALTA", "ATESTADO", "FALTA_INJUSTIFICADA"] }
-                }
+                },
+                orderBy: { date: "asc" }
+            },
+            benefitPayments: {
+                where: {
+                    month,
+                    year
+                },
+                orderBy: { paidAt: "desc" }
             }
         },
         orderBy: { name: "asc" }
@@ -161,8 +225,32 @@ export async function getBenefitsCalculation(year: number, month: number) {
 
         const isNewHire = (admissionMonth === month && admissionYear === year);
 
-        // Deductions count from 26-25 window
-        const occurrencesCount = emp.occurrences ? emp.occurrences.length : 0;
+        // Deductions count & list from 26-25 window
+        const occurrencesList: BenefitOccurrenceDetail[] = (emp.occurrences || []).map(occ => ({
+            id: occ.id,
+            date: new Date(occ.date).toLocaleDateString('pt-BR'),
+            type: occ.type === "FALTA_INJUSTIFICADA" ? "Falta Injustificada" : (occ.type === "ATESTADO" ? "Atestado Médico" : "Falta"),
+            notes: occ.description || occ.title || undefined
+        }));
+
+        const occurrencesCount = occurrencesList.length;
+
+        // Payments Info
+        const lastPayment = emp.benefitPayments && emp.benefitPayments.length > 0 ? emp.benefitPayments[0] : null;
+        const isPaid = !!lastPayment;
+        const paidAt = lastPayment ? new Date(lastPayment.paidAt).toLocaleString('pt-BR') : undefined;
+        const lastPaymentDate = lastPayment ? new Date(lastPayment.paidAt).toLocaleDateString('pt-BR') : undefined;
+        
+        let nextPaymentDueDate: string | undefined = undefined;
+
+        if (lastPayment?.nextPaymentDue) {
+            nextPaymentDueDate = new Date(lastPayment.nextPaymentDue).toLocaleDateString('pt-BR');
+        } else if (isNewHire) {
+            // Default next due date: 5 days after admission for VT
+            const defaultNextDue = new Date(admissionDateObj);
+            defaultNextDue.setDate(defaultNextDue.getDate() + config.vtFractionDays);
+            nextPaymentDueDate = defaultNextDue.toLocaleDateString('pt-BR');
+        }
 
         // Base VT value priority: Employee record -> Posto record -> 0
         const baseVtValue = emp.valeTransporte > 0 ? emp.valeTransporte : (posto?.valeTransporte || 0);
@@ -258,16 +346,21 @@ export async function getBenefitsCalculation(year: number, month: number) {
             roleName,
             admissionDate: admissionDateObj.toLocaleDateString('pt-BR'),
             isNewHire,
+            occurrencesList,
+            vtOccurrencesDeducted: occurrencesCount,
+            vaOccurrencesDeducted: occurrencesCount,
+            isPaid,
+            paidAt,
+            lastPaymentDate,
+            nextPaymentDueDate,
             vtOptIn: emp.vtOptIn,
             vtDailyValue,
             vtWorkingDays: businessDaysInMonth,
-            vtOccurrencesDeducted: occurrencesCount,
             vtTotalValue,
             vtDestination,
             vtBatchNote,
             vtNeedsAlert,
             vaMonthlyValue: baseVaValue,
-            vaOccurrencesDeducted: occurrencesCount,
             vaTotalValue,
             vaDestination,
             vaBatchNote,
