@@ -66,7 +66,7 @@ export default async function PrintEmployeeProfilePage(props: {
     };
 
     return (
-        <div className="p-10 max-w-[800px] mx-auto bg-white text-slate-900 font-sans text-xs space-y-6 print:p-0 print:max-w-full">
+        <div className="p-10 max-w-[800px] mx-auto bg-white text-slate-900 font-sans text-xs space-y-6 print-container">
             {/* Print control banner */}
             <PrintFichaClient />
 
@@ -325,6 +325,25 @@ export default async function PrintEmployeeProfilePage(props: {
                     </div>
                 </div>
             </div>
+
+            <style dangerouslySetInnerHTML={{ __html: `
+                @media print {
+                    @page {
+                        margin: 0;
+                    }
+                    body {
+                        margin: 0 !important;
+                        padding: 0 !important;
+                    }
+                    .print-container {
+                        padding: 15mm 20mm !important;
+                        max-width: 100% !important;
+                        width: 100% !important;
+                        box-shadow: none !important;
+                        border: none !important;
+                    }
+                }
+            `}} />
         </div>
     );
 }
