@@ -264,11 +264,8 @@ export async function getRecruitmentBoardData() {
     // --- SYNC BACKLOG GAPS TO VACANCIES ---
     // Automatically create vacancies for vacant postos
     await syncBacklogGaps();
-    // MOD: Disable syncFilledVacancies to prevent active/preventive vacancies from disappearing.
-    // Vancancies are closed natively when candidate is moved to "Posto" in moveCandidate.
-    // await syncFilledVacancies();
-    // New: Aggressive Cleanup
-    await purgeRedundantVacancies();
+    // MOD: Disabled purgeRedundantVacancies so manually opened vacancies are NEVER automatically closed/purged.
+    // await purgeRedundantVacancies();
 
     // 3. Reorder remaining stages (Shift up)
     // Seleção is 1. We want:
