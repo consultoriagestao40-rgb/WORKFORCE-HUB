@@ -28,7 +28,10 @@ import {
     Trash2,
     ShieldCheck,
     Check,
-    Download
+    Printer,
+    LayoutList,
+    Grid,
+    Eye
 } from "lucide-react";
 import {
     createPopDocument,
@@ -59,6 +62,7 @@ export function PopsManagementSection({
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedPostoFilter, setSelectedPostoFilter] = useState("all");
     const [selectedStatusFilter, setSelectedStatusFilter] = useState("all");
+    const [viewMode, setViewMode] = useState<"list" | "grid">("list");
 
     // Dialog states
     const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -97,7 +101,7 @@ export function PopsManagementSection({
 
     const formatRevision = (ver: number) => `Rev. ${String(ver - 1).padStart(2, '0')}`;
 
-    const getStatusBadge = (status: string, approvedAt?: Date, approvedByName?: string) => {
+    const getStatusBadge = (status: string) => {
         switch (status) {
             case "APPROVED":
                 return (
@@ -127,6 +131,105 @@ export function PopsManagementSection({
                     </Badge>
                 );
         }
+    };
+
+    // Print PDF Controlled Copy
+    const handlePrintPop = (popToPrint: any) => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            toast.error("Permita janelas pop-up no navegador para visualizar a cópia controlada.");
+            return;
+        }
+
+        const today = new Date().toLocaleDateString('pt-BR');
+        const revCode = formatRevision(popToPrint.version || 1);
+        const client = clientName || "CONTRATO / CLIENTE SGQ";
+        const postoName = popToPrint.posto ? `${popToPrint.posto.role?.name || "Posto"} (${popToPrint.posto.schedule || ""})` : "Geral do Contrato";
+        const controlNumber = `CTRL-SGQ-${(popToPrint.id || "000").slice(-8).toUpperCase()}`;
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html lang="pt-BR">
+            <head>
+                <meta charset="UTF-8">
+                <title>Cópia Controlada - ${popToPrint.code} - ${popToPrint.title}</title>
+                <style>
+                    @page { size: A4; margin: 15mm; }
+                    body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; line-height: 1.5; font-size: 12px; margin: 0; padding: 20px; }
+                    .header-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 2px solid #0f172a; }
+                    .header-table td { border: 1px solid #334155; padding: 8px 12px; }
+                    .title-cell { text-align: center; font-weight: bold; font-size: 15px; background-color: #f8fafc; }
+                    .meta-cell { font-size: 11px; line-height: 1.4; }
+                    .controlled-stamp { border: 2px solid #0284c7; color: #0369a1; background-color: #f0f9ff; padding: 6px 14px; font-weight: bold; text-align: center; border-radius: 4px; display: inline-block; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; font-size: 11px; }
+                    .section-title { font-size: 13px; font-weight: bold; text-transform: uppercase; color: #0f172a; border-bottom: 2px solid #cbd5e1; padding-bottom: 4px; margin-top: 22px; margin-bottom: 10px; }
+                    .content-box { white-space: pre-wrap; font-size: 12px; color: #334155; line-height: 1.6; background-color: #fafafa; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; }
+                    .approval-badge { border: 1px solid #10b981; background: #ecfdf5; padding: 10px 14px; border-radius: 6px; margin-bottom: 20px; }
+                    .footer { margin-top: 40px; border-top: 1px solid #cbd5e1; pt: 10px; font-size: 10px; color: #64748b; text-align: center; }
+                </style>
+            </head>
+            <body>
+                <table class="header-table">
+                    <tr>
+                        <td width="20%" style="text-align: center; font-weight: bold;">
+                            <div style="font-size: 20px; color: #0284c7; font-weight: 900;">SGO</div>
+                            <div style="font-size: 9px; color: #64748b; font-weight: bold;">SISTEMA DE GESTÃO DA QUALIDADE</div>
+                        </td>
+                        <td width="55%" class="title-cell">
+                            PROCEDIMENTO OPERACIONAL PADRÃO (POP)<br>
+                            <span style="font-size: 13px; font-weight: bold; color: #334155;">${popToPrint.title}</span>
+                        </td>
+                        <td width="25%" class="meta-cell">
+                            <b>Código:</b> ${popToPrint.code}<br>
+                            <b>Revisão:</b> ${revCode}<br>
+                            <b>Controle:</b> ${controlNumber}<br>
+                            <b>Emissão:</b> ${new Date(popToPrint.createdAt || Date.now()).toLocaleDateString('pt-BR')}<br>
+                            <b>Impressão:</b> ${today}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="3" class="meta-cell" style="background-color: #f1f5f9;">
+                            <b>Cliente/Contrato:</b> ${client} &nbsp;|&nbsp;
+                            <b>Posto:</b> ${postoName} &nbsp;|&nbsp;
+                            <b>Categoria:</b> ${popToPrint.category || "Operacional"}<br>
+                            <b>Elaborado por (Usuário Sistema):</b> ${popToPrint.author?.name || "Elaborador do Sistema"} &nbsp;|&nbsp;
+                            <b>Aprovado Internamente (Resp. da Área):</b> ${popToPrint.author?.name || "Gestor de Operações"} &nbsp;|&nbsp;
+                            <b>Aceite Digital (Cliente):</b> ${popToPrint.approvedBy?.name ? `${popToPrint.approvedBy.name} em ${new Date(popToPrint.approvedAt).toLocaleString('pt-BR')}` : "Pendente de Aceite Digital"}
+                        </td>
+                    </tr>
+                </table>
+
+                <div style="text-align: right;">
+                    <div class="controlled-stamp">CÓPIA CONTROLADA — SISTEMA DE QUALIDADE DE DOCUMENTOS (SGQ)</div>
+                </div>
+
+                ${popToPrint.status === 'APPROVED' ? `
+                    <div class="approval-badge">
+                        <b style="color: #065f46; font-size: 12px;">✔ ACEITE DIGITAL E VALIDAÇÃO SGQ REGISTRADOS</b><br>
+                        <span style="font-size: 11px; color: #047857;">Aprovado pelo Cliente <b>${popToPrint.approvedBy?.name || "Gestor do Cliente"}</b> em ${new Date(popToPrint.approvedAt).toLocaleString('pt-BR')}</span>
+                    </div>
+                ` : `
+                    <div style="border: 1px solid #f59e0b; background: #fffbeb; padding: 10px 14px; border-radius: 6px; margin-bottom: 20px;">
+                        <b style="color: #b45309; font-size: 12px;">⚠ DOCUMENTO EM FASE DE ANÁLISE / PENDENTE DE ACEITE DIGITAL</b>
+                    </div>
+                `}
+
+                <div class="section-title">1. OBJETIVO & RESUMO DO PROCEDIMENTO</div>
+                <div class="content-box">${popToPrint.description || "Padronização das atividades operacionais e de qualidade."}</div>
+
+                <div class="section-title">2. INSTRUÇÕES DE TRABALHO E PASSO A PASSO DETALHADO</div>
+                <div class="content-box">${popToPrint.content || "Procedimento em conformidade com as diretrizes contratuais."}</div>
+
+                <div class="footer">
+                    Documento pertencente ao Sistema de Gestão da Qualidade (SGQ). Impressão controlada identificada sob o código ${controlNumber}.
+                </div>
+
+                <script>
+                    window.onload = function() { window.print(); }
+                </script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
     };
 
     // Actions
@@ -281,7 +384,7 @@ export function PopsManagementSection({
                 </div>
             </div>
 
-            {/* Filter Bar */}
+            {/* Filter & View Mode Bar */}
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
                 <div className="relative w-full md:w-80">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -324,10 +427,34 @@ export function PopsManagementSection({
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {/* View Switcher Toggle */}
+                    <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
+                        <Button
+                            size="sm"
+                            variant={viewMode === "list" ? "default" : "ghost"}
+                            onClick={() => setViewMode("list")}
+                            className={`h-7 px-2.5 text-xs font-semibold ${viewMode === "list" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                            title="Visualização em Lista"
+                        >
+                            <LayoutList className="w-3.5 h-3.5 mr-1" />
+                            Lista
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant={viewMode === "grid" ? "default" : "ghost"}
+                            onClick={() => setViewMode("grid")}
+                            className={`h-7 px-2.5 text-xs font-semibold ${viewMode === "grid" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                            title="Visualização em Cards"
+                        >
+                            <Grid className="w-3.5 h-3.5 mr-1" />
+                            Cards
+                        </Button>
+                    </div>
                 </div>
             </div>
 
-            {/* POPs Grid */}
+            {/* POPs Render List/Grid */}
             {filteredPops.length === 0 ? (
                 <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 shadow-sm">
                     <FileCheck className="w-12 h-12 text-slate-300 mx-auto mb-3" />
@@ -336,7 +463,124 @@ export function PopsManagementSection({
                         Não há procedimentos operacionais cadastrados para os filtros selecionados.
                     </p>
                 </div>
+            ) : viewMode === "list" ? (
+                /* TABELA / LIST VIEW PROFISSIONAL */
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                                    <th className="py-3.5 px-4">Código / Rev</th>
+                                    <th className="py-3.5 px-4">Procedimento / Categoria</th>
+                                    <th className="py-3.5 px-4">Posto de Trabalho</th>
+                                    <th className="py-3.5 px-4">Status de Aceite</th>
+                                    <th className="py-3.5 px-4 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {filteredPops.map((pop) => (
+                                    <tr key={pop.id} className="hover:bg-slate-50/80 transition-colors">
+                                        <td className="py-3.5 px-4 whitespace-nowrap">
+                                            <div className="flex items-center gap-2">
+                                                <Badge className="bg-slate-900 text-white font-mono text-[11px] px-2 py-0.5">
+                                                    {pop.code}
+                                                </Badge>
+                                                <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] font-bold">
+                                                    {formatRevision(pop.version)}
+                                                </Badge>
+                                            </div>
+                                        </td>
+
+                                        <td className="py-3.5 px-4">
+                                            <div>
+                                                <span className="text-[10px] uppercase font-bold text-indigo-600 tracking-wider block">
+                                                    {pop.category || "Operacional"}
+                                                </span>
+                                                <span className="font-bold text-slate-900 text-sm block">
+                                                    {pop.title}
+                                                </span>
+                                                {pop.description && (
+                                                    <span className="text-slate-500 text-[11px] line-clamp-1 mt-0.5">
+                                                        {pop.description}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+
+                                        <td className="py-3.5 px-4 whitespace-nowrap">
+                                            <div className="flex items-center gap-1.5 text-slate-700 font-medium">
+                                                <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                                                <span>{pop.posto ? `${pop.posto.role?.name} (${pop.posto.schedule})` : "Geral do Contrato"}</span>
+                                            </div>
+                                        </td>
+
+                                        <td className="py-3.5 px-4 whitespace-nowrap">
+                                            {getStatusBadge(pop.status)}
+                                        </td>
+
+                                        <td className="py-3.5 px-4 whitespace-nowrap text-right">
+                                            <div className="flex items-center justify-end gap-1.5">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        setSelectedPop(pop);
+                                                        setIsReadOpen(true);
+                                                    }}
+                                                    className="h-8 text-xs font-semibold border-slate-200 hover:bg-slate-100 text-slate-700"
+                                                    title="Visualizar POP completo"
+                                                >
+                                                    <Eye className="w-3.5 h-3.5 mr-1 text-indigo-600" />
+                                                    Visualizar
+                                                </Button>
+
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => handlePrintPop(pop)}
+                                                    className="h-8 text-xs font-semibold border-slate-200 hover:bg-slate-100 text-slate-700"
+                                                    title="Imprimir Cópia Controlada PDF"
+                                                >
+                                                    <Printer className="w-3.5 h-3.5 mr-1 text-slate-600" />
+                                                    Imprimir PDF
+                                                </Button>
+
+                                                {(!isClientUser || isAdminUser) && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => {
+                                                            setSelectedPop(pop);
+                                                            setIsEditOpen(true);
+                                                        }}
+                                                        className="h-8 w-8 p-0 text-slate-600 hover:text-slate-900"
+                                                        title="Nova Revisão / Editar"
+                                                    >
+                                                        <Edit3 className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                )}
+
+                                                {isAdminUser && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => handleDelete(pop.id)}
+                                                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                        title="Excluir POP"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             ) : (
+                /* GRID CARDS VIEW */
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                     {filteredPops.map((pop) => (
                         <div
@@ -377,12 +621,12 @@ export function PopsManagementSection({
                                 </div>
                             </div>
 
-                            {/* Status & Approval info */}
+                            {/* Status */}
                             <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                                 {getStatusBadge(pop.status)}
 
                                 {pop.approvedAt && (
-                                    <span className="text-[10px] text-slate-400 font-medium" title={`Aprovado por ${pop.approvedBy?.name || 'Cliente'}`}>
+                                    <span className="text-[10px] text-slate-400 font-medium">
                                         Aceito em {new Date(pop.approvedAt).toLocaleDateString('pt-BR')}
                                     </span>
                                 )}
@@ -400,7 +644,17 @@ export function PopsManagementSection({
                                     className="flex-1 text-xs font-semibold h-9 border-slate-200 hover:bg-slate-50"
                                 >
                                     <FileText className="w-3.5 h-3.5 mr-1.5 text-indigo-600" />
-                                    Visualizar POP
+                                    Visualizar
+                                </Button>
+
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handlePrintPop(pop)}
+                                    className="h-9 px-2.5 text-xs font-semibold border-slate-200 hover:bg-slate-50 text-slate-700"
+                                    title="Imprimir PDF Cópia Controlada"
+                                >
+                                    <Printer className="w-3.5 h-3.5 text-slate-600" />
                                 </Button>
 
                                 {(!isClientUser || isAdminUser) && (
@@ -435,11 +689,11 @@ export function PopsManagementSection({
                 </div>
             )}
 
-            {/* DIALOG 1: CRIAR POP */}
+            {/* DIALOG 1: CRIAR POP (AMPLIADO E LARGO) */}
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-slate-900">
+                <DialogContent className="sm:max-w-5xl w-[95vw] max-h-[92vh] overflow-y-auto p-6 md:p-8">
+                    <DialogHeader className="border-b pb-3">
+                        <DialogTitle className="flex items-center gap-2 text-slate-900 text-lg font-bold">
                             <Plus className="w-5 h-5 text-indigo-600" />
                             Cadastrar Novo POP (Procedimento Operacional Padrão)
                         </DialogTitle>
@@ -448,33 +702,32 @@ export function PopsManagementSection({
                         </DialogDescription>
                     </DialogHeader>
 
-                    <form onSubmit={handleCreateSubmit} className="space-y-4 pt-2">
+                    <form onSubmit={handleCreateSubmit} className="space-y-5 pt-3">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <Label className="text-xs font-bold uppercase text-slate-600">Código do POP</Label>
+                                <Label className="text-xs font-bold uppercase text-slate-600">Código do Documento *</Label>
                                 <Input
                                     name="code"
-                                    placeholder="Ex: POP-001 (Automático)"
-                                    className="h-9 text-xs font-mono mt-1"
+                                    required
+                                    placeholder="Ex: POP-OP-001"
+                                    className="h-10 text-xs font-mono font-bold mt-1"
                                 />
                             </div>
 
-                            <div className="md:col-span-2">
+                            <div>
                                 <Label className="text-xs font-bold uppercase text-slate-600">Título do Procedimento *</Label>
                                 <Input
                                     name="title"
                                     required
-                                    placeholder="Ex: Higienização e Desinfecção de Ambientes"
-                                    className="h-9 text-xs mt-1"
+                                    placeholder="Ex: Higienização e Desinfecção de Áreas..."
+                                    className="h-10 text-xs mt-1"
                                 />
                             </div>
-                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <Label className="text-xs font-bold uppercase text-slate-600">Categoria / Tipo</Label>
                                 <Select name="category" defaultValue="Operacional">
-                                    <SelectTrigger className="h-9 text-xs mt-1">
+                                    <SelectTrigger className="h-10 text-xs mt-1">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -487,41 +740,41 @@ export function PopsManagementSection({
                                     </SelectContent>
                                 </Select>
                             </div>
-
-                            <div>
-                                <Label className="text-xs font-bold uppercase text-slate-600">Posto de Trabalho Vinculado</Label>
-                                <Select name="postoId" defaultValue="all">
-                                    <SelectTrigger className="h-9 text-xs mt-1">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Geral do Contrato (Todos)</SelectItem>
-                                        {postos.map(p => (
-                                            <SelectItem key={p.id} value={p.id}>
-                                                {p.role?.name || "Posto"} ({p.schedule})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
                         </div>
 
                         <div>
-                            <Label className="text-xs font-bold uppercase text-slate-600">Objetivo / Resumo</Label>
+                            <Label className="text-xs font-bold uppercase text-slate-600">Posto de Trabalho Vinculado</Label>
+                            <Select name="postoId" defaultValue="all">
+                                <SelectTrigger className="h-10 text-xs mt-1">
+                                    <SelectValue placeholder="Selecione se for específico para um posto..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Geral do Contrato (Todos os Postos)</SelectItem>
+                                    {postos.map(p => (
+                                        <SelectItem key={p.id} value={p.id}>
+                                            {p.role?.name || "Posto"} ({p.schedule})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div>
+                            <Label className="text-xs font-bold uppercase text-slate-600">Objetivo & Resumo</Label>
                             <Input
                                 name="description"
                                 placeholder="Descreva brevemente o objetivo do procedimento..."
-                                className="h-9 text-xs mt-1"
+                                className="h-10 text-xs mt-1"
                             />
                         </div>
 
                         <div>
-                            <Label className="text-xs font-bold uppercase text-slate-600">Passo a Passo / Procedimento Detalhado</Label>
+                            <Label className="text-xs font-bold uppercase text-slate-600">Passo a Passo / Procedimento Operacional Detalhado</Label>
                             <Textarea
                                 name="content"
-                                rows={6}
-                                placeholder="Digite aqui o passo a passo, instruções, equipamentos necessários e regras de segurança do POP..."
-                                className="text-xs mt-1 font-sans"
+                                rows={14}
+                                placeholder="Digite aqui todo o passo a passo detalhado do POP, lista de materiais, produtos químicos, periodicidade, regras de segurança (EPIs) e fluxo de trabalho..."
+                                className="text-xs mt-1 font-sans p-4 leading-relaxed"
                             />
                         </div>
 
@@ -531,15 +784,15 @@ export function PopsManagementSection({
                                 name="fileUrl"
                                 type="url"
                                 placeholder="https://exemplo.com/documentos/pop-001.pdf"
-                                className="h-9 text-xs mt-1 font-mono"
+                                className="h-10 text-xs mt-1 font-mono"
                             />
                         </div>
 
                         <DialogFooter className="pt-4 border-t border-slate-100">
-                            <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)} className="h-9 text-xs">
+                            <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)} className="h-10 text-xs px-5">
                                 Cancelar
                             </Button>
-                            <Button type="submit" disabled={isPending} className="h-9 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold">
+                            <Button type="submit" disabled={isPending} className="h-10 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6">
                                 {isPending ? "Salvando..." : "Emitir POP (Rev. 00)"}
                             </Button>
                         </DialogFooter>
@@ -547,11 +800,11 @@ export function PopsManagementSection({
                 </DialogContent>
             </Dialog>
 
-            {/* DIALOG 2: EDITAR / NOVA REVISÃO DO POP */}
+            {/* DIALOG 2: EDITAR / NOVA REVISÃO DO POP (AMPLIADO E LARGO) */}
             <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-slate-900">
+                <DialogContent className="sm:max-w-5xl w-[95vw] max-h-[92vh] overflow-y-auto p-6 md:p-8">
+                    <DialogHeader className="border-b pb-3">
+                        <DialogTitle className="flex items-center gap-2 text-slate-900 text-lg font-bold">
                             <RotateCcw className="w-5 h-5 text-indigo-600" />
                             Publicar Nova Revisão do POP ({selectedPop?.code})
                         </DialogTitle>
@@ -561,7 +814,7 @@ export function PopsManagementSection({
                     </DialogHeader>
 
                     {selectedPop && (
-                        <form onSubmit={handleEditSubmit} className="space-y-4 pt-2">
+                        <form onSubmit={handleEditSubmit} className="space-y-5 pt-3">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <Label className="text-xs font-bold uppercase text-slate-600">Título do Procedimento *</Label>
@@ -569,14 +822,14 @@ export function PopsManagementSection({
                                         name="title"
                                         required
                                         defaultValue={selectedPop.title}
-                                        className="h-9 text-xs mt-1"
+                                        className="h-10 text-xs mt-1"
                                     />
                                 </div>
 
                                 <div>
                                     <Label className="text-xs font-bold uppercase text-slate-600">Categoria / Tipo</Label>
                                     <Select name="category" defaultValue={selectedPop.category || "Operacional"}>
-                                        <SelectTrigger className="h-9 text-xs mt-1">
+                                        <SelectTrigger className="h-10 text-xs mt-1">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -591,20 +844,20 @@ export function PopsManagementSection({
                                 </div>
                             </div>
 
-                            <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
+                            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
                                 <Label className="text-xs font-bold uppercase text-amber-900">Motivo da Alteração / Justificativa da Revisão *</Label>
                                 <Input
                                     name="changeReason"
                                     required
-                                    placeholder="Ex: Atualização dos produtos químicos utilizados na desinfecção..."
-                                    className="h-9 text-xs mt-1 bg-white border-amber-300"
+                                    placeholder="Ex: Atualização dos produtos químicos utilizados ou ajuste de rotina..."
+                                    className="h-10 text-xs mt-1 bg-white border-amber-300"
                                 />
                             </div>
 
                             <div>
                                 <Label className="text-xs font-bold uppercase text-slate-600">Posto de Trabalho Vinculado</Label>
                                 <Select name="postoId" defaultValue={selectedPop.postoId || "all"}>
-                                    <SelectTrigger className="h-9 text-xs mt-1">
+                                    <SelectTrigger className="h-10 text-xs mt-1">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -623,7 +876,7 @@ export function PopsManagementSection({
                                 <Input
                                     name="description"
                                     defaultValue={selectedPop.description || ""}
-                                    className="h-9 text-xs mt-1"
+                                    className="h-10 text-xs mt-1"
                                 />
                             </div>
 
@@ -631,9 +884,9 @@ export function PopsManagementSection({
                                 <Label className="text-xs font-bold uppercase text-slate-600">Passo a Passo / Procedimento Detalhado</Label>
                                 <Textarea
                                     name="content"
-                                    rows={6}
+                                    rows={14}
                                     defaultValue={selectedPop.content || ""}
-                                    className="text-xs mt-1 font-sans"
+                                    className="text-xs mt-1 font-sans p-4 leading-relaxed"
                                 />
                             </div>
 
@@ -643,15 +896,15 @@ export function PopsManagementSection({
                                     name="fileUrl"
                                     type="url"
                                     defaultValue={selectedPop.fileUrl || ""}
-                                    className="h-9 text-xs mt-1 font-mono"
+                                    className="h-10 text-xs mt-1 font-mono"
                                 />
                             </div>
 
                             <DialogFooter className="pt-4 border-t border-slate-100">
-                                <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} className="h-9 text-xs">
+                                <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} className="h-10 text-xs px-5">
                                     Cancelar
                                 </Button>
-                                <Button type="submit" disabled={isPending} className="h-9 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold">
+                                <Button type="submit" disabled={isPending} className="h-10 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6">
                                     {isPending ? "Salvando..." : `Publicar ${formatRevision((selectedPop.version || 1) + 1)}`}
                                 </Button>
                             </DialogFooter>
@@ -660,9 +913,9 @@ export function PopsManagementSection({
                 </DialogContent>
             </Dialog>
 
-            {/* DIALOG 3: LEITURA & ACEITE DIGITAL DO CLIENTE */}
+            {/* DIALOG 3: LEITURA & ACEITE DIGITAL DO CLIENTE (AMPLIADO E LARGO) */}
             <Dialog open={isReadOpen} onOpenChange={setIsReadOpen}>
-                <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+                <DialogContent className="sm:max-w-5xl w-[95vw] max-h-[92vh] overflow-y-auto p-6 md:p-8">
                     {selectedPop && (
                         <div className="space-y-6">
                             <DialogHeader>
@@ -676,18 +929,32 @@ export function PopsManagementSection({
                                         </Badge>
                                     </div>
 
-                                    {getStatusBadge(selectedPop.status, selectedPop.approvedAt, selectedPop.approvedBy?.name)}
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => handlePrintPop(selectedPop)}
+                                            className="h-8 text-xs font-semibold border-slate-200 text-slate-700"
+                                        >
+                                            <Printer className="w-3.5 h-3.5 mr-1.5" />
+                                            Imprimir Cópia Controlada PDF
+                                        </Button>
+
+                                        {getStatusBadge(selectedPop.status)}
+                                    </div>
                                 </div>
 
                                 <DialogTitle className="text-xl font-bold text-slate-900 pt-2">
                                     {selectedPop.title}
                                 </DialogTitle>
-                                <DialogDescription className="text-xs text-slate-500 flex items-center gap-3 pt-1">
+                                <DialogDescription className="text-xs text-slate-500 flex flex-wrap items-center gap-3 pt-1">
                                     <span>Categoria: <b>{selectedPop.category || "Operacional"}</b></span>
                                     <span>•</span>
                                     <span>Posto: <b>{selectedPop.posto ? `${selectedPop.posto.role?.name} (${selectedPop.posto.schedule})` : "Geral do Contrato"}</b></span>
                                     <span>•</span>
-                                    <span>Elaborado por: <b>{selectedPop.author?.name || "Gestor de Operações"}</b></span>
+                                    <span>Elaborado por: <b>{selectedPop.author?.name || "Usuário do Sistema"}</b></span>
+                                    <span>•</span>
+                                    <span>Aprovado Internamente: <b>{selectedPop.author?.name || "Resp. da Área"}</b></span>
                                 </DialogDescription>
                             </DialogHeader>
 
@@ -747,7 +1014,7 @@ export function PopsManagementSection({
 
                                     {/* Content Body */}
                                     {selectedPop.content ? (
-                                        <div className="bg-white p-5 rounded-xl border border-slate-200 space-y-2">
+                                        <div className="bg-white p-6 rounded-xl border border-slate-200 space-y-2 min-h-[300px]">
                                             <div className="text-xs font-bold uppercase text-slate-500 mb-2">Instruções de Trabalho Detalhadas</div>
                                             <div className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-sans">
                                                 {selectedPop.content}
@@ -832,7 +1099,7 @@ export function PopsManagementSection({
                                 <Button
                                     variant="outline"
                                     onClick={() => setIsReadOpen(false)}
-                                    className="h-9 text-xs w-full sm:w-auto"
+                                    className="h-10 text-xs px-5 w-full sm:w-auto"
                                 >
                                     Fechar
                                 </Button>
@@ -843,7 +1110,7 @@ export function PopsManagementSection({
                                             variant="destructive"
                                             size="sm"
                                             onClick={() => setIsRejectOpen(true)}
-                                            className="h-9 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white"
+                                            className="h-10 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white px-4"
                                         >
                                             <XCircle className="w-3.5 h-3.5 mr-1" />
                                             Solicitar Revisão
@@ -853,7 +1120,7 @@ export function PopsManagementSection({
                                             size="sm"
                                             disabled={isPending}
                                             onClick={() => handleApprove(selectedPop.id)}
-                                            className="h-9 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+                                            className="h-10 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md px-5"
                                         >
                                             <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
                                             {isPending ? "Registrando..." : "Dar Aceite / Aprovar POP"}

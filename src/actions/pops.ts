@@ -92,10 +92,27 @@ export async function createPopDocument(formData: FormData) {
             return newPop;
         });
 
+        const fullPop = await prisma.popDocument.findUnique({
+            where: { id: pop.id },
+            include: {
+                client: { select: { id: true, name: true } },
+                posto: { select: { id: true, schedule: true, role: { select: { name: true } } } },
+                author: { select: { id: true, name: true } },
+                approvedBy: { select: { id: true, name: true } },
+                revisions: {
+                    include: {
+                        author: { select: { id: true, name: true } },
+                        approvedBy: { select: { id: true, name: true } }
+                    },
+                    orderBy: { version: 'desc' }
+                }
+            }
+        });
+
         revalidatePath("/admin/performance");
         revalidatePath("/client/dashboard");
 
-        return { success: true, pop };
+        return { success: true, pop: fullPop };
     } catch (e: any) {
         console.error("Error in createPopDocument:", e);
         return { error: e.message || "Erro ao criar documento POP." };
