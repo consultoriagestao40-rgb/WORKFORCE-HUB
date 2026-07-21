@@ -345,19 +345,19 @@ export function EmployeeOnvioWizard({
                 ? (initialData.assignments.find((a: any) => !a.endDate)?.postoId || "")
                 : (initialData.postoId || "");
 
-            if (resolvedPostoId) {
+            if (resolvedPostoId && !postoId) {
                 setPostoId(resolvedPostoId);
             }
 
             const selectedPosto = postos.find(p => p.id === resolvedPostoId);
 
-            setName(initialData.name || "");
-            setCpf(initialData.cpf || "");
-            setRoleId(initialData.roleId || (selectedPosto ? selectedPosto.roleId : ""));
-            setCompanyId(initialData.companyId || "");
-            setType(initialData.type || "CLT");
-            setStatus(initialData.status || "Ativo");
-            setSituationId(initialData.situationId || "");
+            if (initialData.name) setName(prev => prev || initialData.name || "");
+            if (initialData.cpf) setCpf(prev => prev || initialData.cpf || "");
+            if (initialData.roleId) setRoleId(prev => prev || initialData.roleId || (selectedPosto ? selectedPosto.roleId : ""));
+            if (initialData.companyId) setCompanyId(prev => prev || initialData.companyId || "");
+            if (initialData.type) setType(prev => prev || initialData.type || "CLT");
+            if (initialData.status) setStatus(prev => prev || initialData.status || "Ativo");
+            if (initialData.situationId) setSituationId(prev => prev || initialData.situationId || "");
             if (initialData.admissionDate) {
                 setAdmissionDate(new Date(initialData.admissionDate).toISOString().split("T")[0]);
             }
@@ -1844,6 +1844,30 @@ export function EmployeeOnvioWizard({
                     <span className="text-[10px] text-slate-400 italic font-bold">Formulário concluído. Pressione Salvar no final da ficha.</span>
                 )}
             </div>
+
+            {/* Hidden inputs para garantir a serialização completa de todos os campos do wizard no FormData */}
+            <input type="hidden" name="name" value={name || ""} />
+            <input type="hidden" name="cpf" value={cpf || ""} />
+            <input type="hidden" name="roleId" value={roleId || ""} />
+            <input type="hidden" name="companyId" value={companyId || ""} />
+            <input type="hidden" name="type" value={type || "Efetivo"} />
+            <input type="hidden" name="status" value={status || "Ativo"} />
+            <input type="hidden" name="situationId" value={situationId || ""} />
+            <input type="hidden" name="admissionDate" value={admissionDate || ""} />
+            <input type="hidden" name="salary" value={salary || "0"} />
+            <input type="hidden" name="insalubridade" value={insalubridade || "0"} />
+            <input type="hidden" name="periculosidade" value={periculosidade || "0"} />
+            <input type="hidden" name="gratificacao" value={gratificacao || "0"} />
+            <input type="hidden" name="outrosAdicionais" value={outrosAdicionais || "0"} />
+            <input type="hidden" name="workload" value={workload || "220"} />
+            <input type="hidden" name="valeAlimentacao" value={valeAlimentacao || "0"} />
+            <input type="hidden" name="valeTransporte" value={valeTransporte || "0"} />
+            <input type="hidden" name="birthDate" value={birthDate || ""} />
+            <input type="hidden" name="gender" value={gender || ""} />
+            <input type="hidden" name="address" value={address || ""} />
+            <input type="hidden" name="phone" value={phone || ""} />
+            <input type="hidden" name="email" value={email || ""} />
+            <input type="hidden" name="postoId" value={currentPostoId || ""} />
         </div>
     );
 }

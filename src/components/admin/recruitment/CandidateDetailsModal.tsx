@@ -1400,10 +1400,13 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                             if (candidate.type === 'VACANCY') {
                                                 const vacancyId = candidate.realId || candidate.id.replace('VAC-', '');
                                                 const { deleteVacancy } = await import("@/actions/recruitment");
-                                                await deleteVacancy(vacancyId);
+                                                const res = await deleteVacancy(vacancyId);
+                                                if (res?.error) {
+                                                    toast.error(res.error);
+                                                    return;
+                                                }
                                                 toast.success("Vaga excluída permanentemente.");
-                                                // Trigger parent refresh or remove from list
-                                                if (onWithdrawSuccess) onWithdrawSuccess(candidate.id); // Reuse withdraw handler to remove from view
+                                                if (onWithdrawSuccess) onWithdrawSuccess(candidate.id);
                                             } else {
                                                 await deleteCandidate(candidate.id);
                                                 toast.success("Candidato excluído permanentemente.");

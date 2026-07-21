@@ -921,18 +921,51 @@ export async function getEmployeeFormData() {
 // --- NEW: Delete Vacancy ---
 export async function deleteVacancy(id: string) {
     const user = await getCurrentUser();
-    if (!user) throw new Error("Unauthorized");
-    if (user.role !== 'ADMIN') throw new Error("Apenas administradores podem excluir vagas.");
+    if (!user) return { error: "Não autorizado." };
+    if (user.role !== 'ADMIN' && user.role !== 'COORD_RH') {
+        return { error: "Apenas administradores podem excluir vagas." };
+    }
 
-    // Delete associated candidates first (OR cascade if configured, but safe to delete here)
-    // Actually, let's keep candidates? No, deleting vacancy usually implies deleting process.
-    // But safeguarding candidates might be better.
-    // For now, simple delete.
-    await prisma.vacancy.delete({
-        where: { id }
-    });
+    try {
+        await prisma.$transaction(async (tx) => {
+            // Find candidates linked to vacancy
+            const candidates = await tx.recruitmentCandidate.findMany({
+                where: { vacancyId: id },
+                select: { id: true }
+            });
+            const candidateIds = candidates.map(c => c.id);
 
-    revalidatePath("/admin/recrutamento");
+            // Delete comments linked to vacancy
+            await tx.recruitmentComment.deleteMany({
+                where: { vacancyId: id }
+            });
+
+            if (candidateIds.length > 0) {
+                await tx.recruitmentTimeline.deleteMany({
+                    where: { candidateId: { in: candidateIds } }
+                });
+                await tx.recruitmentCandidate.deleteMany({
+                    where: { vacancyId: id }
+                });
+            }
+
+            await tx.recruitmentTimeline.deleteMany({
+                where: { vacancyId: id }
+            });
+
+            // Mark vacancy as CLOSED so syncBacklogGaps won't auto-recreate it
+            await tx.vacancy.update({
+                where: { id },
+                data: { status: 'CLOSED' }
+            });
+        });
+
+        revalidatePath("/admin/recrutamento");
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error in deleteVacancy:", e);
+        return { error: e.message || "Erro ao excluir vaga." };
+    }
 }
 
 async function syncBacklogGaps() {
@@ -946,7 +979,6 @@ async function syncBacklogGaps() {
             client: { include: { company: true } },
             role: true,
             vacancies: {
-                // Fetch ALL vacancies to check for HOLD/Advanced Candidates, not just OPEN
                 include: {
                     candidates: {
                         select: { stage: { select: { name: true } } }
@@ -956,13 +988,9 @@ async function syncBacklogGaps() {
         }
     });
 
-    // 2. Filter out postos that ALREADY have an Active Process
+    // 2. Filter out postos that ALREADY have an Active or Closed Process
     const postosNeedingVacancy = vacantPostos.filter(p => {
-        // Check 1: Has an OPEN or HOLD vacancy?
-        // REVERT: We ONLY check for OPEN or HOLD. If there are CLOSED vacancies, it implies past attempts.
-        // If the Posto is STILL empty, we MUST create a new vacancy (the gap persists).
-        // To stop hiring, the user should use HOLD.
-        const hasActiveVacancy = p.vacancies.some(v => v.status === 'OPEN' || v.status === 'HOLD');
+        const hasActiveVacancy = p.vacancies.some(v => v.status === 'OPEN' || v.status === 'HOLD' || v.status === 'CLOSED');
         if (hasActiveVacancy) return false;
 
         // Check 2: Has a vacancy (only OPEN or HOLD) with a candidate in Filling Stages
