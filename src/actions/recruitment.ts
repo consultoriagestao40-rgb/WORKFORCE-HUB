@@ -78,7 +78,7 @@ export async function createVacancyFromPosto(postoId: string) {
 
 export async function getVacancies(filter?: { status?: string, companyId?: string }) {
     const user = await getCurrentUser();
-    if (!user) throw new Error("Unauthorized");
+    if (!user) return [];
 
     const where: any = {};
     if (filter?.status && filter.status !== 'ALL') {
@@ -234,7 +234,7 @@ export async function updateVacancyStatus(id: string, status: VacancyStatus) {
 
 export async function getRecruitmentBoardData() {
     const user = await getCurrentUser();
-    if (!user) throw new Error("Unauthorized");
+    if (!user) return [];
 
     // --- MIGRATION: Unify Triagem + RH -> Seleção ---
     // 1. Rename 'Triagem' to 'Seleção'
@@ -865,7 +865,7 @@ export async function getRecruiters() {
 
 export async function getBacklogItems() {
     const user = await getCurrentUser();
-    if (!user) throw new Error("Unauthorized");
+    if (!user) return [];
 
     // 1. Get all postos that currently have NO active assignment
     const vacantPostos = await prisma.posto.findMany({

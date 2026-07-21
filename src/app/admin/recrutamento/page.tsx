@@ -5,44 +5,56 @@ import { prisma } from "@/lib/db";
 
 
 
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+
 export default async function RecruitmentPage() {
-    const [stages, vacancies, roles, postos, companies, backlogs, users, candidates] = await Promise.all([
-        getRecruitmentBoardData(),
-        getVacancies({ status: 'OPEN' }),
-        prisma.role.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
-        prisma.posto.findMany({ orderBy: { client: { name: 'asc' } }, select: { id: true, client: { select: { name: true } } } }),
-        prisma.company.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
-        getBacklogItems(),
-        prisma.user.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
-        prisma.recruitmentCandidate.findMany({
-            include: {
-                stage: true,
-                vacancy: {
-                    include: {
-                        role: true,
-                        company: true,
-                        posto: { include: { client: true } }
+    const user = await getCurrentUser();
+    if (!user) {
+        redirect("/login");
+    }
+
+    try {
+        const [stages, vacancies, roles, postos, companies, backlogs, users, candidates] = await Promise.all([
+            getRecruitmentBoardData().catch(() => []),
+            getVacancies({ status: 'OPEN' }).catch(() => []),
+            prisma.role.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+            prisma.posto.findMany({ orderBy: { client: { name: 'asc' } }, select: { id: true, client: { select: { name: true } } } }),
+            prisma.company.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+            getBacklogItems().catch(() => []),
+            prisma.user.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+            prisma.recruitmentCandidate.findMany({
+                include: {
+                    stage: true,
+                    vacancy: {
+                        include: {
+                            role: true,
+                            company: true,
+                            posto: { include: { client: true } }
+                        }
                     }
-                }
-            },
-            orderBy: { createdAt: 'desc' }
-        })
-    ]);
+                },
+                orderBy: { createdAt: 'desc' }
+            })
+        ]);
 
-    // Format postos for dropdown
-    const formattedPostos = postos.map(p => ({ id: p.id, name: p.client.name }));
+        const formattedPostos = postos.map(p => ({ id: p.id, name: p.client?.name || "Posto" }));
 
-    return (
-        <RecruitmentClientPage
-            stages={stages}
-            vacancies={vacancies}
-            roles={roles}
-            postos={formattedPostos}
-            companies={companies}
-            backlogs={backlogs}
-            recruiters={users}
-            candidates={candidates}
-            currentUser={await import("@/lib/auth").then(m => m.getCurrentUser())}
-        />
-    );
+        return (
+            <RecruitmentClientPage
+                stages={stages}
+                vacancies={vacancies}
+                roles={roles}
+                postos={formattedPostos}
+                companies={companies}
+                backlogs={backlogs}
+                recruiters={users}
+                candidates={candidates}
+                currentUser={user}
+            />
+        );
+    } catch (error) {
+        console.error("Error loading recruitment page:", error);
+        return <div>Erro ao carregar módulo de recrutamento.</div>;
+    }
 }
