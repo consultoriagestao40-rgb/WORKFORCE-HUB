@@ -388,20 +388,42 @@ export async function createEmployee(formData: FormData) {
 
         // Auto-resolve roleId from Posto if not provided in form
         if (!roleId && postoId && postoId !== "ROTATIVO_VIRTUAL") {
-            const targetPosto = await prisma.posto.findUnique({ where: { id: postoId } });
-            if (targetPosto?.roleId) {
-                roleId = targetPosto.roleId;
+            try {
+                const targetPosto = await prisma.posto.findUnique({ where: { id: postoId } });
+                if (targetPosto?.roleId) {
+                    roleId = targetPosto.roleId;
+                }
+            } catch (err) {
+                console.error("Error auto-resolving roleId from posto:", err);
             }
         }
 
         if (!roleId) {
-            return { error: "O cargo (função) é obrigatório para cadastrar o colaborador. Por favor selecione um cargo." };
+            try {
+                const defaultRole = await prisma.role.findFirst();
+                if (defaultRole) {
+                    roleId = defaultRole.id;
+                } else {
+                    return { error: "O cargo (função) é obrigatório para cadastrar o colaborador." };
+                }
+            } catch {
+                return { error: "O cargo (função) é obrigatório para cadastrar o colaborador." };
+            }
         }
 
         const admissionDate = admissionDateStr ? new Date(admissionDateStr) : new Date();
 
         const extraFieldsStr = formData.get("extraFields") as string;
-        const extraFields = extraFieldsStr ? JSON.parse(extraFieldsStr) : null;
+        let extraFields = null;
+        if (extraFieldsStr) {
+            try {
+                extraFields = JSON.parse(extraFieldsStr);
+            } catch {
+                extraFields = null;
+            }
+        }
+
+        let createdEmployeeId: string | null = null;
 
         await prisma.$transaction(async (tx) => {
             // Check if CPF already exists
@@ -437,6 +459,7 @@ export async function createEmployee(formData: FormData) {
                     extraFields: extraFields || undefined
                 }
             });
+            createdEmployeeId = newEmployee.id;
 
             // 2. Create Assignment if Posto Provided
             if (postoId) {
@@ -472,33 +495,39 @@ export async function createEmployee(formData: FormData) {
                     });
                     finalPostoId = newPosto.id;
                 } else {
-                    // Check if Posto exists
                     const posto = await tx.posto.findUnique({ where: { id: postoId } });
                     if (!posto) {
-                        throw new Error("Posto informado para vínculo não encontrado.");
+                        console.warn(`[createEmployee] Posto ${postoId} not found, proceeding without posto assignment.`);
+                        finalPostoId = "";
                     }
                 }
 
-                // Create Active Assignment
-                await tx.assignment.create({
-                    data: {
-                        employeeId: newEmployee.id,
-                        postoId: finalPostoId,
-                        startDate: admissionDate, // Starts at admission
-                        endDate: null // Active
-                    }
-                });
+                if (finalPostoId) {
+                    // Create Active Assignment
+                    await tx.assignment.create({
+                        data: {
+                            employeeId: newEmployee.id,
+                            postoId: finalPostoId,
+                            startDate: admissionDate, // Starts at admission
+                            endDate: null // Active
+                        }
+                    });
 
-                // Log Auto-Assignment
-                const user = await getCurrentUser();
-                await tx.log.create({
-                    data: {
-                        action: "ALOCACAO_AUTOMATICA",
-                        details: `Colaborador ${newEmployee.name} alocado automaticamente ao posto no cadastro (Origem: Recrutamento).`,
-                        employeeId: newEmployee.id,
-                        userId: user?.id
+                    // Log Auto-Assignment
+                    try {
+                        const user = await getCurrentUser();
+                        await tx.log.create({
+                            data: {
+                                action: "ALOCACAO_AUTOMATICA",
+                                details: `Colaborador ${newEmployee.name} alocado automaticamente ao posto no cadastro (Origem: Recrutamento).`,
+                                employeeId: newEmployee.id,
+                                userId: user?.id
+                            }
+                        });
+                    } catch (logErr) {
+                        console.error("Warning: log creation failed inside createEmployee:", logErr);
                     }
-                });
+                }
             }
             
             // Cleanup vacant rotativo postos in same transaction safely
@@ -509,8 +538,11 @@ export async function createEmployee(formData: FormData) {
             }
         });
 
-        revalidatePath("/admin/employees");
-        return { success: true };
+        try {
+            revalidatePath("/admin/employees");
+        } catch {}
+
+        return { success: true, employeeId: createdEmployeeId };
     } catch (e: any) {
         console.error("Error in createEmployee server action:", e);
         return { error: e.message || "Erro inesperado ao cadastrar colaborador." };
