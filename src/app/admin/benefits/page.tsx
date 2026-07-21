@@ -569,14 +569,18 @@ export default function BenefitsPage() {
                                                                 <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">
                                                                     Faltas / Atestados na Janela (26-25)
                                                                 </div>
-                                                                <div className="space-y-1 max-h-48 overflow-y-auto">
+                                                                <div className="space-y-1.5 max-h-48 overflow-y-auto">
                                                                     {item.occurrencesList.map(occ => (
-                                                                        <div key={occ.id} className="p-2 bg-slate-50 rounded-xl border border-slate-100 text-[11px]">
+                                                                        <div key={occ.id} className="p-2 bg-slate-50 rounded-xl border border-slate-200/60 text-[11px] space-y-1">
                                                                             <div className="font-bold text-red-600 flex justify-between">
                                                                                 <span>{occ.type}</span>
                                                                                 <span>{occ.date}</span>
                                                                             </div>
-                                                                            {occ.notes && <div className="text-[10px] text-slate-500 mt-0.5 italic">{occ.notes}</div>}
+                                                                            {occ.notes && <div className="text-[10px] text-slate-500 italic">{occ.notes}</div>}
+                                                                            <div className="flex justify-between pt-1.5 border-t border-dashed border-slate-200 text-[9px] text-slate-500 font-bold">
+                                                                                <span>Desc. VT: -R$ {item.vtDailyValue.toFixed(2)}</span>
+                                                                                <span>Desc. VA: -R$ {(item.vaBaseValue / 30).toFixed(2)}</span>
+                                                                            </div>
                                                                         </div>
                                                                     ))}
                                                                 </div>
