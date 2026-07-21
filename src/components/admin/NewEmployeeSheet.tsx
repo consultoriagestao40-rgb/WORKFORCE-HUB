@@ -150,6 +150,8 @@ export function NewEmployeeSheet({
         setAdmissionDate(new Date().toISOString().split('T')[0]);
     };
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
     async function handleSubmit(formData: FormData) {
         try {
             const res = await createEmployee(formData);
@@ -157,6 +159,7 @@ export function NewEmployeeSheet({
                 toast.error(res.error);
                 return;
             }
+            toast.success("Colaborador cadastrado e vinculado com sucesso!");
             handleCancel();
             if (onSuccess) onSuccess();
         } catch (e: any) {
@@ -203,7 +206,20 @@ export function NewEmployeeSheet({
                         </div>
                     )}
                 </SheetHeader>
-                <form action={handleSubmit} className="space-y-4 mt-6 h-[80vh] overflow-y-auto pr-4">
+                <form
+                    onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (isSubmitting) return;
+                        setIsSubmitting(true);
+                        try {
+                            const formData = new FormData(e.currentTarget);
+                            await handleSubmit(formData);
+                        } finally {
+                            setIsSubmitting(false);
+                        }
+                    }}
+                    className="space-y-4 mt-6 h-[80vh] overflow-y-auto pr-4"
+                >
 
                     <EmployeeOnvioWizard
                         initialData={wizardData}
@@ -270,7 +286,9 @@ export function NewEmployeeSheet({
                         >
                             ⚡ Preencher na Thomson Reuters
                         </Button>
-                        <Button type="submit" className="flex-1 h-10 rounded-xl">Salvar</Button>
+                        <Button type="submit" disabled={isSubmitting} className="flex-1 h-10 rounded-xl">
+                            {isSubmitting ? "Salvando..." : "Salvar"}
+                        </Button>
                     </div>
                 </form>
             </SheetContent>
