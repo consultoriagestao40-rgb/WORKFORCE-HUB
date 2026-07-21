@@ -300,6 +300,7 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                     <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {/* Hidden Inputs for action */}
                     <input type="hidden" name="id" value={employee.id} />
+                    <input type="hidden" name="status" value={status} />
                     <input type="hidden" name="vtOptIn" value={vtOptIn ? "true" : "false"} />
                     <input type="hidden" name="vtPaymentMethod" value={vtPaymentMethod} />
                     <input type="hidden" name="vtCustomPaymentDetails" value={vtCustomPaymentDetails} />
@@ -501,33 +502,17 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Status (Legado)</Label>
-                                    <Select name="status" value={status} onValueChange={setStatus}>
-                                        <SelectTrigger className="h-9 rounded-xl border-slate-200">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Ativo">Ativo</SelectItem>
-                                            <SelectItem value="Férias">Férias</SelectItem>
-                                            <SelectItem value="Afastado">Afastado</SelectItem>
-                                            <SelectItem value="Desligado">Desligado</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Tipo de Contrato</Label>
-                                    <Select name="type" defaultValue={employee.type}>
-                                        <SelectTrigger className="h-9 rounded-xl border-slate-200">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="CLT">CLT (Efetivo)</SelectItem>
-                                            <SelectItem value="Reserva Técnica">Reserva Técnica</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                            <div className="space-y-1">
+                                <Label className="font-bold text-slate-700">Tipo de Contrato</Label>
+                                <Select name="type" defaultValue={employee.type}>
+                                    <SelectTrigger className="h-9 rounded-xl border-slate-200">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="CLT">CLT (Efetivo)</SelectItem>
+                                        <SelectItem value="Reserva Técnica">Reserva Técnica</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                             <div className="space-y-1">
