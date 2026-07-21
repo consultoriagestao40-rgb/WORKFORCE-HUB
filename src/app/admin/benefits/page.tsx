@@ -725,7 +725,7 @@ export default function BenefitsPage() {
                     <div className="flex items-center gap-2 text-indigo-300 text-xs font-bold uppercase tracking-wider mb-2">
                         <Bus className="w-4 h-4" /> Total Vale Transporte (VT)
                     </div>
-                    <div className="text-3xl font-black">R$ {totalVT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                    <div className="text-2xl font-black">R$ {totalVT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                     <div className="text-[11px] text-indigo-200 mt-2 font-medium flex items-center gap-1.5">
                         <UserCheck className="w-3.5 h-3.5 text-emerald-400" /> {vtOptInCount} colaboradores optantes ({items.length - vtOptInCount} dispensados)
                     </div>
@@ -739,7 +739,7 @@ export default function BenefitsPage() {
                     <div className="flex items-center gap-2 text-orange-100 text-xs font-bold uppercase tracking-wider mb-2">
                         <Utensils className="w-4 h-4" /> Total Vale Alimentação (VA)
                     </div>
-                    <div className="text-3xl font-black">R$ {totalVA.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                    <div className="text-2xl font-black">R$ {totalVA.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                     <div className="text-[11px] text-orange-100 mt-2 font-medium">
                         Mês de referência: {monthNames[selectedMonth - 1]} / {selectedYear}
                     </div>
@@ -757,7 +757,7 @@ export default function BenefitsPage() {
                     <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-wider">
                         <AlertCircle className="w-4 h-4 text-red-500" /> Abatimentos Ocorrências
                     </div>
-                    <div className="text-3xl font-black text-slate-800">{totalOccurrencesDeducted}</div>
+                    <div className="text-2xl font-black text-slate-800">{totalOccurrencesDeducted}</div>
                     <div className="text-[10px] text-slate-400 font-bold flex flex-wrap gap-x-2">
                         <span>Desc. VT: <strong className="text-indigo-600">R$ {totalVtDeduction.toFixed(2)}</strong></span>
                         <span>|</span>
@@ -773,7 +773,7 @@ export default function BenefitsPage() {
                     <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold uppercase tracking-wider">
                         <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Compras Pagas
                     </div>
-                    <div className="text-3xl font-black text-emerald-600">{paidCount} <span className="text-sm font-bold text-slate-400">/ {items.length}</span></div>
+                    <div className="text-2xl font-black text-emerald-600">{paidCount} <span className="text-xs font-bold text-slate-400">/ {items.length}</span></div>
                     <div className="text-[11px] text-slate-500 font-medium">
                         {items.length - paidCount} compras pendentes de marcação.
                     </div>
@@ -791,7 +791,7 @@ export default function BenefitsPage() {
                     <div className="flex items-center gap-2 text-amber-650 text-xs font-bold uppercase tracking-wider">
                         <Clock className="w-4 h-4 text-amber-500" /> Pagamentos Fracionados
                     </div>
-                    <div className="text-3xl font-black text-amber-600">{alertCount}</div>
+                    <div className="text-2xl font-black text-amber-600">{alertCount}</div>
                     <div className="text-[11px] text-slate-500 font-medium">
                         Colaboradores em período de parcelas fracionadas.
                     </div>
