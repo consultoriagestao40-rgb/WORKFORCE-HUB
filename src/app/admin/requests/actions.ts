@@ -1375,7 +1375,9 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                 company: true,
                 postos: {
                     include: {
-                        assignments: true,
+                        assignments: {
+                            include: { employee: true }
+                        },
                         role: true
                     }
                 },
@@ -1564,6 +1566,8 @@ export async function getConsolidatedPerformanceData(year: number, month: number
 
             let adminTotalShifts = 0;
             let adminVacantShifts = 0;
+            let clientTotalFaultas = 0;
+            let clientTotalCobertas = 0;
             const clientUncoveredDetails: any[] = [];
 
             daysInMonth.forEach((dayDate: Date) => {
@@ -1599,7 +1603,12 @@ export async function getConsolidatedPerformanceData(year: number, month: number
 
                         if (att) {
                             if (att.status === "FALTA") {
-                                if (!att.coveredById && att.coverageType !== "DIARISTA" && att.coverageType !== "RESERVA_TECNICA") {
+                                clientTotalFaultas++;
+                                const isCovered = att.coveredById || att.coverageType === "DIARISTA" || att.coverageType === "RESERVA_TECNICA";
+                                
+                                if (isCovered) {
+                                    clientTotalCobertas++;
+                                } else {
                                     adminVacantShifts++;
                                     const occ = occurrenceMap.get(`${posto.id}-${dayDateStr}`);
                                     clientUncoveredDetails.push({
@@ -1631,6 +1640,19 @@ export async function getConsolidatedPerformanceData(year: number, month: number
 
                             if (isPastDay || isEndedToday) {
                                 adminVacantShifts++;
+                                clientTotalFaultas++;
+                                
+                                const hasTitular = assignment && assignment.employee;
+                                clientUncoveredDetails.push({
+                                    date: dayDateStr,
+                                    clientName: client.name,
+                                    postoRole: posto.role?.name || "Posto",
+                                    schedule: posto.schedule,
+                                    time: `${posto.startTime} - ${posto.endTime}`,
+                                    type: hasTitular ? "FALTA" : "VAGA",
+                                    employeeName: hasTitular ? assignment.employee.name : "Sem colaborador escalado",
+                                    notes: hasTitular ? "Falta de ponto no sistema." : "Posto vago sem escala ativa."
+                                });
                             }
                         }
                     }
@@ -1709,6 +1731,8 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                 vacantPostosDetails,
                 uncoveredShiftsCount: clientUncoveredDetails.length,
                 uncoveredShiftsDetails: clientUncoveredDetails,
+                totalFaultas: clientTotalFaultas,
+                totalCobertas: clientTotalCobertas,
                 recentRequests: clientReqs.map((r: any) => ({
                     id: r.id,
                     type: r.type,
@@ -1851,6 +1875,11 @@ export async function getConsolidatedPerformanceData(year: number, month: number
             groupNpsCount,
             uncoveredShiftsCount: clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + (c.uncoveredShiftsCount || 0), 0),
             uncoveredShiftsList: clientsWithABCAndVisits.flatMap((c: any) => c.uncoveredShiftsDetails || []),
+            groupCoverageIndex: (() => {
+                const totalFaultasCombined = clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + (c.totalFaultas || 0), 0);
+                const totalCobertasCombined = clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + (c.totalCobertas || 0), 0);
+                return totalFaultasCombined > 0 ? Math.min(100, (totalCobertasCombined / totalFaultasCombined) * 100) : 100;
+            })(),
             clients: clientsWithABCAndVisits,
             allEmployees,
             allRequests: requests.map((r: any) => {

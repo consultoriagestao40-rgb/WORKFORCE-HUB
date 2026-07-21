@@ -1708,7 +1708,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
                             {/* Metrics Cards Grid - Corrigindo a altura e adicionando padding elegante */}
                             {consolidatedData && (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                                     <Card 
                                         onClick={() => { setDetailsModalType("contracts"); setDetailsModalOpen(true); }}
                                         className="border border-slate-200/50 shadow-premium bg-slate-900 text-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
@@ -1761,6 +1761,18 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         <div className="flex items-center justify-between mt-2">
                                             <span className="text-2xl font-black text-amber-605">{consolidatedData.uncoveredShiftsCount || 0}</span>
                                             <AlertCircle className="w-6 h-6 text-amber-605 bg-amber-50 p-1.5 rounded-xl" />
+                                        </div>
+                                    </Card>
+
+                                    <Card 
+                                        className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg transition-all duration-200 rounded-2xl min-h-[110px]"
+                                    >
+                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Índice de Cobertura</span>
+                                        <div className="flex items-center justify-between mt-2">
+                                            <span className="text-2xl font-black text-indigo-650">
+                                                {consolidatedData.groupCoverageIndex !== undefined ? consolidatedData.groupCoverageIndex.toFixed(1) + "%" : "100.0%"}
+                                            </span>
+                                            <UserCheck className="w-6 h-6 text-indigo-600 bg-indigo-50 p-1.5 rounded-xl" />
                                         </div>
                                     </Card>
                                 </div>
@@ -1890,7 +1902,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
                 {/* Modals e Dialogs para a tela consolidada */}
                 <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
-                    <DialogContent className="max-w-[95vw] md:max-w-4xl lg:max-w-5xl rounded-[24px]">
+                    <DialogContent className="max-w-[95vw] lg:max-w-6xl xl:max-w-7xl rounded-[24px]">
                         <DialogHeader>
                             <DialogTitle className="text-md font-bold text-slate-800">
                                 {detailsModalType === "contracts" && "Detalhamento - Contratos Ativos"}
@@ -5771,13 +5783,14 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
             {/* Modal de Detalhamento dos Cards Consolidados */}
             <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
-                <DialogContent className="max-w-[95vw] md:max-w-4xl lg:max-w-5xl rounded-[24px]">
+                <DialogContent className="max-w-[95vw] lg:max-w-6xl xl:max-w-7xl rounded-[24px]">
                     <DialogHeader>
                         <DialogTitle className="text-md font-bold text-slate-800">
                             {detailsModalType === "contracts" && "Detalhamento - Contratos Ativos"}
                             {detailsModalType === "employees" && "Detalhamento - Colaboradores em Quadro"}
                             {detailsModalType === "billing" && "Detalhamento - Faturamento Total Mensal"}
                             {detailsModalType === "vacancies" && "Detalhamento - Vagas em Aberto"}
+                            {detailsModalType === "uncovered_shifts" && "Detalhamento - Postos Não Cobertos"}
                         </DialogTitle>
                         <DialogDescription>
                             Visualização detalhada consolidada dos indicadores selecionados.
