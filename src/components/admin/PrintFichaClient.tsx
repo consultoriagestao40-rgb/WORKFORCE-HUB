@@ -21,7 +21,8 @@ export function PrintFichaClient() {
                 </div>
                 <div className="text-xs text-slate-200">
                     <strong className="text-white block font-bold text-[13px] mb-0.5">Instruções para salvar em PDF:</strong>
-                    Na janela de impressão que se abriu, altere o campo <strong className="text-orange-400 font-extrabold">"Destino"</strong> (ou "Salvar como") para <strong className="text-orange-400 font-extrabold">"Salvar como PDF"</strong> e clique em Salvar.
+                    1. Altere o campo <strong className="text-orange-400 font-extrabold">"Destino"</strong> para <strong className="text-orange-400 font-extrabold">"Salvar como PDF"</strong>.<br />
+                    2. Desmarque a opção <strong className="text-orange-400 font-extrabold">"Cabeçalhos e rodapés"</strong> (em "Mais definições") para remover a URL do rodapé.
                 </div>
             </div>
             <Button 

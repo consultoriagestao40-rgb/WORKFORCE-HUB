@@ -329,18 +329,21 @@ export default async function PrintEmployeeProfilePage(props: {
             <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
                     @page {
-                        margin: 0;
+                        margin: 15mm 20mm !important;
                     }
                     body {
                         margin: 0 !important;
                         padding: 0 !important;
                     }
                     .print-container {
-                        padding: 15mm 20mm !important;
+                        padding: 0 !important;
                         max-width: 100% !important;
                         width: 100% !important;
                         box-shadow: none !important;
                         border: none !important;
+                    }
+                    tr, table {
+                        page-break-inside: avoid;
                     }
                 }
             `}} />
