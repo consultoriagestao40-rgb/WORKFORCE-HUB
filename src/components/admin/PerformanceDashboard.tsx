@@ -296,7 +296,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
     // Card Details Modal State
     const [detailsModalOpen, setDetailsModalOpen] = useState<boolean>(false);
-    const [detailsModalType, setDetailsModalType] = useState<"contracts" | "employees" | "billing" | "vacancies">("contracts");
+    const [detailsModalType, setDetailsModalType] = useState<"contracts" | "employees" | "billing" | "vacancies" | "uncovered_shifts">("contracts");
 
     // Modal contracts filter (multiple choice selection)
     const [selectedContractsFilter, setSelectedContractsFilter] = useState<string[]>([]);
@@ -1176,6 +1176,38 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
         return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);
     };
 
+    const handleExportUncoveredShifts = () => {
+        if (!consolidatedData || !consolidatedData.uncoveredShiftsList || consolidatedData.uncoveredShiftsList.length === 0) {
+            toast.error("Nenhum posto não coberto para exportar.");
+            return;
+        }
+
+        const excelData = consolidatedData.uncoveredShiftsList.map((item: any) => ({
+            Data: format(new Date(item.date + "T12:00:00Z"), "dd/MM/yyyy"),
+            Cliente: item.clientName,
+            Função: item.postoRole,
+            Escala: item.schedule,
+            Horário: item.time,
+            Tipo: item.type === "VAGA" ? "Vaga Não Coberta" : item.type === "ATESTADO" ? "Atestado Não Coberto" : "Falta Não Coberta",
+            Colaborador: item.employeeName,
+            Observação: item.notes
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(excelData);
+        const colWidths = Object.keys(excelData[0]).map(key => ({
+            wch: Math.max(
+                key.length + 3,
+                ...excelData.map((row: any) => String(row[key] || '').length + 2)
+            )
+        }));
+        ws['!cols'] = colWidths;
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Postos Não Cobertos");
+        XLSX.writeFile(wb, `postos-nao-cobertos-${selectedYear}-${selectedMonth + 1}.xlsx`);
+        toast.success("Relatório de postos não cobertos exportado com sucesso!");
+    };
+
     const handleExportExcel = () => {
         let excelData: any[] = [];
         let filename = `relatorio-presenca-${date}.xlsx`;
@@ -1645,9 +1677,38 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                 <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4 max-w-7xl mx-auto w-full">
                     {consolidatedTab === "performance" ? (
                         <>
+                            {/* Seletor de Período e Título */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+                                <div className="space-y-0.5">
+                                    <h2 className="text-md font-bold text-slate-800 tracking-tight uppercase">Painel Consolidado de Desempenho</h2>
+                                    <p className="text-xs text-slate-500 font-medium">Indicadores gerais de contratos, faturamento, SLAs e coberturas de postos.</p>
+                                </div>
+                                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200/80 w-fit shrink-0 shadow-sm">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Período:</span>
+                                    <select
+                                        value={selectedMonth}
+                                        onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                                        className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer pr-1"
+                                    >
+                                        {monthNames.map((m, idx) => (
+                                            <option key={idx} value={idx}>{m}</option>
+                                        ))}
+                                    </select>
+                                    <select
+                                        value={selectedYear}
+                                        onChange={(e) => setSelectedYear(Number(e.target.value))}
+                                        className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer border-l border-slate-200 pl-2"
+                                    >
+                                        <option value={2025}>2025</option>
+                                        <option value={2026}>2026</option>
+                                        <option value={2027}>2027</option>
+                                    </select>
+                                </div>
+                            </div>
+
                             {/* Metrics Cards Grid - Corrigindo a altura e adicionando padding elegante */}
                             {consolidatedData && (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
                                     <Card 
                                         onClick={() => { setDetailsModalType("contracts"); setDetailsModalOpen(true); }}
                                         className="border border-slate-200/50 shadow-premium bg-slate-900 text-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
@@ -1689,6 +1750,17 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         <div className="flex items-center justify-between mt-2">
                                             <span className="text-2xl font-black text-red-600">{consolidatedData.vacantSlotsCombined || 0}</span>
                                             <Clock className="w-6 h-6 text-red-655 bg-red-50 p-1.5 rounded-xl" />
+                                        </div>
+                                    </Card>
+
+                                    <Card 
+                                        onClick={() => { setDetailsModalType("uncovered_shifts"); setDetailsModalOpen(true); }}
+                                        className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
+                                    >
+                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Postos Não Cobertos</span>
+                                        <div className="flex items-center justify-between mt-2">
+                                            <span className="text-2xl font-black text-amber-605">{consolidatedData.uncoveredShiftsCount || 0}</span>
+                                            <AlertCircle className="w-6 h-6 text-amber-605 bg-amber-50 p-1.5 rounded-xl" />
                                         </div>
                                     </Card>
                                 </div>
@@ -1825,11 +1897,28 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 {detailsModalType === "employees" && "Detalhamento - Colaboradores em Quadro"}
                                 {detailsModalType === "billing" && "Detalhamento - Faturamento Total Mensal"}
                                 {detailsModalType === "vacancies" && "Detalhamento - Vagas em Aberto"}
+                                {detailsModalType === "uncovered_shifts" && "Detalhamento - Postos Não Cobertos"}
                             </DialogTitle>
                             <DialogDescription>
                                 Visualização detalhada consolidada dos indicadores selecionados.
                             </DialogDescription>
                         </DialogHeader>
+
+                        {detailsModalType === "uncovered_shifts" && (
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 p-1.5 bg-slate-50/60 rounded-xl border border-slate-100/50">
+                                <div className="text-[11px] text-slate-550 font-bold pl-2">
+                                    Total de {consolidatedData?.uncoveredShiftsList?.length || 0} faltas, vagas ou atestados não cobertos no período.
+                                </div>
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={handleExportUncoveredShifts} 
+                                    className="gap-1.5 h-8 text-[11px] font-bold shadow-sm border-slate-200 bg-white"
+                                >
+                                    <Download className="w-3.5 h-3.5" /> Exportar Planilha
+                                </Button>
+                            </div>
+                        )}
 
                         {detailsModalType === "vacancies" && (
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 p-1.5 bg-slate-50/60 rounded-xl border border-slate-100/50">
@@ -1960,6 +2049,17 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             <TableHead className="font-bold text-slate-800 text-xs text-center pr-6 py-2.5">Tempo Vago</TableHead>
                                         </TableRow>
                                     )}
+                                    {detailsModalType === "uncovered_shifts" && (
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Data</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Contrato</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Cargo / Função</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Escala / Horário</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Tipo</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Colaborador Ausente</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs pr-6 py-2.5">Observação</TableHead>
+                                        </TableRow>
+                                    )}
                                 </TableHeader>
                                 <TableBody>
                                     {detailsModalType === "vacancies" ? (
@@ -2017,6 +2117,53 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                             <span className="px-2 py-0.5 rounded text-[10px] font-black border bg-red-50 text-red-700 border-red-200">
                                                                 {p.diffDays} dias
                                                             </span>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            });
+                                        })()
+                                    ) : detailsModalType === "uncovered_shifts" ? (
+                                        (() => {
+                                            const list = consolidatedData?.uncoveredShiftsList || [];
+                                            if (list.length === 0) {
+                                                return (
+                                                    <TableRow>
+                                                        <TableCell colSpan={7} className="text-center py-6 text-xs text-slate-500 font-bold">
+                                                            Nenhum posto não coberto registrado neste mês.
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            }
+                                            return list.map((item: any, index: number) => {
+                                                const dateFormatted = format(new Date(item.date + "T12:00:00Z"), "dd/MM/yyyy");
+                                                return (
+                                                    <TableRow key={index} className="hover:bg-slate-50/50">
+                                                        <TableCell className="pl-6 py-2 text-xs text-slate-600 font-bold">{dateFormatted}</TableCell>
+                                                        <TableCell className="py-2 text-xs font-bold text-slate-800">{item.clientName}</TableCell>
+                                                        <TableCell className="py-2 text-xs text-slate-700 font-medium">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+                                                                <span>{item.postoRole}</span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="py-2 text-xs text-center text-slate-655 font-medium">
+                                                            <div className="flex flex-col items-center">
+                                                                <span className="font-bold text-slate-850">{item.time}</span>
+                                                                <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-500 font-mono mt-0.5">{item.schedule}</span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="py-2 text-xs text-center">
+                                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                                                                item.type === "VAGA" ? "bg-red-50 text-red-700 border-red-200" :
+                                                                item.type === "ATESTADO" ? "bg-indigo-50 text-indigo-700 border-indigo-200" :
+                                                                "bg-amber-50 text-amber-700 border-amber-200"
+                                                            }`}>
+                                                                {item.type === "VAGA" ? "Vaga" : item.type === "ATESTADO" ? "Atestado" : "Falta"}
+                                                            </span>
+                                                        </TableCell>
+                                                        <TableCell className="py-2 text-xs text-slate-700 font-semibold">{item.employeeName}</TableCell>
+                                                        <TableCell className="py-2 text-xs text-slate-500 pr-6 font-medium max-w-xs truncate" title={item.notes}>
+                                                            {item.notes}
                                                         </TableCell>
                                                     </TableRow>
                                                 );

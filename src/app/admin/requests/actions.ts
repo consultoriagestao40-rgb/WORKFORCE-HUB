@@ -1419,7 +1419,18 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                 }
             },
             include: {
-                posto: true
+                posto: true,
+                employee: true
+            }
+        });
+
+        // Fetch occurrences for that month
+        const occurrences = await prisma.occurrence.findMany({
+            where: {
+                date: {
+                    gte: startOfMonth,
+                    lte: endOfMonth
+                }
             }
         });
 
@@ -1489,6 +1500,15 @@ export async function getConsolidatedPerformanceData(year: number, month: number
             }
         });
 
+        // Criar mapa de occurrences para busca O(1)
+        const occurrenceMap = new Map<string, any>();
+        occurrences.forEach((occ: any) => {
+            if (occ.postoId && occ.date) {
+                const dateStr = new Date(occ.date).toISOString().split("T")[0];
+                occurrenceMap.set(`${occ.postoId}-${dateStr}`, occ);
+            }
+        });
+
         // 1. Calculate faturamento and postos/vagas for each client
         const clientData = clients.map(client => {
             const billing = client.postos.reduce((sum: number, p: any) => sum + (p.billingValue || 0), 0);
@@ -1544,6 +1564,7 @@ export async function getConsolidatedPerformanceData(year: number, month: number
 
             let adminTotalShifts = 0;
             let adminVacantShifts = 0;
+            const clientUncoveredDetails: any[] = [];
 
             daysInMonth.forEach((dayDate: Date) => {
                 const dayDateStr = dayDate.toISOString().split("T")[0];
@@ -1580,11 +1601,22 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                             if (att.status === "FALTA") {
                                 if (!att.coveredById && att.coverageType !== "DIARISTA" && att.coverageType !== "RESERVA_TECNICA") {
                                     adminVacantShifts++;
+                                    const occ = occurrenceMap.get(`${posto.id}-${dayDateStr}`);
+                                    clientUncoveredDetails.push({
+                                        date: dayDateStr,
+                                        clientName: client.name,
+                                        postoRole: posto.role?.name || "Posto",
+                                        schedule: posto.schedule,
+                                        time: `${posto.startTime} - ${posto.endTime}`,
+                                        type: occ?.type || "FALTA",
+                                        employeeName: att.employee?.name || "Não informado",
+                                        notes: att.notes || occ?.description || "Ausência sem cobertura."
+                                    });
                                 }
                             }
                         } else {
                             const todayStr = today.toISOString().split("T")[0];
-                            const isPastDay = targetDate.getTime() < new Date(todayStr + "T00:00:00Z").getTime();
+                            const isPastDay = targetDate.getTime() < new Date(todayStr + "T00:00:59Z").getTime();
                             let isEndedToday = false;
 
                             if (today.getFullYear() === year && today.getMonth() === month && today.getDate() === dayDate.getDate()) {
@@ -1599,6 +1631,16 @@ export async function getConsolidatedPerformanceData(year: number, month: number
 
                             if (isPastDay || isEndedToday) {
                                 adminVacantShifts++;
+                                clientUncoveredDetails.push({
+                                    date: dayDateStr,
+                                    clientName: client.name,
+                                    postoRole: posto.role?.name || "Posto",
+                                    schedule: posto.schedule,
+                                    time: `${posto.startTime} - ${posto.endTime}`,
+                                    type: "VAGA",
+                                    employeeName: "Sem colaborador escalado",
+                                    notes: "Posto vago sem escala ativa."
+                                });
                             }
                         }
                     }
@@ -1675,6 +1717,8 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                 npsCount: clientMonthNps.length,
                 visits: client.visits,
                 vacantPostosDetails,
+                uncoveredShiftsCount: adminVacantShifts,
+                uncoveredShiftsDetails: clientUncoveredDetails,
                 recentRequests: clientReqs.map((r: any) => ({
                     id: r.id,
                     type: r.type,
@@ -1815,6 +1859,8 @@ export async function getConsolidatedPerformanceData(year: number, month: number
             avgEffectivenessCombined,
             groupNpsScore,
             groupNpsCount,
+            uncoveredShiftsCount: clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + (c.uncoveredShiftsCount || 0), 0),
+            uncoveredShiftsList: clientsWithABCAndVisits.flatMap((c: any) => c.uncoveredShiftsDetails || []),
             clients: clientsWithABCAndVisits,
             allEmployees,
             allRequests: requests.map((r: any) => {
