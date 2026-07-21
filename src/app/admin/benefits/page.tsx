@@ -718,28 +718,28 @@ export default function BenefitsPage() {
             {/* Stat Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-5">
                 {/* Total VT */}
-                <div className="bg-gradient-to-br from-indigo-900 to-slate-900 p-6 rounded-3xl text-white shadow-md relative overflow-hidden">
+                <div className="bg-gradient-to-br from-indigo-900 to-slate-900 p-5 rounded-3xl text-white shadow-md relative overflow-hidden">
                     <div className="absolute -right-4 -bottom-4 opacity-10">
                         <Bus className="w-32 h-32" />
                     </div>
                     <div className="flex items-center gap-2 text-indigo-300 text-xs font-bold uppercase tracking-wider mb-2">
                         <Bus className="w-4 h-4" /> Total Vale Transporte (VT)
                     </div>
-                    <div className="text-2xl font-black">R$ {totalVT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                    <div className="text-2xl font-black whitespace-nowrap"><span className="text-base font-bold mr-1">R$</span>{totalVT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                     <div className="text-[11px] text-indigo-200 mt-2 font-medium flex items-center gap-1.5">
                         <UserCheck className="w-3.5 h-3.5 text-emerald-400" /> {vtOptInCount} colaboradores optantes ({items.length - vtOptInCount} dispensados)
                     </div>
                 </div>
 
                 {/* Total VA */}
-                <div className="bg-gradient-to-br from-orange-600 to-amber-600 p-6 rounded-3xl text-white shadow-md relative overflow-hidden">
+                <div className="bg-gradient-to-br from-orange-600 to-amber-600 p-5 rounded-3xl text-white shadow-md relative overflow-hidden">
                     <div className="absolute -right-4 -bottom-4 opacity-10">
                         <Utensils className="w-32 h-32" />
                     </div>
                     <div className="flex items-center gap-2 text-orange-100 text-xs font-bold uppercase tracking-wider mb-2">
                         <Utensils className="w-4 h-4" /> Total Vale Alimentação (VA)
                     </div>
-                    <div className="text-2xl font-black">R$ {totalVA.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                    <div className="text-2xl font-black whitespace-nowrap"><span className="text-base font-bold mr-1">R$</span>{totalVA.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                     <div className="text-[11px] text-orange-100 mt-2 font-medium">
                         Mês de referência: {monthNames[selectedMonth - 1]} / {selectedYear}
                     </div>
@@ -752,15 +752,15 @@ export default function BenefitsPage() {
                             setOccurrencesModalOpen(true);
                         }
                     }}
-                    className={`bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-2 select-none ${totalOccurrencesDeducted > 0 ? 'cursor-pointer hover:bg-slate-50/80 transition-all active:scale-[0.98]' : ''}`}
+                    className={`bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm space-y-2 select-none ${totalOccurrencesDeducted > 0 ? 'cursor-pointer hover:bg-slate-50/80 transition-all active:scale-[0.98]' : ''}`}
                 >
                     <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-wider">
                         <AlertCircle className="w-4 h-4 text-red-500" /> Abatimentos Ocorrências
                     </div>
-                    <div className="text-2xl font-black text-slate-800">{totalOccurrencesDeducted}</div>
-                    <div className="text-[10px] text-slate-400 font-bold flex flex-wrap gap-x-2">
+                    <div className="text-2xl font-black text-slate-800 whitespace-nowrap">{totalOccurrencesDeducted}</div>
+                    <div className="text-[10px] text-slate-400 font-bold flex flex-wrap gap-x-1.5 whitespace-nowrap">
                         <span>Desc. VT: <strong className="text-indigo-600">R$ {totalVtDeduction.toFixed(2)}</strong></span>
-                        <span>|</span>
+                        <span className="text-slate-350">|</span>
                         <span>Desc. VA: <strong className="text-orange-600">R$ {totalVaDeduction.toFixed(2)}</strong></span>
                     </div>
                     <div className="text-[10px] text-slate-500 font-medium pt-1">
@@ -769,11 +769,11 @@ export default function BenefitsPage() {
                 </div>
 
                 {/* Status de Pagamentos */}
-                <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-2">
+                <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm space-y-2">
                     <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold uppercase tracking-wider">
                         <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Compras Pagas
                     </div>
-                    <div className="text-2xl font-black text-emerald-600">{paidCount} <span className="text-xs font-bold text-slate-400">/ {items.length}</span></div>
+                    <div className="text-2xl font-black text-emerald-600 whitespace-nowrap">{paidCount} <span className="text-xs font-bold text-slate-400">/ {items.length}</span></div>
                     <div className="text-[11px] text-slate-500 font-medium">
                         {items.length - paidCount} compras pendentes de marcação.
                     </div>
@@ -786,12 +786,12 @@ export default function BenefitsPage() {
                             setActiveTab("ALERTS");
                         }
                     }}
-                    className={`bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-2 select-none ${alertCount > 0 ? 'cursor-pointer hover:bg-slate-50/80 transition-all active:scale-[0.98]' : ''}`}
+                    className={`bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm space-y-2 select-none ${alertCount > 0 ? 'cursor-pointer hover:bg-slate-50/80 transition-all active:scale-[0.98]' : ''}`}
                 >
                     <div className="flex items-center gap-2 text-amber-650 text-xs font-bold uppercase tracking-wider">
                         <Clock className="w-4 h-4 text-amber-500" /> Pagamentos Fracionados
                     </div>
-                    <div className="text-2xl font-black text-amber-600">{alertCount}</div>
+                    <div className="text-2xl font-black text-amber-600 whitespace-nowrap">{alertCount}</div>
                     <div className="text-[11px] text-slate-500 font-medium">
                         Colaboradores em período de parcelas fracionadas.
                     </div>

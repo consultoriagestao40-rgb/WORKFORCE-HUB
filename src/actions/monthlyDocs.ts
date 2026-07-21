@@ -119,3 +119,35 @@ export async function deleteMonthlyDocumentFile(fileId: string) {
         return { error: e.message || "Erro ao excluir arquivo." };
     }
 }
+
+export async function updateDocumentRequirement(requirementId: string, name: string, description?: string, dueDay: number = 10) {
+    try {
+        if (!requirementId) {
+            return { error: "ID do requisito inválido." };
+        }
+        if (!name.trim()) {
+            return { error: "O nome do documento é obrigatório." };
+        }
+        if (dueDay < 1 || dueDay > 31) {
+            return { error: "O dia de vencimento deve ser entre 1 e 31." };
+        }
+
+        await prisma.monthlyDocumentRequirement.update({
+            where: { id: requirementId },
+            data: {
+                name: name.trim(),
+                description: description?.trim() || null,
+                dueDay: Number(dueDay) || 10
+            }
+        });
+
+        revalidatePath("/admin/performance");
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error in updateDocumentRequirement:", e);
+        if (e.code === "P2002") {
+            return { error: "Já existe uma exigência com este nome cadastrada para este cliente." };
+        }
+        return { error: e.message || "Erro ao atualizar exigência." };
+    }
+}
