@@ -1706,73 +1706,78 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 </div>
                             </div>
 
-                            {/* Metrics Cards Grid - Corrigindo a altura e adicionando padding elegante */}
+                            {/* Metrics Cards Grid - Ajustado com fontes harmônicas e padding elegante */}
                             {consolidatedData && (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                                     <Card 
                                         onClick={() => { setDetailsModalType("contracts"); setDetailsModalOpen(true); }}
-                                        className="border border-slate-200/50 shadow-premium bg-slate-900 text-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
+                                        className="border border-slate-200/50 shadow-premium bg-slate-900 text-white p-4 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[96px]"
                                     >
-                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-300">Contratos Ativos</span>
-                                        <div className="flex items-center justify-between mt-2">
-                                            <span className="text-2xl font-black">{consolidatedData.totalContracts || 0}</span>
-                                            <Building className="w-6 h-6 text-blue-400 bg-white/10 p-1.5 rounded-xl" />
+                                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Contratos Ativos</span>
+                                        <div className="flex items-center justify-between mt-1">
+                                            <span className="text-lg font-black">{consolidatedData.totalContracts || 0}</span>
+                                            <Building className="w-5 h-5 text-blue-400 bg-white/10 p-1 rounded-lg" />
                                         </div>
                                     </Card>
 
                                     <Card 
                                         onClick={() => { setDetailsModalType("employees"); setDetailsModalOpen(true); }}
-                                        className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
+                                        className="border border-slate-200/50 shadow-premium bg-white p-4 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[96px]"
                                     >
-                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Colaboradores</span>
-                                        <div className="flex items-center justify-between mt-2">
-                                            <span className="text-2xl font-black text-slate-800">{consolidatedData.activeHeadcount || 0}</span>
-                                            <Users className="w-6 h-6 text-indigo-600 bg-indigo-50 p-1.5 rounded-xl" />
+                                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Colaboradores</span>
+                                        <div className="flex items-center justify-between mt-1">
+                                            <span className="text-lg font-black text-slate-800">{consolidatedData.activeHeadcount || 0}</span>
+                                            <Users className="w-5 h-5 text-indigo-600 bg-indigo-50 p-1 rounded-lg" />
                                         </div>
                                     </Card>
 
                                     <Card 
                                         onClick={() => { setDetailsModalType("billing"); setDetailsModalOpen(true); }}
-                                        className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
+                                        className="border border-slate-200/50 shadow-premium bg-white p-4 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[96px]"
                                     >
-                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Faturamento Total Mensal</span>
-                                        <div className="flex items-center justify-between mt-2">
-                                            <span className="text-2xl font-black text-emerald-600">{formatCurrency(consolidatedData.totalBilling || 0)}</span>
-                                            <DollarSign className="w-6 h-6 text-emerald-600 bg-emerald-50 p-1.5 rounded-xl" />
+                                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Faturamento Mensal</span>
+                                        <div className="flex items-center justify-between mt-1">
+                                            <span className="text-[13px] md:text-sm font-black text-emerald-600 truncate">{formatCurrency(consolidatedData.totalBilling || 0)}</span>
+                                            <DollarSign className="w-5 h-5 text-emerald-600 bg-emerald-50 p-1 rounded-lg shrink-0 ml-1" />
                                         </div>
                                     </Card>
 
                                     <Card 
                                         onClick={() => { setDetailsModalType("vacancies"); setDetailsModalOpen(true); }}
-                                        className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
+                                        className="border border-slate-200/50 shadow-premium bg-white p-4 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[96px]"
                                     >
-                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Vagas em Aberto</span>
-                                        <div className="flex items-center justify-between mt-2">
-                                            <span className="text-2xl font-black text-red-600">{consolidatedData.vacantSlotsCombined || 0}</span>
-                                            <Clock className="w-6 h-6 text-red-655 bg-red-50 p-1.5 rounded-xl" />
+                                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Vagas em Aberto</span>
+                                        <div className="flex items-center justify-between mt-1">
+                                            <span className="text-lg font-black text-red-655">{consolidatedData.vacantSlotsCombined || 0}</span>
+                                            <Clock className="w-5 h-5 text-red-655 bg-red-50 p-1 rounded-lg" />
                                         </div>
                                     </Card>
 
                                     <Card 
                                         onClick={() => { setDetailsModalType("uncovered_shifts"); setDetailsModalOpen(true); }}
-                                        className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[110px]"
+                                        className="border border-slate-200/50 shadow-premium bg-white p-4 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[96px]"
                                     >
-                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Postos Não Cobertos</span>
-                                        <div className="flex items-center justify-between mt-2">
-                                            <span className="text-2xl font-black text-amber-605">{consolidatedData.uncoveredShiftsCount || 0}</span>
-                                            <AlertCircle className="w-6 h-6 text-amber-605 bg-amber-50 p-1.5 rounded-xl" />
+                                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Postos Não Cobertos</span>
+                                        <div className="flex items-center justify-between mt-1">
+                                            <span className="text-lg font-black text-amber-605">{consolidatedData.uncoveredShiftsCount || 0}</span>
+                                            <AlertCircle className="w-5 h-5 text-amber-605 bg-amber-50 p-1 rounded-lg" />
                                         </div>
                                     </Card>
 
                                     <Card 
-                                        className="border border-slate-200/50 shadow-premium bg-white p-5 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg transition-all duration-200 rounded-2xl min-h-[110px]"
+                                        className="border border-slate-200/50 shadow-premium bg-white p-4 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg transition-all duration-200 rounded-2xl min-h-[96px]"
                                     >
-                                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">Índice de Cobertura</span>
-                                        <div className="flex items-center justify-between mt-2">
-                                            <span className="text-2xl font-black text-indigo-650">
-                                                {consolidatedData.groupCoverageIndex !== undefined ? consolidatedData.groupCoverageIndex.toFixed(1) + "%" : "100.0%"}
-                                            </span>
-                                            <UserCheck className="w-6 h-6 text-indigo-600 bg-indigo-50 p-1.5 rounded-xl" />
+                                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Índice de Cobertura</span>
+                                        <div className="flex items-center justify-between mt-1">
+                                            <div className="flex flex-col">
+                                                <span className="text-lg font-black text-indigo-650">
+                                                    {consolidatedData.groupCoverageIndex !== undefined ? consolidatedData.groupCoverageIndex.toFixed(1) + "%" : "100.0%"}
+                                                </span>
+                                                <span className="text-[8px] font-bold text-slate-400 leading-none">
+                                                    ({consolidatedData.totalCobertasCombined || 0} de {consolidatedData.totalFaultasCombined || 0} cobertas)
+                                                </span>
+                                            </div>
+                                            <UserCheck className="w-5 h-5 text-indigo-600 bg-indigo-50 p-1 rounded-lg shrink-0 ml-1" />
                                         </div>
                                     </Card>
                                 </div>
