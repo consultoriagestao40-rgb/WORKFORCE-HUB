@@ -68,6 +68,9 @@ export default function BenefitsPage() {
     const [paymentNotes, setPaymentNotes] = useState("");
     const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
 
+    // Occurrences List Modal State
+    const [occurrencesModalOpen, setOccurrencesModalOpen] = useState(false);
+
     const loadData = async () => {
         setIsLoading(true);
         try {
@@ -317,6 +320,8 @@ export default function BenefitsPage() {
     const alertCount = items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert).length;
     const paidCount = items.filter(i => i.isPaid).length;
     const totalOccurrencesDeducted = items.reduce((acc, curr) => acc + curr.vtOccurrencesDeducted, 0);
+    const totalVtDeduction = items.reduce((acc, curr) => acc + (curr.vtOptIn ? curr.vtDeductionValue : 0), 0);
+    const totalVaDeduction = items.reduce((acc, curr) => acc + curr.vaDeductionValue, 0);
 
     const monthNames = [
         "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", 
@@ -423,13 +428,25 @@ export default function BenefitsPage() {
                 </div>
 
                 {/* Faltas / Abatimentos */}
-                <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-2">
+                <div 
+                    onClick={() => {
+                        if (totalOccurrencesDeducted > 0) {
+                            setOccurrencesModalOpen(true);
+                        }
+                    }}
+                    className={`bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-2 select-none ${totalOccurrencesDeducted > 0 ? 'cursor-pointer hover:bg-slate-50/80 transition-all active:scale-[0.98]' : ''}`}
+                >
                     <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-wider">
                         <AlertCircle className="w-4 h-4 text-red-500" /> Abatimentos Ocorrências
                     </div>
                     <div className="text-3xl font-black text-slate-800">{totalOccurrencesDeducted}</div>
-                    <div className="text-[11px] text-slate-500 font-medium">
-                        Faltas e atestados descontados na janela {config?.payrollCutoffStartDay || 26} a {config?.payrollCutoffEndDay || 25}.
+                    <div className="text-[10px] text-slate-400 font-bold flex flex-wrap gap-x-2">
+                        <span>Desc. VT: <strong className="text-indigo-600">R$ {totalVtDeduction.toFixed(2)}</strong></span>
+                        <span>|</span>
+                        <span>Desc. VA: <strong className="text-orange-600">R$ {totalVaDeduction.toFixed(2)}</strong></span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-medium pt-1">
+                        Janela {config?.payrollCutoffStartDay || 26} a {config?.payrollCutoffEndDay || 25} (clique para detalhes).
                     </div>
                 </div>
 
