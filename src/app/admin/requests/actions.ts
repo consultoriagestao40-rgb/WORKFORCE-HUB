@@ -1631,16 +1631,6 @@ export async function getConsolidatedPerformanceData(year: number, month: number
 
                             if (isPastDay || isEndedToday) {
                                 adminVacantShifts++;
-                                clientUncoveredDetails.push({
-                                    date: dayDateStr,
-                                    clientName: client.name,
-                                    postoRole: posto.role?.name || "Posto",
-                                    schedule: posto.schedule,
-                                    time: `${posto.startTime} - ${posto.endTime}`,
-                                    type: "VAGA",
-                                    employeeName: "Sem colaborador escalado",
-                                    notes: "Posto vago sem escala ativa."
-                                });
                             }
                         }
                     }
@@ -1717,7 +1707,7 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                 npsCount: clientMonthNps.length,
                 visits: client.visits,
                 vacantPostosDetails,
-                uncoveredShiftsCount: adminVacantShifts,
+                uncoveredShiftsCount: clientUncoveredDetails.length,
                 uncoveredShiftsDetails: clientUncoveredDetails,
                 recentRequests: clientReqs.map((r: any) => ({
                     id: r.id,
