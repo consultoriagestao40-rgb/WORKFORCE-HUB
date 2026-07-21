@@ -183,6 +183,11 @@ export function NewEmployeeSheet({
             if (outrosAdicionais) cleanFormData.set("outrosAdicionais", outrosAdicionais);
             if (workload) cleanFormData.set("workload", workload);
             if (admissionDate) cleanFormData.set("admissionDate", admissionDate);
+            if (rawFormData.get("vtOptIn")) cleanFormData.set("vtOptIn", rawFormData.get("vtOptIn") as string);
+            if (rawFormData.get("vtPaymentMethod")) cleanFormData.set("vtPaymentMethod", rawFormData.get("vtPaymentMethod") as string);
+            if (rawFormData.get("vtCustomPaymentDetails")) cleanFormData.set("vtCustomPaymentDetails", rawFormData.get("vtCustomPaymentDetails") as string);
+            if (rawFormData.get("vaPaymentMethod")) cleanFormData.set("vaPaymentMethod", rawFormData.get("vaPaymentMethod") as string);
+            if (rawFormData.get("vaCustomPaymentDetails")) cleanFormData.set("vaCustomPaymentDetails", rawFormData.get("vaCustomPaymentDetails") as string);
 
             const response = await fetch("/api/admin/employees/create", {
                 method: "POST",

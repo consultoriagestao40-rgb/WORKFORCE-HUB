@@ -188,6 +188,11 @@ model Employee {
   workload               Int                 @default(220)
   valeAlimentacao        Float               @default(0)
   valeTransporte         Float               @default(0)
+  vtOptIn                Boolean             @default(true)
+  vtPaymentMethod        String?             @default("Metrocard Metropolitana")
+  vaPaymentMethod        String?             @default("Cartão Caju")
+  vtCustomPaymentDetails String?
+  vaCustomPaymentDetails String?
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
   dismissalReason        String?
@@ -206,6 +211,17 @@ model Employee {
   attendances            Attendance[]        @relation("EmployeeAttendance")
   coveredAttendances     Attendance[]        @relation("AttendanceCoveredBy")
   extraFields            Json?
+}
+
+model BenefitsConfig {
+  id                         String   @id @default(uuid())
+  payrollCutoffStartDay      Int      @default(26)
+  payrollCutoffEndDay        Int      @default(25)
+  payrollPaymentDay          Int      @default(5)
+  vtFractionDays             Int      @default(5)
+  vaFractionDays             Int      @default(10)
+  vaCardDeliveryEstimateDays Int      @default(10)
+  updatedAt                  DateTime @updatedAt
 }
 
 model Vacancy {

@@ -147,6 +147,11 @@ export function EmployeeOnvioWizard({
     const [workload, setWorkload] = useState("220");
     const [valeAlimentacao, setValeAlimentacao] = useState("0");
     const [valeTransporte, setValeTransporte] = useState("0");
+    const [vtOptIn, setVtOptIn] = useState<boolean>(initialData?.vtOptIn !== false);
+    const [vtPaymentMethod, setVtPaymentMethod] = useState(initialData?.vtPaymentMethod || "Metrocard Metropolitana");
+    const [vtCustomPaymentDetails, setVtCustomPaymentDetails] = useState(initialData?.vtCustomPaymentDetails || "");
+    const [vaPaymentMethod, setVaPaymentMethod] = useState(initialData?.vaPaymentMethod || "Cartão Caju");
+    const [vaCustomPaymentDetails, setVaCustomPaymentDetails] = useState(initialData?.vaCustomPaymentDetails || "");
     const [birthDate, setBirthDate] = useState("");
     const [gender, setGender] = useState("");
     const [address, setAddress] = useState("");
@@ -1228,9 +1233,69 @@ export function EmployeeOnvioWizard({
                                             <Input id="valeAlimentacao" name="valeAlimentacao" type="number" step="0.01" value={valeAlimentacao} onChange={e => setValeAlimentacao(e.target.value)} />
                                         </div>
                                         <div className="space-y-1">
-                                            <Label htmlFor="valeTransporte" className="text-slate-700 font-medium">Vale Transporte (R$)</Label>
-                                            <Input id="valeTransporte" name="valeTransporte" type="number" step="0.01" value={valeTransporte} onChange={e => setValeTransporte(e.target.value)} />
+                                            <Label htmlFor="vaPaymentMethod" className="text-slate-700 font-medium">Meio de Depósito do VA</Label>
+                                            <Select value={vaPaymentMethod} onValueChange={setVaPaymentMethod}>
+                                                <SelectTrigger id="vaPaymentMethod">
+                                                    <SelectValue placeholder="Selecione o meio..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Cartão Caju">Cartão Caju</SelectItem>
+                                                    <SelectItem value="PIX">PIX</SelectItem>
+                                                    <SelectItem value="Outro">Outro (Especificar)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            {vaPaymentMethod === "Outro" && (
+                                                <Input 
+                                                    placeholder="Ex: Cartão VR, Alelo..." 
+                                                    value={vaCustomPaymentDetails} 
+                                                    onChange={e => setVaCustomPaymentDetails(e.target.value)}
+                                                    className="mt-1 text-xs" 
+                                                />
+                                            )}
                                         </div>
+
+                                        <div className="space-y-1">
+                                            <Label htmlFor="vtOptIn" className="text-slate-700 font-medium">Optante por Vale Transporte (VT)?</Label>
+                                            <Select value={vtOptIn ? "true" : "false"} onValueChange={val => setVtOptIn(val === "true")}>
+                                                <SelectTrigger id="vtOptIn">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="true">Sim (Optante por VT)</SelectItem>
+                                                    <SelectItem value="false">Não (Não Optante)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        {vtOptIn && (
+                                            <>
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="valeTransporte" className="text-slate-700 font-medium">Vale Transporte (R$/Dia)</Label>
+                                                    <Input id="valeTransporte" name="valeTransporte" type="number" step="0.01" value={valeTransporte} onChange={e => setValeTransporte(e.target.value)} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="vtPaymentMethod" className="text-slate-700 font-medium">Meio de Depósito do VT</Label>
+                                                    <Select value={vtPaymentMethod} onValueChange={setVtPaymentMethod}>
+                                                        <SelectTrigger id="vtPaymentMethod">
+                                                            <SelectValue placeholder="Selecione o meio..." />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="Metrocard Metropolitana">Metrocard Metropolitana</SelectItem>
+                                                            <SelectItem value="PIX">PIX</SelectItem>
+                                                            <SelectItem value="Outro">Outro (Especificar)</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    {vtPaymentMethod === "Outro" && (
+                                                        <Input 
+                                                            placeholder="Ex: Cartão URBS, VT Empresa..." 
+                                                            value={vtCustomPaymentDetails} 
+                                                            onChange={e => setVtCustomPaymentDetails(e.target.value)}
+                                                            className="mt-1 text-xs" 
+                                                        />
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1862,6 +1927,11 @@ export function EmployeeOnvioWizard({
             <input type="hidden" name="workload" value={workload || "220"} />
             <input type="hidden" name="valeAlimentacao" value={valeAlimentacao || "0"} />
             <input type="hidden" name="valeTransporte" value={valeTransporte || "0"} />
+            <input type="hidden" name="vtOptIn" value={vtOptIn ? "true" : "false"} />
+            <input type="hidden" name="vtPaymentMethod" value={vtPaymentMethod || "Metrocard Metropolitana"} />
+            <input type="hidden" name="vtCustomPaymentDetails" value={vtCustomPaymentDetails || ""} />
+            <input type="hidden" name="vaPaymentMethod" value={vaPaymentMethod || "Cartão Caju"} />
+            <input type="hidden" name="vaCustomPaymentDetails" value={vaCustomPaymentDetails || ""} />
             <input type="hidden" name="birthDate" value={birthDate || ""} />
             <input type="hidden" name="gender" value={gender || ""} />
             <input type="hidden" name="address" value={address || ""} />

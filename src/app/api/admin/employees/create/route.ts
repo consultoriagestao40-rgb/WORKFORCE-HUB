@@ -22,6 +22,12 @@ export async function POST(req: Request) {
         const situationId = formData.get("situationId") as string;
         const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
         const valeTransporte = parseFloat(formData.get("valeTransporte") as string) || 0;
+        const vtOptInStr = formData.get("vtOptIn") as string;
+        const vtOptIn = vtOptInStr !== "false";
+        const vtPaymentMethod = (formData.get("vtPaymentMethod") as string) || "Metrocard Metropolitana";
+        const vtCustomPaymentDetails = (formData.get("vtCustomPaymentDetails") as string) || null;
+        const vaPaymentMethod = (formData.get("vaPaymentMethod") as string) || "Cartão Caju";
+        const vaCustomPaymentDetails = (formData.get("vaCustomPaymentDetails") as string) || null;
 
         const postoId = formData.get("postoId") as string;
 
@@ -117,6 +123,11 @@ export async function POST(req: Request) {
                         workload,
                         valeAlimentacao,
                         valeTransporte,
+                        vtOptIn,
+                        vtPaymentMethod,
+                        vtCustomPaymentDetails,
+                        vaPaymentMethod,
+                        vaCustomPaymentDetails,
                         address: (formData.get("address") as string) || existingCpf.address,
                         phone: (formData.get("phone") as string) || existingCpf.phone,
                         email: (formData.get("email") as string) || existingCpf.email,
@@ -163,6 +174,11 @@ export async function POST(req: Request) {
                         workload,
                         valeAlimentacao,
                         valeTransporte,
+                        vtOptIn,
+                        vtPaymentMethod,
+                        vtCustomPaymentDetails,
+                        vaPaymentMethod,
+                        vaCustomPaymentDetails,
                         address: (formData.get("address") as string) || null,
                         phone: (formData.get("phone") as string) || null,
                         email: (formData.get("email") as string) || null,
