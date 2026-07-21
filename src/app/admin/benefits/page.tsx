@@ -29,6 +29,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { getBenefitsCalculation, updateBenefitsConfig, markBenefitAsPaid, BenefitsCalculationItem } from "@/actions/benefits";
+import { syncSecullumOccurrences, testSecullumConnectionAction } from "@/actions/secullum";
 
 export default function BenefitsPage() {
     const today = new Date();
@@ -36,6 +37,9 @@ export default function BenefitsPage() {
     const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth() + 1);
 
     const [isLoading, setIsLoading] = useState(true);
+    const [isSyncingSecullum, setIsSyncingSecullum] = useState(false);
+    const [isTestingSecullum, setIsTestingSecullum] = useState(false);
+
     const [items, setItems] = useState<BenefitsCalculationItem[]>([]);
     const [config, setConfig] = useState<any>(null);
 
@@ -51,7 +55,10 @@ export default function BenefitsPage() {
         payrollPaymentDay: 5,
         vtFractionDays: 5,
         vaFractionDays: 10,
-        vaCardDeliveryEstimateDays: 10
+        vaCardDeliveryEstimateDays: 10,
+        secullumApiUrl: "https://pontowebintegracaoexterna.secullum.com.br",
+        secullumApiToken: "",
+        secullumCompanyId: "1"
     });
 
     // Payment Modal State
@@ -73,7 +80,10 @@ export default function BenefitsPage() {
                     payrollPaymentDay: res.config.payrollPaymentDay,
                     vtFractionDays: res.config.vtFractionDays,
                     vaFractionDays: res.config.vaFractionDays,
-                    vaCardDeliveryEstimateDays: res.config.vaCardDeliveryEstimateDays
+                    vaCardDeliveryEstimateDays: res.config.vaCardDeliveryEstimateDays,
+                    secullumApiUrl: res.config.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br",
+                    secullumApiToken: res.config.secullumApiToken || "",
+                    secullumCompanyId: res.config.secullumCompanyId || "1"
                 });
             }
         } catch (err: any) {
@@ -98,6 +108,43 @@ export default function BenefitsPage() {
             }
         } catch (err: any) {
             toast.error(err.message || "Erro ao salvar configurações.");
+        }
+    };
+
+    const handleSyncSecullum = async () => {
+        setIsSyncingSecullum(true);
+        try {
+            const res = await syncSecullumOccurrences(selectedYear, selectedMonth);
+            if (res.success) {
+                toast.success(res.message);
+                loadData();
+            } else {
+                toast.error(res.message);
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Erro ao sincronizar com o Secullum.");
+        } finally {
+            setIsSyncingSecullum(false);
+        }
+    };
+
+    const handleTestSecullum = async () => {
+        setIsTestingSecullum(true);
+        try {
+            const res = await testSecullumConnectionAction(
+                configFormData.secullumApiUrl,
+                configFormData.secullumApiToken,
+                configFormData.secullumCompanyId
+            );
+            if (res.success) {
+                toast.success(res.message);
+            } else {
+                toast.error(res.message);
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Falha ao testar conexão.");
+        } finally {
+            setIsTestingSecullum(false);
         }
     };
 
@@ -290,11 +337,11 @@ export default function BenefitsPage() {
                     </div>
 
                     <Button 
-                        variant="outline" 
-                        onClick={() => setConfigModalOpen(true)}
-                        className="font-bold text-xs gap-2 rounded-2xl h-11 border-slate-200"
+                        onClick={handleSyncSecullum}
+                        disabled={isSyncingSecullum}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs gap-2 rounded-2xl shadow-md h-11 px-5"
                     >
-                        <Settings className="w-4 h-4 text-slate-600" /> Configurações
+                        {isSyncingSecullum ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4 text-indigo-200" />} Sincronizar Ponto Secullum
                     </Button>
 
                     <Button 
@@ -302,6 +349,14 @@ export default function BenefitsPage() {
                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-2 rounded-2xl shadow-md h-11 px-5"
                     >
                         <FileSpreadsheet className="w-4 h-4" /> Exportar Planilha (Excel)
+                    </Button>
+
+                    <Button 
+                        variant="outline" 
+                        onClick={() => setConfigModalOpen(true)}
+                        className="font-bold text-xs gap-2 rounded-2xl h-11 border-slate-200"
+                    >
+                        <Settings className="w-4 h-4 text-slate-600" /> Configurações
                     </Button>
                 </div>
             </div>
@@ -774,6 +829,55 @@ export default function BenefitsPage() {
                                     onChange={e => setConfigFormData({ ...configFormData, vaCardDeliveryEstimateDays: Number(e.target.value) })}
                                 />
                                 <span className="text-[10px] text-slate-400">Padrão: 10 dias</span>
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-100 space-y-3">
+                            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                                <RefreshCw className="w-4 h-4 text-orange-500" /> API Integração Secullum Ponto Web
+                            </h4>
+                            <div className="space-y-3">
+                                <div className="space-y-1">
+                                    <Label className="font-bold text-slate-700">URL da API Secullum</Label>
+                                    <Input
+                                        value={configFormData.secullumApiUrl}
+                                        onChange={e => setConfigFormData({ ...configFormData, secullumApiUrl: e.target.value })}
+                                        placeholder="https://pontowebintegracaoexterna.secullum.com.br"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <Label className="font-bold text-slate-700">Token de Integração (API Token)</Label>
+                                        <Input
+                                            type="password"
+                                            value={configFormData.secullumApiToken}
+                                            onChange={e => setConfigFormData({ ...configFormData, secullumApiToken: e.target.value })}
+                                            placeholder="Cole o token do Secullum..."
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <Label className="font-bold text-slate-700">ID do Banco Selecionado</Label>
+                                        <Input
+                                            value={configFormData.secullumCompanyId}
+                                            onChange={e => setConfigFormData({ ...configFormData, secullumCompanyId: e.target.value })}
+                                            placeholder="Ex: 1"
+                                        />
+                                    </div>
+                                </div>
+
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleTestSecullum}
+                                    disabled={isTestingSecullum}
+                                    className="w-full text-xs font-bold gap-2 border-slate-300"
+                                >
+                                    {isTestingSecullum ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+                                    Testar Conexão com Secullum Ponto Web
+                                </Button>
                             </div>
                         </div>
 

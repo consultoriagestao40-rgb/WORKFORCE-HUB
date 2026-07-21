@@ -89,6 +89,9 @@ export async function updateBenefitsConfig(data: {
     vtFractionDays: number;
     vaFractionDays: number;
     vaCardDeliveryEstimateDays: number;
+    secullumApiUrl?: string;
+    secullumApiToken?: string;
+    secullumCompanyId?: string;
 }) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Não autorizado.");
@@ -103,7 +106,10 @@ export async function updateBenefitsConfig(data: {
             payrollPaymentDay: Number(data.payrollPaymentDay),
             vtFractionDays: Number(data.vtFractionDays),
             vaFractionDays: Number(data.vaFractionDays),
-            vaCardDeliveryEstimateDays: Number(data.vaCardDeliveryEstimateDays)
+            vaCardDeliveryEstimateDays: Number(data.vaCardDeliveryEstimateDays),
+            secullumApiUrl: data.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br",
+            secullumApiToken: data.secullumApiToken || null,
+            secullumCompanyId: data.secullumCompanyId || null
         }
     });
 

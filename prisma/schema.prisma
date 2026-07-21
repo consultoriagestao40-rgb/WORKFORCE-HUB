@@ -215,14 +215,18 @@ model Employee {
 }
 
 model BenefitsConfig {
-  id                         String   @id @default(uuid())
-  payrollCutoffStartDay      Int      @default(26)
-  payrollCutoffEndDay        Int      @default(25)
-  payrollPaymentDay          Int      @default(5)
-  vtFractionDays             Int      @default(5)
-  vaFractionDays             Int      @default(10)
-  vaCardDeliveryEstimateDays Int      @default(10)
-  updatedAt                  DateTime @updatedAt
+  id                         String    @id @default(uuid())
+  payrollCutoffStartDay      Int       @default(26)
+  payrollCutoffEndDay        Int       @default(25)
+  payrollPaymentDay          Int       @default(5)
+  vtFractionDays             Int       @default(5)
+  vaFractionDays             Int       @default(10)
+  vaCardDeliveryEstimateDays Int       @default(10)
+  secullumApiUrl             String?   @default("https://pontoweb.secullum.com.br")
+  secullumApiToken           String?
+  secullumCompanyId          String?
+  secullumLastSyncAt         DateTime?
+  updatedAt                  DateTime  @updatedAt
 }
 
 model BenefitsPayment {
