@@ -22,7 +22,11 @@ export async function testSecullumConnectionAction(apiUrl?: string, apiToken?: s
     const config = await getBenefitsConfig();
     const token = apiToken || config.secullumApiToken;
     const bankId = companyId || config.secullumCompanyId || "1";
-    const url = apiUrl || config.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br";
+    let url = apiUrl || config.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br";
+
+    if (url.includes("pontoweb.secullum.com.br") && !url.includes("pontowebintegracaoexterna")) {
+        url = "https://pontowebintegracaoexterna.secullum.com.br";
+    }
 
     if (!token) {
         return { success: false, message: "Token de Integração do Secullum não informado." };
@@ -48,7 +52,11 @@ export async function syncSecullumOccurrences(year: number, month: number) {
     }
 
     const bankId = config.secullumCompanyId || "1";
-    const apiUrl = config.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br";
+    let apiUrl = config.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br";
+
+    if (apiUrl.includes("pontoweb.secullum.com.br") && !apiUrl.includes("pontowebintegracaoexterna")) {
+        apiUrl = "https://pontowebintegracaoexterna.secullum.com.br";
+    }
 
     // Compute window dates (Day 26 prev month to Day 25 current month)
     const prevMonth = month === 1 ? 12 : month - 1;
