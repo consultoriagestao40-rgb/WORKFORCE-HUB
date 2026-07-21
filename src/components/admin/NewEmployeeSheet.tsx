@@ -184,11 +184,18 @@ export function NewEmployeeSheet({
             if (workload) cleanFormData.set("workload", workload);
             if (admissionDate) cleanFormData.set("admissionDate", admissionDate);
 
-            const res = await createEmployee(cleanFormData);
-            if (res?.error) {
-                toast.error(res.error);
+            const response = await fetch("/api/admin/employees/create", {
+                method: "POST",
+                body: cleanFormData
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || data?.error) {
+                toast.error(data?.error || "Erro ao cadastrar colaborador");
                 return;
             }
+
             toast.success("Colaborador cadastrado e vinculado com sucesso!");
             handleCancel();
             if (onSuccess) onSuccess();
