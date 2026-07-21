@@ -30,6 +30,10 @@ model User {
   requestStageConfigurations RequestStageConfiguration[]
   clientIds                  String[]              @default([])
   verifiedAttendances        Attendance[]          @relation("AttendanceVerifier")
+  createdPops                PopDocument[]         @relation("PopAuthor")
+  approvedPops               PopDocument[]         @relation("PopApprover")
+  popRevisions                PopRevision[]        @relation("PopRevisionAuthor")
+  approvedPopRevisions        PopRevision[]        @relation("PopRevisionApprover")
 }
 
 model Log {
@@ -77,6 +81,7 @@ model Client {
   visits              ContractVisit[]
   visitRequirements   ClientVisitRequirement[]
   requests            Request[]
+  pops                PopDocument[]
 
   @@index([companyId])
 }
@@ -118,6 +123,7 @@ model Posto {
   vacancies         Vacancy[]
   scheduleOverrides ScheduleOverride[]
   workRoutines      WorkRoutine[]
+  pops              PopDocument[]
 
   @@index([clientId])
 }
@@ -655,3 +661,66 @@ model JobFunction {
   name      String   @unique
   createdAt DateTime @default(now())
 }
+
+enum PopStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+model PopDocument {
+  id              String        @id @default(uuid())
+  code            String        // Ex: POP-001
+  title           String        // Ex: Higienização de Banheiros
+  category        String?       // Ex: Higienização, Operação, Segurança
+  description     String?       // Objetivos e Resumo
+  content         String?       // Conteúdo textual do POP
+  fileUrl         String?       // Link para PDF/Documento externo
+  version         Int           @default(1) // 1 = Rev. 00, 2 = Rev. 01, etc.
+  status          PopStatus     @default(PENDING_APPROVAL)
+
+  clientId        String
+  client          Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  postoId         String?
+  posto           Posto?        @relation(fields: [postoId], references: [id], onDelete: SetNull)
+
+  authorId        String?
+  author          User?         @relation("PopAuthor", fields: [authorId], references: [id])
+
+  approvedAt      DateTime?
+  approvedById    String?
+  approvedBy      User?         @relation("PopApprover", fields: [approvedById], references: [id])
+  rejectionReason String?
+
+  revisions       PopRevision[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([clientId])
+  @@index([postoId])
+  @@index([status])
+}
+
+model PopRevision {
+  id            String      @id @default(uuid())
+  popDocumentId String
+  popDocument   PopDocument @relation(fields: [popDocumentId], references: [id], onDelete: Cascade)
+  version       Int         // Versão da revisão (1, 2, 3...)
+  changeReason  String      // Motivo da alteração / Histórico da revisão
+  title         String
+  content       String?
+  fileUrl       String?
+  authorId      String?
+  author        User?       @relation("PopRevisionAuthor", fields: [authorId], references: [id])
+  approvedAt    DateTime?
+  approvedById  String?
+  approvedBy    User?       @relation("PopRevisionApprover", fields: [approvedById], references: [id])
+  status        PopStatus
+  createdAt     DateTime    @default(now())
+
+  @@index([popDocumentId])
+}
+

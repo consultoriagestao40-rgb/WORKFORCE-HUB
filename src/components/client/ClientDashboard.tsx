@@ -16,8 +16,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import {
     Calendar, ChevronLeft, ChevronRight, Clock, UserCheck, UserX, 
     RefreshCw, LogOut, ShieldAlert, Award, FileText, Download,
-    DollarSign, Inbox, Plus, Search, Menu, X, Smile, BarChart2, ClipboardList
+    DollarSign, Inbox, Plus, Search, Menu, X, Smile, BarChart2, ClipboardList, FileCheck, ShieldCheck
 } from "lucide-react";
+import { PopsManagementSection } from "@/components/client/PopsManagementSection";
+import { getPopDocuments } from "@/actions/pops";
 import { logout } from "@/app/actions";
 import { 
     createClientRequest, 
@@ -79,7 +81,9 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     const [loading, setLoading] = useState<boolean>(true);
     const [isPending, startTransition] = useTransition();
 
-    const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report" | "nps" | "kpis" | "sla" | "service_plan">("presence");
+    const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report" | "nps" | "kpis" | "sla" | "service_plan" | "pops">("presence");
+    const [pops, setPops] = useState<any[]>([]);
+    const [loadingPops, setLoadingPops] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -261,6 +265,21 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
             fetchServicePlanRoutines(selectedServicePlanPostoId);
         }
     }, [activeTab, selectedServicePlanPostoId, fetchServicePlanRoutines]);
+
+    useEffect(() => {
+        if (activeTab === "pops") {
+            const fetchPopsData = async () => {
+                setLoadingPops(true);
+                const currentClientId = activeContractId || (contracts[0] as any)?.clientId || contracts[0]?.id;
+                if (currentClientId) {
+                    const data = await getPopDocuments(currentClientId);
+                    setPops(data);
+                }
+                setLoadingPops(false);
+            };
+            fetchPopsData();
+        }
+    }, [activeTab, activeContractId, contracts]);
 
     const handleCreateRequest = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -634,7 +653,8 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
         { id: "nps", label: "NPS / Avaliação", icon: Smile },
         { id: "kpis", label: "Indicadores (KPIs)", icon: BarChart2 },
         { id: "sla", label: "SLA / Desempenho", icon: Award },
-        { id: "service_plan", label: "Plano de Serviços", icon: ClipboardList }
+        { id: "service_plan", label: "Plano de Serviços", icon: ClipboardList },
+        { id: "pops", label: "Documentos POP", icon: FileCheck }
     ];
 
     return (

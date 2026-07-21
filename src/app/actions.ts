@@ -357,10 +357,10 @@ export async function createPosto(formData: FormData) {
 
 export async function createEmployee(formData: FormData) {
     try {
-        const name = formData.get("name") as string;
-        const cpf = formData.get("cpf") as string;
-        const roleId = formData.get("roleId") as string;
-        const type = formData.get("type") as string;
+        const name = (formData.get("name") as string)?.trim();
+        const cpf = (formData.get("cpf") as string)?.trim();
+        let roleId = (formData.get("roleId") as string)?.trim();
+        const type = (formData.get("type") as string)?.trim() || "Efetivo";
         const salary = parseFloat(formData.get("salary") as string) || 0;
         const insalubridade = parseFloat(formData.get("insalubridade") as string) || 0;
         const periculosidade = parseFloat(formData.get("periculosidade") as string) || 0;
@@ -372,8 +372,23 @@ export async function createEmployee(formData: FormData) {
         const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
         const valeTransporte = parseFloat(formData.get("valeTransporte") as string) || 0;
 
-        // New: Mandatory Posto Link
+        // Mandatory Posto Link
         const postoId = formData.get("postoId") as string;
+
+        if (!name) return { error: "O nome do colaborador é obrigatório." };
+        if (!cpf) return { error: "O CPF do colaborador é obrigatório." };
+
+        // Auto-resolve roleId from Posto if not provided in form
+        if (!roleId && postoId && postoId !== "ROTATIVO_VIRTUAL") {
+            const targetPosto = await prisma.posto.findUnique({ where: { id: postoId } });
+            if (targetPosto?.roleId) {
+                roleId = targetPosto.roleId;
+            }
+        }
+
+        if (!roleId) {
+            return { error: "O cargo (função) é obrigatório para cadastrar o colaborador. Por favor selecione um cargo." };
+        }
 
         const admissionDate = admissionDateStr ? new Date(admissionDateStr) : new Date();
 
@@ -381,6 +396,12 @@ export async function createEmployee(formData: FormData) {
         const extraFields = extraFieldsStr ? JSON.parse(extraFieldsStr) : null;
 
         await prisma.$transaction(async (tx) => {
+            // Check if CPF already exists
+            const existingCpf = await tx.employee.findUnique({ where: { cpf } });
+            if (existingCpf) {
+                throw new Error(`Já existe um colaborador cadastrado com o CPF ${cpf}.`);
+            }
+
             // 1. Create Employee
             const newEmployee = await tx.employee.create({
                 data: {

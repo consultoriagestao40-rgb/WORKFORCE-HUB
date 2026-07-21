@@ -174,8 +174,8 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                     name: actualCandidate.name || "",
                     email: actualCandidate.email || "",
                     phone: actualCandidate.phone || "",
-                    roleId: "",
-                    companyId: "",
+                    roleId: (candidateToMove.vacancy as any)?.roleId || (candidateToMove.vacancy as any)?.role?.id || "",
+                    companyId: (candidateToMove.vacancy as any)?.companyId || (candidateToMove.vacancy as any)?.company?.id || "",
 
                     // Automatic Link to Posto
                     postoId: candidateToMove.vacancy?.posto?.id || '',
@@ -564,6 +564,8 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                                         name: candidate.name,
                                                                                         email: candidate.email || '',
                                                                                         phone: candidate.phone || '',
+                                                                                        roleId: (candidate.vacancy as any)?.roleId || (candidate.vacancy as any)?.role?.id || '',
+                                                                                        companyId: (candidate.vacancy as any)?.companyId || (candidate.vacancy as any)?.company?.id || '',
                                                                                         postoId: candidate.vacancy?.posto?.id || '',
                                                                                         postoName: candidate.vacancy?.posto ? `${candidate.vacancy.posto.name || 'Sem Nome'} - ${candidate.vacancy.posto.client.name}` : undefined
                                                                                     });
