@@ -4,22 +4,39 @@
  */
 
 export interface SecullumAfastamento {
-    id?: number;
-    funcionarioPis?: string;
-    funcionarioCpf?: string;
-    dataInicio: string;
-    dataFim: string;
-    motivoId?: number;
-    motivoDescricao?: string;
-    tipo?: string; // "Falta", "Atestado", "Afastamento"
-    observacao?: string;
+    Id?: number;
+    NumeroPis?: string;
+    Cpf?: string;
+    Inicio: string;
+    Fim: string;
+    Motivo?: string;
+    JustificativaNome?: string;
 }
 
-export interface SecullumSyncResult {
-    success: boolean;
-    message: string;
-    totalImported: number;
-    details?: string[];
+export interface SecullumFuncionario {
+    Id: number;
+    Nome: string;
+    NumeroFolha?: string;
+    Cpf?: string;
+    NumeroPis?: string;
+}
+
+export interface SecullumBatida {
+    Id: number;
+    FuncionarioId: number;
+    Data: string;
+    Entrada1?: string;
+    Saida1?: string;
+    Entrada2?: string;
+    Saida2?: string;
+    Folga?: boolean;
+    Observacoes?: string;
+    Ajuste?: string;
+    Funcionario?: {
+        NumeroPis?: string;
+        NumeroFolha?: string;
+        NumeroIdentificador?: string;
+    };
 }
 
 export class SecullumApiClient {
@@ -97,11 +114,10 @@ export class SecullumApiClient {
     }
 
     /**
-     * Testa a validade do Token e ID do Banco buscando a lista de Empresas ou Departamentos
+     * Testa a validade do Token e ID do Banco buscando a lista de Empresas
      */
     async testConnection(): Promise<{ success: boolean; message: string }> {
         try {
-            // First authenticate
             await this.getAuthToken();
             
             const url = `${this.baseUrl}/IntegracaoExterna/Empresas`;
@@ -128,7 +144,29 @@ export class SecullumApiClient {
     }
 
     /**
-     * Busca afastamentos/faltas/atestados lançados no Secullum para a janela especificada
+     * Busca a lista completa de funcionários para mapear NumeroFolha -> CPF
+     */
+    async getFuncionarios(): Promise<SecullumFuncionario[]> {
+        const url = `${this.baseUrl}/IntegracaoExterna/Funcionarios`;
+        const headers = await this.getHeaders();
+
+        const res = await fetch(url, {
+            method: "GET",
+            headers,
+            cache: "no-store"
+        });
+
+        if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`Erro ao buscar funcionários do Secullum (${res.status}): ${errText}`);
+        }
+
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+    }
+
+    /**
+     * Busca afastamentos/férias/INSS lançados no Secullum para a janela especificada
      */
     async getAfastamentos(startDateStr: string, endDateStr: string): Promise<SecullumAfastamento[]> {
         const url = `${this.baseUrl}/IntegracaoExterna/FuncionariosAfastamentos?dataInicio=${startDateStr}&dataFim=${endDateStr}`;
@@ -143,6 +181,28 @@ export class SecullumApiClient {
         if (!res.ok) {
             const errText = await res.text();
             throw new Error(`Erro ao buscar afastamentos do Secullum (${res.status}): ${errText}`);
+        }
+
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+    }
+
+    /**
+     * Busca batidas de ponto para detectar faltas diárias
+     */
+    async getBatidas(startDateStr: string, endDateStr: string): Promise<SecullumBatida[]> {
+        const url = `${this.baseUrl}/IntegracaoExterna/Batidas?DataInicio=${startDateStr}&DataFim=${endDateStr}`;
+        const headers = await this.getHeaders();
+
+        const res = await fetch(url, {
+            method: "GET",
+            headers,
+            cache: "no-store"
+        });
+
+        if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`Erro ao buscar batidas do Secullum (${res.status}): ${errText}`);
         }
 
         const data = await res.json();

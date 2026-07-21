@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { getBenefitsConfig } from "@/actions/benefits";
-import { SecullumApiClient, SecullumAfastamento } from "@/lib/secullum";
+import { SecullumApiClient } from "@/lib/secullum";
 
 // Helper: Format Date to YYYY-MM-DD
 function formatDateToISO(date: Date): string {
@@ -12,6 +12,26 @@ function formatDateToISO(date: Date): string {
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const d = String(date.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
+}
+
+// Helper: Get list of dates between start and end (inclusive)
+function getDatesInRange(start: Date, end: Date): Date[] {
+    const dates: Date[] = [];
+    let current = new Date(start);
+    // Safety limit to avoid infinite loops
+    let limit = 0;
+    while (current <= end && limit < 100) {
+        dates.push(new Date(current));
+        current.setDate(current.getDate() + 1);
+        limit++;
+    }
+    return dates;
+}
+
+// Helper: Clean CPF string
+function cleanCpfStr(cpf: string | null | undefined): string {
+    if (!cpf) return "";
+    return cpf.replace(/\D/g, "");
 }
 
 // 1. Test Connection Server Action
@@ -29,7 +49,7 @@ export async function testSecullumConnectionAction(apiUrl?: string, apiToken?: s
     }
 
     if (!token) {
-        return { success: false, message: "Token de Integração do Secullum não informado." };
+        return { success: false, message: "Credenciais do Secullum não informadas." };
     }
 
     const client = new SecullumApiClient(token, bankId, url);
@@ -46,12 +66,12 @@ export async function syncSecullumOccurrences(year: number, month: number) {
     if (!config.secullumApiToken) {
         return {
             success: false,
-            message: "Por favor, cadastre o Token de Integração do Secullum em Configurações de Benefícios antes de sincronizar.",
+            message: "Por favor, configure as credenciais do Secullum nas Configurações antes de sincronizar.",
             totalImported: 0
         };
     }
 
-    const bankId = config.secullumCompanyId || "1";
+    const bankId = config.secullumCompanyId || "85740";
     let apiUrl = config.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br";
 
     if (apiUrl.includes("pontoweb.secullum.com.br") && !apiUrl.includes("pontowebintegracaoexterna")) {
@@ -70,83 +90,133 @@ export async function syncSecullumOccurrences(year: number, month: number) {
 
     try {
         const client = new SecullumApiClient(config.secullumApiToken, bankId, apiUrl);
-        const afastamentos = await client.getAfastamentos(startDateStr, endDateStr);
+
+        // A. Fetch Secullum employees to build a map: NumeroFolha -> CPF
+        const secullumEmployees = await client.getFuncionarios();
+        const folhaToCpfMap = new Map<string, string>();
+        secullumEmployees.forEach(emp => {
+            if (emp.NumeroFolha && emp.Cpf) {
+                folhaToCpfMap.set(emp.NumeroFolha.trim(), cleanCpfStr(emp.Cpf));
+            }
+        });
+
+        // B. Fetch active DB employees and build a lookup map: cleanedCpf -> employeeId
+        const dbEmployees = await prisma.employee.findMany({
+            select: { id: true, cpf: true }
+        });
+        const cpfToEmployeeIdMap = new Map<string, string>();
+        dbEmployees.forEach(emp => {
+            if (emp.cpf) {
+                cpfToEmployeeIdMap.set(cleanCpfStr(emp.cpf), emp.id);
+            }
+        });
 
         let totalImported = 0;
-        let totalSkipped = 0;
 
-        // Fetch all active employees to match by CPF or Extra PIS
-        const employees = await prisma.employee.findMany({
-            select: { id: true, cpf: true, extraFields: true }
-        });
-
-        // Create a fast lookup map by cleaned CPF
-        const employeeByCpfMap = new Map<string, string>();
-        employees.forEach(emp => {
-            if (emp.cpf) {
-                const cleanCpf = emp.cpf.replace(/\D/g, "");
-                employeeByCpfMap.set(cleanCpf, emp.id);
-            }
-        });
-
+        // C. Fetch long-term Afastamentos (Vacations, INSS, Licenças, Atestados de longo prazo)
+        const afastamentos = await client.getAfastamentos(startDateStr, endDateStr);
         for (const af of afastamentos) {
-            const rawCpf = af.funcionarioCpf || "";
-            const cleanCpf = rawCpf.replace(/\D/g, "");
+            const cleanCpf = cleanCpfStr(af.Cpf);
+            const employeeId = cpfToEmployeeIdMap.get(cleanCpf);
+            if (!employeeId) continue;
 
-            const employeeId = employeeByCpfMap.get(cleanCpf);
-            if (!employeeId) {
-                totalSkipped++;
-                continue;
-            }
+            const startAfDate = af.Inicio ? new Date(af.Inicio) : null;
+            const endAfDate = af.Fim ? new Date(af.Fim) : null;
 
-            const occDate = af.dataInicio ? new Date(af.dataInicio) : new Date();
+            if (!startAfDate) continue;
+            // Handle single-day afastamento if Fim is null
+            const finalEndAfDate = endAfDate || startAfDate;
 
-            // Map Secullum motive/type to WorkForce Hub Occurrence Type
+            // Get all individual dates in the range that fall within our benefit purchase window
+            const datesInRange = getDatesInRange(startAfDate, finalEndAfDate);
+            const validDates = datesInRange.filter(d => d >= startDate && d <= endDate);
+
+            // Map reason to type
             let type: "FALTA" | "ATESTADO" | "FALTA_INJUSTIFICADA" = "FALTA";
-            const descLower = (af.motivoDescricao || af.tipo || "").toLowerCase();
-
-            if (descLower.includes("atestado") || descLower.includes("médico") || descLower.includes("medico")) {
+            const desc = (af.JustificativaNome || af.Motivo || "").toLowerCase();
+            if (desc.includes("atestado") || desc.includes("médico") || desc.includes("medico")) {
                 type = "ATESTADO";
-            } else if (descLower.includes("injustificada")) {
-                type = "FALTA_INJUSTIFICADA";
-            } else {
-                type = "FALTA";
             }
 
-            // Check if an occurrence already exists on this exact date for this employee
+            for (const d of validDates) {
+                const startOfDay = new Date(d);
+                startOfDay.setHours(0, 0, 0, 0);
+                const endOfDay = new Date(d);
+                endOfDay.setHours(23, 59, 59, 999);
+
+                const existing = await prisma.occurrence.findFirst({
+                    where: {
+                        employeeId,
+                        date: { gte: startOfDay, lte: endOfDay }
+                    }
+                });
+
+                if (!existing) {
+                    const assignment = await prisma.assignment.findFirst({
+                        where: { employeeId, endDate: null }
+                    });
+                    const postoId = assignment?.postoId || (await prisma.posto.findFirst())?.id;
+                    if (postoId) {
+                        await prisma.occurrence.create({
+                            data: {
+                                employeeId,
+                                postoId,
+                                type,
+                                date: d,
+                                title: `Secullum (Afastamento): ${af.JustificativaNome || af.Motivo || 'Afastamento'}`,
+                                description: `Importado automaticamente da API Secullum Ponto Web.`
+                            }
+                        });
+                        totalImported++;
+                    }
+                }
+            }
+        }
+
+        // D. Fetch daily Batidas (to detect single-day Faltas)
+        const batidas = await client.getBatidas(startDateStr, endDateStr);
+        for (const b of batidas) {
+            // Check if it is a Falta
+            const isFalta = b.Entrada1 === "FALTA" || b.Observacoes?.toLowerCase().includes("falta");
+            if (!isFalta) continue;
+
+            const folha = b.Funcionario?.NumeroFolha?.trim();
+            if (!folha) continue;
+
+            const cleanCpf = folhaToCpfMap.get(folha);
+            if (!cleanCpf) continue;
+
+            const employeeId = cpfToEmployeeIdMap.get(cleanCpf);
+            if (!employeeId) continue;
+
+            const occDate = b.Data ? new Date(b.Data) : new Date();
             const startOfDay = new Date(occDate);
             startOfDay.setHours(0, 0, 0, 0);
-
             const endOfDay = new Date(occDate);
             endOfDay.setHours(23, 59, 59, 999);
 
+            // Double check no occurrence exists on this date
             const existing = await prisma.occurrence.findFirst({
                 where: {
                     employeeId,
-                    date: {
-                        gte: startOfDay,
-                        lte: endOfDay
-                    }
+                    date: { gte: startOfDay, lte: endOfDay }
                 }
             });
 
             if (!existing) {
-                // Find or use first active posto of employee for occurrence record requirement
                 const assignment = await prisma.assignment.findFirst({
                     where: { employeeId, endDate: null }
                 });
-
                 const postoId = assignment?.postoId || (await prisma.posto.findFirst())?.id;
-
                 if (postoId) {
                     await prisma.occurrence.create({
                         data: {
                             employeeId,
                             postoId,
-                            type,
+                            type: "FALTA",
                             date: occDate,
-                            title: `Secullum: ${af.motivoDescricao || 'Falta/Afastamento'}`,
-                            description: `Importado da API Secullum Ponto Web. ${af.observacao || ''}`.trim()
+                            title: "Secullum (Falta): Falta registrada",
+                            description: `Importada automaticamente das batidas do Secullum Ponto Web. Obs: ${b.Observacoes || 'Nenhuma'}`
                         }
                     });
                     totalImported++;
@@ -165,14 +235,14 @@ export async function syncSecullumOccurrences(year: number, month: number) {
         return {
             success: true,
             totalImported,
-            message: `Sincronização concluída com sucesso! ${totalImported} nova(s) ocorrência(s) importada(s) do Secullum Ponto Web (${totalSkipped} ignoradas/não encontradas por CPF).`
+            message: `Sincronização concluída com sucesso! Foram importadas ${totalImported} novas faltas e atestados do Secullum Ponto Web para a janela de benefícios.`
         };
 
     } catch (err: any) {
         return {
             success: false,
             totalImported: 0,
-            message: `Erro ao sincronizar com o Secullum: ${err.message}`
+            message: `Erro ao sincronizar ocorrências do Secullum: ${err.message}`
         };
     }
 }
