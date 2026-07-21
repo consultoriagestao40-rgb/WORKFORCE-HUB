@@ -578,9 +578,12 @@ export async function assignEmployee(formData: FormData) {
         });
     }
 
-    // Workload validation
+    // Workload auto-adjustment if 0 or lower than required
     if (employee.workload < posto.requiredWorkload) {
-        return { error: `Incompatibilidade: Colaborador possui carga horária de ${employee.workload}h, mas o posto exige ${posto.requiredWorkload}h.` };
+        await prisma.employee.update({
+            where: { id: employeeId },
+            data: { workload: posto.requiredWorkload }
+        });
     }
 
     // Constraint Check: Is Employee on Vacation?
