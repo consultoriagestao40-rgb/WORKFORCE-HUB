@@ -237,10 +237,13 @@ export default function BenefitsPage() {
     <Cell><Data ss:Type="String">Optante VT</Data></Cell>
     <Cell><Data ss:Type="String">VT R$/Dia</Data></Cell>
     <Cell><Data ss:Type="String">Faltas/Atestados (26-25)</Data></Cell>
-    <Cell><Data ss:Type="String">VT Valor Total (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">VT Base (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">VT Desconto (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">VT Valor Líquido (R$)</Data></Cell>
     <Cell><Data ss:Type="String">Destino VT</Data></Cell>
-    <Cell><Data ss:Type="String">VA Mensal Base (R$)</Data></Cell>
-    <Cell><Data ss:Type="String">VA Valor Total (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">VA Base (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">VA Desconto (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">VA Valor Líquido (R$)</Data></Cell>
     <Cell><Data ss:Type="String">Destino VA</Data></Cell>
     <Cell><Data ss:Type="String">Status Pagamento</Data></Cell>
     <Cell><Data ss:Type="String">Data Pagamento</Data></Cell>
@@ -258,9 +261,12 @@ export default function BenefitsPage() {
     <Cell ss:StyleID="Center"><Data ss:Type="String">${item.vtOptIn ? 'Sim' : 'Não'}</Data></Cell>
     <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vtDailyValue}</Data></Cell>
     <Cell ss:StyleID="Center"><Data ss:Type="Number">${item.vtOccurrencesDeducted}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vtOptIn ? item.vtBaseValue : 0}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vtOptIn ? item.vtDeductionValue : 0}</Data></Cell>
     <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vtOptIn ? item.vtTotalValue : 0}</Data></Cell>
     <Cell><Data ss:Type="String">${item.vtDestination}</Data></Cell>
-    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaMonthlyValue}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaBaseValue}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaDeductionValue}</Data></Cell>
     <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaTotalValue}</Data></Cell>
     <Cell><Data ss:Type="String">${item.vaDestination}</Data></Cell>
     <Cell ss:StyleID="Center"><Data ss:Type="String">${item.isPaid ? 'PAGO' : 'PENDENTE'}</Data></Cell>
@@ -735,14 +741,28 @@ export default function BenefitsPage() {
                             </div>
 
                             <div className="space-y-2">
-                                <div className="flex justify-between p-2 bg-indigo-50 rounded-xl text-indigo-900 font-bold">
-                                    <span>Vale Transporte (VT):</span>
-                                    <span>R$ {selectedItemForPayment.vtOptIn ? selectedItemForPayment.vtTotalValue.toFixed(2) : "0,00"} ({selectedItemForPayment.vtDestination})</span>
+                                <div className="p-3 bg-indigo-50/70 border border-indigo-100/80 rounded-2xl space-y-1 text-indigo-950">
+                                    <div className="flex justify-between font-black text-indigo-900">
+                                        <span>Vale Transporte (VT) Líquido:</span>
+                                        <span>R$ {selectedItemForPayment.vtOptIn ? selectedItemForPayment.vtTotalValue.toFixed(2) : "0,00"}</span>
+                                    </div>
+                                    {selectedItemForPayment.vtOptIn && (
+                                        <div className="flex justify-between text-[10px] text-indigo-700/90 font-medium">
+                                            <span>Base: R$ {selectedItemForPayment.vtBaseValue.toFixed(2)} | Faltas: -R$ {selectedItemForPayment.vtDeductionValue.toFixed(2)} ({selectedItemForPayment.vtOccurrencesDeducted}d)</span>
+                                            <span>Destino: {selectedItemForPayment.vtDestination}</span>
+                                        </div>
+                                    )}
                                 </div>
 
-                                <div className="flex justify-between p-2 bg-orange-50 rounded-xl text-orange-900 font-bold">
-                                    <span>Vale Alimentação (VA):</span>
-                                    <span>R$ {selectedItemForPayment.vaTotalValue.toFixed(2)} ({selectedItemForPayment.vaDestination})</span>
+                                <div className="p-3 bg-orange-50/70 border border-orange-100/80 rounded-2xl space-y-1 text-orange-950">
+                                    <div className="flex justify-between font-black text-orange-900">
+                                        <span>Vale Alimentação (VA) Líquido:</span>
+                                        <span>R$ {selectedItemForPayment.vaTotalValue.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-[10px] text-orange-700/90 font-medium">
+                                        <span>Base: R$ {selectedItemForPayment.vaBaseValue.toFixed(2)} | Faltas: -R$ {selectedItemForPayment.vaDeductionValue.toFixed(2)} ({selectedItemForPayment.vaOccurrencesDeducted}d)</span>
+                                        <span>Destino: {selectedItemForPayment.vaDestination}</span>
+                                    </div>
                                 </div>
                             </div>
 

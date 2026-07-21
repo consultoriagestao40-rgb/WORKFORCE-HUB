@@ -36,6 +36,8 @@ export interface BenefitsCalculationItem {
     vtOptIn: boolean;
     vtDailyValue: number;
     vtWorkingDays: number;
+    vtBaseValue: number;
+    vtDeductionValue: number;
     vtTotalValue: number;
     vtDestination: string;
     vtBatchNote?: string;
@@ -43,6 +45,8 @@ export interface BenefitsCalculationItem {
 
     // VA
     vaMonthlyValue: number;
+    vaBaseValue: number;
+    vaDeductionValue: number;
     vaTotalValue: number;
     vaDestination: string;
     vaBatchNote?: string;
@@ -265,39 +269,50 @@ export async function getBenefitsCalculation(year: number, month: number) {
         const baseVaValue = emp.valeAlimentacao > 0 ? emp.valeAlimentacao : (posto?.valeAlimentacao || 0);
 
         // Determine if VT value is stored as Monthly (> 40) or Daily (<= 40)
+        // Standard working/scale days for VT is 22 days.
         const isVtMonthly = baseVtValue > 40;
         const vtDailyValue = isVtMonthly 
-            ? Math.round((baseVtValue / Math.max(1, businessDaysInMonth)) * 100) / 100 
+            ? Math.round((baseVtValue / 22) * 100) / 100 
             : baseVtValue;
 
         // VT Calculation
+        let vtBaseValue = 0;
+        let vtDeductionValue = 0;
         let vtTotalValue = 0;
         let vtNeedsAlert = false;
         let vtBatchNote = "";
 
         if (!emp.vtOptIn) {
+            vtBaseValue = 0;
+            vtDeductionValue = 0;
             vtTotalValue = 0;
             vtBatchNote = "Não Optante pelo VT";
         } else if (isNewHire) {
             // New hire fracionated VT: 5-day batches
-            vtTotalValue = Math.round((vtDailyValue * config.vtFractionDays) * 100) / 100;
+            vtBaseValue = Math.round((vtDailyValue * config.vtFractionDays) * 100) / 100;
+            vtDeductionValue = 0;
+            vtTotalValue = vtBaseValue;
             vtNeedsAlert = true;
             vtBatchNote = `Lote de 5 Dias (Admissão em ${admissionDateObj.toLocaleDateString('pt-BR')})`;
         } else {
             // Regular month VT
             if (isVtMonthly) {
-                const vtDeduction = occurrencesCount * vtDailyValue;
-                vtTotalValue = Math.max(0, Math.round((baseVtValue - vtDeduction) * 100) / 100);
+                vtBaseValue = baseVtValue;
+                vtDeductionValue = Math.round((occurrencesCount * vtDailyValue) * 100) / 100;
             } else {
-                const netVtDays = Math.max(0, businessDaysInMonth - occurrencesCount);
-                vtTotalValue = Math.round((baseVtValue * netVtDays) * 100) / 100;
+                vtBaseValue = Math.round((baseVtValue * 22) * 100) / 100;
+                vtDeductionValue = Math.round((baseVtValue * occurrencesCount) * 100) / 100;
             }
+            vtTotalValue = Math.max(0, Math.round((vtBaseValue - vtDeductionValue) * 100) / 100);
+
             if (occurrencesCount > 0) {
                 vtBatchNote = `${occurrencesCount} falta(s)/atestado(s) abatido(s) no período 26-25`;
             }
         }
 
         // VA Calculation
+        let vaBaseValue = 0;
+        let vaDeductionValue = 0;
         let vaTotalValue = 0;
         let vaNeedsAlert = false;
         let vaBatchNote = "";
@@ -308,26 +323,31 @@ export async function getBenefitsCalculation(year: number, month: number) {
             // New hire fracionated VA: 10-day batches after card delivery
             const daysSinceAdmission = Math.floor((now.getTime() - admissionDateObj.getTime()) / (1000 * 60 * 60 * 24));
             if (daysSinceAdmission < config.vaCardDeliveryEstimateDays) {
+                vaBaseValue = 0;
+                vaDeductionValue = 0;
                 vaTotalValue = 0;
                 vaNeedsAlert = true;
                 vaBatchNote = `Aguardando entrega do cartão (~10 dias da admissão em ${admissionDateObj.toLocaleDateString('pt-BR')})`;
             } else {
                 // Fractioned 10 days
                 const dailyVaRate = isVaMonthly ? (baseVaValue / 30) : baseVaValue;
-                vaTotalValue = Math.round((dailyVaRate * config.vaFractionDays) * 100) / 100;
+                vaBaseValue = Math.round((dailyVaRate * config.vaFractionDays) * 100) / 100;
+                vaDeductionValue = 0;
+                vaTotalValue = vaBaseValue;
                 vaNeedsAlert = true;
                 vaBatchNote = `Lote de 10 Dias (Cartão entregue em ${admissionDateObj.toLocaleDateString('pt-BR')})`;
             }
         } else {
             // Regular month VA
             if (isVaMonthly) {
+                vaBaseValue = baseVaValue;
                 const dailyDeductionRate = baseVaValue / 30;
-                const totalDeduction = occurrencesCount * dailyDeductionRate;
-                vaTotalValue = Math.max(0, Math.round((baseVaValue - totalDeduction) * 100) / 100);
+                vaDeductionValue = Math.round((occurrencesCount * dailyDeductionRate) * 100) / 100;
             } else {
-                const netDays = Math.max(0, businessDaysInMonth - occurrencesCount);
-                vaTotalValue = Math.round((baseVaValue * netDays) * 100) / 100;
+                vaBaseValue = Math.round((baseVaValue * 30) * 100) / 100;
+                vaDeductionValue = Math.round((baseVaValue * occurrencesCount) * 100) / 100;
             }
+            vaTotalValue = Math.max(0, Math.round((vaBaseValue - vaDeductionValue) * 100) / 100);
 
             if (occurrencesCount > 0) {
                 vaBatchNote = `${occurrencesCount} falta(s)/atestado(s) abatido(s) no período 26-25`;
@@ -361,12 +381,16 @@ export async function getBenefitsCalculation(year: number, month: number) {
             nextPaymentDueDate,
             vtOptIn: emp.vtOptIn,
             vtDailyValue,
-            vtWorkingDays: businessDaysInMonth,
+            vtWorkingDays: 22,
+            vtBaseValue,
+            vtDeductionValue,
             vtTotalValue,
             vtDestination,
             vtBatchNote,
             vtNeedsAlert,
-            vaMonthlyValue: baseVaValue,
+            vaMonthlyValue: vaBaseValue,
+            vaBaseValue,
+            vaDeductionValue,
             vaTotalValue,
             vaDestination,
             vaBatchNote,
