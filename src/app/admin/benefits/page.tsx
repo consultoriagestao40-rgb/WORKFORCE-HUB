@@ -294,6 +294,76 @@ export default function BenefitsPage() {
         toast.success("Planilha Excel baixada com sucesso!");
     };
 
+    const exportOccurrencesToExcel = () => {
+        const occurrencesItems = items.filter(item => item.vtOccurrencesDeducted > 0);
+        if (occurrencesItems.length === 0) {
+            toast.error("Nenhum dado de ocorrência disponível para exportar.");
+            return;
+        }
+
+        let xml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#EF4444" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+  <Style ss:ID="Currency">
+   <NumberFormat ss:Format="R$#,##0.00"/>
+  </Style>
+  <Style ss:ID="Center">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+ </Styles>
+  <Worksheet ss:Name="Relatorio de Abatimentos">
+   <Table>
+    <Row ss:Height="24" ss:StyleID="Header">
+     <Cell><Data ss:Type="String">Colaborador</Data></Cell>
+     <Cell><Data ss:Type="String">CPF</Data></Cell>
+     <Cell><Data ss:Type="String">Posto</Data></Cell>
+     <Cell><Data ss:Type="String">Cliente</Data></Cell>
+     <Cell><Data ss:Type="String">Faltas/Ocorrências</Data></Cell>
+     <Cell><Data ss:Type="String">Desconto VT (R$)</Data></Cell>
+     <Cell><Data ss:Type="String">Desconto VA (R$)</Data></Cell>
+     <Cell><Data ss:Type="String">Datas das Ocorrências</Data></Cell>
+    </Row>`;
+
+        occurrencesItems.forEach(item => {
+            const datesStr = item.occurrencesList.map(o => o.date).join(', ');
+            xml += `
+    <Row>
+     <Cell><Data ss:Type="String">${item.employeeName}</Data></Cell>
+     <Cell><Data ss:Type="String">${item.employeeCpf}</Data></Cell>
+     <Cell><Data ss:Type="String">${item.postoName}</Data></Cell>
+     <Cell><Data ss:Type="String">${item.clientName}</Data></Cell>
+     <Cell ss:StyleID="Center"><Data ss:Type="Number">${item.vtOccurrencesDeducted}</Data></Cell>
+     <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vtDeductionValue}</Data></Cell>
+     <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaDeductionValue}</Data></Cell>
+     <Cell><Data ss:Type="String">${datesStr}</Data></Cell>
+    </Row>`;
+        });
+
+        xml += `
+   </Table>
+  </Worksheet>
+</Workbook>`;
+
+        const blob = new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `relatorio_abatimentos_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.xls`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast.success("Relatório de abatimentos baixado com sucesso!");
+    };
+
     // Filter Items
     const filteredItems = items.filter(item => {
         const matchesSearch = 
@@ -874,8 +944,14 @@ export default function BenefitsPage() {
                         </div>
                     </div>
 
-                    <div className="p-6 border-t border-slate-100 flex justify-end">
-                        <Button onClick={() => setOccurrencesModalOpen(false)} className="bg-slate-850 hover:bg-slate-900 text-white font-bold rounded-xl text-xs">
+                    <div className="p-6 border-t border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <Button 
+                            onClick={exportOccurrencesToExcel}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs gap-1.5 h-9"
+                        >
+                            <FileSpreadsheet className="w-4 h-4" /> Exportar Relatório (Excel)
+                        </Button>
+                        <Button onClick={() => setOccurrencesModalOpen(false)} className="bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs h-9">
                             Fechar Relatório
                         </Button>
                     </div>
