@@ -811,6 +811,77 @@ export default function BenefitsPage() {
                 </DialogContent>
             </Dialog>
 
+            {/* OCCURRENCES DETAILS MODAL */}
+            <Dialog open={occurrencesModalOpen} onOpenChange={setOccurrencesModalOpen}>
+                <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-3xl">
+                    <DialogHeader className="p-6 pb-4 border-b border-slate-100">
+                        <DialogTitle className="flex items-center gap-2 text-lg font-black text-red-700">
+                            <AlertCircle className="w-5 h-5 text-red-600" /> Relatório de Ocorrências e Abatimentos ({selectedMonth}/{selectedYear})
+                        </DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Lista de colaboradores com faltas ou atestados registrados no período de {config?.payrollCutoffStartDay || 26} a {config?.payrollCutoffEndDay || 25}.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                        <div className="flex gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200/60 text-xs font-bold text-slate-700">
+                            <div>Total Faltas/Ocorrências: <span className="text-slate-900 font-extrabold">{totalOccurrencesDeducted}</span></div>
+                            <div className="w-px bg-slate-300"></div>
+                            <div>Total Desconto VT: <span className="text-indigo-600 font-extrabold">R$ {totalVtDeduction.toFixed(2)}</span></div>
+                            <div className="w-px bg-slate-300"></div>
+                            <div>Total Desconto VA: <span className="text-orange-600 font-extrabold">R$ {totalVaDeduction.toFixed(2)}</span></div>
+                        </div>
+
+                        <div className="border border-slate-200/60 rounded-2xl overflow-hidden bg-white">
+                            <table className="w-full text-left text-xs border-collapse">
+                                <thead className="bg-slate-50 border-b border-slate-200">
+                                    <tr className="font-bold text-slate-500">
+                                        <th className="py-2.5 px-3">Colaborador</th>
+                                        <th className="py-2.5 px-3">Posto / Cliente</th>
+                                        <th className="py-2.5 px-3 text-center">Faltas</th>
+                                        <th className="py-2.5 px-3 text-right">Desc. VT</th>
+                                        <th className="py-2.5 px-3 text-right">Desc. VA</th>
+                                        <th className="py-2.5 px-3">Datas</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {items.filter(item => item.vtOccurrencesDeducted > 0).map(item => (
+                                        <tr key={item.employeeId} className="hover:bg-slate-50/50">
+                                            <td className="py-3 px-3">
+                                                <div className="font-semibold text-slate-800">{item.employeeName}</div>
+                                                <div className="text-[10px] text-slate-400 font-medium">{item.employeeCpf}</div>
+                                            </td>
+                                            <td className="py-3 px-3">
+                                                <div className="text-slate-600 font-medium">{item.postoName}</div>
+                                                <div className="text-[10px] text-slate-400">{item.clientName}</div>
+                                            </td>
+                                            <td className="py-3 px-3 text-center font-bold text-red-600">
+                                                {item.vtOccurrencesDeducted}
+                                            </td>
+                                            <td className="py-3 px-3 text-right font-semibold text-indigo-600">
+                                                R$ {item.vtDeductionValue.toFixed(2)}
+                                            </td>
+                                            <td className="py-3 px-3 text-right font-semibold text-orange-600">
+                                                R$ {item.vaDeductionValue.toFixed(2)}
+                                            </td>
+                                            <td className="py-3 px-3 text-[10px] text-slate-500 max-w-[150px] truncate" title={item.occurrencesList.map(o => o.notes || o.type).join(', ')}>
+                                                {item.occurrencesList.map(o => o.date.substring(0, 5)).join(', ')}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div className="p-6 border-t border-slate-100 flex justify-end">
+                        <Button onClick={() => setOccurrencesModalOpen(false)} className="bg-slate-850 hover:bg-slate-900 text-white font-bold rounded-xl text-xs">
+                            Fechar Relatório
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             {/* CONFIG MODAL */}
             <Dialog open={configModalOpen} onOpenChange={setConfigModalOpen}>
                 <DialogContent className="sm:max-w-xl">
