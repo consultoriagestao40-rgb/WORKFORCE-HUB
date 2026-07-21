@@ -5,6 +5,20 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { notFound } from "next/navigation";
 import { PrintFichaClient } from "@/components/admin/PrintFichaClient";
+import { Metadata } from "next";
+
+export async function generateMetadata(
+    props: { params: Promise<{ id: string }> }
+): Promise<Metadata> {
+    const params = await props.params;
+    const employee = await prisma.employee.findUnique({
+        where: { id: params.id },
+        select: { name: true }
+    });
+    return {
+        title: employee ? employee.name.toUpperCase() : "FICHA DE REGISTRO"
+    };
+}
 
 async function getEmployeePrintData(id: string) {
     return await prisma.employee.findUnique({
