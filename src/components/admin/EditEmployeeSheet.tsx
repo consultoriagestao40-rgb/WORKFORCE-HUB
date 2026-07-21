@@ -296,7 +296,8 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                     </SheetDescription>
                 </SheetHeader>
 
-                <form action={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 text-xs pb-24">
+                <form action={handleSubmit} className="flex-1 flex flex-col overflow-hidden text-xs">
+                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {/* Hidden Inputs for action */}
                     <input type="hidden" name="id" value={employee.id} />
                     <input type="hidden" name="vtOptIn" value={vtOptIn ? "true" : "false"} />
@@ -1157,8 +1158,10 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                         </div>
                     </details>
 
+                    </div>
+
                     {/* Actions Block */}
-                    <div className="flex gap-2 pt-4 border-t sticky bottom-0 bg-white z-10 pb-4">
+                    <div className="p-6 border-t border-slate-100 bg-white flex gap-2 shrink-0 shadow-[0_-8px_20px_-8px_rgba(0,0,0,0.08)]">
                         <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold h-10 rounded-xl">Salvar Alterações</Button>
                     </div>
                 </form>
