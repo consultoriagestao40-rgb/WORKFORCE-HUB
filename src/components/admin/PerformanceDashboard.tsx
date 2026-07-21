@@ -42,12 +42,13 @@ import {
 } from "@/app/admin/requests/actions";
 import { getPopDocuments } from "@/actions/pops";
 import { PopsManagementSection } from "@/components/client/PopsManagementSection";
+import { MonthlyDocsSection } from "@/components/admin/MonthlyDocsSection";
 import { 
     ArrowLeft, Award, Calendar, Users, DollarSign, 
     Plus, Clock, LogOut, Star, Info,
     Trash2, Edit3, Inbox, FileText, Smile, 
     BarChart2, ClipboardList, ChevronLeft, ChevronRight, RefreshCw, Download,
-    UserCheck, UserX, Building, Briefcase, AlertCircle, Filter, ChevronDown, FileCheck
+    UserCheck, UserX, Building, Briefcase, AlertCircle, Filter, ChevronDown, FileCheck, FolderCheck
 } from "lucide-react";
 
 interface PerformanceDashboardProps {
@@ -66,7 +67,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [date, setDate] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
 
     // Active sub-tab matching client portal tabs exactly
-    const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report" | "nps" | "kpis" | "sla" | "service_plan" | "pops">("presence");
+    const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report" | "nps" | "kpis" | "sla" | "service_plan" | "pops" | "monthly_docs">("presence");
     const [pops, setPops] = useState<any[]>([]);
     const [loadingPops, setLoadingPops] = useState<boolean>(false);
 
@@ -1226,7 +1227,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
         { id: "kpis", label: "Indicadores (KPIs)", icon: BarChart2 },
         { id: "sla", label: "SLA / Desempenho", icon: Award },
         { id: "service_plan", label: "Plano de Serviços", icon: ClipboardList },
-        { id: "pops", label: "Documentos POP", icon: FileCheck }
+        { id: "pops", label: "PROCEDIMENTOS- POP", icon: FileCheck },
+        { id: "monthly_docs", label: "Documentação Mensal", icon: FolderCheck }
     ];
 
     // Sorting Logic for consolidated view
@@ -4773,6 +4775,13 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                     )}
 
                     {/* TAB 9: DOCUMENTOS POP / SGQ */}
+                    {activeTab === "monthly_docs" && (
+                        <MonthlyDocsSection
+                            clients={initialClients}
+                            isAdmin={true}
+                            currentClientId={selectedClientId === "all" ? "" : selectedClientId}
+                        />
+                    )}
                     {activeTab === "pops" && (
                         <div className="space-y-6">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">

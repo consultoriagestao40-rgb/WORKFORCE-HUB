@@ -16,9 +16,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import {
     Calendar, ChevronLeft, ChevronRight, Clock, UserCheck, UserX, 
     RefreshCw, LogOut, ShieldAlert, Award, FileText, Download,
-    DollarSign, Inbox, Plus, Search, Menu, X, Smile, BarChart2, ClipboardList, FileCheck, ShieldCheck
+    DollarSign, Inbox, Plus, Search, Menu, X, Smile, BarChart2, ClipboardList, FileCheck, ShieldCheck, FolderCheck
 } from "lucide-react";
 import { PopsManagementSection } from "@/components/client/PopsManagementSection";
+import { MonthlyDocsSection } from "@/components/admin/MonthlyDocsSection";
 import { getPopDocuments } from "@/actions/pops";
 import { logout } from "@/app/actions";
 import { 
@@ -81,7 +82,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     const [loading, setLoading] = useState<boolean>(true);
     const [isPending, startTransition] = useTransition();
 
-    const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report" | "nps" | "kpis" | "sla" | "service_plan" | "pops">("presence");
+    const [activeTab, setActiveTab] = useState<"presence" | "requests" | "billing" | "monthly_report" | "nps" | "kpis" | "sla" | "service_plan" | "pops" | "monthly_docs">("presence");
     const [pops, setPops] = useState<any[]>([]);
     const [loadingPops, setLoadingPops] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -654,7 +655,8 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
         { id: "kpis", label: "Indicadores (KPIs)", icon: BarChart2 },
         { id: "sla", label: "SLA / Desempenho", icon: Award },
         { id: "service_plan", label: "Plano de Serviços", icon: ClipboardList },
-        { id: "pops", label: "Documentos POP", icon: FileCheck }
+        { id: "pops", label: "PROCEDIMENTOS- POP", icon: FileCheck },
+        { id: "monthly_docs", label: "Documentação Mensal", icon: FolderCheck }
     ];
 
     return (
@@ -2640,6 +2642,13 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                         </div>
                     )}
 
+                    {activeTab === "monthly_docs" && (
+                        <MonthlyDocsSection
+                            clients={[]}
+                            isAdmin={false}
+                            currentClientId={activeContractId || (contracts[0] as any)?.clientId || contracts[0]?.id || ""}
+                        />
+                    )}
                     {activeTab === "pops" && (
                         <PopsManagementSection
                             clientId={activeContractId || (contracts[0] as any)?.clientId || contracts[0]?.id || ""}

@@ -82,6 +82,7 @@ model Client {
   visitRequirements   ClientVisitRequirement[]
   requests            Request[]
   pops                PopDocument[]
+  monthlyDocumentRequirements MonthlyDocumentRequirement[]
 
   @@index([companyId])
 }
@@ -761,4 +762,32 @@ model PopRevision {
 
   @@index([popDocumentId])
 }
+
+model MonthlyDocumentRequirement {
+  id          String                @id @default(uuid())
+  clientId    String
+  name        String
+  description String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  client      Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  files       MonthlyDocumentFile[]
+
+  @@unique([clientId, name])
+  @@index([clientId])
+}
+
+model MonthlyDocumentFile {
+  id            String                     @id @default(uuid())
+  requirementId String
+  month         String                     // Ex: "2026-07"
+  fileName      String
+  fileData      String                     // Base64 file content
+  uploadedAt    DateTime                   @default(now())
+  requirement   MonthlyDocumentRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@unique([requirementId, month])
+  @@index([requirementId])
+}
+
 
