@@ -5,6 +5,7 @@ import { cleanupVacantRotativoPostos } from "@/app/actions";
 
 export async function POST(req: Request) {
     try {
+        const user = await getCurrentUser();
         const formData = await req.formData();
 
         const name = (formData.get("name") as string)?.trim();
@@ -72,39 +73,106 @@ export async function POST(req: Request) {
 
         await prisma.$transaction(async (tx) => {
             // Check if CPF already exists
-            const existingCpf = await tx.employee.findUnique({ where: { cpf } });
-            if (existingCpf) {
-                throw new Error(`Já existe um colaborador cadastrado com o CPF ${cpf}.`);
-            }
-
-            // 1. Create Employee
-            const newEmployee = await tx.employee.create({
-                data: {
-                    name,
-                    cpf,
-                    roleId,
-                    companyId: (formData.get("companyId") as string) || null,
-                    type,
-                    status: "Ativo",
-                    situationId: situationId || undefined,
-                    admissionDate,
-                    salary,
-                    insalubridade,
-                    periculosidade,
-                    gratificacao,
-                    outrosAdicionais,
-                    workload,
-                    valeAlimentacao,
-                    valeTransporte,
-                    address: (formData.get("address") as string) || null,
-                    phone: (formData.get("phone") as string) || null,
-                    email: (formData.get("email") as string) || null,
-                    birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : null,
-                    gender: (formData.get("gender") as string) || null,
-                    extraFields: extraFields || undefined
-                }
+            const existingCpf = await tx.employee.findUnique({
+                where: { cpf },
+                include: { situation: true }
             });
-            createdEmployeeId = newEmployee.id;
+
+            let employeeId: string;
+
+            if (existingCpf) {
+                // If employee is Desligado or Inativo, allow READMISSION (Readmissão)
+                const isDesligado =
+                    existingCpf.status?.toLowerCase().includes("desligado") ||
+                    existingCpf.status?.toLowerCase().includes("inativo") ||
+                    existingCpf.situation?.name?.toLowerCase().includes("desligado") ||
+                    existingCpf.situation?.name?.toLowerCase().includes("demitido");
+
+                if (!isDesligado) {
+                    throw new Error(`O colaborador com CPF ${cpf} já possui um cadastro ATIVO no sistema (${existingCpf.name}).`);
+                }
+
+                // Close any previous assignments
+                await tx.assignment.updateMany({
+                    where: { employeeId: existingCpf.id, endDate: null },
+                    data: { endDate: new Date() }
+                });
+
+                // Update existing employee to ACTIVE status with new contract data (Readmissão)
+                const updatedEmployee = await tx.employee.update({
+                    where: { id: existingCpf.id },
+                    data: {
+                        name: name || existingCpf.name,
+                        roleId: roleId || existingCpf.roleId,
+                        companyId: (formData.get("companyId") as string) || existingCpf.companyId,
+                        type: type || existingCpf.type,
+                        status: "Ativo",
+                        situationId: situationId || undefined,
+                        admissionDate: admissionDate || new Date(),
+                        salary,
+                        insalubridade,
+                        periculosidade,
+                        gratificacao,
+                        outrosAdicionais,
+                        workload,
+                        valeAlimentacao,
+                        valeTransporte,
+                        address: (formData.get("address") as string) || existingCpf.address,
+                        phone: (formData.get("phone") as string) || existingCpf.phone,
+                        email: (formData.get("email") as string) || existingCpf.email,
+                        birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : existingCpf.birthDate,
+                        gender: (formData.get("gender") as string) || existingCpf.gender,
+                        dismissalReason: null,
+                        dismissalNotes: null,
+                        extraFields: extraFields || existingCpf.extraFields
+                    }
+                });
+
+                employeeId = updatedEmployee.id;
+
+                // Log readmission event
+                try {
+                    await tx.log.create({
+                        data: {
+                            action: "READMISSAO",
+                            details: `Colaborador ${updatedEmployee.name} (CPF: ${cpf}) foi READMITIDO no sistema em ${new Date(admissionDate).toLocaleDateString('pt-BR')}.`,
+                            employeeId: updatedEmployee.id,
+                            userId: user?.id
+                        }
+                    });
+                } catch (logErr) {
+                    console.error("Warning: log creation failed in API:", logErr);
+                }
+            } else {
+                // 1. Create New Employee
+                const newEmployee = await tx.employee.create({
+                    data: {
+                        name,
+                        cpf,
+                        roleId,
+                        companyId: (formData.get("companyId") as string) || null,
+                        type,
+                        status: "Ativo",
+                        situationId: situationId || undefined,
+                        admissionDate,
+                        salary,
+                        insalubridade,
+                        periculosidade,
+                        gratificacao,
+                        outrosAdicionais,
+                        workload,
+                        valeAlimentacao,
+                        valeTransporte,
+                        address: (formData.get("address") as string) || null,
+                        phone: (formData.get("phone") as string) || null,
+                        email: (formData.get("email") as string) || null,
+                        birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : null,
+                        gender: (formData.get("gender") as string) || null,
+                        extraFields: extraFields || undefined
+                    }
+                });
+                employeeId = newEmployee.id;
+            }
 
             // 2. Create Assignment if Posto Provided
             if (postoId) {
@@ -148,24 +216,28 @@ export async function POST(req: Request) {
                 }
 
                 if (finalPostoId) {
+                    await tx.assignment.updateMany({
+                        where: { postoId: finalPostoId, endDate: null },
+                        data: { endDate: new Date() }
+                    });
+
                     // Create Active Assignment
                     await tx.assignment.create({
                         data: {
-                            employeeId: newEmployee.id,
+                            employeeId,
                             postoId: finalPostoId,
-                            startDate: admissionDate,
+                            startDate: admissionDate || new Date(),
                             endDate: null
                         }
                     });
 
                     // Log Auto-Assignment
                     try {
-                        const user = await getCurrentUser();
                         await tx.log.create({
                             data: {
                                 action: "ALOCACAO_AUTOMATICA",
-                                details: `Colaborador ${newEmployee.name} alocado automaticamente ao posto no cadastro (Origem: Recrutamento).`,
-                                employeeId: newEmployee.id,
+                                details: `Colaborador alocado automaticamente ao posto no cadastro (Origem: Recrutamento/Admissão).`,
+                                employeeId,
                                 userId: user?.id
                             }
                         });
@@ -180,6 +252,8 @@ export async function POST(req: Request) {
             } catch (cleanupErr) {
                 console.error("[ROTATIVO] Non-fatal cleanup warning in createEmployee API:", cleanupErr);
             }
+
+            createdEmployeeId = employeeId;
         });
 
         return NextResponse.json({ success: true, employeeId: createdEmployeeId });

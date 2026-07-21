@@ -427,39 +427,86 @@ export async function createEmployee(formData: FormData) {
 
         await prisma.$transaction(async (tx) => {
             // Check if CPF already exists
-            const existingCpf = await tx.employee.findUnique({ where: { cpf } });
-            if (existingCpf) {
-                throw new Error(`Já existe um colaborador cadastrado com o CPF ${cpf}.`);
-            }
-
-            // 1. Create Employee
-            const newEmployee = await tx.employee.create({
-                data: {
-                    name,
-                    cpf,
-                    roleId,
-                    companyId: (formData.get("companyId") as string) || null,
-                    type,
-                    status: "Ativo", // Legacy alignment
-                    situationId: situationId || undefined,
-                    admissionDate,
-                    salary,
-                    insalubridade,
-                    periculosidade,
-                    gratificacao,
-                    outrosAdicionais,
-                    workload,
-                    valeAlimentacao,
-                    valeTransporte,
-                    address: (formData.get("address") as string) || null,
-                    phone: (formData.get("phone") as string) || null,
-                    email: (formData.get("email") as string) || null,
-                    birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : null,
-                    gender: (formData.get("gender") as string) || null,
-                    extraFields: extraFields || undefined
-                }
+            const existingCpf = await tx.employee.findUnique({
+                where: { cpf },
+                include: { situation: true }
             });
-            createdEmployeeId = newEmployee.id;
+
+            let employeeId: string;
+
+            if (existingCpf) {
+                const isDesligado =
+                    existingCpf.status?.toLowerCase().includes("desligado") ||
+                    existingCpf.status?.toLowerCase().includes("inativo") ||
+                    existingCpf.situation?.name?.toLowerCase().includes("desligado") ||
+                    existingCpf.situation?.name?.toLowerCase().includes("demitido");
+
+                if (!isDesligado) {
+                    throw new Error(`O colaborador com CPF ${cpf} já possui um cadastro ATIVO no sistema (${existingCpf.name}).`);
+                }
+
+                // Update existing demitted employee to Active status (Readmissão)
+                const updatedEmployee = await tx.employee.update({
+                    where: { id: existingCpf.id },
+                    data: {
+                        name: name || existingCpf.name,
+                        roleId: roleId || existingCpf.roleId,
+                        companyId: (formData.get("companyId") as string) || existingCpf.companyId,
+                        type: type || existingCpf.type,
+                        status: "Ativo",
+                        situationId: situationId || undefined,
+                        admissionDate: admissionDate || new Date(),
+                        salary,
+                        insalubridade,
+                        periculosidade,
+                        gratificacao,
+                        outrosAdicionais,
+                        workload,
+                        valeAlimentacao,
+                        valeTransporte,
+                        address: (formData.get("address") as string) || existingCpf.address,
+                        phone: (formData.get("phone") as string) || existingCpf.phone,
+                        email: (formData.get("email") as string) || existingCpf.email,
+                        birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : existingCpf.birthDate,
+                        gender: (formData.get("gender") as string) || existingCpf.gender,
+                        dismissalReason: null,
+                        dismissalNotes: null,
+                        extraFields: extraFields || existingCpf.extraFields
+                    }
+                });
+
+                employeeId = updatedEmployee.id;
+            } else {
+                // 1. Create Employee
+                const newEmployee = await tx.employee.create({
+                    data: {
+                        name,
+                        cpf,
+                        roleId,
+                        companyId: (formData.get("companyId") as string) || null,
+                        type,
+                        status: "Ativo",
+                        situationId: situationId || undefined,
+                        admissionDate,
+                        salary,
+                        insalubridade,
+                        periculosidade,
+                        gratificacao,
+                        outrosAdicionais,
+                        workload,
+                        valeAlimentacao,
+                        valeTransporte,
+                        address: (formData.get("address") as string) || null,
+                        phone: (formData.get("phone") as string) || null,
+                        email: (formData.get("email") as string) || null,
+                        birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : null,
+                        gender: (formData.get("gender") as string) || null,
+                        extraFields: extraFields || undefined
+                    }
+                });
+                employeeId = newEmployee.id;
+            }
+            createdEmployeeId = employeeId;
 
             // 2. Create Assignment if Posto Provided
             if (postoId) {
@@ -506,7 +553,7 @@ export async function createEmployee(formData: FormData) {
                     // Create Active Assignment
                     await tx.assignment.create({
                         data: {
-                            employeeId: newEmployee.id,
+                            employeeId,
                             postoId: finalPostoId,
                             startDate: admissionDate, // Starts at admission
                             endDate: null // Active
@@ -519,8 +566,8 @@ export async function createEmployee(formData: FormData) {
                         await tx.log.create({
                             data: {
                                 action: "ALOCACAO_AUTOMATICA",
-                                details: `Colaborador ${newEmployee.name} alocado automaticamente ao posto no cadastro (Origem: Recrutamento).`,
-                                employeeId: newEmployee.id,
+                                details: `Colaborador ${name} alocado automaticamente ao posto no cadastro (Origem: Recrutamento/Admissão).`,
+                                employeeId,
                                 userId: user?.id
                             }
                         });
