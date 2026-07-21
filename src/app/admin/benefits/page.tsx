@@ -57,8 +57,9 @@ export default function BenefitsPage() {
         vaFractionDays: 10,
         vaCardDeliveryEstimateDays: 10,
         secullumApiUrl: "https://pontowebintegracaoexterna.secullum.com.br",
-        secullumApiToken: "",
-        secullumCompanyId: "1"
+        secullumEmail: "",
+        secullumPassword: "",
+        secullumCompanyId: ""
     });
 
     // Payment Modal State
@@ -74,6 +75,17 @@ export default function BenefitsPage() {
             setItems(res.items || []);
             setConfig(res.config);
             if (res.config) {
+                let emailVal = "";
+                let pwdVal = "";
+                const tokenVal = res.config.secullumApiToken || "";
+                if (tokenVal.includes(":")) {
+                    const idx = tokenVal.lastIndexOf(":");
+                    emailVal = tokenVal.substring(0, idx);
+                    pwdVal = tokenVal.substring(idx + 1);
+                } else {
+                    emailVal = tokenVal;
+                }
+
                 setConfigFormData({
                     payrollCutoffStartDay: res.config.payrollCutoffStartDay,
                     payrollCutoffEndDay: res.config.payrollCutoffEndDay,
@@ -82,8 +94,9 @@ export default function BenefitsPage() {
                     vaFractionDays: res.config.vaFractionDays,
                     vaCardDeliveryEstimateDays: res.config.vaCardDeliveryEstimateDays,
                     secullumApiUrl: res.config.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br",
-                    secullumApiToken: res.config.secullumApiToken || "",
-                    secullumCompanyId: res.config.secullumCompanyId || "1"
+                    secullumEmail: emailVal,
+                    secullumPassword: pwdVal,
+                    secullumCompanyId: res.config.secullumCompanyId || ""
                 });
             }
         } catch (err: any) {
@@ -100,7 +113,18 @@ export default function BenefitsPage() {
     const handleConfigSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const res = await updateBenefitsConfig(configFormData);
+            const tokenValue = `${configFormData.secullumEmail.trim()}:${configFormData.secullumPassword}`;
+            const res = await updateBenefitsConfig({
+                payrollCutoffStartDay: configFormData.payrollCutoffStartDay,
+                payrollCutoffEndDay: configFormData.payrollCutoffEndDay,
+                payrollPaymentDay: configFormData.payrollPaymentDay,
+                vtFractionDays: configFormData.vtFractionDays,
+                vaFractionDays: configFormData.vaFractionDays,
+                vaCardDeliveryEstimateDays: configFormData.vaCardDeliveryEstimateDays,
+                secullumApiUrl: configFormData.secullumApiUrl,
+                secullumApiToken: tokenValue,
+                secullumCompanyId: configFormData.secullumCompanyId
+            });
             if (res.success) {
                 toast.success("Configurações de benefícios salvas com sucesso!");
                 setConfigModalOpen(false);
@@ -131,9 +155,10 @@ export default function BenefitsPage() {
     const handleTestSecullum = async () => {
         setIsTestingSecullum(true);
         try {
+            const tokenValue = `${configFormData.secullumEmail.trim()}:${configFormData.secullumPassword}`;
             const res = await testSecullumConnectionAction(
                 configFormData.secullumApiUrl,
-                configFormData.secullumApiToken,
+                tokenValue,
                 configFormData.secullumCompanyId
             );
             if (res.success) {
@@ -848,21 +873,32 @@ export default function BenefitsPage() {
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1">
-                                        <Label className="font-bold text-slate-700">Token de Integração (API Token)</Label>
+                                        <Label className="font-bold text-slate-700">E-mail do Secullum</Label>
                                         <Input
-                                            type="password"
-                                            value={configFormData.secullumApiToken}
-                                            onChange={e => setConfigFormData({ ...configFormData, secullumApiToken: e.target.value })}
-                                            placeholder="Cole o token do Secullum..."
+                                            value={configFormData.secullumEmail}
+                                            onChange={e => setConfigFormData({ ...configFormData, secullumEmail: e.target.value })}
+                                            placeholder="cristiano@grupojvsserv.com.br"
                                         />
                                     </div>
 
+                                    <div className="space-y-1">
+                                        <Label className="font-bold text-slate-700">Senha do Secullum</Label>
+                                        <Input
+                                            type="password"
+                                            value={configFormData.secullumPassword}
+                                            onChange={e => setConfigFormData({ ...configFormData, secullumPassword: e.target.value })}
+                                            placeholder="Sua senha do Ponto Web..."
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <Label className="font-bold text-slate-700">ID do Banco Selecionado</Label>
                                         <Input
                                             value={configFormData.secullumCompanyId}
                                             onChange={e => setConfigFormData({ ...configFormData, secullumCompanyId: e.target.value })}
-                                            placeholder="Ex: 1"
+                                            placeholder="Ex: 85740"
                                         />
                                     </div>
                                 </div>
