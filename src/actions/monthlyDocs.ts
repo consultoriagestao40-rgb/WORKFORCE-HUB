@@ -21,7 +21,7 @@ export async function getMonthlyDocsData(clientId: string, month: string) {
     }
 }
 
-export async function createDocumentRequirement(clientId: string, name: string, description?: string) {
+export async function createDocumentRequirement(clientId: string, name: string, description?: string, dueDay: number = 10) {
     try {
         if (!clientId || clientId === "all") {
             return { error: "ID do cliente inválido." };
@@ -34,7 +34,8 @@ export async function createDocumentRequirement(clientId: string, name: string, 
             data: {
                 clientId,
                 name: name.trim(),
-                description: description?.trim() || null
+                description: description?.trim() || null,
+                dueDay: Number(dueDay) || 10
             }
         });
 

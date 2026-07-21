@@ -716,7 +716,7 @@ export default function BenefitsPage() {
             </div>
 
             {/* Stat Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-5">
                 {/* Total VT */}
                 <div className="bg-gradient-to-br from-indigo-900 to-slate-900 p-6 rounded-3xl text-white shadow-md relative overflow-hidden">
                     <div className="absolute -right-4 -bottom-4 opacity-10">

@@ -13,7 +13,10 @@ import {
     Settings, 
     CheckCircle2, 
     AlertCircle, 
-    Loader2 
+    Loader2,
+    ChevronDown,
+    ChevronUp,
+    CalendarClock
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,7 +56,11 @@ export function MonthlyDocsSection({ clients, isAdmin, currentClientId = "" }: M
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [newDocName, setNewDocName] = useState("");
     const [newDocDesc, setNewDocDesc] = useState("");
+    const [newDocDueDay, setNewDocDueDay] = useState(10);
     const [isCreatingReq, setIsCreatingReq] = useState(false);
+
+    // Expand states for each requirement row
+    const [expandedReqs, setExpandedReqs] = useState<Record<string, boolean>>({});
 
     // Upload states
     const [uploadingReqId, setUploadingReqId] = useState<string | null>(null);
@@ -98,13 +105,18 @@ export function MonthlyDocsSection({ clients, isAdmin, currentClientId = "" }: M
             toast.error("Por favor, informe o nome do documento.");
             return;
         }
+        if (newDocDueDay < 1 || newDocDueDay > 31) {
+            toast.error("O dia do vencimento deve ser entre 1 e 31.");
+            return;
+        }
         setIsCreatingReq(true);
-        const res = await createDocumentRequirement(selectedClientId, newDocName, newDocDesc);
+        const res = await createDocumentRequirement(selectedClientId, newDocName, newDocDesc, newDocDueDay);
         setIsCreatingReq(false);
         if (res.success) {
             toast.success("Exigência criada com sucesso!");
             setNewDocName("");
             setNewDocDesc("");
+            setNewDocDueDay(10);
             loadData();
         } else {
             toast.error(res.error || "Erro ao criar exigência.");
@@ -156,6 +168,8 @@ export function MonthlyDocsSection({ clients, isAdmin, currentClientId = "" }: M
         
         setUploadingReqId(null);
         loadData();
+        // Auto-expand row when uploading files
+        setExpandedReqs(prev => ({ ...prev, [requirementId]: true }));
     };
 
     // Handle file delete
@@ -182,8 +196,48 @@ export function MonthlyDocsSection({ clients, isAdmin, currentClientId = "" }: M
         document.body.removeChild(link);
     };
 
+    // Check if a requirement is overdue (atrasada)
+    const isOverdue = (req: any) => {
+        if (req.files && req.files.length > 0) return false;
+        if (!selectedMonth) return false;
+
+        const [yearStr, monthStr] = selectedMonth.split("-");
+        const year = parseInt(yearStr);
+        const month = parseInt(monthStr) - 1; // 0-indexed for Date
+        const dueDay = req.dueDay || 10;
+
+        const dueDate = new Date(year, month, dueDay, 23, 59, 59);
+        const currentDate = new Date();
+
+        return currentDate > dueDate;
+    };
+
+    // Calculate count of overdue documents
+    const overdueRequirements = requirements.filter(isOverdue);
+    const hasOverdue = overdueRequirements.length > 0;
+
+    const toggleRow = (reqId: string) => {
+        setExpandedReqs(prev => ({ ...prev, [reqId]: !prev[reqId] }));
+    };
+
     return (
         <div className="space-y-6">
+            {/* Alert banner for overdue documents */}
+            {hasOverdue && (
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl text-amber-900 flex items-start gap-3 shadow-sm animate-fade-in">
+                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                        <h4 className="text-xs font-black uppercase tracking-wider">Atenção: Documentação Pendente em Atraso</h4>
+                        <p className="text-xs text-amber-700 font-medium">
+                            {isAdmin 
+                                ? `Este cliente possui ${overdueRequirements.length} exigência(s) pendente(s) com data de vencimento expirada.`
+                                : `Você possui ${overdueRequirements.length} documento(s) pendente(s) com vencimento expirado. Por favor, providencie o envio.`
+                            }
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/* Header Control Panel */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-premium border border-slate-200/50">
                 <div className="space-y-1">
@@ -242,7 +296,7 @@ export function MonthlyDocsSection({ clients, isAdmin, currentClientId = "" }: M
                                     ) : (
                                         requirements.map((req) => (
                                             <div key={req.id} className="p-2 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs font-semibold">
-                                                <span className="truncate">{req.name}</span>
+                                                <span className="truncate">{req.name} <span className="text-[10px] text-slate-400 font-bold">(Vecto: todo dia {req.dueDay || 10})</span></span>
                                                 <Button 
                                                     size="icon" 
                                                     variant="ghost" 
@@ -272,6 +326,17 @@ export function MonthlyDocsSection({ clients, isAdmin, currentClientId = "" }: M
                                             onChange={(e) => setNewDocDesc(e.target.value)}
                                             className="h-9 text-xs rounded-xl"
                                         />
+                                        <div className="flex flex-col gap-1.5">
+                                            <Label className="text-[10px] font-bold text-slate-500">Dia de Vencimento Mensal</Label>
+                                            <Input
+                                                type="number"
+                                                min="1"
+                                                max="31"
+                                                value={newDocDueDay}
+                                                onChange={(e) => setNewDocDueDay(Number(e.target.value))}
+                                                className="h-9 text-xs rounded-xl"
+                                            />
+                                        </div>
                                     </div>
                                     <Button 
                                         type="submit" 
@@ -317,11 +382,12 @@ export function MonthlyDocsSection({ clients, isAdmin, currentClientId = "" }: M
                     <Table>
                         <TableHeader className="bg-slate-50">
                             <TableRow>
-                                <TableHead className="font-bold text-slate-800 text-xs pl-6 py-3.5 w-1/3">Documento / Exigência</TableHead>
-                                <TableHead className="font-bold text-slate-800 text-xs py-3.5 w-[120px] text-center">Status</TableHead>
-                                <TableHead className="font-bold text-slate-800 text-xs py-3.5">Arquivos Anexados</TableHead>
+                                <TableHead className="font-bold text-slate-800 text-xs pl-6 py-3.5 w-[35%]">Documento / Exigência</TableHead>
+                                <TableHead className="font-bold text-slate-800 text-xs py-3.5 w-[110px] text-center">Vencimento</TableHead>
+                                <TableHead className="font-bold text-slate-800 text-xs py-3.5 w-[110px] text-center">Status</TableHead>
+                                <TableHead className="font-bold text-slate-800 text-xs py-3.5 text-center">Arquivos Anexados</TableHead>
                                 {isAdmin && (
-                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5 text-right pr-6 w-[160px]">Ações</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs py-3.5 text-right pr-6 w-[150px]">Ações</TableHead>
                                 )}
                             </TableRow>
                         </TableHeader>
@@ -329,109 +395,140 @@ export function MonthlyDocsSection({ clients, isAdmin, currentClientId = "" }: M
                             {requirements.map((req) => {
                                 const files = req.files || [];
                                 const isSent = files.length > 0;
+                                const isLate = isOverdue(req);
+                                const isExpanded = !!expandedReqs[req.id];
 
                                 return (
-                                    <TableRow key={req.id} className="hover:bg-slate-50/35 transition-colors">
-                                        {/* Name / Description */}
-                                        <TableCell className="pl-6 py-4">
-                                            <div className="flex items-center gap-2.5">
-                                                <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
-                                                <div className="overflow-hidden">
-                                                    <span className="text-xs font-bold text-slate-800 block truncate">{req.name}</span>
-                                                    {req.description && (
-                                                        <span className="text-[10px] text-slate-400 font-medium block truncate mt-0.5">{req.description}</span>
-                                                    )}
+                                    <>
+                                        <TableRow key={req.id} className="hover:bg-slate-50/35 transition-colors">
+                                            {/* Name / Description */}
+                                            <TableCell className="pl-6 py-4">
+                                                <div className="flex items-center gap-2.5">
+                                                    <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
+                                                    <div className="overflow-hidden">
+                                                        <span className="text-xs font-bold text-slate-800 block truncate">{req.name}</span>
+                                                        {req.description && (
+                                                            <span className="text-[10px] text-slate-400 font-medium block truncate mt-0.5">{req.description}</span>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </TableCell>
+                                            </TableCell>
 
-                                        {/* Status Badge */}
-                                        <TableCell className="text-center py-4">
-                                            {isSent ? (
-                                                <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border border-green-200 shrink-0">
-                                                    <CheckCircle2 className="w-3 h-3" /> Enviado
-                                                </span>
-                                            ) : (
-                                                <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border border-red-200 shrink-0">
-                                                    <AlertCircle className="w-3 h-3" /> Pendente
-                                                </span>
+                                            {/* Due Day */}
+                                            <TableCell className="text-center py-4 text-[11px] font-bold text-slate-600">
+                                                <div className="inline-flex items-center gap-1">
+                                                    <CalendarClock className="w-3.5 h-3.5 text-slate-400" />
+                                                    <span>Dia {req.dueDay || 10}</span>
+                                                </div>
+                                            </TableCell>
+
+                                            {/* Status Badge */}
+                                            <TableCell className="text-center py-4">
+                                                {isSent ? (
+                                                    <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border border-green-200 shrink-0">
+                                                        <CheckCircle2 className="w-3 h-3" /> Enviado
+                                                    </span>
+                                                ) : isLate ? (
+                                                    <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border border-amber-200 shrink-0">
+                                                        <AlertCircle className="w-3 h-3" /> Atrasado
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border border-red-200 shrink-0">
+                                                        <AlertCircle className="w-3 h-3" /> Pendente
+                                                    </span>
+                                                )}
+                                            </TableCell>
+
+                                            {/* Files count / Expand Toggle */}
+                                            <TableCell className="text-center py-4">
+                                                {files.length === 0 ? (
+                                                    <span className="text-[11px] text-slate-400 font-bold italic">Nenhum arquivo</span>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => toggleRow(req.id)}
+                                                        className="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 text-xs font-bold rounded-lg border border-slate-200 shadow-sm transition-colors cursor-pointer"
+                                                    >
+                                                        <span>{files.length} arquivo(s)</span>
+                                                        {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                                    </button>
+                                                )}
+                                            </TableCell>
+
+                                            {/* Upload/Actions */}
+                                            {isAdmin && (
+                                                <TableCell className="text-right pr-6 py-4">
+                                                    <div className="relative inline-block">
+                                                        <Input
+                                                            type="file"
+                                                            onChange={(e) => handleFileUpload(e, req.id)}
+                                                            className="hidden"
+                                                            id={`file-upload-${req.id}`}
+                                                            multiple
+                                                            disabled={uploadingReqId === req.id}
+                                                        />
+                                                        <Button 
+                                                            size="sm"
+                                                            disabled={uploadingReqId === req.id}
+                                                            asChild
+                                                            className="h-8 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs gap-1.5 shadow-sm cursor-pointer"
+                                                        >
+                                                            <label htmlFor={`file-upload-${req.id}`}>
+                                                                {uploadingReqId === req.id ? (
+                                                                    <>
+                                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Enviando...
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Upload className="w-3.5 h-3.5" /> Enviar Anexos
+                                                                    </>
+                                                                )}
+                                                            </label>
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
                                             )}
-                                        </TableCell>
+                                        </TableRow>
 
-                                        {/* Files list */}
-                                        <TableCell className="py-4">
-                                            {files.length === 0 ? (
-                                                <span className="text-[11px] text-slate-400 font-bold italic">Nenhum arquivo enviado</span>
-                                            ) : (
-                                                <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
-                                                    {files.map((file: any) => (
-                                                        <div key={file.id} className="flex items-center justify-between gap-3 p-2 bg-slate-50 rounded-xl border border-slate-200 text-[11px] font-semibold text-slate-700 hover:bg-slate-100/50 transition-colors">
-                                                            <div className="overflow-hidden">
-                                                                <span className="truncate max-w-[240px] block font-bold text-slate-800" title={file.fileName}>{file.fileName}</span>
-                                                                <span className="text-[9px] text-slate-450 font-medium block">Enviado em {format(new Date(file.uploadedAt), "dd/MM/yyyy 'às' HH:mm")}</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-1.5 shrink-0">
-                                                                <Button
-                                                                    size="icon"
-                                                                    variant="ghost"
-                                                                    title="Baixar Arquivo"
-                                                                    onClick={() => triggerDownload(file.fileName, file.fileData)}
-                                                                    className="h-7 w-7 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg border border-slate-200 bg-white"
-                                                                >
-                                                                    <Download className="w-3.5 h-3.5" />
-                                                                </Button>
-                                                                {isAdmin && (
+                                        {/* Sub-row with files list */}
+                                        {isExpanded && files.length > 0 && (
+                                            <TableRow key={`sub-${req.id}`} className="bg-slate-50/50 hover:bg-slate-50/50">
+                                                <TableCell colSpan={isAdmin ? 5 : 4} className="pl-12 pr-6 py-3 border-t border-b border-slate-100">
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 animate-fade-in">
+                                                        {files.map((file: any) => (
+                                                            <div key={file.id} className="flex items-center justify-between gap-3 p-3 bg-white rounded-xl border border-slate-200/85 text-[11px] font-semibold text-slate-700 shadow-sm hover:border-slate-300 transition-colors">
+                                                                <div className="overflow-hidden space-y-0.5">
+                                                                    <span className="truncate block font-bold text-slate-800 max-w-[180px]" title={file.fileName}>{file.fileName}</span>
+                                                                    <span className="text-[9px] text-slate-400 font-medium block">Enviado em {format(new Date(file.uploadedAt), "dd/MM/yyyy 'às' HH:mm")}</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-1 shrink-0">
                                                                     <Button
                                                                         size="icon"
                                                                         variant="ghost"
-                                                                        title="Excluir Arquivo"
-                                                                        onClick={() => handleFileDelete(file.id)}
-                                                                        className="h-7 w-7 text-red-550 hover:text-red-700 hover:bg-red-50 rounded-lg border border-red-100 bg-white"
+                                                                        title="Baixar Arquivo"
+                                                                        onClick={() => triggerDownload(file.fileName, file.fileData)}
+                                                                        className="h-7 w-7 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg border border-slate-150"
                                                                     >
-                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                                        <Download className="w-3.5 h-3.5" />
                                                                     </Button>
-                                                                )}
+                                                                    {isAdmin && (
+                                                                        <Button
+                                                                            size="icon"
+                                                                            variant="ghost"
+                                                                            title="Excluir Arquivo"
+                                                                            onClick={() => handleFileDelete(file.id)}
+                                                                            className="h-7 w-7 text-red-550 hover:text-red-750 hover:bg-red-50 rounded-lg border border-red-100"
+                                                                        >
+                                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </TableCell>
-
-                                        {/* Upload/Actions */}
-                                        {isAdmin && (
-                                            <TableCell className="text-right pr-6 py-4">
-                                                <div className="relative inline-block">
-                                                    <Input
-                                                        type="file"
-                                                        onChange={(e) => handleFileUpload(e, req.id)}
-                                                        className="hidden"
-                                                        id={`file-upload-${req.id}`}
-                                                        multiple // Support multiple files select!
-                                                        disabled={uploadingReqId === req.id}
-                                                    />
-                                                    <Button 
-                                                        size="sm"
-                                                        disabled={uploadingReqId === req.id}
-                                                        asChild
-                                                        className="h-8 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs gap-1.5 shadow-sm cursor-pointer"
-                                                    >
-                                                        <label htmlFor={`file-upload-${req.id}`}>
-                                                            {uploadingReqId === req.id ? (
-                                                                <>
-                                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Enviando...
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <Upload className="w-3.5 h-3.5" /> Enviar Anexos
-                                                                </>
-                                                            )}
-                                                        </label>
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
+                                                        ))}
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
                                         )}
-                                    </TableRow>
+                                    </>
                                 );
                             })}
                         </TableBody>

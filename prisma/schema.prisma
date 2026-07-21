@@ -768,6 +768,7 @@ model MonthlyDocumentRequirement {
   clientId    String
   name        String
   description String?
+  dueDay      Int                   @default(10)
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
   client      Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
