@@ -111,10 +111,16 @@ export async function getBenefitsCalculation(year: number, month: number) {
 
     const businessDaysInMonth = getBusinessDaysInMonth(year, month);
 
-    // Fetch active employees or those admitted in this month
+    // Fetch active employees with active assignments (matching Workforce count)
     const employees = await prisma.employee.findMany({
         where: {
-            status: "Ativo"
+            status: "Ativo",
+            situation: {
+                name: { notIn: ["Desligado", "Demitido"] }
+            },
+            assignments: {
+                some: { endDate: null }
+            }
         },
         include: {
             role: true,
@@ -158,11 +164,17 @@ export async function getBenefitsCalculation(year: number, month: number) {
         // Deductions count from 26-25 window
         const occurrencesCount = emp.occurrences ? emp.occurrences.length : 0;
 
-        // Daily VT value priority: Employee record -> Posto record -> 0
-        const vtDailyValue = emp.valeTransporte > 0 ? emp.valeTransporte : (posto?.valeTransporte || 0);
+        // Base VT value priority: Employee record -> Posto record -> 0
+        const baseVtValue = emp.valeTransporte > 0 ? emp.valeTransporte : (posto?.valeTransporte || 0);
 
-        // Monthly VA value priority: Employee record -> Posto record -> 0
-        const vaMonthlyValue = emp.valeAlimentacao > 0 ? emp.valeAlimentacao : (posto?.valeAlimentacao || 0);
+        // Base VA value priority: Employee record -> Posto record -> 0
+        const baseVaValue = emp.valeAlimentacao > 0 ? emp.valeAlimentacao : (posto?.valeAlimentacao || 0);
+
+        // Determine if VT value is stored as Monthly (> 40) or Daily (<= 40)
+        const isVtMonthly = baseVtValue > 40;
+        const vtDailyValue = isVtMonthly 
+            ? Math.round((baseVtValue / Math.max(1, businessDaysInMonth)) * 100) / 100 
+            : baseVtValue;
 
         // VT Calculation
         let vtTotalValue = 0;
@@ -174,13 +186,18 @@ export async function getBenefitsCalculation(year: number, month: number) {
             vtBatchNote = "Não Optante pelo VT";
         } else if (isNewHire) {
             // New hire fracionated VT: 5-day batches
-            vtTotalValue = vtDailyValue * config.vtFractionDays;
+            vtTotalValue = Math.round((vtDailyValue * config.vtFractionDays) * 100) / 100;
             vtNeedsAlert = true;
-            vtBatchNote = `Lote de 5 Dias (Admissão recente em ${admissionDateObj.toLocaleDateString('pt-BR')})`;
+            vtBatchNote = `Lote de 5 Dias (Admissão em ${admissionDateObj.toLocaleDateString('pt-BR')})`;
         } else {
             // Regular month VT
-            const netVtDays = Math.max(0, businessDaysInMonth - occurrencesCount);
-            vtTotalValue = vtDailyValue * netVtDays;
+            if (isVtMonthly) {
+                const vtDeduction = occurrencesCount * vtDailyValue;
+                vtTotalValue = Math.max(0, Math.round((baseVtValue - vtDeduction) * 100) / 100);
+            } else {
+                const netVtDays = Math.max(0, businessDaysInMonth - occurrencesCount);
+                vtTotalValue = Math.round((baseVtValue * netVtDays) * 100) / 100;
+            }
             if (occurrencesCount > 0) {
                 vtBatchNote = `${occurrencesCount} falta(s)/atestado(s) abatido(s) no período 26-25`;
             }
@@ -191,6 +208,8 @@ export async function getBenefitsCalculation(year: number, month: number) {
         let vaNeedsAlert = false;
         let vaBatchNote = "";
 
+        const isVaMonthly = baseVaValue > 50;
+
         if (isNewHire) {
             // New hire fracionated VA: 10-day batches after card delivery
             const daysSinceAdmission = Math.floor((now.getTime() - admissionDateObj.getTime()) / (1000 * 60 * 60 * 24));
@@ -200,16 +219,22 @@ export async function getBenefitsCalculation(year: number, month: number) {
                 vaBatchNote = `Aguardando entrega do cartão (~10 dias da admissão em ${admissionDateObj.toLocaleDateString('pt-BR')})`;
             } else {
                 // Fractioned 10 days
-                const dailyVaRate = vaMonthlyValue / 30;
+                const dailyVaRate = isVaMonthly ? (baseVaValue / 30) : baseVaValue;
                 vaTotalValue = Math.round((dailyVaRate * config.vaFractionDays) * 100) / 100;
                 vaNeedsAlert = true;
                 vaBatchNote = `Lote de 10 Dias (Cartão entregue em ${admissionDateObj.toLocaleDateString('pt-BR')})`;
             }
         } else {
             // Regular month VA
-            const dailyDeductionRate = vaMonthlyValue > 0 ? (vaMonthlyValue / 30) : 0;
-            const totalDeduction = occurrencesCount * dailyDeductionRate;
-            vaTotalValue = Math.max(0, Math.round((vaMonthlyValue - totalDeduction) * 100) / 100);
+            if (isVaMonthly) {
+                const dailyDeductionRate = baseVaValue / 30;
+                const totalDeduction = occurrencesCount * dailyDeductionRate;
+                vaTotalValue = Math.max(0, Math.round((baseVaValue - totalDeduction) * 100) / 100);
+            } else {
+                const netDays = Math.max(0, businessDaysInMonth - occurrencesCount);
+                vaTotalValue = Math.round((baseVaValue * netDays) * 100) / 100;
+            }
+
             if (occurrencesCount > 0) {
                 vaBatchNote = `${occurrencesCount} falta(s)/atestado(s) abatido(s) no período 26-25`;
             }
@@ -241,7 +266,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
             vtDestination,
             vtBatchNote,
             vtNeedsAlert,
-            vaMonthlyValue,
+            vaMonthlyValue: baseVaValue,
             vaOccurrencesDeducted: occurrencesCount,
             vaTotalValue,
             vaDestination,
