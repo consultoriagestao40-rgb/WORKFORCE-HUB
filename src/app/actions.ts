@@ -22,6 +22,14 @@ export async function cleanupVacantRotativoPostos(tx?: any) {
 
     for (const posto of rotativoPostos) {
         if (posto.assignments.length === 0) {
+            // Find vacancies for this posto first to cascade delete candidate/recruitment records
+            const vacancies = await db.vacancy.findMany({ where: { postoId: posto.id } });
+            for (const v of vacancies) {
+                await db.recruitmentTimeline.deleteMany({ where: { vacancyId: v.id } });
+                await db.recruitmentComment.deleteMany({ where: { vacancyId: v.id } });
+                await db.recruitmentCandidate.deleteMany({ where: { vacancyId: v.id } });
+            }
+
             // Cascade delete all dependent relations manually to avoid FK constraint errors in PostgreSQL
             await db.vacancy.deleteMany({ where: { postoId: posto.id } });
             await db.attendance.deleteMany({ where: { postoId: posto.id } });
@@ -493,8 +501,12 @@ export async function createEmployee(formData: FormData) {
                 });
             }
             
-            // Cleanup vacant rotativo postos in same transaction
-            await cleanupVacantRotativoPostos(tx);
+            // Cleanup vacant rotativo postos in same transaction safely
+            try {
+                await cleanupVacantRotativoPostos(tx);
+            } catch (cleanupErr) {
+                console.error("[ROTATIVO] Non-fatal cleanup warning in createEmployee:", cleanupErr);
+            }
         });
 
         revalidatePath("/admin/employees");
