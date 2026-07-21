@@ -226,6 +226,7 @@ model BenefitsConfig {
   secullumApiToken           String?
   secullumCompanyId          String?
   secullumLastSyncAt         DateTime?
+  alertUserId                String?
   updatedAt                  DateTime  @updatedAt
 }
 

@@ -28,7 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
-import { getBenefitsCalculation, updateBenefitsConfig, markBenefitAsPaid, BenefitsCalculationItem } from "@/actions/benefits";
+import { getBenefitsCalculation, updateBenefitsConfig, markBenefitAsPaid, getSystemUsers, BenefitsCalculationItem } from "@/actions/benefits";
 import { syncSecullumOccurrences, testSecullumConnectionAction } from "@/actions/secullum";
 
 export default function BenefitsPage() {
@@ -59,7 +59,8 @@ export default function BenefitsPage() {
         secullumApiUrl: "https://pontowebintegracaoexterna.secullum.com.br",
         secullumEmail: "",
         secullumPassword: "",
-        secullumCompanyId: ""
+        secullumCompanyId: "",
+        alertUserId: ""
     });
 
     // Payment Modal State
@@ -71,12 +72,23 @@ export default function BenefitsPage() {
     // Occurrences List Modal State
     const [occurrencesModalOpen, setOccurrencesModalOpen] = useState(false);
 
+    // System Users & Alert States
+    const [systemUsers, setSystemUsers] = useState<{ id: string; name: string; email: string | null }[]>([]);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [fractionedAlertModalOpen, setFractionedAlertModalOpen] = useState(false);
+
     const loadData = async () => {
         setIsLoading(true);
         try {
             const res = await getBenefitsCalculation(selectedYear, selectedMonth);
             setItems(res.items || []);
             setConfig(res.config);
+            setCurrentUserId(res.currentUserId || null);
+
+            // Fetch system users for selection dropdown
+            const users = await getSystemUsers();
+            setSystemUsers(users || []);
+
             if (res.config) {
                 let emailVal = "";
                 let pwdVal = "";
@@ -99,7 +111,8 @@ export default function BenefitsPage() {
                     secullumApiUrl: res.config.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br",
                     secullumEmail: emailVal,
                     secullumPassword: pwdVal,
-                    secullumCompanyId: res.config.secullumCompanyId || ""
+                    secullumCompanyId: res.config.secullumCompanyId || "",
+                    alertUserId: res.config.alertUserId || ""
                 });
             }
         } catch (err: any) {
@@ -112,6 +125,121 @@ export default function BenefitsPage() {
     useEffect(() => {
         loadData();
     }, [selectedYear, selectedMonth]);
+
+    const [hasCheckedAutoAlert, setHasCheckedAutoAlert] = useState(false);
+
+    useEffect(() => {
+        if (!isLoading && items.length > 0 && config && currentUserId && !hasCheckedAutoAlert) {
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+
+            const parseDdmmyyyy = (str: string | undefined): Date | null => {
+                if (!str) return null;
+                const parts = str.split('/');
+                if (parts.length !== 3) return null;
+                return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+            };
+
+            const dueTodayCount = items.filter(item => {
+                if (item.isPaid) return false;
+                if (!item.vtNeedsAlert && !item.vaNeedsAlert) return false;
+                const dueDate = parseDdmmyyyy(item.nextPaymentDueDate);
+                return dueDate !== null && dueDate <= todayStart;
+            }).length;
+
+            if (dueTodayCount > 0 && config.alertUserId === currentUserId) {
+                setFractionedAlertModalOpen(true);
+            }
+            setHasCheckedAutoAlert(true);
+        }
+    }, [isLoading, items, config, currentUserId, hasCheckedAutoAlert]);
+
+    const exportFractionedDueTodayToExcel = () => {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const parseDdmmyyyy = (str: string | undefined): Date | null => {
+            if (!str) return null;
+            const parts = str.split('/');
+            if (parts.length !== 3) return null;
+            return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        };
+
+        const dueToday = items.filter(item => {
+            if (item.isPaid) return false;
+            if (!item.vtNeedsAlert && !item.vaNeedsAlert) return false;
+            const dueDate = parseDdmmyyyy(item.nextPaymentDueDate);
+            return dueDate !== null && dueDate <= todayStart;
+        });
+
+        if (dueToday.length === 0) {
+            toast.error("Nenhum pagamento pendente para hoje.");
+            return;
+        }
+
+        let xml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#EF4444" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+  <Style ss:ID="Currency">
+   <NumberFormat ss:Format="R$#,##0.00"/>
+  </Style>
+  <Style ss:ID="Center">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+ </Styles>
+  <Worksheet ss:Name="Lotes para Hoje">
+   <Table>
+    <Row ss:Height="24" ss:StyleID="Header">
+     <Cell><Data ss:Type="String">Colaborador</Data></Cell>
+     <Cell><Data ss:Type="String">CPF</Data></Cell>
+     <Cell><Data ss:Type="String">Posto</Data></Cell>
+     <Cell><Data ss:Type="String">Cliente</Data></Cell>
+     <Cell><Data ss:Type="String">Próximo Vencimento</Data></Cell>
+     <Cell><Data ss:Type="String">VT Lote (R$)</Data></Cell>
+     <Cell><Data ss:Type="String">Destino VT</Data></Cell>
+     <Cell><Data ss:Type="String">VA Lote (R$)</Data></Cell>
+     <Cell><Data ss:Type="String">Destino VA</Data></Cell>
+    </Row>`;
+
+        dueToday.forEach(item => {
+            xml += `
+    <Row>
+     <Cell><Data ss:Type="String">${item.employeeName}</Data></Cell>
+     <Cell><Data ss:Type="String">${item.employeeCpf}</Data></Cell>
+     <Cell><Data ss:Type="String">${item.postoName}</Data></Cell>
+     <Cell><Data ss:Type="String">${item.clientName}</Data></Cell>
+     <Cell ss:StyleID="Center"><Data ss:Type="String">${item.nextPaymentDueDate}</Data></Cell>
+     <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vtNeedsAlert ? item.vtTotalValue : 0}</Data></Cell>
+     <Cell><Data ss:Type="String">${item.vtDestination}</Data></Cell>
+     <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaNeedsAlert ? item.vaTotalValue : 0}</Data></Cell>
+     <Cell><Data ss:Type="String">${item.vaDestination}</Data></Cell>
+    </Row>`;
+        });
+
+        xml += `
+   </Table>
+  </Worksheet>
+</Workbook>`;
+
+        const blob = new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `pagamentos_fracionados_hoje_${selectedYear}_${selectedMonth}.xls`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast.success("Relação de pagamentos de hoje exportada com sucesso!");
+    };
 
     const handleConfigSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -126,7 +254,8 @@ export default function BenefitsPage() {
                 vaCardDeliveryEstimateDays: configFormData.vaCardDeliveryEstimateDays,
                 secullumApiUrl: configFormData.secullumApiUrl,
                 secullumApiToken: tokenValue,
-                secullumCompanyId: configFormData.secullumCompanyId
+                secullumCompanyId: configFormData.secullumCompanyId,
+                alertUserId: configFormData.alertUserId
             });
             if (res.success) {
                 toast.success("Configurações de benefícios salvas com sucesso!");
@@ -364,6 +493,25 @@ export default function BenefitsPage() {
         toast.success("Relatório de abatimentos baixado com sucesso!");
     };
 
+    const getDueTodayItems = () => {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const parseDdmmyyyy = (str: string | undefined): Date | null => {
+            if (!str) return null;
+            const parts = str.split('/');
+            if (parts.length !== 3) return null;
+            return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        };
+
+        return items.filter(item => {
+            if (item.isPaid) return false;
+            if (!item.vtNeedsAlert && !item.vaNeedsAlert) return false;
+            const dueDate = parseDdmmyyyy(item.nextPaymentDueDate);
+            return dueDate !== null && dueDate <= todayStart;
+        });
+    };
+
     // Filter Items
     const filteredItems = items.filter(item => {
         const matchesSearch = 
@@ -468,7 +616,7 @@ export default function BenefitsPage() {
             </div>
 
             {/* Stat Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
                 {/* Total VT */}
                 <div className="bg-gradient-to-br from-indigo-900 to-slate-900 p-6 rounded-3xl text-white shadow-md relative overflow-hidden">
                     <div className="absolute -right-4 -bottom-4 opacity-10">
@@ -528,6 +676,24 @@ export default function BenefitsPage() {
                     <div className="text-3xl font-black text-emerald-600">{paidCount} <span className="text-sm font-bold text-slate-400">/ {items.length}</span></div>
                     <div className="text-[11px] text-slate-500 font-medium">
                         {items.length - paidCount} compras pendentes de marcação.
+                    </div>
+                </div>
+
+                {/* Lotes Fracionados */}
+                <div 
+                    onClick={() => {
+                        if (alertCount > 0) {
+                            setActiveTab("ALERTS");
+                        }
+                    }}
+                    className={`bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-2 select-none ${alertCount > 0 ? 'cursor-pointer hover:bg-slate-50/80 transition-all active:scale-[0.98]' : ''}`}
+                >
+                    <div className="flex items-center gap-2 text-amber-650 text-xs font-bold uppercase tracking-wider">
+                        <Clock className="w-4 h-4 text-amber-500" /> Pagamentos Fracionados
+                    </div>
+                    <div className="text-3xl font-black text-amber-600">{alertCount}</div>
+                    <div className="text-[11px] text-slate-500 font-medium">
+                        Colaboradores em período de parcelas fracionadas.
                     </div>
                 </div>
             </div>
@@ -745,69 +911,95 @@ export default function BenefitsPage() {
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert || i.isNewHire).length === 0 ? (
-                            <div className="col-span-2 bg-white p-8 rounded-3xl border border-slate-200 text-center text-slate-400 font-medium">
-                                Nenhum alerta de lote fracionado pendente para o mês selecionado.
-                            </div>
-                        ) : (
-                            items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert || i.isNewHire).map(item => (
-                                <div key={item.employeeId} className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm space-y-3">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <h4 className="font-bold text-slate-900 text-sm">{item.employeeName}</h4>
-                                            <p className="text-xs text-slate-500 font-semibold">{item.postoName} ({item.clientName})</p>
-                                            <p className="text-[10px] text-slate-400 font-bold mt-0.5">📅 Data de Admissão: {item.admissionDate}</p>
-                                        </div>
-                                        {item.isPaid ? (
-                                            <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-black text-[10px] rounded-xl uppercase tracking-wider">
-                                                Lote Pago
-                                            </span>
-                                        ) : (
-                                            <span className="px-2.5 py-1 bg-amber-100 text-amber-800 font-black text-[10px] rounded-xl uppercase tracking-wider">
-                                                Próxima Compra Vencendo
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* Datas do Último e Próximo Pagamento */}
-                                    <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-100 text-xs">
-                                        <div>
-                                            <div className="text-[10px] font-bold text-slate-400 uppercase">Último Pagamento</div>
-                                            <div className="font-bold text-slate-800 mt-0.5">
-                                                {item.lastPaymentDate ? item.lastPaymentDate : "Nenhum efetuado"}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div className="text-[10px] font-bold text-amber-600 uppercase">Próximo Vencimento (5 Dias)</div>
-                                            <div className="font-black text-amber-700 mt-0.5">
-                                                {item.nextPaymentDueDate ? item.nextPaymentDueDate : "A calcular"}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2 border-t border-slate-100 pt-3">
-                                        {item.vtNeedsAlert && (
-                                            <div className="flex justify-between items-center bg-indigo-50/60 p-2.5 rounded-2xl text-xs font-bold text-indigo-900 border border-indigo-100">
-                                                <span className="flex items-center gap-1.5">
-                                                    <Bus className="w-4 h-4 text-indigo-600" /> VT Lote {config?.vtFractionDays || 5} Dias:
-                                                </span>
-                                                <span className="font-black text-indigo-700">R$ {item.vtTotalValue.toFixed(2)} ({item.vtDestination})</span>
-                                            </div>
-                                        )}
-
-                                        {item.vaNeedsAlert && (
-                                            <div className="flex justify-between items-center bg-orange-50/60 p-2.5 rounded-2xl text-xs font-bold text-orange-900 border border-orange-100">
-                                                <span className="flex items-center gap-1.5">
-                                                    <Utensils className="w-4 h-4 text-orange-600" /> VA Lote Fracionado:
-                                                </span>
-                                                <span className="font-black text-orange-700">R$ {item.vaTotalValue.toFixed(2)} ({item.vaDestination})</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ))
-                        )}
+                    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                                <thead className="bg-slate-50 border-b border-slate-200">
+                                    <tr className="font-bold text-slate-500 uppercase text-[10px]">
+                                        <th className="py-3 px-4">Colaborador</th>
+                                        <th className="py-3 px-4">Posto / Cliente</th>
+                                        <th className="py-3 px-4 text-center">Admissão</th>
+                                        <th className="py-3 px-4 text-center">Último Pgto.</th>
+                                        <th className="py-3 px-4 text-center">Próximo Vecto.</th>
+                                        <th className="py-3 px-4 text-right">Lote VT</th>
+                                        <th className="py-3 px-4 text-right">Lote VA</th>
+                                        <th className="py-3 px-4 text-center">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 font-medium">
+                                    {items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert || i.isNewHire).length === 0 ? (
+                                        <tr>
+                                            <td colSpan={8} className="py-8 text-center text-slate-400 font-medium">
+                                                Nenhum alerta de lote fracionado pendente para o mês selecionado.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert || i.isNewHire).map(item => (
+                                            <tr key={item.employeeId} className="hover:bg-slate-50/50">
+                                                <td className="py-3 px-4">
+                                                    <div className="font-bold text-slate-800">{item.employeeName}</div>
+                                                    <div className="text-[10px] text-slate-400 font-bold">{item.employeeCpf}</div>
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <div className="text-slate-600 font-bold">{item.postoName}</div>
+                                                    <div className="text-[10px] text-slate-400">{item.clientName}</div>
+                                                </td>
+                                                <td className="py-3 px-4 text-center text-[10px] text-slate-500">
+                                                    {item.admissionDate}
+                                                </td>
+                                                <td className="py-3 px-4 text-center text-[10px] text-slate-500">
+                                                    {item.lastPaymentDate || "Nenhum"}
+                                                </td>
+                                                <td className="py-3 px-4 text-center">
+                                                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${item.isPaid ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                                                        {item.nextPaymentDueDate || "A calcular"}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-bold">
+                                                    {item.vtNeedsAlert ? (
+                                                        <div className="space-y-0.5">
+                                                            <div className="text-indigo-600">R$ {item.vtTotalValue.toFixed(2)}</div>
+                                                            <div className="text-[9px] text-indigo-400 font-semibold">{item.vtDestination}</div>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-slate-300 font-semibold">-</span>
+                                                    )}
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-bold">
+                                                    {item.vaNeedsAlert ? (
+                                                        <div className="space-y-0.5">
+                                                            <div className="text-orange-600">R$ {item.vaTotalValue.toFixed(2)}</div>
+                                                            <div className="text-[9px] text-orange-400 font-semibold">{item.vaDestination}</div>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-slate-300 font-semibold">-</span>
+                                                    )}
+                                                </td>
+                                                <td className="py-3 px-4 text-center">
+                                                    {item.isPaid ? (
+                                                        <span className="inline-flex items-center text-emerald-600 text-[10px] font-black">
+                                                            <Check className="w-3.5 h-3.5 mr-0.5" /> PAGO
+                                                        </span>
+                                                    ) : (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => {
+                                                                setSelectedItemForPayment(item);
+                                                                setPaymentModalOpen(true);
+                                                            }}
+                                                            className="text-[10px] font-extrabold h-6 px-2.5 rounded-lg border-amber-300 text-amber-600 hover:bg-amber-50 hover:border-amber-400"
+                                                        >
+                                                            Pagar Lote
+                                                        </Button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             )}
@@ -878,6 +1070,72 @@ export default function BenefitsPage() {
                             </DialogFooter>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            {/* AUTO FRACTIONED PAYMENTS ALERT MODAL */}
+            <Dialog open={fractionedAlertModalOpen} onOpenChange={setFractionedAlertModalOpen}>
+                <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col p-0 overflow-hidden rounded-3xl">
+                    <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-amber-50/50">
+                        <DialogTitle className="flex items-center gap-2 text-lg font-black text-amber-700">
+                            <AlertTriangle className="w-5 h-5 text-amber-600 animate-pulse" /> Pagamentos de VT/VA para hoje
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-amber-800">
+                            Prezado responsável, há pagamentos fracionados com vencimento para o dia de hoje ou datas anteriores que necessitam de atenção.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                        <div className="border border-slate-200/60 rounded-2xl overflow-hidden bg-white">
+                            <table className="w-full text-left text-xs border-collapse">
+                                <thead className="bg-slate-50 border-b border-slate-200">
+                                    <tr className="font-bold text-slate-500">
+                                        <th className="py-2.5 px-3">Colaborador</th>
+                                        <th className="py-2.5 px-3">Posto</th>
+                                        <th className="py-2.5 px-3 text-center">Vencimento</th>
+                                        <th className="py-2.5 px-3 text-right">Lote VT</th>
+                                        <th className="py-2.5 px-3 text-right">Lote VA</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {getDueTodayItems().map(item => (
+                                        <tr key={item.employeeId} className="hover:bg-slate-50/50 text-xs font-semibold">
+                                            <td className="py-3 px-3">
+                                                <div className="font-bold text-slate-800">{item.employeeName}</div>
+                                                <div className="text-[10px] text-slate-400 font-medium">{item.employeeCpf}</div>
+                                            </td>
+                                            <td className="py-3 px-3 text-slate-600 font-medium">
+                                                {item.postoName}
+                                            </td>
+                                            <td className="py-3 px-3 text-center">
+                                                <span className="px-2 py-0.5 rounded bg-red-50 text-red-700 font-bold text-[10px] border border-red-200">
+                                                    {item.nextPaymentDueDate}
+                                                </span>
+                                            </td>
+                                            <td className="py-3 px-3 text-right font-extrabold text-indigo-600">
+                                                {item.vtNeedsAlert ? `R$ ${item.vtTotalValue.toFixed(2)}` : "-"}
+                                            </td>
+                                            <td className="py-3 px-3 text-right font-extrabold text-orange-600">
+                                                {item.vaNeedsAlert ? `R$ ${item.vaTotalValue.toFixed(2)}` : "-"}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div className="p-6 border-t border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <Button 
+                            onClick={exportFractionedDueTodayToExcel}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs gap-1.5 h-9"
+                        >
+                            <FileSpreadsheet className="w-4 h-4" /> Exportar Relação de Hoje
+                        </Button>
+                        <Button onClick={() => setFractionedAlertModalOpen(false)} className="bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs h-9">
+                            Fechar
+                        </Button>
+                    </div>
                 </DialogContent>
             </Dialog>
 
@@ -1043,6 +1301,25 @@ export default function BenefitsPage() {
                                 />
                                 <span className="text-[10px] text-slate-400">Padrão: 10 dias</span>
                             </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-100 space-y-1">
+                            <Label className="font-bold text-slate-700">Usuário Responsável pelos Alertas de Lote</Label>
+                            <Select
+                                value={configFormData.alertUserId || "none"}
+                                onValueChange={val => setConfigFormData(prev => ({ ...prev, alertUserId: val === "none" ? "" : val }))}
+                            >
+                                <SelectTrigger className="rounded-xl border-slate-200 text-xs font-semibold h-9">
+                                    <SelectValue placeholder="Selecione o usuário..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">Nenhum (Desativar alertas automáticos)</SelectItem>
+                                    {systemUsers.map(u => (
+                                        <SelectItem key={u.id} value={u.id}>{u.name} ({u.email})</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <span className="text-[10px] text-slate-400 block font-medium">Este usuário verá o modal de alerta automaticamente caso haja lotes vencendo hoje.</span>
                         </div>
 
                         <div className="pt-4 border-t border-slate-100 space-y-3">

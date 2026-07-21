@@ -96,6 +96,7 @@ export async function updateBenefitsConfig(data: {
     secullumApiUrl?: string;
     secullumApiToken?: string;
     secullumCompanyId?: string;
+    alertUserId?: string;
 }) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Não autorizado.");
@@ -113,12 +114,24 @@ export async function updateBenefitsConfig(data: {
             vaCardDeliveryEstimateDays: Number(data.vaCardDeliveryEstimateDays),
             secullumApiUrl: data.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br",
             secullumApiToken: data.secullumApiToken || null,
-            secullumCompanyId: data.secullumCompanyId || null
+            secullumCompanyId: data.secullumCompanyId || null,
+            alertUserId: data.alertUserId || null
         }
     });
 
     revalidatePath("/admin/benefits");
     return { success: true };
+}
+
+// 2.1 Get System Users (to select alert manager)
+export async function getSystemUsers() {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado.");
+
+    return await prisma.user.findMany({
+        select: { id: true, name: true, email: true },
+        orderBy: { name: 'asc' }
+    });
 }
 
 // 3. Mark Benefit as Paid
@@ -164,7 +177,7 @@ export async function markBenefitAsPaid(data: {
 // 4. Main Benefits Calculation Action
 export async function getBenefitsCalculation(year: number, month: number) {
     const user = await getCurrentUser();
-    if (!user) return { items: [], config: null };
+    if (!user) return { items: [], config: null, currentUserId: null };
 
     const config = await getBenefitsConfig();
 
@@ -398,5 +411,5 @@ export async function getBenefitsCalculation(year: number, month: number) {
         };
     });
 
-    return { items, config };
+    return { items, config, currentUserId: user.id };
 }
