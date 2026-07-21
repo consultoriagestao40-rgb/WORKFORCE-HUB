@@ -660,11 +660,11 @@ export default function BenefitsPage() {
                     </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 shrink-0">
                     {/* Month/Year Selector */}
-                    <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+                    <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
                         <Select value={String(selectedMonth)} onValueChange={val => setSelectedMonth(Number(val))}>
-                            <SelectTrigger className="w-[130px] h-9 text-xs font-bold border-none bg-transparent shadow-none">
+                            <SelectTrigger className="w-[110px] h-8 text-xs font-bold border-none bg-transparent shadow-none">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -675,7 +675,7 @@ export default function BenefitsPage() {
                         </Select>
 
                         <Select value={String(selectedYear)} onValueChange={val => setSelectedYear(Number(val))}>
-                            <SelectTrigger className="w-[90px] h-9 text-xs font-bold border-none bg-transparent shadow-none">
+                            <SelectTrigger className="w-[80px] h-8 text-xs font-bold border-none bg-transparent shadow-none">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -689,24 +689,28 @@ export default function BenefitsPage() {
                     <Button 
                         onClick={handleSyncSecullum}
                         disabled={isSyncingSecullum}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs gap-2 rounded-2xl shadow-md h-11 px-5"
+                        title="Sincronizar Ponto Secullum"
+                        size="icon"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-md h-9 w-9 shrink-0"
                     >
-                        {isSyncingSecullum ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4 text-indigo-200" />} Sincronizar Ponto Secullum
+                        <RefreshCw className={`w-4 h-4 ${isSyncingSecullum ? "animate-spin" : "text-indigo-200"}`} />
                     </Button>
 
                     <Button 
                         onClick={exportToExcel}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-2 rounded-2xl shadow-md h-11 px-5"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-md h-9 px-4 shrink-0"
                     >
-                        <FileSpreadsheet className="w-4 h-4" /> Exportar Planilha (Excel)
+                        <FileSpreadsheet className="w-4 h-4" /> Exportar XLSX
                     </Button>
 
                     <Button 
                         variant="outline" 
                         onClick={() => setConfigModalOpen(true)}
-                        className="font-bold text-xs gap-2 rounded-2xl h-11 border-slate-200"
+                        title="Configurações"
+                        size="icon"
+                        className="rounded-2xl h-9 w-9 border-slate-200 shrink-0"
                     >
-                        <Settings className="w-4 h-4 text-slate-600" /> Configurações
+                        <Settings className="w-4 h-4 text-slate-600" />
                     </Button>
                 </div>
             </div>
