@@ -1209,18 +1209,19 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     };
 
     const handleExportCoveredShifts = () => {
-        if (!consolidatedData || !consolidatedData.coveredShiftsList || consolidatedData.coveredShiftsList.length === 0) {
-            toast.error("Nenhuma cobertura para exportar.");
+        if (!consolidatedData || !consolidatedData.allAbsencesList || consolidatedData.allAbsencesList.length === 0) {
+            toast.error("Nenhuma ausência para exportar.");
             return;
         }
 
-        const excelData = consolidatedData.coveredShiftsList.map((item: any) => ({
+        const excelData = consolidatedData.allAbsencesList.map((item: any) => ({
             Data: format(new Date(item.date + "T12:00:00Z"), "dd/MM/yyyy"),
             Cliente: item.clientName,
             Função: item.postoRole,
             Escala: item.schedule,
             Horário: item.time,
             ColaboradorTitular: item.employeeName,
+            Status: item.status,
             CobertoPor: item.coveredByName,
             TipoCobertura: item.coverageType,
             Observação: item.notes
@@ -1236,9 +1237,9 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
         ws['!cols'] = colWidths;
 
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Coberturas");
-        XLSX.writeFile(wb, `coberturas-${selectedYear}-${selectedMonth + 1}.xlsx`);
-        toast.success("Relatório de coberturas exportado com sucesso!");
+        XLSX.utils.book_append_sheet(wb, ws, "Faltas e Coberturas");
+        XLSX.writeFile(wb, `faltas-e-coberturas-${selectedYear}-${selectedMonth + 1}.xlsx`);
+        toast.success("Relatório de faltas e coberturas exportado com sucesso!");
     };
 
     const handleExportExcel = () => {
@@ -1975,7 +1976,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                         {detailsModalType === "coverage_details" && (
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 p-1.5 bg-slate-50/60 rounded-xl border border-slate-100/50">
                                 <div className="text-[11px] text-slate-550 font-bold pl-2">
-                                    Total de {consolidatedData?.coveredShiftsList?.length || 0} coberturas registradas no período.
+                                    Total de {consolidatedData?.allAbsencesList?.length || 0} faltas, atestados ou vagas registradas no período.
                                 </div>
                                 <Button 
                                     variant="outline" 
@@ -2124,6 +2125,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             <TableHead className="font-bold text-slate-800 text-xs py-2.5">Cargo / Função</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Escala / Horário</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-xs py-2.5">Colaborador Titular</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Status</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-xs py-2.5">Coberto Por</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-xs py-2.5">Tipo de Cobertura</TableHead>
                                             <TableHead className="font-bold text-slate-800 text-xs pr-6 py-2.5">Observação</TableHead>
@@ -2251,12 +2253,12 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         })()
                                     ) : detailsModalType === "coverage_details" ? (
                                         (() => {
-                                            const list = consolidatedData?.coveredShiftsList || [];
+                                            const list = consolidatedData?.allAbsencesList || [];
                                             if (list.length === 0) {
                                                 return (
                                                     <TableRow>
-                                                        <TableCell colSpan={8} className="text-center py-6 text-xs text-slate-500 font-bold">
-                                                            Nenhuma cobertura registrada neste mês.
+                                                        <TableCell colSpan={9} className="text-center py-6 text-xs text-slate-500 font-bold">
+                                                            Nenhuma ausência registrada neste mês.
                                                         </TableCell>
                                                     </TableRow>
                                                 );
@@ -2280,11 +2282,29 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                             </div>
                                                         </TableCell>
                                                         <TableCell className="py-2 text-xs text-slate-700 font-semibold">{item.employeeName}</TableCell>
-                                                        <TableCell className="py-2 text-xs text-indigo-600 font-bold">{item.coveredByName}</TableCell>
-                                                        <TableCell className="py-2 text-xs">
-                                                            <span className="px-2 py-0.5 rounded text-[10px] font-black border bg-indigo-50 text-indigo-700 border-indigo-200">
-                                                                {item.coverageType}
+                                                        <TableCell className="py-2 text-xs text-center">
+                                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                                                                item.status === "Coberto" ? "bg-emerald-50 text-emerald-700 border-emerald-250" :
+                                                                "bg-red-50 text-red-700 border-red-250"
+                                                            }`}>
+                                                                {item.status}
                                                             </span>
+                                                        </TableCell>
+                                                        <TableCell className="py-2 text-xs font-semibold text-slate-700">
+                                                            {item.status === "Coberto" ? (
+                                                                <span className="text-indigo-650 font-bold">{item.coveredByName}</span>
+                                                            ) : (
+                                                                <span className="text-slate-400 font-bold">-</span>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="py-2 text-xs">
+                                                            {item.status === "Coberto" ? (
+                                                                <span className="px-2 py-0.5 rounded text-[10px] font-black border bg-indigo-50 text-indigo-700 border-indigo-200">
+                                                                    {item.coverageType}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-slate-400 font-bold">-</span>
+                                                            )}
                                                         </TableCell>
                                                         <TableCell className="py-2 text-xs text-slate-500 pr-6 font-medium max-w-xs truncate" title={item.notes}>
                                                             {item.notes}

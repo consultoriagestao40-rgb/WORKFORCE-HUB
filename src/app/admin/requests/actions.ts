@@ -1422,7 +1422,8 @@ export async function getConsolidatedPerformanceData(year: number, month: number
             },
             include: {
                 posto: true,
-                employee: true
+                employee: true,
+                coveredBy: true
             }
         });
 
@@ -1610,6 +1611,22 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                                 if (isCovered) {
                                     clientTotalCobertas++;
                                     const occ = occurrenceMap.get(`${posto.id}-${dayDateStr}`);
+                                    const diaristaName = (() => {
+                                        if (att.coverageType === "DIARISTA" && att.notes) {
+                                            const parts = att.notes.split(" | ");
+                                            return parts[0];
+                                        }
+                                        return null;
+                                    })();
+                                    
+                                    const parsedNotes = (() => {
+                                        if (att.coverageType === "DIARISTA" && att.notes) {
+                                            const parts = att.notes.split(" | ");
+                                            return parts.slice(1).join(" | ") || occ?.description || "-";
+                                        }
+                                        return att.notes || occ?.description || "Cobertura realizada.";
+                                    })();
+
                                     clientCoveredDetails.push({
                                         date: dayDateStr,
                                         clientName: client.name,
@@ -1618,9 +1635,10 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                                         time: `${posto.startTime} - ${posto.endTime}`,
                                         type: occ?.type || "FALTA",
                                         employeeName: att.employee?.name || "Não informado",
-                                        coveredByName: att.coveredBy?.name || (att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outro Colaborador"),
+                                        status: "Coberto",
+                                        coveredByName: att.coveredBy?.name || diaristaName || (att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outro Colaborador"),
                                         coverageType: att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outra Cobertura",
-                                        notes: att.notes || occ?.description || "Cobertura realizada."
+                                        notes: parsedNotes
                                     });
                                 } else {
                                     adminVacantShifts++;
@@ -1633,6 +1651,9 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                                         time: `${posto.startTime} - ${posto.endTime}`,
                                         type: occ?.type || "FALTA",
                                         employeeName: att.employee?.name || "Não informado",
+                                        status: "Sem Cobertura",
+                                        coveredByName: "-",
+                                        coverageType: "-",
                                         notes: att.notes || occ?.description || "Ausência sem cobertura."
                                     });
                                 }
@@ -1665,6 +1686,9 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                                     time: `${posto.startTime} - ${posto.endTime}`,
                                     type: hasTitular ? "FALTA" : "VAGA",
                                     employeeName: hasTitular ? assignment.employee.name : "Sem colaborador escalado",
+                                    status: "Sem Cobertura",
+                                    coveredByName: "-",
+                                    coverageType: "-",
                                     notes: hasTitular ? "Falta de ponto no sistema." : "Posto vago sem escala ativa."
                                 });
                             }
@@ -1891,6 +1915,10 @@ export async function getConsolidatedPerformanceData(year: number, month: number
             uncoveredShiftsCount: clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + (c.uncoveredShiftsCount || 0), 0),
             uncoveredShiftsList: clientsWithABCAndVisits.flatMap((c: any) => c.uncoveredShiftsDetails || []),
             coveredShiftsList: clientsWithABCAndVisits.flatMap((c: any) => c.coveredShiftsDetails || []),
+            allAbsencesList: clientsWithABCAndVisits.flatMap((c: any) => [
+                ...(c.uncoveredShiftsDetails || []),
+                ...(c.coveredShiftsDetails || [])
+            ]).sort((a: any, b: any) => b.date.localeCompare(a.date)),
             totalFaultasCombined: clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + (c.totalFaultas || 0), 0),
             totalCobertasCombined: clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + (c.totalCobertas || 0), 0),
             groupCoverageIndex: (() => {
