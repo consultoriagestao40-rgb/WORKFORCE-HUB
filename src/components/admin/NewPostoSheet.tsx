@@ -110,10 +110,16 @@ export function NewPostoSheet({ clientId, schedules, roles }: NewPostoSheetProps
                                 <Label htmlFor="gratificacao">Gratificação CCT (R$)</Label>
                                 <Input id="gratificacao" name="gratificacao" type="number" step="0.01" defaultValue="0" />
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="valeAlimentacao">Vale Alimentação (R$)</Label>
-                                <Input id="valeAlimentacao" name="valeAlimentacao" type="number" step="0.01" defaultValue="0" />
-                            </div>
+                             <div className="space-y-2">
+                                 <Label htmlFor="valeAlimentacao">Vale Alimentação (R$)</Label>
+                                 <div className="flex gap-2">
+                                     <Input id="valeAlimentacao" name="valeAlimentacao" type="number" step="0.01" defaultValue="0" className="flex-1" />
+                                     <select name="vaType" defaultValue="mensal" className="h-10 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500">
+                                         <option value="mensal">Mensal</option>
+                                         <option value="diario">Diário</option>
+                                     </select>
+                                 </div>
+                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="valeTransporte">Vale Transporte (R$)</Label>
                                 <Input id="valeTransporte" name="valeTransporte" type="number" step="0.01" defaultValue="0" />

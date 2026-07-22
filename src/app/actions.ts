@@ -337,6 +337,7 @@ export async function createPosto(formData: FormData) {
     const gratificacao = parseFloat(formData.get("gratificacao") as string) || 0;
     const outrosAdicionais = parseFloat(formData.get("outrosAdicionais") as string) || 0;
     const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
+    const vaType = (formData.get("vaType") as string) || "mensal";
     const valeTransporte = parseFloat(formData.get("valeTransporte") as string) || 0;
 
     await prisma.posto.create({
@@ -355,6 +356,7 @@ export async function createPosto(formData: FormData) {
             gratificacao,
             outrosAdicionais,
             valeAlimentacao,
+            vaType,
             valeTransporte
         }
     });
@@ -1044,6 +1046,7 @@ export async function updatePosto(formData: FormData) {
     const gratificacao = parseFloat(formData.get("gratificacao") as string) || 0;
     const outrosAdicionais = parseFloat(formData.get("outrosAdicionais") as string) || 0;
     const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
+    const vaType = (formData.get("vaType") as string) || "mensal";
     const valeTransporte = parseFloat(formData.get("valeTransporte") as string) || 0;
 
     const posto = await prisma.posto.update({
@@ -1062,6 +1065,7 @@ export async function updatePosto(formData: FormData) {
             gratificacao,
             outrosAdicionais,
             valeAlimentacao,
+            vaType,
             valeTransporte
         }
     });

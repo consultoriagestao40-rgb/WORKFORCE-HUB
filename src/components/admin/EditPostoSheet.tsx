@@ -25,6 +25,7 @@ interface EditPostoSheetProps {
         gratificacao: number;
         outrosAdicionais: number;
         valeAlimentacao?: number;
+        vaType?: string;
         valeTransporte?: number;
     };
     schedules: { id: string; name: string }[];
@@ -127,10 +128,16 @@ export function EditPostoSheet({ posto, schedules, roles }: EditPostoSheetProps)
                             <div className="space-y-2 col-span-2 text-xs text-slate-500 bg-blue-50 p-2 rounded">
                                 Estes valores compõem o quadro orçado para este posto.
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="valeAlimentacao">Vale Alimentação (R$)</Label>
-                                <Input id="valeAlimentacao" name="valeAlimentacao" type="number" step="0.01" defaultValue={posto.valeAlimentacao || 0} />
-                            </div>
+                             <div className="space-y-2">
+                                 <Label htmlFor="valeAlimentacao">Vale Alimentação (R$)</Label>
+                                 <div className="flex gap-2">
+                                     <Input id="valeAlimentacao" name="valeAlimentacao" type="number" step="0.01" defaultValue={posto.valeAlimentacao || 0} className="flex-1" />
+                                     <select name="vaType" defaultValue={posto.vaType || "mensal"} className="h-10 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500">
+                                         <option value="mensal">Mensal</option>
+                                         <option value="diario">Diário</option>
+                                     </select>
+                                 </div>
+                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="valeTransporte">Vale Transporte (R$)</Label>
                                 <Input id="valeTransporte" name="valeTransporte" type="number" step="0.01" defaultValue={posto.valeTransporte || 0} />

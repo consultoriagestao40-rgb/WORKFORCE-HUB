@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { generateRoster } from "@/lib/scheduling";
 
 export interface BenefitOccurrenceDetail {
     id: string;
@@ -64,6 +65,48 @@ function getBusinessDaysInMonth(year: number, month: number): number {
             count++;
         }
         date.setDate(date.getDate() + 1);
+    }
+    return count;
+}
+
+const FIXED_HOLIDAYS = [
+    "01-01", // Confraternização Universal
+    "04-21", // Tiradentes
+    "05-01", // Dia do Trabalho
+    "09-07", // Independência
+    "10-12", // N. Sra. Aparecida
+    "11-02", // Finados
+    "11-15", // Proclamação da República
+    "11-20", // Dia da Consciência Negra
+    "12-25", // Natal
+];
+
+function isHoliday(date: Date): boolean {
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const dateString = `${m}-${d}`; // MM-DD
+    return FIXED_HOLIDAYS.includes(dateString);
+}
+
+function getVaDaysForDaily(schedule: string, pivotDate: Date, year: number, month: number): number {
+    const days: Date[] = [];
+    const date = new Date(year, month - 1, 1);
+    while (date.getMonth() === month - 1) {
+        days.push(new Date(date));
+        date.setDate(date.getDate() + 1);
+    }
+
+    const roster = generateRoster(schedule, pivotDate, days);
+
+    let count = 0;
+    for (const item of roster) {
+        if (item.status === 'Trabalho') {
+            const dayOfWeek = item.date.getDay();
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Sunday or Saturday
+            if (!isWeekend && !isHoliday(item.date)) {
+                count++;
+            }
+        }
     }
     return count;
 }
@@ -377,7 +420,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
         let vaNeedsAlert = false;
         let vaBatchNote = "";
 
-        const isVaMonthly = baseVaValue > 50;
+        const isVaDiario = posto?.vaType === "diario";
 
         if (isNewHire) {
             // New hire fracionated VA: 10-day batches after card delivery
@@ -390,7 +433,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
                 vaBatchNote = `Aguardando entrega do cartão (~10 dias da admissão em ${admissionDateObj.toLocaleDateString('pt-BR')})`;
             } else {
                 // Fractioned 10 days
-                const dailyVaRate = isVaMonthly ? (baseVaValue / 30) : baseVaValue;
+                const dailyVaRate = isVaDiario ? baseVaValue : (baseVaValue > 50 ? (baseVaValue / 30) : baseVaValue);
                 vaBaseValue = Math.round((dailyVaRate * config.vaFractionDays) * 100) / 100;
                 vaDeductionValue = 0;
                 vaTotalValue = vaBaseValue;
@@ -399,18 +442,33 @@ export async function getBenefitsCalculation(year: number, month: number) {
             }
         } else {
             // Regular month VA
-            if (isVaMonthly) {
-                vaBaseValue = baseVaValue;
-                const dailyDeductionRate = baseVaValue / 30;
-                vaDeductionValue = Math.round((occurrencesCount * dailyDeductionRate) * 100) / 100;
+            if (isVaDiario) {
+                const pivotDate = activeAssignment?.startDate ? new Date(activeAssignment.startDate) : admissionDateObj;
+                const scheduledWorkDays = getVaDaysForDaily(posto?.schedule || "5x2", pivotDate, year, month);
+                
+                vaBaseValue = Math.round((scheduledWorkDays * baseVaValue) * 100) / 100;
+                vaDeductionValue = Math.round((occurrencesCount * baseVaValue) * 100) / 100;
+                vaTotalValue = Math.max(0, Math.round((vaBaseValue - vaDeductionValue) * 100) / 100);
+                
+                vaBatchNote = `${scheduledWorkDays} dias de escala (excl. fds/feriados) x R$ ${baseVaValue.toFixed(2)}`;
+                if (occurrencesCount > 0) {
+                    vaBatchNote += ` | ${occurrencesCount} falta(s) abatida(s) no período 26-25`;
+                }
             } else {
-                vaBaseValue = Math.round((baseVaValue * 30) * 100) / 100;
-                vaDeductionValue = Math.round((baseVaValue * occurrencesCount) * 100) / 100;
-            }
-            vaTotalValue = Math.max(0, Math.round((vaBaseValue - vaDeductionValue) * 100) / 100);
+                const isVaMonthly = baseVaValue > 50;
+                if (isVaMonthly) {
+                    vaBaseValue = baseVaValue;
+                    const dailyDeductionRate = baseVaValue / 30;
+                    vaDeductionValue = Math.round((occurrencesCount * dailyDeductionRate) * 100) / 100;
+                } else {
+                    vaBaseValue = Math.round((baseVaValue * 30) * 100) / 100;
+                    vaDeductionValue = Math.round((baseVaValue * occurrencesCount) * 100) / 100;
+                }
+                vaTotalValue = Math.max(0, Math.round((vaBaseValue - vaDeductionValue) * 100) / 100);
 
-            if (occurrencesCount > 0) {
-                vaBatchNote = `${occurrencesCount} falta(s)/atestado(s) abatido(s) no período 26-25`;
+                if (occurrencesCount > 0) {
+                    vaBatchNote = `${occurrencesCount} falta(s)/atestado(s) abatido(s) no período 26-25`;
+                }
             }
         }
 

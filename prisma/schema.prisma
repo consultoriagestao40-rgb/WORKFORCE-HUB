@@ -111,6 +111,7 @@ model Posto {
   gratificacao      Float        @default(0)
   outrosAdicionais  Float        @default(0)
   valeAlimentacao   Float        @default(0)
+  vaType            String       @default("mensal")
   valeTransporte    Float        @default(0)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
