@@ -215,9 +215,16 @@ export function ReportsClientPage() {
                     Empresa: c.companyName
                 };
                 MONTH_NAMES.forEach((m, idx) => {
-                    row[m] = `${c.monthlyData[idx].rate.toFixed(1)}%`;
+                    const monthVal = c.monthlyData[idx];
+                    row[`${m} - Admissões`] = monthVal.admissions;
+                    row[`${m} - Demissões`] = monthVal.departures;
+                    row[`${m} - Headcount`] = monthVal.headcount;
+                    row[`${m} - Taxa Turnover`] = `${monthVal.rate.toFixed(1)}%`;
                 });
-                row["Acumulado Ano"] = `${c.annualRate.toFixed(1)}%`;
+                row["Total Admissões Ano"] = c.totalAdmissions;
+                row["Total Demissões Ano"] = c.totalDepartures;
+                row["Média Headcount Ano"] = c.avgHeadcount;
+                row["Taxa Turnover Acumulada Ano"] = `${c.annualRate.toFixed(1)}%`;
                 return row;
             });
             sheetName = "Turnover Geral";
@@ -228,9 +235,16 @@ export function ReportsClientPage() {
                     Empresa: c.companyName
                 };
                 MONTH_NAMES.forEach((m, idx) => {
-                    row[m] = `${c.monthlyData[idx].rate.toFixed(1)}%`;
+                    const monthVal = c.monthlyData[idx];
+                    row[`${m} - Faltas`] = monthVal.faltas;
+                    row[`${m} - Atestados`] = monthVal.atestados;
+                    row[`${m} - Escalas Previstas`] = monthVal.escalasPrevistas;
+                    row[`${m} - Taxa Absenteísmo`] = `${monthVal.rate.toFixed(1)}%`;
                 });
-                row["Média Anual"] = `${c.annualRate.toFixed(1)}%`;
+                row["Total Faltas Ano"] = c.totalFaltas;
+                row["Total Atestados Ano"] = c.totalAtestados;
+                row["Total Escalas Previstas Ano"] = c.totalEscalasPrevistas;
+                row["Média Absenteísmo Anual"] = `${c.annualRate.toFixed(1)}%`;
                 return row;
             });
             sheetName = "Absenteísmo Secullum";
@@ -241,9 +255,14 @@ export function ReportsClientPage() {
                     Empresa: c.companyName
                 };
                 MONTH_NAMES.forEach((m, idx) => {
-                    row[m] = `${c.monthlyData[idx].rate.toFixed(1)}%`;
+                    const monthVal = c.monthlyData[idx];
+                    row[`${m} - Faltas Mesa`] = monthVal.totalFaltas;
+                    row[`${m} - Faltas Cobertas`] = monthVal.totalCobertas;
+                    row[`${m} - Taxa Cobertura`] = `${monthVal.rate.toFixed(1)}%`;
                 });
-                row["Média Cobertura"] = `${c.annualRate.toFixed(1)}%`;
+                row["Total Faltas Mesa Ano"] = c.annualFaltas;
+                row["Total Faltas Cobertas Ano"] = c.annualCobertas;
+                row["Média Cobertura Anual"] = `${c.annualRate.toFixed(1)}%`;
                 return row;
             });
             sheetName = "Índice de Cobertura";
@@ -257,9 +276,14 @@ export function ReportsClientPage() {
                     Status: e.status
                 };
                 MONTH_NAMES.forEach((m, idx) => {
-                    row[m] = e.monthlyData[idx].total;
+                    const monthVal = e.monthlyData[idx];
+                    row[`${m} - Faltas`] = monthVal.faltas;
+                    row[`${m} - Atestados`] = monthVal.atestados;
+                    row[`${m} - Total`] = monthVal.total;
                 });
-                row["Total Acumulado"] = e.totalOccurrences;
+                row["Total Faltas Ano"] = e.totalFaltas;
+                row["Total Atestados Ano"] = e.totalAtestados;
+                row["Total Acumulado Ano"] = e.totalOccurrences;
                 return row;
             });
             sheetName = "Faltas por Colaborador";
@@ -271,9 +295,11 @@ export function ReportsClientPage() {
                 };
                 MONTH_NAMES.forEach((m, idx) => {
                     const monthVal = c.monthlyData[idx];
-                    row[m] = `${monthVal.count} vagas (${monthVal.avgSla}d)`;
+                    row[`${m} - Vagas Fechadas`] = monthVal.count;
+                    row[`${m} - SLA Médio (Dias)`] = monthVal.avgSla;
                 });
-                row["Total Ano (SLA Médio)"] = `${c.totalClosed} vagas (${c.annualSla} dias)`;
+                row["Total Vagas Fechadas Ano"] = c.totalClosed;
+                row["SLA Médio Anual"] = `${c.annualSla} dias`;
                 return row;
             });
             sheetName = "R&S SLA Vagas";
