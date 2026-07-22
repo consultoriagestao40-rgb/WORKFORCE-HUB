@@ -17,6 +17,7 @@ export interface BenefitsCalculationItem {
     employeeCpf: string;
     postoName: string;
     clientName: string;
+    companyName: string;
     roleName: string;
     admissionDate: string;
     isNewHire: boolean;
@@ -247,6 +248,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
             }
         },
         include: {
+            company: true,
             role: true,
             assignments: {
                 where: { endDate: null },
@@ -427,6 +429,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
             employeeCpf: emp.cpf,
             postoName,
             clientName,
+            companyName: emp.company?.name || "Sem Empresa",
             roleName,
             admissionDate: admissionDateObj.toLocaleDateString('pt-BR'),
             isNewHire,

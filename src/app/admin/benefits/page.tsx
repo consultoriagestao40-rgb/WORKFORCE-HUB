@@ -47,6 +47,11 @@ export default function BenefitsPage() {
     const [filterOption, setFilterOption] = useState<"ALL" | "VT_ONLY" | "VA_ONLY" | "NON_VT" | "PAID" | "PENDING">("ALL");
     const [activeTab, setActiveTab] = useState<"BUY" | "ALERTS" | "CONFIG">("BUY");
 
+    const [selectedCompany, setSelectedCompany] = useState<string>("all");
+    const [selectedClient, setSelectedClient] = useState<string>("all");
+    const [groupedView, setGroupedView] = useState<"colaborador" | "empresa" | "contrato">("colaborador");
+    const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+
     // Config Modal State
     const [configModalOpen, setConfigModalOpen] = useState(false);
     const [configFormData, setConfigFormData] = useState({
@@ -575,6 +580,18 @@ export default function BenefitsPage() {
         });
     };
 
+    // Derivar empresas e clientes únicos dos itens
+    const uniqueCompanies = Array.from(new Set(items.map(item => item.companyName || "Sem Empresa"))).sort();
+    const uniqueClients = Array.from(new Set(items.map(item => item.clientName || "Sem Cliente"))).sort();
+
+    const toggleGroupExpand = (groupName: string) => {
+        setExpandedGroups(prev => 
+            prev.includes(groupName) 
+                ? prev.filter(g => g !== groupName) 
+                : [...prev, groupName]
+        );
+    };
+
     // Filter Items
     const filteredItems = items.filter(item => {
         const matchesSearch = 
@@ -585,6 +602,12 @@ export default function BenefitsPage() {
 
         if (!matchesSearch) return false;
 
+        const matchesCompany = selectedCompany === "all" || item.companyName === selectedCompany;
+        if (!matchesCompany) return false;
+
+        const matchesClient = selectedClient === "all" || item.clientName === selectedClient;
+        if (!matchesClient) return false;
+
         if (filterOption === "VT_ONLY") return item.vtOptIn && item.vtTotalValue > 0;
         if (filterOption === "VA_ONLY") return item.vaTotalValue > 0;
         if (filterOption === "NON_VT") return !item.vtOptIn;
@@ -593,6 +616,84 @@ export default function BenefitsPage() {
 
         return true;
     });
+
+    const getGroupedByCompany = () => {
+        const groups: { [key: string]: {
+            name: string;
+            employeesCount: number;
+            vtOptInCount: number;
+            occurrencesCount: number;
+            vtTotal: number;
+            vaTotal: number;
+            paidCount: number;
+            items: BenefitsCalculationItem[];
+        } } = {};
+
+        filteredItems.forEach(item => {
+            const key = item.companyName || "Sem Empresa";
+            if (!groups[key]) {
+                groups[key] = {
+                    name: key,
+                    employeesCount: 0,
+                    vtOptInCount: 0,
+                    occurrencesCount: 0,
+                    vtTotal: 0,
+                    vaTotal: 0,
+                    paidCount: 0,
+                    items: []
+                };
+            }
+            groups[key].employeesCount++;
+            if (item.vtOptIn) groups[key].vtOptInCount++;
+            groups[key].occurrencesCount += item.vtOccurrencesDeducted;
+            groups[key].vtTotal += item.vtTotalValue;
+            groups[key].vaTotal += item.vaTotalValue;
+            if (item.isPaid) groups[key].paidCount++;
+            groups[key].items.push(item);
+        });
+
+        return Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
+    };
+
+    const getGroupedByClient = () => {
+        const groups: { [key: string]: {
+            name: string;
+            companyName: string;
+            employeesCount: number;
+            vtOptInCount: number;
+            occurrencesCount: number;
+            vtTotal: number;
+            vaTotal: number;
+            paidCount: number;
+            items: BenefitsCalculationItem[];
+        } } = {};
+
+        filteredItems.forEach(item => {
+            const key = item.clientName || "Sem Cliente";
+            if (!groups[key]) {
+                groups[key] = {
+                    name: key,
+                    companyName: item.companyName || "Sem Empresa",
+                    employeesCount: 0,
+                    vtOptInCount: 0,
+                    occurrencesCount: 0,
+                    vtTotal: 0,
+                    vaTotal: 0,
+                    paidCount: 0,
+                    items: []
+                };
+            }
+            groups[key].employeesCount++;
+            if (item.vtOptIn) groups[key].vtOptInCount++;
+            groups[key].occurrencesCount += item.vtOccurrencesDeducted;
+            groups[key].vtTotal += item.vtTotalValue;
+            groups[key].vaTotal += item.vaTotalValue;
+            if (item.isPaid) groups[key].paidCount++;
+            groups[key].items.push(item);
+        });
+
+        return Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
+    };
 
     // Batch Selection Variables & Handlers
     const unpaidFilteredItems = (activeTab === "BUY" 
@@ -823,201 +924,607 @@ export default function BenefitsPage() {
             {activeTab === "BUY" && (
                 <div className="space-y-4">
                     {/* Filters & Search */}
-                    <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
-                        <div className="relative w-full md:w-96">
-                            <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-                            <Input
-                                placeholder="Buscar por nome, CPF, posto ou cliente..."
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="pl-9 text-xs rounded-xl bg-slate-50 border-slate-200"
-                            />
+                    <div className="flex flex-col gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
+                            <div className="relative w-full col-span-1">
+                                <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                                <Input
+                                    placeholder="Buscar por nome, CPF, posto..."
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                    className="pl-9 text-xs h-9 rounded-xl bg-slate-50 border-slate-200"
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-1 w-full col-span-1">
+                                <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+                                    <SelectTrigger className="w-full h-9 text-xs font-bold rounded-xl border-slate-200 bg-slate-50">
+                                        <SelectValue placeholder="Filtrar por Empresa" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todas as Empresas</SelectItem>
+                                        {uniqueCompanies.map(c => (
+                                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="flex flex-col gap-1 w-full col-span-1">
+                                <Select value={selectedClient} onValueChange={setSelectedClient}>
+                                    <SelectTrigger className="w-full h-9 text-xs font-bold rounded-xl border-slate-200 bg-slate-50">
+                                        <SelectValue placeholder="Filtrar por Contrato" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todos os Contratos</SelectItem>
+                                        {uniqueClients.map(c => (
+                                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="flex flex-col gap-1 w-full col-span-1">
+                                <Select value={filterOption} onValueChange={(val: any) => setFilterOption(val)}>
+                                    <SelectTrigger className="w-full h-9 text-xs font-bold rounded-xl border-slate-200 bg-slate-50">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="ALL">Todos os Benefícios</SelectItem>
+                                        <SelectItem value="PENDING">Pendente de Pagamento</SelectItem>
+                                        <SelectItem value="PAID">Já Pagos</SelectItem>
+                                        <SelectItem value="VT_ONLY">Apenas com VT &gt; R$0</SelectItem>
+                                        <SelectItem value="VA_ONLY">Apenas com VA &gt; R$0</SelectItem>
+                                        <SelectItem value="NON_VT">Não Optantes pelo VT</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
 
-                        <div className="flex items-center gap-3 w-full md:w-auto">
-                            <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Filtrar por:</span>
-                            <Select value={filterOption} onValueChange={(val: any) => setFilterOption(val)}>
-                                <SelectTrigger className="w-[220px] h-9 text-xs font-bold rounded-xl border-slate-200">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="ALL">Todos os Colaboradores</SelectItem>
-                                    <SelectItem value="PENDING">Apenas Pendentes de Pagamento</SelectItem>
-                                    <SelectItem value="PAID">Apenas Já Pagos</SelectItem>
-                                    <SelectItem value="VT_ONLY">Apenas com VT &gt; R$0</SelectItem>
-                                    <SelectItem value="VA_ONLY">Apenas com VA &gt; R$0</SelectItem>
-                                    <SelectItem value="NON_VT">Não Optantes pelo VT</SelectItem>
-                                </SelectContent>
-                            </Select>
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-t border-slate-100 pt-3 gap-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Visualização:</span>
+                                <div className="inline-flex p-0.5 bg-slate-100/80 rounded-xl border border-slate-200/50">
+                                    <button
+                                        onClick={() => setGroupedView("colaborador")}
+                                        className={`px-3 py-1 text-[10px] font-black uppercase rounded-lg transition-all cursor-pointer ${
+                                            groupedView === "colaborador" ? "bg-white text-orange-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                                        }`}
+                                    >
+                                        Por Colaborador
+                                    </button>
+                                    <button
+                                        onClick={() => setGroupedView("empresa")}
+                                        className={`px-3 py-1 text-[10px] font-black uppercase rounded-lg transition-all cursor-pointer ${
+                                            groupedView === "empresa" ? "bg-white text-orange-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                                        }`}
+                                    >
+                                        Por Empresa
+                                    </button>
+                                    <button
+                                        onClick={() => setGroupedView("contrato")}
+                                        className={`px-3 py-1 text-[10px] font-black uppercase rounded-lg transition-all cursor-pointer ${
+                                            groupedView === "contrato" ? "bg-white text-orange-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                                        }`}
+                                    >
+                                        Por Contrato
+                                    </button>
+                                </div>
+                            </div>
+
+                            {selectedEmployeeIds.length > 0 && (
+                                <div className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-lg">
+                                    {selectedEmployeeIds.length} selecionado(s) para pagamento em lote
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    {/* Table */}
-                    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-black text-slate-500 uppercase tracking-wider">
-                                        <th className="py-4 px-4 w-10 text-center">
-                                            <input 
-                                                type="checkbox"
-                                                checked={isAllSelected}
-                                                ref={el => {
-                                                    if (el) {
-                                                        el.indeterminate = isSomeSelected;
-                                                    }
-                                                }}
-                                                onChange={handleSelectAllToggle}
-                                                className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
-                                            />
-                                        </th>
-                                        <th className="py-4 px-4">Colaborador / CPF</th>
-                                        <th className="py-4 px-4">Posto &amp; Cliente</th>
-                                        <th className="py-4 px-4">Optante VT?</th>
-                                        <th className="py-4 px-4 text-center">Faltas / Ocorrências</th>
-                                        <th className="py-4 px-4 text-right">VT a Comprar</th>
-                                        <th className="py-4 px-4">Destino VT</th>
-                                        <th className="py-4 px-4 text-right">VA a Comprar</th>
-                                        <th className="py-4 px-4">Destino VA</th>
-                                        <th className="py-4 px-4 text-center">Status / Ação</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 text-xs">
-                                    {isLoading ? (
-                                        <tr>
-                                            <td colSpan={10} className="text-center py-12 text-slate-400 font-medium">
-                                                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-orange-500" />
-                                                Calculando benefícios do mês...
-                                            </td>
+                    {groupedView === "colaborador" ? (
+                        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-black text-slate-500 uppercase tracking-wider">
+                                            <th className="py-4 px-4 w-10 text-center">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={isAllSelected}
+                                                    ref={el => {
+                                                        if (el) {
+                                                            el.indeterminate = isSomeSelected;
+                                                        }
+                                                    }}
+                                                    onChange={handleSelectAllToggle}
+                                                    className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
+                                                />
+                                            </th>
+                                            <th className="py-4 px-4">Colaborador / CPF</th>
+                                            <th className="py-4 px-4">Posto &amp; Cliente</th>
+                                            <th className="py-4 px-4">Optante VT?</th>
+                                            <th className="py-4 px-4 text-center">Faltas / Ocorrências</th>
+                                            <th className="py-4 px-4 text-right">VT a Comprar</th>
+                                            <th className="py-4 px-4">Destino VT</th>
+                                            <th className="py-4 px-4 text-right">VA a Comprar</th>
+                                            <th className="py-4 px-4">Destino VA</th>
+                                            <th className="py-4 px-4 text-center">Status / Ação</th>
                                         </tr>
-                                    ) : filteredItems.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={10} className="text-center py-12 text-slate-400 font-medium">
-                                                Nenhum colaborador encontrado com os filtros aplicados.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        filteredItems.map(item => (
-                                            <tr key={item.employeeId} className={`hover:bg-slate-50/60 transition-colors ${selectedEmployeeIds.includes(item.employeeId) ? 'bg-orange-50/20' : ''}`}>
-                                                <td className="py-3.5 px-4 text-center">
-                                                    <input 
-                                                        type="checkbox" 
-                                                        checked={selectedEmployeeIds.includes(item.employeeId)}
-                                                        onChange={() => handleSelectItemToggle(item.employeeId)}
-                                                        disabled={item.isPaid}
-                                                        className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                                                    />
-                                                </td>
-                                                <td className="py-3.5 px-4 font-bold text-slate-900">
-                                                    <div>{item.employeeName}</div>
-                                                    <div className="text-[10px] font-mono text-slate-400">{item.employeeCpf}</div>
-                                                </td>
-
-                                                <td className="py-3.5 px-4">
-                                                    <div className="font-semibold text-slate-800">{item.postoName}</div>
-                                                    <div className="text-[10px] text-slate-400 font-medium">{item.clientName}</div>
-                                                </td>
-
-                                                <td className="py-3.5 px-4">
-                                                    {item.vtOptIn ? (
-                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-700">
-                                                            <CheckCircle2 className="w-3 h-3 mr-1" /> Sim (Optante)
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500">
-                                                            <XCircle className="w-3 h-3 mr-1" /> Não Optante
-                                                        </span>
-                                                    )}
-                                                </td>
-
-                                                {/* Ocorrências com Popover detalhado */}
-                                                <td className="py-3.5 px-4 text-center">
-                                                    {item.vtOccurrencesDeducted > 0 ? (
-                                                        <Popover>
-                                                            <PopoverTrigger asChild>
-                                                                <button className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-red-100 text-red-700 hover:bg-red-200 transition-colors cursor-pointer gap-1">
-                                                                    <AlertCircle className="w-3 h-3 text-red-600" />
-                                                                    -{item.vtOccurrencesDeducted} dia(s) <Info className="w-3 h-3 ml-0.5 opacity-60" />
-                                                                </button>
-                                                            </PopoverTrigger>
-                                                            <PopoverContent className="w-72 p-3 text-xs space-y-2">
-                                                                <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">
-                                                                    Faltas / Atestados na Janela (26-25)
-                                                                </div>
-                                                                <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                                                                    {item.occurrencesList.map(occ => (
-                                                                        <div key={occ.id} className="p-2 bg-slate-50 rounded-xl border border-slate-200/60 text-[11px] space-y-1">
-                                                                            <div className="font-bold text-red-600 flex justify-between">
-                                                                                <span>{occ.type}</span>
-                                                                                <span>{occ.date}</span>
-                                                                            </div>
-                                                                            {occ.notes && <div className="text-[10px] text-slate-500 italic">{occ.notes}</div>}
-                                                                            <div className="flex justify-between pt-1.5 border-t border-dashed border-slate-200 text-[9px] text-slate-500 font-bold">
-                                                                                <span>Desc. VT: -R$ {item.vtDailyValue.toFixed(2)}</span>
-                                                                                <span>Desc. VA: -R$ {(item.vaBaseValue / 30).toFixed(2)}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </PopoverContent>
-                                                        </Popover>
-                                                    ) : (
-                                                        <span className="text-emerald-600 font-semibold text-[11px] flex items-center justify-center gap-1">
-                                                            <Check className="w-3 h-3" /> Nenhuma
-                                                        </span>
-                                                    )}
-                                                </td>
-
-                                                <td className="py-3.5 px-4 text-right font-black text-indigo-700">
-                                                    {item.vtOptIn ? `R$ ${item.vtTotalValue.toFixed(2)}` : "R$ 0,00"}
-                                                </td>
-
-                                                <td className="py-3.5 px-4">
-                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                                                        {item.vtDestination}
-                                                    </span>
-                                                </td>
-
-                                                <td className="py-3.5 px-4 text-right font-black text-orange-600">
-                                                    R$ {item.vaTotalValue.toFixed(2)}
-                                                </td>
-
-                                                <td className="py-3.5 px-4">
-                                                    <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200/60">
-                                                        {item.vaDestination}
-                                                    </span>
-                                                </td>
-
-                                                {/* Status / Ação de Pagamento */}
-                                                <td className="py-3.5 px-4 text-center">
-                                                    {item.isPaid ? (
-                                                        <div className="space-y-0.5">
-                                                            <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                                                <CheckCircle2 className="w-3 h-3 mr-1" /> PAGO
-                                                            </span>
-                                                            <div className="text-[9px] text-slate-400 font-medium">{item.paidAt}</div>
-                                                        </div>
-                                                    ) : (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => {
-                                                                setSelectedItemForPayment(item);
-                                                                setPaymentModalOpen(true);
-                                                            }}
-                                                            className="text-[10px] font-bold h-7 px-3 rounded-xl border-orange-300 text-orange-600 hover:bg-orange-50 hover:border-orange-400"
-                                                        >
-                                                            Marcar como Pago
-                                                        </Button>
-                                                    )}
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 text-xs">
+                                        {isLoading ? (
+                                            <tr>
+                                                <td colSpan={10} className="text-center py-12 text-slate-400 font-medium">
+                                                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-orange-500" />
+                                                    Calculando benefícios do mês...
                                                 </td>
                                             </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
+                                        ) : filteredItems.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={10} className="text-center py-12 text-slate-400 font-medium">
+                                                    Nenhum colaborador encontrado com os filtros aplicados.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            filteredItems.map(item => (
+                                                <tr key={item.employeeId} className={`hover:bg-slate-50/60 transition-colors ${selectedEmployeeIds.includes(item.employeeId) ? 'bg-orange-50/20' : ''}`}>
+                                                    <td className="py-3.5 px-4 text-center">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={selectedEmployeeIds.includes(item.employeeId)}
+                                                            onChange={() => handleSelectItemToggle(item.employeeId)}
+                                                            disabled={item.isPaid}
+                                                            className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                                        />
+                                                    </td>
+                                                    <td className="py-3.5 px-4 font-bold text-slate-900">
+                                                        <div>{item.employeeName}</div>
+                                                        <div className="text-[10px] font-mono text-slate-400">{item.employeeCpf}</div>
+                                                    </td>
+
+                                                    <td className="py-3.5 px-4">
+                                                        <div className="font-semibold text-slate-800">{item.postoName}</div>
+                                                        <div className="text-[10px] text-slate-400 font-medium">{item.clientName}</div>
+                                                    </td>
+
+                                                    <td className="py-3.5 px-4">
+                                                        {item.vtOptIn ? (
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-700">
+                                                                <CheckCircle2 className="w-3 h-3 mr-1" /> Sim (Optante)
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-500">
+                                                                <XCircle className="w-3 h-3 mr-1" /> Não Optante
+                                                            </span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Ocorrências com Popover detalhado */}
+                                                    <td className="py-3.5 px-4 text-center">
+                                                        {item.vtOccurrencesDeducted > 0 ? (
+                                                            <Popover>
+                                                                <PopoverTrigger asChild>
+                                                                    <button className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-red-100 text-red-700 hover:bg-red-200 transition-colors cursor-pointer gap-1">
+                                                                        <AlertCircle className="w-3 h-3 text-red-600" />
+                                                                        -{item.vtOccurrencesDeducted} dia(s) <Info className="w-3 h-3 ml-0.5 opacity-60" />
+                                                                    </button>
+                                                                </PopoverTrigger>
+                                                                <PopoverContent className="w-72 p-3 text-xs space-y-2">
+                                                                    <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">
+                                                                        Faltas / Atestados na Janela (26-25)
+                                                                    </div>
+                                                                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                                                        {item.occurrencesList.map(occ => (
+                                                                            <div key={occ.id} className="p-2 bg-slate-50 rounded-xl border border-slate-200/60 text-[11px] space-y-1">
+                                                                                <div className="font-bold text-red-600 flex justify-between">
+                                                                                    <span>{occ.type}</span>
+                                                                                    <span>{occ.date}</span>
+                                                                                </div>
+                                                                                {occ.notes && (
+                                                                                    <div className="text-slate-500 italic text-[10px]">
+                                                                                        Obs: {occ.notes}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </PopoverContent>
+                                                            </Popover>
+                                                        ) : (
+                                                            <span className="text-slate-400">Nenhuma</span>
+                                                        )}
+                                                    </td>
+
+                                                    <td className="py-3.5 px-4 text-right font-black text-indigo-700">
+                                                        R$ {item.vtTotalValue.toFixed(2)}
+                                                    </td>
+
+                                                    <td className="py-3.5 px-4">
+                                                        <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                                                            {item.vtDestination}
+                                                        </span>
+                                                    </td>
+
+                                                    <td className="py-3.5 px-4 text-right font-black text-orange-600">
+                                                        R$ {item.vaTotalValue.toFixed(2)}
+                                                    </td>
+
+                                                    <td className="py-3.5 px-4">
+                                                        <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200/60">
+                                                            {item.vaDestination}
+                                                        </span>
+                                                    </td>
+
+                                                    {/* Status / Ação de Pagamento */}
+                                                    <td className="py-3.5 px-4 text-center">
+                                                        {item.isPaid ? (
+                                                            <div className="space-y-0.5">
+                                                                <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                                                    <CheckCircle2 className="w-3 h-3 mr-1" /> PAGO
+                                                                </span>
+                                                                <div className="text-[9px] text-slate-400 font-medium">{item.paidAt}</div>
+                                                            </div>
+                                                        ) : (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => {
+                                                                    setSelectedItemForPayment(item);
+                                                                    setPaymentModalOpen(true);
+                                                                }}
+                                                                className="text-[10px] font-bold h-7 px-3 rounded-xl border-orange-300 text-orange-600 hover:bg-orange-50 hover:border-orange-400"
+                                                            >
+                                                                Marcar como Pago
+                                                            </Button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                    </div>
+                    ) : groupedView === "empresa" ? (
+                        <div className="space-y-3">
+                            {isLoading ? (
+                                <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center text-slate-400 font-medium shadow-sm">
+                                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-orange-500" />
+                                    Calculando benefícios do mês...
+                                </div>
+                            ) : getGroupedByCompany().length === 0 ? (
+                                <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center text-slate-400 font-medium shadow-sm">
+                                    Nenhuma empresa encontrada com os filtros aplicados.
+                                </div>
+                            ) : (
+                                getGroupedByCompany().map(group => {
+                                    const isExpanded = expandedGroups.includes(group.name);
+                                    const groupTotal = group.vtTotal + group.vaTotal;
+                                    return (
+                                        <div key={group.name} className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                                            {/* Group Header Row */}
+                                            <div 
+                                                onClick={() => toggleGroupExpand(group.name)}
+                                                className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer select-none border-b border-slate-100"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`transform transition-transform text-slate-400 font-bold text-xs ${isExpanded ? 'rotate-90' : ''}`}>
+                                                        ▶
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-extrabold text-sm text-slate-800">{group.name}</h4>
+                                                        <p className="text-[10px] text-slate-400 font-medium">
+                                                            {group.employeesCount} colaboradores ({group.vtOptInCount} optantes VT) • {group.paidCount} de {group.employeesCount} pagos
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center gap-6 mt-3 sm:mt-0 text-xs">
+                                                    <div className="text-right">
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Faltas no Grupo</span>
+                                                        <span className="font-bold text-slate-700">{group.occurrencesCount} dia(s)</span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Total VT</span>
+                                                        <span className="font-extrabold text-slate-850">R$ {group.vtTotal.toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Total VA</span>
+                                                        <span className="font-extrabold text-slate-850">R$ {group.vaTotal.toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="text-right bg-orange-50 px-3 py-1.5 rounded-xl border border-orange-200/40">
+                                                        <span className="text-[9px] font-black text-orange-500 uppercase tracking-wider block">Total Geral</span>
+                                                        <span className="font-black text-orange-600 text-sm">R$ {groupTotal.toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Expanded Collaborators Table */}
+                                            {isExpanded && (
+                                                <div className="overflow-x-auto border-t border-slate-100">
+                                                    <table className="w-full text-left border-collapse text-xs">
+                                                        <thead>
+                                                            <tr className="bg-slate-50/30 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                                                <th className="py-3 px-4 w-10 text-center">
+                                                                    <input 
+                                                                        type="checkbox"
+                                                                        checked={group.items.filter(i => !i.isPaid).every(i => selectedEmployeeIds.includes(i.employeeId)) && group.items.filter(i => !i.isPaid).length > 0}
+                                                                        onChange={() => {
+                                                                            const unpaidIds = group.items.filter(i => !i.isPaid).map(i => i.employeeId);
+                                                                            const allSelectedInGroup = unpaidIds.every(id => selectedEmployeeIds.includes(id));
+                                                                            if (allSelectedInGroup) {
+                                                                                setSelectedEmployeeIds(prev => prev.filter(id => !unpaidIds.includes(id)));
+                                                                            } else {
+                                                                                setSelectedEmployeeIds(prev => Array.from(new Set([...prev, ...unpaidIds])));
+                                                                            }
+                                                                        }}
+                                                                        className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
+                                                                    />
+                                                                </th>
+                                                                <th className="py-3 px-4">Colaborador</th>
+                                                                <th className="py-3 px-4">Posto &amp; Cliente</th>
+                                                                <th className="py-3 px-4">Optante VT?</th>
+                                                                <th className="py-3 px-4 text-center">Faltas</th>
+                                                                <th className="py-3 px-4 text-right">VT a Comprar</th>
+                                                                <th className="py-3 px-4">Destino VT</th>
+                                                                <th className="py-3 px-4 text-right">VA a Comprar</th>
+                                                                <th className="py-3 px-4">Destino VA</th>
+                                                                <th className="py-3 px-4 text-center">Status / Ação</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100">
+                                                            {group.items.map(item => (
+                                                                <tr key={item.employeeId} className={`hover:bg-slate-50/60 transition-colors ${selectedEmployeeIds.includes(item.employeeId) ? 'bg-orange-50/20' : ''}`}>
+                                                                    <td className="py-3 px-4 text-center">
+                                                                        <input 
+                                                                            type="checkbox" 
+                                                                            checked={selectedEmployeeIds.includes(item.employeeId)}
+                                                                            onChange={() => handleSelectItemToggle(item.employeeId)}
+                                                                            disabled={item.isPaid}
+                                                                            className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="py-3 px-4 font-bold text-slate-900">
+                                                                        <div>{item.employeeName}</div>
+                                                                        <div className="text-[9px] font-mono text-slate-400">{item.employeeCpf}</div>
+                                                                    </td>
+                                                                    <td className="py-3 px-4">
+                                                                        <div className="font-semibold text-slate-800">{item.postoName}</div>
+                                                                        <div className="text-[9px] text-slate-400 font-medium">{item.clientName}</div>
+                                                                    </td>
+                                                                    <td className="py-3 px-4">
+                                                                        {item.vtOptIn ? (
+                                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-emerald-50 text-emerald-700">
+                                                                                Sim
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-slate-50 text-slate-500">
+                                                                                Não
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-center font-bold text-slate-700">
+                                                                        {item.vtOccurrencesDeducted > 0 ? (
+                                                                            <span className="text-red-600 bg-red-50 px-1.5 py-0.5 rounded-md">
+                                                                                -{item.vtOccurrencesDeducted}d
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="text-slate-400">-</span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-right font-black text-slate-800">
+                                                                        R$ {item.vtTotalValue.toFixed(2)}
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-slate-600 truncate max-w-[120px]">
+                                                                        {item.vtDestination}
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-right font-black text-slate-800">
+                                                                        R$ {item.vaTotalValue.toFixed(2)}
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-slate-600 truncate max-w-[120px]">
+                                                                        {item.vaDestination}
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-center">
+                                                                        {item.isPaid ? (
+                                                                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black">
+                                                                                PAGO
+                                                                            </span>
+                                                                        ) : (
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setSelectedItemForPayment(item);
+                                                                                    setPaymentModalOpen(true);
+                                                                                }}
+                                                                                className="text-[9px] font-bold h-6 px-2 rounded border-orange-300 text-orange-600 hover:bg-orange-50"
+                                                                            >
+                                                                                Marcar Pago
+                                                                            </Button>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {isLoading ? (
+                                <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center text-slate-400 font-medium shadow-sm">
+                                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-orange-500" />
+                                    Calculando benefícios do mês...
+                                </div>
+                            ) : getGroupedByClient().length === 0 ? (
+                                <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center text-slate-400 font-medium shadow-sm">
+                                    Nenhum contrato encontrado com os filtros aplicados.
+                                </div>
+                            ) : (
+                                getGroupedByClient().map(group => {
+                                    const isExpanded = expandedGroups.includes(group.name);
+                                    const groupTotal = group.vtTotal + group.vaTotal;
+                                    return (
+                                        <div key={group.name} className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                                            {/* Group Header Row */}
+                                            <div 
+                                                onClick={() => toggleGroupExpand(group.name)}
+                                                className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer select-none border-b border-slate-100"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`transform transition-transform text-slate-400 font-bold text-xs ${isExpanded ? 'rotate-90' : ''}`}>
+                                                        ▶
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-extrabold text-sm text-slate-800">{group.name}</h4>
+                                                        <p className="text-[10px] text-slate-400 font-medium">
+                                                            Empresa: {group.companyName} • {group.employeesCount} colaboradores • {group.paidCount} de {group.employeesCount} pagos
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center gap-6 mt-3 sm:mt-0 text-xs">
+                                                    <div className="text-right">
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Faltas no Contrato</span>
+                                                        <span className="font-bold text-slate-700">{group.occurrencesCount} dia(s)</span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Total VT</span>
+                                                        <span className="font-extrabold text-slate-850">R$ {group.vtTotal.toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Total VA</span>
+                                                        <span className="font-extrabold text-slate-850">R$ {group.vaTotal.toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="text-right bg-orange-50 px-3 py-1.5 rounded-xl border border-orange-200/40">
+                                                        <span className="text-[9px] font-black text-orange-500 uppercase tracking-wider block">Total Geral</span>
+                                                        <span className="font-black text-orange-600 text-sm">R$ {groupTotal.toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Expanded Collaborators Table */}
+                                            {isExpanded && (
+                                                <div className="overflow-x-auto border-t border-slate-100">
+                                                    <table className="w-full text-left border-collapse text-xs">
+                                                        <thead>
+                                                            <tr className="bg-slate-50/30 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                                                <th className="py-3 px-4 w-10 text-center">
+                                                                    <input 
+                                                                        type="checkbox"
+                                                                        checked={group.items.filter(i => !i.isPaid).every(i => selectedEmployeeIds.includes(i.employeeId)) && group.items.filter(i => !i.isPaid).length > 0}
+                                                                        onChange={() => {
+                                                                            const unpaidIds = group.items.filter(i => !i.isPaid).map(i => i.employeeId);
+                                                                            const allSelectedInGroup = unpaidIds.every(id => selectedEmployeeIds.includes(id));
+                                                                            if (allSelectedInGroup) {
+                                                                                setSelectedEmployeeIds(prev => prev.filter(id => !unpaidIds.includes(id)));
+                                                                            } else {
+                                                                                setSelectedEmployeeIds(prev => Array.from(new Set([...prev, ...unpaidIds])));
+                                                                            }
+                                                                        }}
+                                                                        className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
+                                                                    />
+                                                                </th>
+                                                                <th className="py-3 px-4">Colaborador</th>
+                                                                <th className="py-3 px-4">Posto &amp; Cliente</th>
+                                                                <th className="py-3 px-4">Optante VT?</th>
+                                                                <th className="py-3 px-4 text-center">Faltas</th>
+                                                                <th className="py-3 px-4 text-right">VT a Comprar</th>
+                                                                <th className="py-3 px-4">Destino VT</th>
+                                                                <th className="py-3 px-4 text-right">VA a Comprar</th>
+                                                                <th className="py-3 px-4">Destino VA</th>
+                                                                <th className="py-3 px-4 text-center">Status / Ação</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100">
+                                                            {group.items.map(item => (
+                                                                <tr key={item.employeeId} className={`hover:bg-slate-50/60 transition-colors ${selectedEmployeeIds.includes(item.employeeId) ? 'bg-orange-50/20' : ''}`}>
+                                                                    <td className="py-3 px-4 text-center">
+                                                                        <input 
+                                                                            type="checkbox" 
+                                                                            checked={selectedEmployeeIds.includes(item.employeeId)}
+                                                                            onChange={() => handleSelectItemToggle(item.employeeId)}
+                                                                            disabled={item.isPaid}
+                                                                            className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="py-3 px-4 font-bold text-slate-900">
+                                                                        <div>{item.employeeName}</div>
+                                                                        <div className="text-[9px] font-mono text-slate-400">{item.employeeCpf}</div>
+                                                                    </td>
+                                                                    <td className="py-3 px-4">
+                                                                        <div className="font-semibold text-slate-800">{item.postoName}</div>
+                                                                        <div className="text-[9px] text-slate-400 font-medium">{item.clientName}</div>
+                                                                    </td>
+                                                                    <td className="py-3 px-4">
+                                                                        {item.vtOptIn ? (
+                                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-emerald-50 text-emerald-700">
+                                                                                Sim
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-slate-50 text-slate-500">
+                                                                                Não
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-center font-bold text-slate-700">
+                                                                        {item.vtOccurrencesDeducted > 0 ? (
+                                                                            <span className="text-red-600 bg-red-50 px-1.5 py-0.5 rounded-md">
+                                                                                -{item.vtOccurrencesDeducted}d
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="text-slate-400">-</span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-right font-black text-slate-800">
+                                                                        R$ {item.vtTotalValue.toFixed(2)}
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-slate-600 truncate max-w-[120px]">
+                                                                        {item.vtDestination}
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-right font-black text-slate-800">
+                                                                        R$ {item.vaTotalValue.toFixed(2)}
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-slate-600 truncate max-w-[120px]">
+                                                                        {item.vaDestination}
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-center">
+                                                                        {item.isPaid ? (
+                                                                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black">
+                                                                                PAGO
+                                                                            </span>
+                                                                        ) : (
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setSelectedItemForPayment(item);
+                                                                                    setPaymentModalOpen(true);
+                                                                                }}
+                                                                                className="text-[9px] font-bold h-6 px-2 rounded border-orange-300 text-orange-600 hover:bg-orange-50"
+                                                                            >
+                                                                                Marcar Pago
+                                                                            </Button>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
 
