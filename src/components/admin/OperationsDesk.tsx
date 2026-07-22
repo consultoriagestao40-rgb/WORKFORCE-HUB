@@ -101,10 +101,12 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
     const [openDetailsDialog, setOpenDetailsDialog] = useState<boolean>(false);
     const [detailsTitle, setDetailsTitle] = useState<string>("");
     const [detailsItems, setDetailsItems] = useState<AttendanceItem[]>([]);
+    const [detailsType, setDetailsType] = useState<string>("");
 
-    const handleOpenDetails = (type: "ATRASADOS" | "COBERTURAS" | "GLOSAS") => {
+    const handleOpenDetails = (type: "ATRASADOS" | "COBERTURAS" | "GLOSAS" | "COBERTURA_INDEX" | "MANUAL_INDEX") => {
         let title = "";
         let filtered: AttendanceItem[] = [];
+        setDetailsType(type);
 
         if (type === "ATRASADOS") {
             title = "Postos Atrasados / Pendentes";
@@ -123,6 +125,12 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                 item.attendance.coverageType !== "DIARISTA" && 
                 item.attendance.coverageType !== "RESERVA_TECNICA"
             );
+        } else if (type === "COBERTURA_INDEX") {
+            title = "Índice de Cobertura - Detalhamento das Ausências";
+            filtered = items.filter(item => item.attendance.status === "FALTA");
+        } else if (type === "MANUAL_INDEX") {
+            title = "Apontamentos Confirmados Manualmente";
+            filtered = items.filter(item => item.attendance.status === "PRESENTE_MANUAL");
         }
 
         setDetailsTitle(title);
@@ -277,10 +285,16 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
         let coverages = 0;
         let glosasValue = 0;
         let diaristasCostValue = 0;
+        let presentesPonto = 0;
+        let presentesManual = 0;
 
         items.forEach(item => {
             const att = item.attendance;
-            if (att.status === "PRESENTE_PONTO" || att.status === "PRESENTE_MANUAL") {
+            if (att.status === "PRESENTE_PONTO") {
+                presentesPonto++;
+                confirmed++;
+            } else if (att.status === "PRESENTE_MANUAL") {
+                presentesManual++;
                 confirmed++;
             } else if (att.status === "FALTA") {
                 if (att.coveredBy || att.coverageType) {
@@ -299,7 +313,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
             }
         });
 
-        return { total, confirmed, lates, absences, coverages, glosasValue, diaristasCostValue };
+        return { total, confirmed, lates, absences, coverages, glosasValue, diaristasCostValue, presentesPonto, presentesManual };
     }, [items]);
 
     // Handle Manual Presence Confirm
@@ -503,6 +517,83 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
         XLSX.writeFile(wb, `Mesa_Operacoes_${date}.xlsx`);
     };
 
+    const handleExportDetails = () => {
+        if (detailsItems.length === 0) return;
+        
+        let filename = `relatorio-detalhe-${detailsType.toLowerCase()}-${date}.xlsx`;
+        let sheetName = "Relatório";
+        
+        let exportData: any[] = [];
+        
+        if (detailsType === "COBERTURA_INDEX") {
+            filename = `indice-cobertura-diaria-${date}.xlsx`;
+            sheetName = "Coberturas";
+            exportData = detailsItems.map(item => {
+                const att = item.attendance;
+                const isCovered = att.coveredBy || att.coverageType;
+                return {
+                    Data: format(new Date(date + "T12:00:00"), "dd/MM/yyyy"),
+                    Cliente: item.clientName,
+                    Cargo: item.role,
+                    Horário: `${item.startTime} - ${item.endTime}`,
+                    Escala: item.schedule,
+                    Titular: item.employee?.name || "Vaga Sem Titular",
+                    Status: isCovered ? "Coberto" : "Sem Cobertura (Glosa)",
+                    Cobertura: att.coveredBy?.name || (att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Nenhuma"),
+                    Observação: att.notes || ""
+                };
+            });
+        } else if (detailsType === "MANUAL_INDEX") {
+            filename = `apontamentos-manuais-${date}.xlsx`;
+            sheetName = "Presença Manual";
+            exportData = detailsItems.map(item => {
+                const att = item.attendance;
+                return {
+                    Data: format(new Date(date + "T12:00:00"), "dd/MM/yyyy"),
+                    Cliente: item.clientName,
+                    Cargo: item.role,
+                    Horário: `${item.startTime} - ${item.endTime}`,
+                    Escala: item.schedule,
+                    Colaborador: item.employee?.name || "Não informado",
+                    Status: "Confirmado Manualmente",
+                    HorárioEntrada: att.clockInTime || item.startTime,
+                    Observação: att.notes || ""
+                };
+            });
+        } else {
+            // Outros tipos genéricos de exportação
+            exportData = detailsItems.map((item, index) => {
+                const att = item.attendance;
+                return {
+                    Nº: index + 1,
+                    Cliente: item.clientName,
+                    Cargo: item.role,
+                    Horário: `${item.startTime} - ${item.endTime}`,
+                    Escala: item.schedule,
+                    Titular: item.employee?.name || "Vaga Sem Titular",
+                    Status: att.status,
+                    Observação: att.notes || ""
+                };
+            });
+        }
+        
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        
+        // Auto-fit colunas
+        const colWidths = Object.keys(exportData[0]).map(key => ({
+            wch: Math.max(
+                key.length + 3,
+                ...exportData.map(row => String(row[key as keyof typeof row] || '').length + 2)
+            )
+        }));
+        ws['!cols'] = colWidths;
+        
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        XLSX.writeFile(wb, filename);
+        toast.success("Planilha exportada com sucesso!");
+    };
+
     // Filtered clients list based on selected company
     const filteredClients = React.useMemo(() => {
         if (companyFilter === "all") return clients;
@@ -590,7 +681,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
             {activeTab === "mesa" ? (
                 <>
                     {/* Metrics Dashboard Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
                 <Card className="border-none shadow-premium bg-gradient-to-br from-indigo-900 to-slate-950 text-white p-3.5 flex flex-col justify-between h-[110px] select-none">
                     <div>
                         <p className="text-[9px] font-black uppercase tracking-widest text-indigo-200/70">Total de Postos Ativos</p>
@@ -646,6 +737,36 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                         <span>Perda de Fat.:</span>
                         <span>{metrics.glosasValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
                     </div>
+                </Card>
+
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[110px] select-none" onClick={() => handleOpenDetails("COBERTURA_INDEX")}>
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Índice de Cobertura</p>
+                            <p className="text-2xl font-black mt-0.5 text-indigo-600">
+                                { (metrics.absences + metrics.coverages) > 0 ? ((metrics.coverages / (metrics.absences + metrics.coverages)) * 100).toFixed(1) : "100.0" }%
+                            </p>
+                        </div>
+                        <UserCheck className="w-5 h-5 text-indigo-500 bg-indigo-50 p-0.5 rounded" />
+                    </div>
+                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                        ({metrics.coverages} de {metrics.absences + metrics.coverages} cobertas)
+                    </p>
+                </Card>
+
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[110px] select-none" onClick={() => handleOpenDetails("MANUAL_INDEX")}>
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Confirmado Manual</p>
+                            <p className="text-2xl font-black mt-0.5 text-slate-750">
+                                { (metrics.confirmed > 0 ? (metrics.presentesManual / metrics.confirmed) * 100 : 0).toFixed(1) }%
+                            </p>
+                        </div>
+                        <Edit className="w-5 h-5 text-slate-500 bg-slate-50 p-0.5 rounded" />
+                    </div>
+                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                        ({metrics.presentesManual} de {metrics.confirmed} manual)
+                    </p>
                 </Card>
             </div>
 
@@ -1504,8 +1625,17 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                         </div>
                     </ScrollArea>
                     
-                    <DialogFooter className="p-4 bg-slate-50 border-t border-slate-100">
-                        <Button variant="outline" onClick={() => setOpenDetailsDialog(false)} className="text-xs h-10 border border-slate-200">
+                    <DialogFooter className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                        {detailsItems.length > 0 && (
+                            <Button 
+                                variant="outline" 
+                                onClick={handleExportDetails} 
+                                className="text-xs h-10 border border-slate-200 bg-white gap-1.5 font-bold text-slate-700 cursor-pointer hover:bg-slate-50"
+                            >
+                                <Download className="w-3.5 h-3.5" /> Exportar Planilha
+                            </Button>
+                        )}
+                        <Button variant="outline" onClick={() => setOpenDetailsDialog(false)} className="text-xs h-10 border border-slate-200 bg-white cursor-pointer hover:bg-slate-50">
                             Fechar
                         </Button>
                     </DialogFooter>

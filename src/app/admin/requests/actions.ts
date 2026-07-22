@@ -1569,6 +1569,7 @@ export async function getConsolidatedPerformanceData(year: number, month: number
             let clientTotalFaultas = 0;
             let clientTotalCobertas = 0;
             const clientUncoveredDetails: any[] = [];
+            const clientCoveredDetails: any[] = [];
 
             daysInMonth.forEach((dayDate: Date) => {
                 const dayDateStr = dayDate.toISOString().split("T")[0];
@@ -1608,6 +1609,19 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                                 
                                 if (isCovered) {
                                     clientTotalCobertas++;
+                                    const occ = occurrenceMap.get(`${posto.id}-${dayDateStr}`);
+                                    clientCoveredDetails.push({
+                                        date: dayDateStr,
+                                        clientName: client.name,
+                                        postoRole: posto.role?.name || "Posto",
+                                        schedule: posto.schedule,
+                                        time: `${posto.startTime} - ${posto.endTime}`,
+                                        type: occ?.type || "FALTA",
+                                        employeeName: att.employee?.name || "Não informado",
+                                        coveredByName: att.coveredBy?.name || (att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outro Colaborador"),
+                                        coverageType: att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outra Cobertura",
+                                        notes: att.notes || occ?.description || "Cobertura realizada."
+                                    });
                                 } else {
                                     adminVacantShifts++;
                                     const occ = occurrenceMap.get(`${posto.id}-${dayDateStr}`);
@@ -1731,6 +1745,7 @@ export async function getConsolidatedPerformanceData(year: number, month: number
                 vacantPostosDetails,
                 uncoveredShiftsCount: clientUncoveredDetails.length,
                 uncoveredShiftsDetails: clientUncoveredDetails,
+                coveredShiftsDetails: clientCoveredDetails,
                 totalFaultas: clientTotalFaultas,
                 totalCobertas: clientTotalCobertas,
                 recentRequests: clientReqs.map((r: any) => ({
@@ -1875,6 +1890,9 @@ export async function getConsolidatedPerformanceData(year: number, month: number
             groupNpsCount,
             uncoveredShiftsCount: clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + (c.uncoveredShiftsCount || 0), 0),
             uncoveredShiftsList: clientsWithABCAndVisits.flatMap((c: any) => c.uncoveredShiftsDetails || []),
+            coveredShiftsList: clientsWithABCAndVisits.flatMap((c: any) => c.coveredShiftsDetails || []),
+            totalFaultasCombined: clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + (c.totalFaultas || 0), 0),
+            totalCobertasCombined: clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + (c.totalCobertas || 0), 0),
             groupCoverageIndex: (() => {
                 const totalFaultasCombined = clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + (c.totalFaultas || 0), 0);
                 const totalCobertasCombined = clientsWithABCAndVisits.reduce((sum: number, c: any) => sum + (c.totalCobertas || 0), 0);

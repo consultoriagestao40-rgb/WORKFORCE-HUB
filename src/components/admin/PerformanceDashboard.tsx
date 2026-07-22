@@ -296,7 +296,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
 
     // Card Details Modal State
     const [detailsModalOpen, setDetailsModalOpen] = useState<boolean>(false);
-    const [detailsModalType, setDetailsModalType] = useState<"contracts" | "employees" | "billing" | "vacancies" | "uncovered_shifts">("contracts");
+    const [detailsModalType, setDetailsModalType] = useState<"contracts" | "employees" | "billing" | "vacancies" | "uncovered_shifts" | "coverage_details">("contracts");
 
     // Modal contracts filter (multiple choice selection)
     const [selectedContractsFilter, setSelectedContractsFilter] = useState<string[]>([]);
@@ -1208,6 +1208,39 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
         toast.success("Relatório de postos não cobertos exportado com sucesso!");
     };
 
+    const handleExportCoveredShifts = () => {
+        if (!consolidatedData || !consolidatedData.coveredShiftsList || consolidatedData.coveredShiftsList.length === 0) {
+            toast.error("Nenhuma cobertura para exportar.");
+            return;
+        }
+
+        const excelData = consolidatedData.coveredShiftsList.map((item: any) => ({
+            Data: format(new Date(item.date + "T12:00:00Z"), "dd/MM/yyyy"),
+            Cliente: item.clientName,
+            Função: item.postoRole,
+            Escala: item.schedule,
+            Horário: item.time,
+            ColaboradorTitular: item.employeeName,
+            CobertoPor: item.coveredByName,
+            TipoCobertura: item.coverageType,
+            Observação: item.notes
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(excelData);
+        const colWidths = Object.keys(excelData[0]).map(key => ({
+            wch: Math.max(
+                key.length + 3,
+                ...excelData.map((row: any) => String(row[key] || '').length + 2)
+            )
+        }));
+        ws['!cols'] = colWidths;
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Coberturas");
+        XLSX.writeFile(wb, `coberturas-${selectedYear}-${selectedMonth + 1}.xlsx`);
+        toast.success("Relatório de coberturas exportado com sucesso!");
+    };
+
     const handleExportExcel = () => {
         let excelData: any[] = [];
         let filename = `relatorio-presenca-${date}.xlsx`;
@@ -1765,7 +1798,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     </Card>
 
                                     <Card 
-                                        className="border border-slate-200/50 shadow-premium bg-white p-4 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg transition-all duration-200 rounded-2xl min-h-[96px]"
+                                        onClick={() => { setDetailsModalType("coverage_details"); setDetailsModalOpen(true); }}
+                                        className="border border-slate-200/50 shadow-premium bg-white p-4 flex flex-col justify-between hover:scale-[1.02] hover:shadow-lg cursor-pointer transition-all duration-200 rounded-2xl min-h-[96px]"
                                     >
                                         <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Índice de Cobertura</span>
                                         <div className="flex items-center justify-between mt-1">
@@ -1915,6 +1949,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                 {detailsModalType === "billing" && "Detalhamento - Faturamento Total Mensal"}
                                 {detailsModalType === "vacancies" && "Detalhamento - Vagas em Aberto"}
                                 {detailsModalType === "uncovered_shifts" && "Detalhamento - Postos Não Cobertos"}
+                                {detailsModalType === "coverage_details" && "Detalhamento - Índice de Cobertura (Faltas Cobertas)"}
                             </DialogTitle>
                             <DialogDescription>
                                 Visualização detalhada consolidada dos indicadores selecionados.
@@ -1930,6 +1965,22 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     variant="outline" 
                                     size="sm" 
                                     onClick={handleExportUncoveredShifts} 
+                                    className="gap-1.5 h-8 text-[11px] font-bold shadow-sm border-slate-200 bg-white"
+                                >
+                                    <Download className="w-3.5 h-3.5" /> Exportar Planilha
+                                </Button>
+                            </div>
+                        )}
+
+                        {detailsModalType === "coverage_details" && (
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 p-1.5 bg-slate-50/60 rounded-xl border border-slate-100/50">
+                                <div className="text-[11px] text-slate-550 font-bold pl-2">
+                                    Total de {consolidatedData?.coveredShiftsList?.length || 0} coberturas registradas no período.
+                                </div>
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={handleExportCoveredShifts} 
                                     className="gap-1.5 h-8 text-[11px] font-bold shadow-sm border-slate-200 bg-white"
                                 >
                                     <Download className="w-3.5 h-3.5" /> Exportar Planilha
@@ -2066,6 +2117,18 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             <TableHead className="font-bold text-slate-800 text-xs text-center pr-6 py-2.5">Tempo Vago</TableHead>
                                         </TableRow>
                                     )}
+                                    {detailsModalType === "coverage_details" && (
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Data</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Contrato</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Cargo / Função</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Escala / Horário</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Colaborador Titular</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Coberto Por</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs py-2.5">Tipo de Cobertura</TableHead>
+                                            <TableHead className="font-bold text-slate-800 text-xs pr-6 py-2.5">Observação</TableHead>
+                                        </TableRow>
+                                    )}
                                     {detailsModalType === "uncovered_shifts" && (
                                         <TableRow>
                                             <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Data</TableHead>
@@ -2179,6 +2242,50 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                             </span>
                                                         </TableCell>
                                                         <TableCell className="py-2 text-xs text-slate-700 font-semibold">{item.employeeName}</TableCell>
+                                                        <TableCell className="py-2 text-xs text-slate-500 pr-6 font-medium max-w-xs truncate" title={item.notes}>
+                                                            {item.notes}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            });
+                                        })()
+                                    ) : detailsModalType === "coverage_details" ? (
+                                        (() => {
+                                            const list = consolidatedData?.coveredShiftsList || [];
+                                            if (list.length === 0) {
+                                                return (
+                                                    <TableRow>
+                                                        <TableCell colSpan={8} className="text-center py-6 text-xs text-slate-500 font-bold">
+                                                            Nenhuma cobertura registrada neste mês.
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            }
+                                            return list.map((item: any, index: number) => {
+                                                const dateFormatted = format(new Date(item.date + "T12:00:00Z"), "dd/MM/yyyy");
+                                                return (
+                                                    <TableRow key={index} className="hover:bg-slate-50/50">
+                                                        <TableCell className="pl-6 py-2 text-xs text-slate-600 font-bold">{dateFormatted}</TableCell>
+                                                        <TableCell className="py-2 text-xs font-bold text-slate-800">{item.clientName}</TableCell>
+                                                        <TableCell className="py-2 text-xs text-slate-700 font-medium">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+                                                                <span>{item.postoRole}</span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="py-2 text-xs text-center text-slate-655 font-medium">
+                                                            <div className="flex flex-col items-center">
+                                                                <span className="font-bold text-slate-850">{item.time}</span>
+                                                                <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-500 font-mono mt-0.5">{item.schedule}</span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="py-2 text-xs text-slate-700 font-semibold">{item.employeeName}</TableCell>
+                                                        <TableCell className="py-2 text-xs text-indigo-600 font-bold">{item.coveredByName}</TableCell>
+                                                        <TableCell className="py-2 text-xs">
+                                                            <span className="px-2 py-0.5 rounded text-[10px] font-black border bg-indigo-50 text-indigo-700 border-indigo-200">
+                                                                {item.coverageType}
+                                                            </span>
+                                                        </TableCell>
                                                         <TableCell className="py-2 text-xs text-slate-500 pr-6 font-medium max-w-xs truncate" title={item.notes}>
                                                             {item.notes}
                                                         </TableCell>
