@@ -83,14 +83,14 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
 
     // Benefits specific states
     const [vtOptIn, setVtOptIn] = useState(employee.vtOptIn !== false);
-    const [vtPaymentMethod, setVtPaymentMethod] = useState(employee.vtPaymentMethod || "Metrocard Metropolitana");
-    const [vtOptions, setVtOptions] = useState<string[]>(["Metrocard Metropolitana", "Metrocard", "PIX", "Outro"]);
+    const [vtPaymentMethod, setVtPaymentMethod] = useState(employee.vtPaymentMethod || "Metrocard");
+    const [vtOptions, setVtOptions] = useState<string[]>(["Metrocard", "Urbs", "PIX", "Outro"]);
     const [isAddingNewVtMethod, setIsAddingNewVtMethod] = useState(false);
     const [newVtMethodName, setNewVtMethodName] = useState("");
 
     useEffect(() => {
         const initialMethod = employee.vtPaymentMethod;
-        if (initialMethod && !["Metrocard Metropolitana", "Metrocard", "PIX", "Outro"].includes(initialMethod)) {
+        if (initialMethod && !["Metrocard", "Urbs", "PIX", "Outro"].includes(initialMethod)) {
             setVtOptions(prev => {
                 if (prev.includes(initialMethod)) return prev;
                 const next = [...prev];
@@ -103,6 +103,23 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
 
     const [vtCustomPaymentDetails, setVtCustomPaymentDetails] = useState(employee.vtCustomPaymentDetails || "");
     const [vaPaymentMethod, setVaPaymentMethod] = useState(employee.vaPaymentMethod || "Cartão Caju");
+    const [vaOptions, setVaOptions] = useState<string[]>(["Cartão Caju", "Outro"]);
+    const [isAddingNewVaMethod, setIsAddingNewVaMethod] = useState(false);
+    const [newVaMethodName, setNewVaMethodName] = useState("");
+
+    useEffect(() => {
+        const initialMethod = employee.vaPaymentMethod;
+        if (initialMethod && !["Cartão Caju", "Outro"].includes(initialMethod)) {
+            setVaOptions(prev => {
+                if (prev.includes(initialMethod)) return prev;
+                const next = [...prev];
+                // Inserir antes de Outro
+                next.splice(next.length - 1, 0, initialMethod);
+                return next;
+            });
+        }
+    }, [employee.vaPaymentMethod]);
+
     const [vaCustomPaymentDetails, setVaCustomPaymentDetails] = useState(employee.vaCustomPaymentDetails || "");
 
     // Attachments & Dependents
@@ -756,17 +773,79 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
 
                             <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
                                 <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Meio de Depósito do VA</Label>
-                                    <Select value={vaPaymentMethod} onValueChange={setVaPaymentMethod}>
-                                        <SelectTrigger className="h-9 rounded-xl bg-white border-slate-200">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Cartão Caju">Cartão Caju</SelectItem>
-                                            <SelectItem value="PIX">Depósito em PIX (Reserva)</SelectItem>
-                                            <SelectItem value="Outro">Outro...</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                    <div className="flex items-center justify-between">
+                                        <Label className="font-bold text-slate-700">Meio de Depósito do VA</Label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsAddingNewVaMethod(!isAddingNewVaMethod)}
+                                            className="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-0.5 cursor-pointer"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" /> Adicionar Novo
+                                        </button>
+                                    </div>
+
+                                    {isAddingNewVaMethod ? (
+                                        <div className="flex items-center gap-2">
+                                            <Input 
+                                                value={newVaMethodName}
+                                                onChange={e => setNewVaMethodName(e.target.value)}
+                                                placeholder="Ex: Ticket, Sodexo..."
+                                                className="h-9 rounded-xl bg-white border-slate-200 text-xs"
+                                            />
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                onClick={() => {
+                                                    const name = newVaMethodName.trim();
+                                                    if (!name) {
+                                                        toast.error("O nome não pode ser vazio.");
+                                                        return;
+                                                    }
+                                                    if (vaOptions.includes(name)) {
+                                                        toast.error("Essa opção já existe.");
+                                                        return;
+                                                    }
+                                                    setVaOptions(prev => {
+                                                        const next = [...prev];
+                                                        next.splice(next.length - 1, 0, name); // insert before Outro
+                                                        return next;
+                                                    });
+                                                    setVaPaymentMethod(name);
+                                                    setNewVaMethodName("");
+                                                    setIsAddingNewVaMethod(false);
+                                                    toast.success(`Opção "${name}" adicionada!`);
+                                                }}
+                                                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-9 text-xs px-3"
+                                            >
+                                                Adicionar
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={() => {
+                                                    setIsAddingNewVaMethod(false);
+                                                    setNewVaMethodName("");
+                                                }}
+                                                className="rounded-xl h-9 text-xs text-slate-500"
+                                            >
+                                                Cancelar
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <Select value={vaPaymentMethod} onValueChange={setVaPaymentMethod}>
+                                            <SelectTrigger className="h-9 rounded-xl bg-white border-slate-200">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {vaOptions.map(opt => (
+                                                    <SelectItem key={opt} value={opt}>
+                                                        {opt === "Outro" ? "Outro..." : opt}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
                                 </div>
                                 {vaPaymentMethod === "Outro" && (
                                     <div className="space-y-1">
