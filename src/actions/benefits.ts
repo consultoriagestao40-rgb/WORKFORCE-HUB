@@ -420,7 +420,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
         let vaNeedsAlert = false;
         let vaBatchNote = "";
 
-        const isVaDiario = posto?.vaType === "diario";
+        const isVaDiario = (posto?.vaType === "diario") && (baseVaValue <= 50);
 
         if (isNewHire) {
             // New hire fracionated VA: 10-day batches after card delivery
