@@ -102,8 +102,8 @@ function getVaDaysForDaily(schedule: string, pivotDate: Date, year: number, mont
     for (const item of roster) {
         if (item.status === 'Trabalho') {
             const dayOfWeek = item.date.getDay();
-            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Sunday or Saturday
-            if (!isWeekend && !isHoliday(item.date)) {
+            const isSunday = dayOfWeek === 0;
+            if (!isSunday && !isHoliday(item.date)) {
                 count++;
             }
         }
@@ -420,7 +420,10 @@ export async function getBenefitsCalculation(year: number, month: number) {
         let vaNeedsAlert = false;
         let vaBatchNote = "";
 
-        const isVaDiario = (posto?.vaType === "diario") && (baseVaValue <= 50);
+        const isVaDiario = posto?.vaType === "diario";
+        const vaDailyRate = isVaDiario
+            ? (emp.valeAlimentacao > 0 && emp.valeAlimentacao <= 50 ? emp.valeAlimentacao : (posto?.valeAlimentacao || 0))
+            : baseVaValue;
 
         if (isNewHire) {
             // New hire fracionated VA: 10-day batches after card delivery
@@ -433,8 +436,8 @@ export async function getBenefitsCalculation(year: number, month: number) {
                 vaBatchNote = `Aguardando entrega do cartão (~10 dias da admissão em ${admissionDateObj.toLocaleDateString('pt-BR')})`;
             } else {
                 // Fractioned 10 days
-                const dailyVaRate = isVaDiario ? baseVaValue : (baseVaValue > 50 ? (baseVaValue / 30) : baseVaValue);
-                vaBaseValue = Math.round((dailyVaRate * config.vaFractionDays) * 100) / 100;
+                const rateForFraction = isVaDiario ? vaDailyRate : (vaDailyRate > 50 ? (vaDailyRate / 30) : vaDailyRate);
+                vaBaseValue = Math.round((rateForFraction * config.vaFractionDays) * 100) / 100;
                 vaDeductionValue = 0;
                 vaTotalValue = vaBaseValue;
                 vaNeedsAlert = true;
@@ -446,23 +449,23 @@ export async function getBenefitsCalculation(year: number, month: number) {
                 const pivotDate = activeAssignment?.startDate ? new Date(activeAssignment.startDate) : admissionDateObj;
                 const scheduledWorkDays = getVaDaysForDaily(posto?.schedule || "5x2", pivotDate, year, month);
                 
-                vaBaseValue = Math.round((scheduledWorkDays * baseVaValue) * 100) / 100;
-                vaDeductionValue = Math.round((occurrencesCount * baseVaValue) * 100) / 100;
+                vaBaseValue = Math.round((scheduledWorkDays * vaDailyRate) * 100) / 100;
+                vaDeductionValue = Math.round((occurrencesCount * vaDailyRate) * 100) / 100;
                 vaTotalValue = Math.max(0, Math.round((vaBaseValue - vaDeductionValue) * 100) / 100);
                 
-                vaBatchNote = `${scheduledWorkDays} dias de escala (excl. fds/feriados) x R$ ${baseVaValue.toFixed(2)}`;
+                vaBatchNote = `${scheduledWorkDays} dias de escala (excl. fds/feriados) x R$ ${vaDailyRate.toFixed(2)}`;
                 if (occurrencesCount > 0) {
                     vaBatchNote += ` | ${occurrencesCount} falta(s) abatida(s) no período 26-25`;
                 }
             } else {
-                const isVaMonthly = baseVaValue > 50;
+                const isVaMonthly = vaDailyRate > 50;
                 if (isVaMonthly) {
-                    vaBaseValue = baseVaValue;
-                    const dailyDeductionRate = baseVaValue / 30;
+                    vaBaseValue = vaDailyRate;
+                    const dailyDeductionRate = vaDailyRate / 30;
                     vaDeductionValue = Math.round((occurrencesCount * dailyDeductionRate) * 100) / 100;
                 } else {
-                    vaBaseValue = Math.round((baseVaValue * 30) * 100) / 100;
-                    vaDeductionValue = Math.round((baseVaValue * occurrencesCount) * 100) / 100;
+                    vaBaseValue = Math.round((vaDailyRate * 30) * 100) / 100;
+                    vaDeductionValue = Math.round((vaDailyRate * occurrencesCount) * 100) / 100;
                 }
                 vaTotalValue = Math.max(0, Math.round((vaBaseValue - vaDeductionValue) * 100) / 100);
 
