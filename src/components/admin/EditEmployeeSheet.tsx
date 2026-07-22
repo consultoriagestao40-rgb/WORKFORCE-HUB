@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -84,6 +84,23 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
     // Benefits specific states
     const [vtOptIn, setVtOptIn] = useState(employee.vtOptIn !== false);
     const [vtPaymentMethod, setVtPaymentMethod] = useState(employee.vtPaymentMethod || "Metrocard Metropolitana");
+    const [vtOptions, setVtOptions] = useState<string[]>(["Metrocard Metropolitana", "Metrocard", "PIX", "Outro"]);
+    const [isAddingNewVtMethod, setIsAddingNewVtMethod] = useState(false);
+    const [newVtMethodName, setNewVtMethodName] = useState("");
+
+    useEffect(() => {
+        const initialMethod = employee.vtPaymentMethod;
+        if (initialMethod && !["Metrocard Metropolitana", "Metrocard", "PIX", "Outro"].includes(initialMethod)) {
+            setVtOptions(prev => {
+                if (prev.includes(initialMethod)) return prev;
+                const next = [...prev];
+                // Inserir antes de Outro
+                next.splice(next.length - 1, 0, initialMethod);
+                return next;
+            });
+        }
+    }, [employee.vtPaymentMethod]);
+
     const [vtCustomPaymentDetails, setVtCustomPaymentDetails] = useState(employee.vtCustomPaymentDetails || "");
     const [vaPaymentMethod, setVaPaymentMethod] = useState(employee.vaPaymentMethod || "Cartão Caju");
     const [vaCustomPaymentDetails, setVaCustomPaymentDetails] = useState(employee.vaCustomPaymentDetails || "");
@@ -648,17 +665,79 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                                 {vtOptIn && (
                                     <div className="space-y-2 pt-2 border-t border-dashed border-slate-200/80">
                                         <div className="space-y-1">
-                                            <Label className="font-bold text-slate-700">Meio de Depósito do VT</Label>
-                                            <Select value={vtPaymentMethod} onValueChange={setVtPaymentMethod}>
-                                                <SelectTrigger className="h-9 rounded-xl bg-white border-slate-200">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="Metrocard Metropolitana">Metrocard Metropolitana</SelectItem>
-                                                    <SelectItem value="PIX">Depósito em PIX (Reserva)</SelectItem>
-                                                    <SelectItem value="Outro">Outro...</SelectItem>
-                                                </SelectContent>
-                                            </Select>
+                                            <div className="flex items-center justify-between">
+                                                <Label className="font-bold text-slate-700">Meio de Depósito do VT</Label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsAddingNewVtMethod(!isAddingNewVtMethod)}
+                                                    className="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-0.5 cursor-pointer"
+                                                >
+                                                    <Plus className="w-3.5 h-3.5" /> Adicionar Novo
+                                                </button>
+                                            </div>
+
+                                            {isAddingNewVtMethod ? (
+                                                <div className="flex items-center gap-2">
+                                                    <Input 
+                                                        value={newVtMethodName}
+                                                        onChange={e => setNewVtMethodName(e.target.value)}
+                                                        placeholder="Ex: RioCard, Cartão Urbs..."
+                                                        className="h-9 rounded-xl bg-white border-slate-200 text-xs"
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            const name = newVtMethodName.trim();
+                                                            if (!name) {
+                                                                toast.error("O nome não pode ser vazio.");
+                                                                return;
+                                                            }
+                                                            if (vtOptions.includes(name)) {
+                                                                toast.error("Essa opção já existe.");
+                                                                return;
+                                                            }
+                                                            setVtOptions(prev => {
+                                                                const next = [...prev];
+                                                                next.splice(next.length - 1, 0, name); // insert before Outro
+                                                                return next;
+                                                            });
+                                                            setVtPaymentMethod(name);
+                                                            setNewVtMethodName("");
+                                                            setIsAddingNewVtMethod(false);
+                                                            toast.success(`Opção "${name}" adicionada!`);
+                                                        }}
+                                                        className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-9 text-xs px-3"
+                                                    >
+                                                        Adicionar
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => {
+                                                            setIsAddingNewVtMethod(false);
+                                                            setNewVtMethodName("");
+                                                        }}
+                                                        className="rounded-xl h-9 text-xs text-slate-500"
+                                                    >
+                                                        Cancelar
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <Select value={vtPaymentMethod} onValueChange={setVtPaymentMethod}>
+                                                    <SelectTrigger className="h-9 rounded-xl bg-white border-slate-200">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {vtOptions.map(opt => (
+                                                            <SelectItem key={opt} value={opt}>
+                                                                {opt === "PIX" ? "Depósito em PIX (Reserva)" : opt === "Outro" ? "Outro..." : opt}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            )}
                                         </div>
                                         {vtPaymentMethod === "Outro" && (
                                             <div className="space-y-1">

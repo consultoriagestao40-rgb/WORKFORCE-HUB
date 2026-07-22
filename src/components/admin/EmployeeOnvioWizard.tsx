@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, ChevronRight, ChevronLeft, CheckCircle2, FileText, Download, UploadCloud } from "lucide-react";
 import { addDepartment, addCostCenter, addUnion, addJobFunction } from "@/app/actions";
+import { toast } from "sonner";
 
 interface EmployeeOnvioWizardProps {
     initialData?: any;
@@ -149,6 +150,23 @@ export function EmployeeOnvioWizard({
     const [valeTransporte, setValeTransporte] = useState("0");
     const [vtOptIn, setVtOptIn] = useState<boolean>(initialData?.vtOptIn !== false);
     const [vtPaymentMethod, setVtPaymentMethod] = useState(initialData?.vtPaymentMethod || "Metrocard Metropolitana");
+    const [vtOptions, setVtOptions] = useState<string[]>(["Metrocard Metropolitana", "Metrocard", "PIX", "Outro"]);
+    const [isAddingNewVtMethod, setIsAddingNewVtMethod] = useState(false);
+    const [newVtMethodName, setNewVtMethodName] = useState("");
+
+    useEffect(() => {
+        const initialMethod = initialData?.vtPaymentMethod;
+        if (initialMethod && !["Metrocard Metropolitana", "Metrocard", "PIX", "Outro"].includes(initialMethod)) {
+            setVtOptions(prev => {
+                if (prev.includes(initialMethod)) return prev;
+                const next = [...prev];
+                // Inserir antes de Outro
+                next.splice(next.length - 1, 0, initialMethod);
+                return next;
+            });
+        }
+    }, [initialData?.vtPaymentMethod]);
+
     const [vtCustomPaymentDetails, setVtCustomPaymentDetails] = useState(initialData?.vtCustomPaymentDetails || "");
     const [vaPaymentMethod, setVaPaymentMethod] = useState(initialData?.vaPaymentMethod || "Cartão Caju");
     const [vaCustomPaymentDetails, setVaCustomPaymentDetails] = useState(initialData?.vaCustomPaymentDetails || "");
@@ -1274,17 +1292,79 @@ export function EmployeeOnvioWizard({
                                                     <Input id="valeTransporte" name="valeTransporte" type="number" step="0.01" value={valeTransporte} onChange={e => setValeTransporte(e.target.value)} />
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <Label htmlFor="vtPaymentMethod" className="text-slate-700 font-medium">Meio de Depósito do VT</Label>
-                                                    <Select value={vtPaymentMethod} onValueChange={setVtPaymentMethod}>
-                                                        <SelectTrigger id="vtPaymentMethod">
-                                                            <SelectValue placeholder="Selecione o meio..." />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="Metrocard Metropolitana">Metrocard Metropolitana</SelectItem>
-                                                            <SelectItem value="PIX">PIX</SelectItem>
-                                                            <SelectItem value="Outro">Outro (Especificar)</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
+                                                    <div className="flex items-center justify-between">
+                                                        <Label htmlFor="vtPaymentMethod" className="text-slate-700 font-medium">Meio de Depósito do VT</Label>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsAddingNewVtMethod(!isAddingNewVtMethod)}
+                                                            className="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-0.5 cursor-pointer"
+                                                        >
+                                                            <Plus className="w-3.5 h-3.5" /> Adicionar Novo
+                                                        </button>
+                                                    </div>
+
+                                                    {isAddingNewVtMethod ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <Input 
+                                                                value={newVtMethodName}
+                                                                onChange={e => setNewVtMethodName(e.target.value)}
+                                                                placeholder="Ex: RioCard, Cartão Urbs..."
+                                                                className="h-9 rounded-xl bg-white border-slate-200 text-xs"
+                                                            />
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    const name = newVtMethodName.trim();
+                                                                    if (!name) {
+                                                                        toast.error("O nome não pode ser vazio.");
+                                                                        return;
+                                                                    }
+                                                                    if (vtOptions.includes(name)) {
+                                                                        toast.error("Essa opção já existe.");
+                                                                        return;
+                                                                    }
+                                                                    setVtOptions(prev => {
+                                                                        const next = [...prev];
+                                                                        next.splice(next.length - 1, 0, name); // insert before Outro
+                                                                        return next;
+                                                                    });
+                                                                    setVtPaymentMethod(name);
+                                                                    setNewVtMethodName("");
+                                                                    setIsAddingNewVtMethod(false);
+                                                                    toast.success(`Opção "${name}" adicionada!`);
+                                                                }}
+                                                                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-9 text-xs px-3"
+                                                            >
+                                                                Adicionar
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                onClick={() => {
+                                                                    setIsAddingNewVtMethod(false);
+                                                                    setNewVtMethodName("");
+                                                                }}
+                                                                className="rounded-xl h-9 text-xs text-slate-500"
+                                                            >
+                                                                Cancelar
+                                                            </Button>
+                                                        </div>
+                                                    ) : (
+                                                        <Select value={vtPaymentMethod} onValueChange={setVtPaymentMethod}>
+                                                            <SelectTrigger id="vtPaymentMethod" className="h-9 rounded-xl bg-white border-slate-200">
+                                                                <SelectValue placeholder="Selecione o meio..." />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {vtOptions.map(opt => (
+                                                                    <SelectItem key={opt} value={opt}>
+                                                                        {opt === "PIX" ? "PIX" : opt === "Outro" ? "Outro (Especificar)..." : opt}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    )}
                                                     {vtPaymentMethod === "Outro" && (
                                                         <Input 
                                                             placeholder="Ex: Cartão URBS, VT Empresa..." 
