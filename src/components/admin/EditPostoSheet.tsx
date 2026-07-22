@@ -47,7 +47,7 @@ export function EditPostoSheet({ posto, schedules, roles }: EditPostoSheetProps)
                     <Edit className="w-3 h-3 text-slate-400 hover:text-slate-600" />
                 </Button>
             </SheetTrigger>
-            <SheetContent className="px-8">
+            <SheetContent className="sm:max-w-[600px] px-8">
                 <SheetHeader>
                     <SheetTitle>Editar Posto</SheetTitle>
                     <SheetDescription>Atualize os dados desta vaga.</SheetDescription>
@@ -132,10 +132,15 @@ export function EditPostoSheet({ posto, schedules, roles }: EditPostoSheetProps)
                                  <Label htmlFor="valeAlimentacao">Vale Alimentação (R$)</Label>
                                  <div className="flex gap-2">
                                      <Input id="valeAlimentacao" name="valeAlimentacao" type="number" step="0.01" defaultValue={posto.valeAlimentacao || 0} className="flex-1" />
-                                     <select name="vaType" defaultValue={posto.vaType || "mensal"} className="h-10 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500">
-                                         <option value="mensal">Mensal</option>
-                                         <option value="diario">Diário</option>
-                                     </select>
+                                     <Select name="vaType" defaultValue={posto.vaType || "mensal"}>
+                                         <SelectTrigger className="h-9 w-[95px] rounded-xl bg-white border-slate-200 text-xs">
+                                             <SelectValue />
+                                         </SelectTrigger>
+                                         <SelectContent>
+                                             <SelectItem value="mensal">Mensal</SelectItem>
+                                             <SelectItem value="diario">Diário</SelectItem>
+                                         </SelectContent>
+                                     </Select>
                                  </div>
                              </div>
                             <div className="space-y-2">
