@@ -1570,7 +1570,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
 
             {/* Modal for Details Lists */}
             <Dialog open={openDetailsDialog} onOpenChange={setOpenDetailsDialog}>
-                <DialogContent className="sm:max-w-[650px] max-h-[85vh] flex flex-col p-0 overflow-hidden">
+                <DialogContent className="max-w-[95vw] lg:max-w-5xl xl:max-w-6xl max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-[24px]">
                     <DialogHeader className="p-6 pb-2">
                         <DialogTitle className="text-xl font-black text-slate-900 tracking-tight">{detailsTitle}</DialogTitle>
                         <DialogDescription className="text-slate-500 text-xs font-semibold">
@@ -1578,51 +1578,73 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <ScrollArea className="flex-1 px-6 pb-6 overflow-y-auto max-h-[60vh] border-t border-slate-100">
-                        <div className="space-y-4 pt-4">
-                            {detailsItems.map((item) => {
-                                const att = item.attendance;
-                                let coverageDetails = "";
-                                if (att.coveredBy) {
-                                    coverageDetails = `Cobertura por Reserva Técnica: ${att.coveredBy.name}`;
-                                } else if (att.coverageType === "DIARISTA") {
-                                    coverageDetails = `Diarista: ${att.notes || "Não especificado"}`;
-                                } else if (att.coverageType === "VAGO") {
-                                    coverageDetails = `Posto Vago (Glosa Confirmada)`;
-                                }
+                    <ScrollArea className="flex-1 overflow-y-auto max-h-[60vh] border-t border-slate-100">
+                        <Table>
+                            <TableHeader className="bg-slate-50">
+                                <TableRow>
+                                    <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Cliente</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs py-2.5">Cargo / Função</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs py-2.5">Escala / Horário</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs py-2.5">Colaborador</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs py-2.5">Status / Cobertura</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-xs pr-6 py-2.5">Observação</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {detailsItems.map((item) => {
+                                    const att = item.attendance;
+                                    let coverageDetails = "";
+                                    let isCovered = false;
+                                    if (att.coveredBy) {
+                                        coverageDetails = `RT: ${att.coveredBy.name}`;
+                                        isCovered = true;
+                                    } else if (att.coverageType === "DIARISTA") {
+                                        coverageDetails = `Diarista`;
+                                        isCovered = true;
+                                    } else if (att.coverageType === "RESERVA_TECNICA") {
+                                        coverageDetails = `Reserva Técnica`;
+                                        isCovered = true;
+                                    }
 
-                                return (
-                                    <div key={item.id} className="p-4 border border-slate-100 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3">
-                                        <div className="space-y-1">
-                                            <p className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">{item.clientName}</p>
-                                            <p className="text-sm font-bold text-slate-800">{item.role}</p>
-                                            <div className="flex flex-wrap gap-2 pt-0.5">
-                                                <Badge variant="secondary" className="text-[10px] font-bold bg-slate-200/50 border-none text-slate-700">
-                                                    {item.startTime} - {item.endTime} ({item.schedule})
-                                                </Badge>
-                                                {coverageDetails && (
-                                                    <Badge className="text-[10px] font-bold bg-indigo-50 border-indigo-100 text-indigo-700">
-                                                        {coverageDetails}
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="text-left md:text-right shrink-0">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Titular</p>
-                                            <p className="text-xs font-semibold text-slate-700">{item.employee?.name || "Vaga Sem Titular"}</p>
-                                            {att.notes && !coverageDetails && (
-                                                <p className="text-[10px] text-red-500 italic font-medium mt-0.5">Obs: {att.notes}</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            {detailsItems.length === 0 && (
-                                <div className="text-center text-xs text-slate-500 font-semibold py-12">
-                                    Nenhum posto com este status encontrado.
-                                </div>
-                            )}
-                        </div>
+                                    let statusBadge = null;
+                                    if (att.status === "PRESENTE_MANUAL") {
+                                        statusBadge = <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[10px] font-bold">Manual</Badge>;
+                                    } else if (att.status === "AGUARDANDO" && att.isLate) {
+                                        statusBadge = <Badge className="bg-amber-50 text-amber-700 border-amber-100 text-[10px] font-bold">Atrasado</Badge>;
+                                    } else if (att.status === "FALTA") {
+                                        if (isCovered) {
+                                            statusBadge = <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 text-[10px] font-bold">{coverageDetails}</Badge>;
+                                        } else {
+                                            statusBadge = <Badge className="bg-red-50 text-red-700 border-red-100 text-[10px] font-bold">Sem Cobertura (Glosa)</Badge>;
+                                        }
+                                    } else {
+                                        statusBadge = <Badge className="bg-slate-50 text-slate-600 border-slate-100 text-[10px] font-bold">{att.status}</Badge>;
+                                    }
+
+                                    return (
+                                        <TableRow key={item.id} className="hover:bg-slate-50/50">
+                                            <TableCell className="pl-6 py-2.5 text-xs font-bold text-slate-800">{item.clientName}</TableCell>
+                                            <TableCell className="py-2.5 text-xs text-slate-700 font-medium">{item.role}</TableCell>
+                                            <TableCell className="py-2.5 text-xs text-slate-655 font-bold">
+                                                {item.startTime} - {item.endTime} <span className="text-[9px] font-normal text-slate-400">({item.schedule})</span>
+                                            </TableCell>
+                                            <TableCell className="py-2.5 text-xs text-slate-700 font-semibold">{item.employee?.name || "Sem Titular"}</TableCell>
+                                            <TableCell className="py-2.5 text-xs">{statusBadge}</TableCell>
+                                            <TableCell className="py-2.5 text-xs text-slate-500 pr-6 max-w-xs truncate" title={att.notes || ""}>
+                                                {att.notes || "-"}
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                                {detailsItems.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="text-center text-xs text-slate-500 font-semibold py-12 pl-6 pr-6">
+                                            Nenhum posto encontrado com este status.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
                     </ScrollArea>
                     
                     <DialogFooter className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">

@@ -1808,7 +1808,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                                     {consolidatedData.groupCoverageIndex !== undefined ? consolidatedData.groupCoverageIndex.toFixed(1) + "%" : "100.0%"}
                                                 </span>
                                                 <span className="text-[8px] font-bold text-slate-400 leading-none">
-                                                    ({consolidatedData.totalCobertasCombined || 0} de {consolidatedData.totalFaultasCombined || 0} cobertas)
+                                                    ({consolidatedData.totalCobertasCombined || 0} cobertas de {consolidatedData.totalFaultasCombined || 0} faltas)
                                                 </span>
                                             </div>
                                             <UserCheck className="w-5 h-5 text-indigo-600 bg-indigo-50 p-1 rounded-lg shrink-0 ml-1" />
