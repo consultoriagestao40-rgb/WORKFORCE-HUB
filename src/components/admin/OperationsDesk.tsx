@@ -1590,7 +1590,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <ScrollArea className="flex-1 overflow-y-auto max-h-[60vh] border-t border-slate-100">
+                    <div className="flex-1 overflow-y-auto overflow-x-auto max-h-[60vh] border-t border-slate-100">
                         <div className="w-full overflow-x-auto">
                             <Table className="min-w-[950px]">
                                 <TableHeader className="bg-slate-50">
@@ -1659,7 +1659,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                                 </TableBody>
                             </Table>
                         </div>
-                    </ScrollArea>
+                    </div>
                     
                     <DialogFooter className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
                         {detailsItems.length > 0 && (
