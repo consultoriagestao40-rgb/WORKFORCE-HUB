@@ -81,7 +81,10 @@ export async function getReportsData(year: number) {
             },
             include: {
                 posto: {
-                    include: { client: true }
+                    include: {
+                        role: true,
+                        client: true
+                    }
                 },
                 employee: true,
                 coveredBy: true
@@ -273,137 +276,54 @@ export async function getReportsData(year: number) {
         const coberturaRawEvents: any[] = [];
 
         const coberturaReport = clients.map(client => {
-            const clientPostos = client.postos;
-            
+            const clientPostosIds = client.postos.map(p => p.id);
+            const clientAttendances = attendances.filter(att => clientPostosIds.includes(att.postoId));
+
             const monthlyData = months.map(m => {
-                const startOfMonth = new Date(year, m, 1);
-                const endOfMonth = new Date(year, m + 1, 0, 23, 59, 59, 999);
+                const monthStart = new Date(year, m, 1);
+                const monthEnd = new Date(year, m + 1, 0, 23, 59, 59, 999);
 
-                // List of days in the month
-                const daysInMonth: Date[] = [];
-                let curDate = new Date(startOfMonth);
-                while (curDate <= endOfMonth) {
-                    daysInMonth.push(new Date(curDate));
-                    curDate.setDate(curDate.getDate() + 1);
-                }
+                // Filtrar batidas de falta registradas na mesa neste mês
+                const monthAttendances = clientAttendances.filter(att => 
+                    att.date >= monthStart && att.date <= monthEnd && att.status === "FALTA"
+                );
 
-                let totalFaltas = 0;
-                let totalCobertas = 0;
+                const totalFaltas = monthAttendances.length;
+                const totalCobertas = monthAttendances.filter(att => 
+                    att.coveredById || att.coverageType === "DIARISTA" || att.coverageType === "RESERVA_TECNICA"
+                ).length;
 
-                daysInMonth.forEach(dayDate => {
-                    const dayDateStr = dayDate.toISOString().split("T")[0];
-                    clientPostos.forEach(posto => {
-                        // Find assignment on this day
-                        const assignment = assignments.find(a => 
-                            a.postoId === posto.id && 
-                            new Date(a.startDate) <= dayDate && 
-                            (!a.endDate || new Date(a.endDate) >= dayDate)
-                        );
-
-                        let shouldWork = false;
-                        if (!assignment) {
-                            const dayOfWeek = dayDate.getDay();
-                            const normSchedule = posto.schedule.replace(/\s+/g, '').toLowerCase();
-                            shouldWork = true;
-                            if (normSchedule.includes('segasex') || normSchedule.includes('mondaytofriday')) {
-                                if (dayOfWeek === 0 || dayOfWeek === 6) shouldWork = false;
-                            } else if (normSchedule.includes('segasab') || normSchedule.includes('mondaytosaturday')) {
-                                if (dayOfWeek === 0) shouldWork = false;
-                            }
-                        } else {
-                            const roster = generateRoster(posto.schedule, new Date(assignment.startDate), [dayDate]);
-                            shouldWork = roster[0]?.status === 'Trabalho';
+                // Alimentar os eventos brutos
+                monthAttendances.forEach(att => {
+                    const isCovered = att.coveredById || att.coverageType === "DIARISTA" || att.coverageType === "RESERVA_TECNICA";
+                    const diaristaName = (() => {
+                        if (att.coverageType === "DIARISTA" && att.notes) {
+                            const parts = att.notes.split(" | ");
+                            return parts[0];
                         }
+                        return null;
+                    })();
 
-                        if (shouldWork) {
-                            const att = attendances.find(a => a.postoId === posto.id && a.date.toISOString().split("T")[0] === dayDateStr);
-
-                            if (att) {
-                                if (att.status === "FALTA") {
-                                    totalFaltas++;
-                                    const isCovered = att.coveredById || att.coverageType === "DIARISTA" || att.coverageType === "RESERVA_TECNICA";
-                                    
-                                    const diaristaName = (() => {
-                                        if (att.coverageType === "DIARISTA" && att.notes) {
-                                            const parts = att.notes.split(" | ");
-                                            return parts[0];
-                                        }
-                                        return null;
-                                    })();
-
-                                    const parsedNotes = (() => {
-                                        if (att.coverageType === "DIARISTA" && att.notes) {
-                                            const parts = att.notes.split(" | ");
-                                            return parts.slice(1).join(" | ") || "Cobertura realizada.";
-                                        }
-                                        return att.notes || "Cobertura realizada.";
-                                    })();
-
-                                    if (isCovered) {
-                                        totalCobertas++;
-                                        coberturaRawEvents.push({
-                                            date: dayDateStr,
-                                            clientName: client.name,
-                                            companyName: client.company?.name || "-",
-                                            postoRole: posto.role?.name || "Posto",
-                                            schedule: posto.schedule,
-                                            time: `${posto.startTime} - ${posto.endTime}`,
-                                            employeeName: att.employee?.name || "Não informado",
-                                            status: "Coberto",
-                                            coveredByName: att.coveredBy?.name || diaristaName || (att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outro Colaborador"),
-                                            coverageType: att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outra Cobertura",
-                                            notes: parsedNotes
-                                        });
-                                    } else {
-                                        coberturaRawEvents.push({
-                                            date: dayDateStr,
-                                            clientName: client.name,
-                                            companyName: client.company?.name || "-",
-                                            postoRole: posto.role?.name || "Posto",
-                                            schedule: posto.schedule,
-                                            time: `${posto.startTime} - ${posto.endTime}`,
-                                            employeeName: att.employee?.name || "Não informado",
-                                            status: "Sem Cobertura",
-                                            coveredByName: "-",
-                                            coverageType: "-",
-                                            notes: att.notes || "Ausência sem cobertura."
-                                        });
-                                    }
-                                }
-                            } else {
-                                // check past day
-                                const today = new Date();
-                                const todayStr = today.toISOString().split("T")[0];
-                                const isPastDay = dayDate.getTime() < new Date(todayStr + "T00:00:59Z").getTime();
-                                let isEndedToday = false;
-                                if (today.getFullYear() === year && today.getMonth() === m && today.getDate() === dayDate.getDate()) {
-                                    const [endHour, endMinute] = (posto.endTime || "18:00").split(":").map(Number);
-                                    const shiftEnd = new Date(dayDate);
-                                    shiftEnd.setHours(endHour || 18, endMinute || 0, 0, 0);
-                                    const nowInBrazil = new Date(new Date().getTime() - 3 * 60 * 60 * 1000);
-                                    if (nowInBrazil > shiftEnd) {
-                                        isEndedToday = true;
-                                    }
-                                }
-
-                                if (isPastDay || isEndedToday) {
-                                    totalFaltas++;
-                                    coberturaRawEvents.push({
-                                        date: dayDateStr,
-                                        clientName: client.name,
-                                        companyName: client.company?.name || "-",
-                                        postoRole: posto.role?.name || "Posto",
-                                        schedule: posto.schedule,
-                                        time: `${posto.startTime} - ${posto.endTime}`,
-                                        employeeName: assignment?.employee?.name || "Sem colaborador escalado",
-                                        status: "Sem Cobertura",
-                                        coveredByName: "-",
-                                        coverageType: "-",
-                                        notes: "Falta de ponto no sistema."
-                                    });
-                                }
-                            }
+                    const parsedNotes = (() => {
+                        if (att.coverageType === "DIARISTA" && att.notes) {
+                            const parts = att.notes.split(" | ");
+                            return parts.slice(1).join(" | ") || "Cobertura realizada.";
                         }
+                        return att.notes || "Falta registrada.";
+                    })();
+
+                    coberturaRawEvents.push({
+                        date: att.date.toISOString().split("T")[0],
+                        clientName: client.name,
+                        companyName: client.company?.name || "-",
+                        postoRole: att.posto?.role?.name || "Posto",
+                        schedule: att.posto?.schedule || "-",
+                        time: att.posto ? `${att.posto.startTime || ""} - ${att.posto.endTime || ""}` : "-",
+                        employeeName: att.employee?.name || "Não informado",
+                        status: isCovered ? "Coberto" : "Sem Cobertura",
+                        coveredByName: att.coveredBy?.name || diaristaName || (att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outro Colaborador"),
+                        coverageType: att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outra Cobertura",
+                        notes: parsedNotes
                     });
                 });
 
@@ -466,7 +386,7 @@ export async function getReportsData(year: number) {
             return {
                 employeeId: emp.id,
                 employeeName: emp.name,
-                status: emp.status, // "Ativo" ou "Desligado"
+                status: emp.situation?.name === "Desligado" ? "Desligado" : "Ativo", // "Ativo" ou "Desligado"
                 situationName: emp.situation?.name || "Ativo",
                 roleName: emp.role?.name || "-",
                 companyName: empCompanyName,
@@ -561,11 +481,11 @@ export async function getReportsData(year: number) {
             .sort((a, b) => b.annualRate - a.annualRate)[0]?.clientName || "-";
 
         // 3. Cobertura KPIs
-        const avgCoverageGeneral = coberturaReport.length > 0
-            ? coberturaReport.reduce((sum, c) => sum + c.annualRate, 0) / coberturaReport.length
-            : 100;
         const totalFaltasMesa = coberturaReport.reduce((sum, c) => sum + c.annualFaltas, 0);
         const totalCobertasMesa = coberturaReport.reduce((sum, c) => sum + c.annualCobertas, 0);
+        const avgCoverageGeneral = totalFaltasMesa > 0
+            ? (totalCobertasMesa / totalFaltasMesa) * 100
+            : 100;
 
         // 4. Colaboradores KPIs
         const totalActiveColabs = colaboradorReport.filter(e => e.status === "Ativo").length;
@@ -786,111 +706,37 @@ export async function getMonthAttendancesDetails(clientId: string, year: number,
             }
         });
 
-        // Listar os dias do mês
-        const daysInMonth: Date[] = [];
-        let curDate = new Date(monthStart);
-        while (curDate <= monthEnd) {
-            daysInMonth.push(new Date(curDate));
-            curDate.setDate(curDate.getDate() + 1);
-        }
-
-        const eventsList: any[] = [];
-
-        daysInMonth.forEach(dayDate => {
-            const dayDateStr = dayDate.toISOString().split("T")[0];
-            client.postos.forEach(posto => {
-                const assignment = assignments.find(a => 
-                    a.postoId === posto.id && 
-                    new Date(a.startDate) <= dayDate && 
-                    (!a.endDate || new Date(a.endDate) >= dayDate)
-                );
-
-                let shouldWork = false;
-                if (!assignment) {
-                    const dayOfWeek = dayDate.getDay();
-                    const normSchedule = posto.schedule.replace(/\s+/g, '').toLowerCase();
-                    shouldWork = true;
-                    if (normSchedule.includes('segasex') || normSchedule.includes('mondaytofriday')) {
-                        if (dayOfWeek === 0 || dayOfWeek === 6) shouldWork = false;
-                    } else if (normSchedule.includes('segasab') || normSchedule.includes('mondaytosaturday')) {
-                        if (dayOfWeek === 0) shouldWork = false;
-                    }
-                } else {
-                    const roster = generateRoster(posto.schedule, new Date(assignment.startDate), [dayDate]);
-                    shouldWork = roster[0]?.status === 'Trabalho';
+        const eventsList = attendances.filter(att => att.status === "FALTA").map(att => {
+            const isCovered = att.coveredById || att.coverageType === "DIARISTA" || att.coverageType === "RESERVA_TECNICA";
+            const diaristaName = (() => {
+                if (att.coverageType === "DIARISTA" && att.notes) {
+                    const parts = att.notes.split(" | ");
+                    return parts[0];
                 }
+                return null;
+            })();
 
-                if (shouldWork) {
-                    const att = attendances.find(a => a.postoId === posto.id && a.date.toISOString().split("T")[0] === dayDateStr);
-
-                    if (att) {
-                        if (att.status === "FALTA") {
-                            const isCovered = att.coveredById || att.coverageType === "DIARISTA" || att.coverageType === "RESERVA_TECNICA";
-                            
-                            const diaristaName = (() => {
-                                if (att.coverageType === "DIARISTA" && att.notes) {
-                                    const parts = att.notes.split(" | ");
-                                    return parts[0];
-                                }
-                                return null;
-                            })();
-
-                            const parsedNotes = (() => {
-                                if (att.coverageType === "DIARISTA" && att.notes) {
-                                    const parts = att.notes.split(" | ");
-                                    return parts.slice(1).join(" | ") || "Cobertura realizada.";
-                                }
-                                return att.notes || "Cobertura realizada.";
-                            })();
-
-                            eventsList.push({
-                                id: att.id,
-                                date: dayDateStr,
-                                clientName: client.name,
-                                postoRole: posto.role?.name || "Posto",
-                                schedule: posto.schedule,
-                                time: `${posto.startTime} - ${posto.endTime}`,
-                                employeeName: att.employee?.name || "Não informado",
-                                status: isCovered ? "Coberto" : "Sem Cobertura",
-                                coveredByName: att.coveredBy?.name || diaristaName || (att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outro Colaborador"),
-                                coverageType: att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outra Cobertura",
-                                notes: parsedNotes
-                            });
-                        }
-                    } else {
-                        // check past day
-                        const today = new Date();
-                        const todayStr = today.toISOString().split("T")[0];
-                        const isPastDay = dayDate.getTime() < new Date(todayStr + "T00:00:59Z").getTime();
-                        let isEndedToday = false;
-                        if (today.getFullYear() === year && today.getMonth() === month && today.getDate() === dayDate.getDate()) {
-                            const [endHour, endMinute] = (posto.endTime || "18:00").split(":").map(Number);
-                            const shiftEnd = new Date(dayDate);
-                            shiftEnd.setHours(endHour || 18, endMinute || 0, 0, 0);
-                            const nowInBrazil = new Date(new Date().getTime() - 3 * 60 * 60 * 1000);
-                            if (nowInBrazil > shiftEnd) {
-                                  isEndedToday = true;
-                            }
-                        }
-
-                        if (isPastDay || isEndedToday) {
-                            eventsList.push({
-                                id: `${posto.id}-${dayDateStr}-missing`,
-                                date: dayDateStr,
-                                clientName: client.name,
-                                postoRole: posto.role?.name || "Posto",
-                                schedule: posto.schedule,
-                                time: `${posto.startTime} - ${posto.endTime}`,
-                                employeeName: assignment?.employee?.name || "Sem colaborador escalado",
-                                status: "Sem Cobertura",
-                                coveredByName: "-",
-                                coverageType: "-",
-                                notes: "Falta de ponto no sistema."
-                            });
-                        }
-                    }
+            const parsedNotes = (() => {
+                if (att.coverageType === "DIARISTA" && att.notes) {
+                    const parts = att.notes.split(" | ");
+                    return parts.slice(1).join(" | ") || "Cobertura realizada.";
                 }
-            });
+                return att.notes || "Falta registrada.";
+            })();
+
+            return {
+                id: att.id,
+                date: att.date.toISOString().split("T")[0],
+                clientName: client.name,
+                postoRole: att.posto?.role?.name || "Posto",
+                schedule: att.posto?.schedule || "-",
+                time: att.posto ? `${att.posto.startTime || ""} - ${att.posto.endTime || ""}` : "-",
+                employeeName: att.employee?.name || "Não informado",
+                status: isCovered ? "Coberto" : "Sem Cobertura",
+                coveredByName: att.coveredBy?.name || diaristaName || (att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outro Colaborador"),
+                coverageType: att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outra Cobertura",
+                notes: parsedNotes
+            };
         });
 
         return {
