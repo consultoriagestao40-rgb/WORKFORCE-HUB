@@ -132,10 +132,16 @@ export async function syncSecullumOccurrences(year: number, month: number) {
             const validDates = datesInRange.filter(d => d >= startDate && d <= endDate);
 
             // Map reason to type
-            let type: "FALTA" | "ATESTADO" | "FALTA_INJUSTIFICADA" = "FALTA";
+            let type: string = "FALTA";
             const desc = (af.JustificativaNome || af.Motivo || "").toLowerCase();
             if (desc.includes("atestado") || desc.includes("médico") || desc.includes("medico")) {
                 type = "ATESTADO";
+            } else if (desc.includes("férias") || desc.includes("ferias")) {
+                type = "FERIAS";
+            } else if (desc.includes("licença") || desc.includes("licenca")) {
+                type = "LICENCA";
+            } else {
+                type = "AFASTAMENTO";
             }
 
             for (const d of validDates) {

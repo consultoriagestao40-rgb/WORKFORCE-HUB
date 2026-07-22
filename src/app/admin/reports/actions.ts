@@ -9,6 +9,49 @@ export async function getReportsData(year: number) {
         const start = startOfYear(new Date(year, 0, 1));
         const end = endOfYear(new Date(year, 11, 31));
 
+        // Corrigir tipos de ocorrências antigas importadas erroneamente como FALTA
+        await prisma.occurrence.updateMany({
+            where: {
+                type: "FALTA",
+                title: { startsWith: "Secullum (Afastamento):" }
+            },
+            data: {
+                type: "AFASTAMENTO"
+            }
+        });
+
+        await prisma.occurrence.updateMany({
+            where: {
+                OR: [
+                    { title: { contains: "férias" } },
+                    { title: { contains: "Férias" } },
+                    { title: { contains: "FÉRIAS" } },
+                    { title: { contains: "ferias" } },
+                    { title: { contains: "Ferias" } },
+                    { title: { contains: "FERIAS" } }
+                ]
+            },
+            data: {
+                type: "FERIAS"
+            }
+        });
+
+        await prisma.occurrence.updateMany({
+            where: {
+                OR: [
+                    { title: { contains: "licença" } },
+                    { title: { contains: "Licença" } },
+                    { title: { contains: "LICENÇA" } },
+                    { title: { contains: "licenca" } },
+                    { title: { contains: "Licenca" } },
+                    { title: { contains: "LICENCA" } }
+                ]
+            },
+            data: {
+                type: "LICENCA"
+            }
+        });
+
         // 1. Carregar todos os Clientes e seus Postos
         const clients = await prisma.client.findMany({
             include: {
