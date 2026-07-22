@@ -1,0 +1,1127 @@
+"use client";
+
+import { useState, useEffect, useTransition } from "react";
+import { format } from "date-fns";
+import * as XLSX from "xlsx";
+import { 
+    BarChart3, 
+    Download, 
+    Calendar, 
+    Briefcase, 
+    Users, 
+    Percent, 
+    Clock, 
+    TrendingUp, 
+    Search,
+    Filter,
+    ArrowUpRight,
+    UserCheck,
+    AlertTriangle,
+    CheckCircle2,
+    XCircle,
+    Building,
+    FileSpreadsheet
+} from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+    Table,
+    TableHeader,
+    TableRow,
+    TableHead,
+    TableBody,
+    TableCell
+} from "@/components/ui/table";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter
+} from "@/components/ui/dialog";
+import {
+    getReportsData,
+    getMonthOccurrencesDetails,
+    getMonthAttendancesDetails,
+    getMonthVacanciesDetails
+} from "./actions";
+import { toast } from "sonner";
+
+const MONTH_NAMES = [
+    "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", 
+    "Jul", "Ago", "Set", "Out", "Nov", "Dez"
+];
+
+const MONTH_FULL_NAMES = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
+export function ReportsClientPage() {
+    const [year, setYear] = useState<number>(() => new Date().getFullYear());
+    const [activeTab, setActiveTab] = useState<"turnover" | "absenteismo" | "cobertura" | "colaborador" | "recruitment">("turnover");
+    
+    // Filtros
+    const [searchQuery, setSearchQuery] = useState("");
+    const [showOnlyActive, setShowOnlyActive] = useState(true); // Exclusivo da aba colaboradores
+
+    // Dados
+    const [data, setData] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [isPending, startTransition] = useTransition();
+
+    // Estados dos Modais de Detalhamento
+    const [openModal, setOpenModal] = useState(false);
+    const [modalTitle, setModalTitle] = useState("");
+    const [modalSubtitle, setModalSubtitle] = useState("");
+    const [modalItems, setModalItems] = useState<any[]>([]);
+    const [modalLoading, setModalLoading] = useState(false);
+    const [activeModalContext, setActiveModalContext] = useState<{
+        type: "absenteismo" | "cobertura" | "colaborador" | "recruitment";
+        clientId: string | null;
+        employeeId: string | null;
+        month: number;
+    } | null>(null);
+
+    const loadData = (selectedYear: number) => {
+        setLoading(true);
+        startTransition(async () => {
+            const res = await getReportsData(selectedYear);
+            if (res.success) {
+                setData(res);
+            } else {
+                toast.error(res.error || "Erro ao carregar relatórios.");
+            }
+            setLoading(false);
+        });
+    };
+
+    useEffect(() => {
+        loadData(year);
+    }, [year]);
+
+    // Handler para abrir os modais de detalhe ao clicar na célula
+    const handleCellClick = async (
+        type: "absenteismo" | "cobertura" | "colaborador" | "recruitment",
+        clientId: string | null,
+        employeeId: string | null,
+        month: number,
+        title: string,
+        subtitle: string
+    ) => {
+        setModalTitle(title);
+        setModalSubtitle(subtitle);
+        setModalItems([]);
+        setOpenModal(true);
+        setModalLoading(true);
+        setActiveModalContext({ type, clientId, employeeId, month });
+
+        try {
+            if (type === "absenteismo" || type === "colaborador") {
+                const res = await getMonthOccurrencesDetails(clientId, employeeId, year, month);
+                if (res.success) setModalItems(res.list || []);
+            } else if (type === "cobertura") {
+                if (!clientId) return;
+                const res = await getMonthAttendancesDetails(clientId, year, month);
+                if (res.success) setModalItems(res.list || []);
+            } else if (type === "recruitment") {
+                if (!clientId) return;
+                const res = await getMonthVacanciesDetails(clientId, year, month);
+                if (res.success) setModalItems(res.list || []);
+            }
+        } catch (err: any) {
+            toast.error("Erro ao carregar detalhes: " + err.message);
+        } finally {
+            setModalLoading(false);
+        }
+    };
+
+    // Exportação do modal ativo para Excel
+    const handleExportModalDetails = () => {
+        if (!activeModalContext || modalItems.length === 0) {
+            toast.error("Nenhum dado para exportar.");
+            return;
+        }
+
+        let excelData: any[] = [];
+        let sheetName = "Detalhes";
+
+        const { type } = activeModalContext;
+
+        if (type === "absenteismo" || type === "colaborador") {
+            sheetName = "Faltas e Atestados";
+            excelData = modalItems.map(item => ({
+                Data: format(new Date(item.date + "T12:00:00Z"), "dd/MM/yyyy"),
+                Contrato: item.clientName,
+                Colaborador: item.employeeName,
+                Situação: item.situation,
+                Tipo: item.type === "ATESTADO" ? "Atestado Médico" : "Falta",
+                Justificativa: item.description
+            }));
+        } else if (type === "cobertura") {
+            sheetName = "Mesa de Operações";
+            excelData = modalItems.map(item => ({
+                Data: format(new Date(item.date + "T12:00:00Z"), "dd/MM/yyyy"),
+                Contrato: item.clientName,
+                Função: item.postoRole,
+                Horário: item.time,
+                Escala: item.schedule,
+                Titular: item.employeeName,
+                Status: item.status,
+                CobertoPor: item.coveredByName,
+                TipoCobertura: item.coverageType,
+                Observação: item.notes
+            }));
+        } else if (type === "recruitment") {
+            sheetName = "Vagas Fechadas";
+            excelData = modalItems.map(item => ({
+                Vaga: item.title,
+                Cliente: item.clientName,
+                Cargo: item.postoRole,
+                DataAbertura: format(new Date(item.createdAt + "T12:00:00Z"), "dd/MM/yyyy"),
+                DataFechamento: format(new Date(item.closedAt + "T12:00:00Z"), "dd/MM/yyyy"),
+                TempoFechamentoDias: item.slaDays,
+                Recrutador: item.recruiterName
+            }));
+        }
+
+        const ws = XLSX.utils.json_to_sheet(excelData);
+        const colWidths = Object.keys(excelData[0]).map(key => ({
+            wch: Math.max(key.length + 3, ...excelData.map(row => String(row[key] || '').length + 2))
+        }));
+        ws['!cols'] = colWidths;
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        XLSX.writeFile(wb, `relatorio_detalhes_${type}_${year}_${activeModalContext.month + 1}.xlsx`);
+        toast.success("Detalhes exportados com sucesso!");
+    };
+
+    // Exportação geral da aba atual para Excel
+    const handleExportAnnualMatrix = () => {
+        if (!data) return;
+
+        let excelData: any[] = [];
+        let filename = `relatorio_anual_${activeTab}_${year}.xlsx`;
+        let sheetName = "Relatório Anual";
+
+        if (activeTab === "turnover") {
+            excelData = data.turnoverReport.map((c: any) => {
+                const row: any = {
+                    Cliente: c.clientName,
+                    Empresa: c.companyName
+                };
+                MONTH_NAMES.forEach((m, idx) => {
+                    row[m] = `${c.monthlyData[idx].rate.toFixed(1)}%`;
+                });
+                row["Acumulado Ano"] = `${c.annualRate.toFixed(1)}%`;
+                return row;
+            });
+            sheetName = "Turnover Geral";
+        } else if (activeTab === "absenteismo") {
+            excelData = data.absenteismoReport.map((c: any) => {
+                const row: any = {
+                    Cliente: c.clientName,
+                    Empresa: c.companyName
+                };
+                MONTH_NAMES.forEach((m, idx) => {
+                    row[m] = `${c.monthlyData[idx].rate.toFixed(1)}%`;
+                });
+                row["Média Anual"] = `${c.annualRate.toFixed(1)}%`;
+                return row;
+            });
+            sheetName = "Absenteísmo Secullum";
+        } else if (activeTab === "cobertura") {
+            excelData = data.coberturaReport.map((c: any) => {
+                const row: any = {
+                    Cliente: c.clientName,
+                    Empresa: c.companyName
+                };
+                MONTH_NAMES.forEach((m, idx) => {
+                    row[m] = `${c.monthlyData[idx].rate.toFixed(1)}%`;
+                });
+                row["Média Cobertura"] = `${c.annualRate.toFixed(1)}%`;
+                return row;
+            });
+            sheetName = "Índice de Cobertura";
+        } else if (activeTab === "colaborador") {
+            const list = data.colaboradorReport.filter((emp: any) => !showOnlyActive || emp.status === "Ativo");
+            excelData = list.map((e: any) => {
+                const row: any = {
+                    Colaborador: e.employeeName,
+                    Cargo: e.roleName,
+                    Situação: e.situationName,
+                    Status: e.status
+                };
+                MONTH_NAMES.forEach((m, idx) => {
+                    row[m] = e.monthlyData[idx].total;
+                });
+                row["Total Acumulado"] = e.totalOccurrences;
+                return row;
+            });
+            sheetName = "Faltas por Colaborador";
+        } else if (activeTab === "recruitment") {
+            excelData = data.recruitmentReport.map((c: any) => {
+                const row: any = {
+                    Cliente: c.clientName,
+                    Empresa: c.companyName
+                };
+                MONTH_NAMES.forEach((m, idx) => {
+                    const monthVal = c.monthlyData[idx];
+                    row[m] = `${monthVal.count} vagas (${monthVal.avgSla}d)`;
+                });
+                row["Total Ano (SLA Médio)"] = `${c.totalClosed} vagas (${c.annualSla} dias)`;
+                return row;
+            });
+            sheetName = "R&S SLA Vagas";
+        }
+
+        const ws = XLSX.utils.json_to_sheet(excelData);
+        const colWidths = Object.keys(excelData[0]).map(key => ({
+            wch: Math.max(key.length + 3, ...excelData.map(row => String(row[key] || '').length + 2))
+        }));
+        ws['!cols'] = colWidths;
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        XLSX.writeFile(wb, filename);
+        toast.success("Relatório anual exportado com sucesso!");
+    };
+
+    return (
+        <div className="space-y-6 pb-12 font-sans">
+            {/* Cabeçalho */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 text-white p-6 rounded-[28px] shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 blur-3xl pointer-events-none" />
+                <div className="space-y-1 relative z-10">
+                    <div className="flex items-center gap-2">
+                        <BarChart3 className="w-6 h-6 text-indigo-400" />
+                        <h1 className="text-2xl font-black tracking-tight">Painel de Relatórios Analíticos</h1>
+                    </div>
+                    <p className="text-slate-400 text-xs font-semibold">Consolidado de Turnover, Absenteísmo, Cobertura, Faltas e Recrutamento anual.</p>
+                </div>
+
+                <div className="flex items-center gap-3 relative z-10">
+                    <label className="text-xs font-black text-slate-300 uppercase tracking-wider">Ano Base:</label>
+                    <select
+                        value={year}
+                        onChange={(e) => setYear(Number(e.target.value))}
+                        className="h-10 w-28 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs font-bold px-3 outline-none cursor-pointer hover:border-slate-600 transition-colors"
+                    >
+                        {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                            <option key={y} value={y}>{y}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            {/* Menu de Abas */}
+            <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100 rounded-2xl w-full border border-slate-200/60 shadow-inner">
+                {[
+                    { id: "turnover", label: "Turnover Substituições", icon: TrendingUp },
+                    { id: "absenteismo", label: "Absenteísmo (Secullum)", icon: AlertTriangle },
+                    { id: "cobertura", label: "Índice de Cobertura", icon: Percent },
+                    { id: "colaborador", label: "Faltas por Colaborador", icon: Users },
+                    { id: "recruitment", label: "Recrutamento & SLA", icon: Briefcase }
+                ].map(tab => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => {
+                                setActiveTab(tab.id as any);
+                                setSearchQuery("");
+                            }}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                isActive 
+                                    ? "bg-white text-slate-900 shadow-md scale-102 font-black" 
+                                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                            }`}
+                        >
+                            <Icon className={`w-4 h-4 ${isActive ? "text-indigo-600" : "text-slate-400"}`} />
+                            {tab.label}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {loading ? (
+                <div className="py-24 text-center">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mx-auto" />
+                    <p className="text-xs font-bold text-slate-400 mt-4 animate-pulse">Carregando relatórios anuais...</p>
+                </div>
+            ) : !data ? (
+                <div className="py-24 text-center bg-white rounded-3xl border border-slate-200 shadow-sm font-semibold text-slate-500 text-xs">
+                    Nenhum dado encontrado para o ano {year}.
+                </div>
+            ) : (
+                <div className="space-y-6">
+                    {/* 1. SEÇÃO TURNOVER */}
+                    {activeTab === "turnover" && (
+                        <>
+                            {/* KPI Banner */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <Card className="p-5 border-none shadow-premium bg-gradient-to-br from-indigo-50 to-white hover:scale-101 transition-transform">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Substituições no Ano</p>
+                                            <h3 className="text-2xl font-black text-slate-900 mt-1">{data.kpis.turnover.totalSubs}</h3>
+                                        </div>
+                                        <div className="p-2 bg-indigo-500/10 rounded-lg"><Users className="w-5 h-5 text-indigo-600" /></div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-3">Novas alocações registradas no ano {year}</p>
+                                </Card>
+
+                                <Card className="p-5 border-none shadow-premium bg-gradient-to-br from-indigo-50 to-white hover:scale-101 transition-transform">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Taxa Média de Turnover</p>
+                                            <h3 className="text-2xl font-black text-slate-900 mt-1">{data.kpis.turnover.avgRate}%</h3>
+                                        </div>
+                                        <div className="p-2 bg-indigo-500/10 rounded-lg"><Percent className="w-5 h-5 text-indigo-600" /></div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-3">Média aritmética anual de rotatividade</p>
+                                </Card>
+
+                                <Card className="p-5 border-none shadow-premium bg-gradient-to-br from-indigo-50 to-white hover:scale-101 transition-transform">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Maior Rotatividade</p>
+                                            <h3 className="text-sm font-black text-indigo-700 mt-2.5 truncate max-w-[200px]" title={data.kpis.turnover.highestClient}>
+                                                {data.kpis.turnover.highestClient}
+                                            </h3>
+                                        </div>
+                                        <div className="p-2 bg-indigo-500/10 rounded-lg"><TrendingUp className="w-5 h-5 text-indigo-600" /></div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-3">Contrato com maior taxa de substituição</p>
+                                </Card>
+                            </div>
+
+                            {/* Filtros e Ações */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm">
+                                <div className="relative flex-1 max-w-md">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <Input
+                                        type="text"
+                                        placeholder="Buscar por cliente ou empresa..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="pl-9 text-xs h-9 border-slate-200"
+                                    />
+                                </div>
+                                <Button onClick={handleExportAnnualMatrix} size="sm" className="bg-emerald-600 hover:bg-emerald-700 font-bold text-xs h-9 cursor-pointer gap-1.5 text-white">
+                                    <FileSpreadsheet className="w-4 h-4" /> Exportar Planilha Anual
+                                </Button>
+                            </div>
+
+                            {/* Tabela Turnover */}
+                            <Card className="border-none shadow-premium bg-white overflow-hidden rounded-[20px]">
+                                <div className="w-full overflow-x-auto">
+                                    <Table className="min-w-[1000px]">
+                                        <TableHeader className="bg-slate-50">
+                                            <TableRow>
+                                                <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Cliente / Contrato</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Empresa</TableHead>
+                                                {MONTH_NAMES.map(m => (
+                                                    <TableHead key={m} className="font-bold text-slate-800 text-xs text-center py-2.5">{m}</TableHead>
+                                                ))}
+                                                <TableHead className="font-bold text-indigo-850 text-xs text-right pr-6 py-2.5">Acumulado Ano</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {data.turnoverReport
+                                                .filter((c: any) => 
+                                                    c.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                                    c.companyName.toLowerCase().includes(searchQuery.toLowerCase())
+                                                )
+                                                .map((c: any) => (
+                                                    <TableRow key={c.clientId} className="hover:bg-slate-50/50">
+                                                        <TableCell className="pl-6 py-2.5 text-xs font-bold text-slate-800">{c.clientName}</TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-550 font-medium">{c.companyName}</TableCell>
+                                                        {MONTH_NAMES.map((m, idx) => {
+                                                            const val = c.monthlyData[idx];
+                                                            return (
+                                                                <TableCell key={m} className="py-2.5 text-xs text-center font-bold text-slate-655">
+                                                                    {val.rate > 0 ? `${val.rate.toFixed(1)}%` : "-"}
+                                                                </TableCell>
+                                                            );
+                                                        })}
+                                                        <TableCell className="py-2.5 text-xs text-right pr-6 font-black text-indigo-700">
+                                                            {c.annualRate.toFixed(1)}%
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            }
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </Card>
+                        </>
+                    )}
+
+                    {/* 2. SEÇÃO ABSENTEÍSMO */}
+                    {activeTab === "absenteismo" && (
+                        <>
+                            {/* KPI Banner */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <Card className="p-5 border-none shadow-premium bg-gradient-to-br from-amber-50 to-white hover:scale-101 transition-transform">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Absenteísmo Médio Geral</p>
+                                            <h3 className="text-2xl font-black text-slate-900 mt-1">{data.kpis.absenteismo.avgRate}%</h3>
+                                        </div>
+                                        <div className="p-2 bg-amber-500/10 rounded-lg"><Percent className="w-5 h-5 text-amber-600" /></div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-3">Média anual de todas as ausências</p>
+                                </Card>
+
+                                <Card className="p-5 border-none shadow-premium bg-gradient-to-br from-amber-50 to-white hover:scale-101 transition-transform">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Mês com Maior Volume</p>
+                                            <h3 className="text-2xl font-black text-slate-900 mt-1">{data.kpis.absenteismo.criticalMonth}</h3>
+                                        </div>
+                                        <div className="p-2 bg-amber-500/10 rounded-lg"><Calendar className="w-5 h-5 text-amber-600" /></div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-3">Mês com maior volume de faltas/atestados</p>
+                                </Card>
+
+                                <Card className="p-5 border-none shadow-premium bg-gradient-to-br from-amber-50 to-white hover:scale-101 transition-transform">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Contrato Mais Crítico</p>
+                                            <h3 className="text-sm font-black text-amber-700 mt-2.5 truncate max-w-[200px]" title={data.kpis.absenteismo.highestClient}>
+                                                {data.kpis.absenteismo.highestClient}
+                                            </h3>
+                                        </div>
+                                        <div className="p-2 bg-amber-500/10 rounded-lg"><AlertTriangle className="w-5 h-5 text-amber-600" /></div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-3">Contrato com a maior taxa de absenteísmo</p>
+                                </Card>
+                            </div>
+
+                            {/* Filtros e Ações */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm">
+                                <div className="relative flex-1 max-w-md">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <Input
+                                        type="text"
+                                        placeholder="Buscar por cliente ou empresa..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="pl-9 text-xs h-9 border-slate-200"
+                                    />
+                                </div>
+                                <Button onClick={handleExportAnnualMatrix} size="sm" className="bg-emerald-600 hover:bg-emerald-700 font-bold text-xs h-9 cursor-pointer gap-1.5 text-white">
+                                    <FileSpreadsheet className="w-4 h-4" /> Exportar Planilha Anual
+                                </Button>
+                            </div>
+
+                            {/* Tabela Absenteísmo */}
+                            <Card className="border-none shadow-premium bg-white overflow-hidden rounded-[20px]">
+                                <div className="w-full overflow-x-auto">
+                                    <Table className="min-w-[1000px]">
+                                        <TableHeader className="bg-slate-50">
+                                            <TableRow>
+                                                <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Cliente / Contrato</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Empresa</TableHead>
+                                                {MONTH_NAMES.map(m => (
+                                                    <TableHead key={m} className="font-bold text-slate-800 text-xs text-center py-2.5">{m}</TableHead>
+                                                ))}
+                                                <TableHead className="font-bold text-amber-850 text-xs text-right pr-6 py-2.5">Média Anual</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {data.absenteismoReport
+                                                .filter((c: any) => 
+                                                    c.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                                    c.companyName.toLowerCase().includes(searchQuery.toLowerCase())
+                                                )
+                                                .map((c: any) => (
+                                                    <TableRow key={c.clientId} className="hover:bg-slate-50/50">
+                                                        <TableCell className="pl-6 py-2.5 text-xs font-bold text-slate-800">{c.clientName}</TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-550 font-medium">{c.companyName}</TableCell>
+                                                        {MONTH_NAMES.map((m, idx) => {
+                                                            const val = c.monthlyData[idx];
+                                                            return (
+                                                                <TableCell 
+                                                                    key={m} 
+                                                                    onClick={() => val.totalOccurrences > 0 && handleCellClick(
+                                                                        "absenteismo",
+                                                                        c.clientId,
+                                                                        null,
+                                                                        idx,
+                                                                        `Detalhamento de Absenteísmo - ${c.clientName}`,
+                                                                        `Total de ${val.totalOccurrences} ocorrências (Secullum) encontradas para o mês de ${MONTH_FULL_NAMES[idx]} de ${year}.`
+                                                                    )}
+                                                                    className={`py-2.5 text-xs text-center font-bold transition-colors ${
+                                                                        val.totalOccurrences > 0 
+                                                                            ? "text-amber-600 hover:text-amber-850 hover:bg-amber-50/50 cursor-pointer underline decoration-dotted" 
+                                                                            : "text-slate-400"
+                                                                    }`}
+                                                                >
+                                                                    {val.rate > 0 ? `${val.rate.toFixed(1)}%` : "-"}
+                                                                </TableCell>
+                                                            );
+                                                        })}
+                                                        <TableCell className="py-2.5 text-xs text-right pr-6 font-black text-amber-700">
+                                                            {c.annualRate.toFixed(1)}%
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            }
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </Card>
+                        </>
+                    )}
+
+                    {/* 3. SEÇÃO ÍNDICE DE COBERTURA */}
+                    {activeTab === "cobertura" && (
+                        <>
+                            {/* KPI Banner */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <Card className="p-5 border-none shadow-premium bg-gradient-to-br from-indigo-50 to-white hover:scale-101 transition-transform">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Cobertura Média Geral</p>
+                                            <h3 className="text-2xl font-black text-slate-900 mt-1">{data.kpis.cobertura.avgRate}%</h3>
+                                        </div>
+                                        <div className="p-2 bg-indigo-500/10 rounded-lg"><Percent className="w-5 h-5 text-indigo-600" /></div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-3">Média de tratativas da mesa de operações</p>
+                                </Card>
+
+                                <Card className="p-5 border-none shadow-premium bg-gradient-to-br from-indigo-50 to-white hover:scale-101 transition-transform">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Total de Faltas no Ano</p>
+                                            <h3 className="text-2xl font-black text-slate-900 mt-1">{data.kpis.cobertura.totalFaltas}</h3>
+                                        </div>
+                                        <div className="p-2 bg-indigo-500/10 rounded-lg"><AlertTriangle className="w-5 h-5 text-indigo-600" /></div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-3">Total de ausências registradas no painel</p>
+                                </Card>
+
+                                <Card className="p-5 border-none shadow-premium bg-gradient-to-br from-indigo-50 to-white hover:scale-101 transition-transform">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Faltas Cobertas</p>
+                                            <h3 className="text-2xl font-black text-slate-900 mt-1">
+                                                {data.kpis.cobertura.totalCobertas} <span className="text-xs text-slate-400 font-bold">({data.kpis.cobertura.totalFaltas - data.kpis.cobertura.totalCobertas} glosas)</span>
+                                            </h3>
+                                        </div>
+                                        <div className="p-2 bg-indigo-500/10 rounded-lg"><CheckCircle2 className="w-5 h-5 text-indigo-600" /></div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-3">Plantões cobertos por RT ou Diarista</p>
+                                </Card>
+                            </div>
+
+                            {/* Filtros e Ações */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm">
+                                <div className="relative flex-1 max-w-md">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <Input
+                                        type="text"
+                                        placeholder="Buscar por cliente ou empresa..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="pl-9 text-xs h-9 border-slate-200"
+                                    />
+                                </div>
+                                <Button onClick={handleExportAnnualMatrix} size="sm" className="bg-emerald-600 hover:bg-emerald-700 font-bold text-xs h-9 cursor-pointer gap-1.5 text-white">
+                                    <FileSpreadsheet className="w-4 h-4" /> Exportar Planilha Anual
+                                </Button>
+                            </div>
+
+                            {/* Tabela Cobertura */}
+                            <Card className="border-none shadow-premium bg-white overflow-hidden rounded-[20px]">
+                                <div className="w-full overflow-x-auto">
+                                    <Table className="min-w-[1000px]">
+                                        <TableHeader className="bg-slate-50">
+                                            <TableRow>
+                                                <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Cliente / Contrato</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Empresa</TableHead>
+                                                {MONTH_NAMES.map(m => (
+                                                    <TableHead key={m} className="font-bold text-slate-800 text-xs text-center py-2.5">{m}</TableHead>
+                                                ))}
+                                                <TableHead className="font-bold text-indigo-850 text-xs text-right pr-6 py-2.5">Média Anual</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {data.coberturaReport
+                                                .filter((c: any) => 
+                                                    c.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                                    c.companyName.toLowerCase().includes(searchQuery.toLowerCase())
+                                                )
+                                                .map((c: any) => (
+                                                    <TableRow key={c.clientId} className="hover:bg-slate-50/50">
+                                                        <TableCell className="pl-6 py-2.5 text-xs font-bold text-slate-800">{c.clientName}</TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-550 font-medium">{c.companyName}</TableCell>
+                                                        {MONTH_NAMES.map((m, idx) => {
+                                                            const val = c.monthlyData[idx];
+                                                            return (
+                                                                <TableCell 
+                                                                    key={m} 
+                                                                    onClick={() => val.totalFaltas > 0 && handleCellClick(
+                                                                        "cobertura",
+                                                                        c.clientId,
+                                                                        null,
+                                                                        idx,
+                                                                        `Mesa de Operações - Detalhes de Cobertura - ${c.clientName}`,
+                                                                        `Total de ${val.totalFaltas} ausências registradas para o mês de ${MONTH_FULL_NAMES[idx]} de ${year}.`
+                                                                    )}
+                                                                    className={`py-2.5 text-xs text-center font-bold transition-colors ${
+                                                                        val.totalFaltas > 0 
+                                                                            ? "text-indigo-600 hover:text-indigo-850 hover:bg-indigo-50/50 cursor-pointer underline decoration-dotted" 
+                                                                            : "text-slate-400"
+                                                                    }`}
+                                                                >
+                                                                    {val.totalFaltas > 0 ? `${val.rate.toFixed(0)}%` : "-"}
+                                                                </TableCell>
+                                                            );
+                                                        })}
+                                                        <TableCell className="py-2.5 text-xs text-right pr-6 font-black text-indigo-700">
+                                                            {c.annualRate.toFixed(1)}%
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            }
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </Card>
+                        </>
+                    )}
+
+                    {/* 4. SEÇÃO FALTAS POR COLABORADOR */}
+                    {activeTab === "colaborador" && (
+                        <>
+                            {/* KPI Banner */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <Card className="p-5 border-none shadow-premium bg-gradient-to-br from-slate-50 to-white hover:scale-101 transition-transform">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Colaboradores Ativos</p>
+                                            <h3 className="text-2xl font-black text-slate-900 mt-1">{data.kpis.colaborador.activeCount}</h3>
+                                        </div>
+                                        <div className="p-2 bg-slate-500/10 rounded-lg"><UserCheck className="w-5 h-5 text-slate-650" /></div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-3">Colaboradores ativos na base hoje</p>
+                                </Card>
+
+                                <Card className="p-5 border-none shadow-premium bg-gradient-to-br from-slate-50 to-white hover:scale-101 transition-transform">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Acumulado de Faltas no Ano</p>
+                                            <h3 className="text-2xl font-black text-slate-900 mt-1">{data.kpis.colaborador.totalFaltas}</h3>
+                                        </div>
+                                        <div className="p-2 bg-slate-500/10 rounded-lg"><AlertTriangle className="w-5 h-5 text-slate-650" /></div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-3">Soma de faltas e atestados do Secullum</p>
+                                </Card>
+
+                                <Card className="p-5 border-none shadow-premium bg-gradient-to-br from-slate-50 to-white hover:scale-101 transition-transform">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Maior Incidência</p>
+                                            <h3 className="text-sm font-black text-slate-800 mt-2.5 truncate max-w-[200px]" title={data.kpis.colaborador.highestColab}>
+                                                {data.kpis.colaborador.highestColab}
+                                            </h3>
+                                        </div>
+                                        <div className="p-2 bg-slate-500/10 rounded-lg"><Users className="w-5 h-5 text-slate-650" /></div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-3">Colaborador com maior número de ausências</p>
+                                </Card>
+                            </div>
+
+                            {/* Filtros e Ações */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm">
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 max-w-2xl">
+                                    <div className="relative flex-1">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                        <Input
+                                            type="text"
+                                            placeholder="Buscar colaborador por nome ou função..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="pl-9 text-xs h-9 border-slate-200"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-slate-50 px-3 rounded-lg border border-slate-200/50">
+                                        <span className="text-[10px] font-bold text-slate-550 uppercase">Filtrar Ativos:</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={showOnlyActive}
+                                            onChange={(e) => setShowOnlyActive(e.target.checked)}
+                                            className="h-4 w-4 accent-indigo-650 cursor-pointer"
+                                        />
+                                    </div>
+                                </div>
+                                <Button onClick={handleExportAnnualMatrix} size="sm" className="bg-emerald-600 hover:bg-emerald-700 font-bold text-xs h-9 cursor-pointer gap-1.5 text-white">
+                                    <FileSpreadsheet className="w-4 h-4" /> Exportar Planilha Anual
+                                </Button>
+                            </div>
+
+                            {/* Tabela Colaboradores */}
+                            <Card className="border-none shadow-premium bg-white overflow-hidden rounded-[20px]">
+                                <div className="w-full overflow-x-auto">
+                                    <Table className="min-w-[1000px]">
+                                        <TableHeader className="bg-slate-50">
+                                            <TableRow>
+                                                <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Colaborador</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Função</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Situação</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Status</TableHead>
+                                                {MONTH_NAMES.map(m => (
+                                                    <TableHead key={m} className="font-bold text-slate-800 text-xs text-center py-2.5">{m}</TableHead>
+                                                ))}
+                                                <TableHead className="font-bold text-indigo-850 text-xs text-right pr-6 py-2.5">Acumulado Ano</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {data.colaboradorReport
+                                                .filter((e: any) => !showOnlyActive || e.status === "Ativo")
+                                                .filter((e: any) => 
+                                                    e.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                                    e.roleName.toLowerCase().includes(searchQuery.toLowerCase())
+                                                )
+                                                .map((e: any) => (
+                                                    <TableRow key={e.employeeId} className="hover:bg-slate-50/50">
+                                                        <TableCell className="pl-6 py-2.5 text-xs font-bold text-slate-800">{e.employeeName}</TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-600 font-medium">{e.roleName}</TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-500 font-medium">{e.situationName}</TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-center">
+                                                            <Badge className={`text-[9px] font-black uppercase ${
+                                                                e.status === "Ativo" 
+                                                                    ? "bg-emerald-50 text-emerald-700 border-emerald-100" 
+                                                                    : "bg-red-50 text-red-750 border-red-100"
+                                                            }`}>
+                                                                {e.status}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        {MONTH_NAMES.map((m, idx) => {
+                                                            const val = e.monthlyData[idx];
+                                                            return (
+                                                                <TableCell 
+                                                                    key={m}
+                                                                    onClick={() => val.total > 0 && handleCellClick(
+                                                                        "colaborador",
+                                                                        null,
+                                                                        e.employeeId,
+                                                                        idx,
+                                                                        `Ocorrências de Faltas - ${e.employeeName}`,
+                                                                        `Total de ${val.total} ausências encontradas para o mês de ${MONTH_FULL_NAMES[idx]} de ${year}.`
+                                                                    )}
+                                                                    className={`py-2.5 text-xs text-center font-bold transition-colors ${
+                                                                        val.total > 0 
+                                                                            ? "text-slate-800 hover:text-indigo-650 hover:bg-slate-100/50 cursor-pointer underline decoration-dotted" 
+                                                                            : "text-slate-350"
+                                                                    }`}
+                                                                >
+                                                                    {val.total > 0 ? val.total : "-"}
+                                                                </TableCell>
+                                                            );
+                                                        })}
+                                                        <TableCell className="py-2.5 text-xs text-right pr-6 font-black text-slate-900">
+                                                            {e.totalOccurrences}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            }
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </Card>
+                        </>
+                    )}
+
+                    {/* 5. SEÇÃO RECRUTAMENTO & SLA */}
+                    {activeTab === "recruitment" && (
+                        <>
+                            {/* KPI Banner */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <Card className="p-5 border-none shadow-premium bg-gradient-to-br from-indigo-50 to-white hover:scale-101 transition-transform">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Vagas Fechadas no Ano</p>
+                                            <h3 className="text-2xl font-black text-slate-900 mt-1">{data.kpis.recruitment.totalClosed}</h3>
+                                        </div>
+                                        <div className="p-2 bg-indigo-500/10 rounded-lg"><Briefcase className="w-5 h-5 text-indigo-600" /></div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-3">Processos finalizados com contratação no ano {year}</p>
+                                </Card>
+
+                                <Card className="p-5 border-none shadow-premium bg-gradient-to-br from-indigo-50 to-white hover:scale-101 transition-transform">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">SLA Médio de Fechamento</p>
+                                            <h3 className="text-2xl font-black text-slate-900 mt-1">{data.kpis.recruitment.avgSla} <span className="text-xs text-slate-450 font-bold">dias</span></h3>
+                                        </div>
+                                        <div className="p-2 bg-indigo-500/10 rounded-lg"><Clock className="w-5 h-5 text-indigo-600" /></div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-3">Média de dias desde a abertura ao fechamento</p>
+                                </Card>
+
+                                <Card className="p-5 border-none shadow-premium bg-gradient-to-br from-indigo-50 to-white hover:scale-101 transition-transform">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Maior Demanda</p>
+                                            <h3 className="text-sm font-black text-indigo-700 mt-2.5 truncate max-w-[200px]" title={data.kpis.recruitment.highestClient}>
+                                                {data.kpis.recruitment.highestClient}
+                                            </h3>
+                                        </div>
+                                        <div className="p-2 bg-indigo-500/10 rounded-lg"><Users className="w-5 h-5 text-indigo-600" /></div>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-3">Contrato com maior número de vagas fechadas</p>
+                                </Card>
+                            </div>
+
+                            {/* Filtros e Ações */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm">
+                                <div className="relative flex-1 max-w-md">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <Input
+                                        type="text"
+                                        placeholder="Buscar por cliente ou empresa..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="pl-9 text-xs h-9 border-slate-200"
+                                    />
+                                </div>
+                                <Button onClick={handleExportAnnualMatrix} size="sm" className="bg-emerald-600 hover:bg-emerald-700 font-bold text-xs h-9 cursor-pointer gap-1.5 text-white">
+                                    <FileSpreadsheet className="w-4 h-4" /> Exportar Planilha Anual
+                                </Button>
+                            </div>
+
+                            {/* Tabela R&S */}
+                            <Card className="border-none shadow-premium bg-white overflow-hidden rounded-[20px]">
+                                <div className="w-full overflow-x-auto">
+                                    <Table className="min-w-[1050px]">
+                                        <TableHeader className="bg-slate-50">
+                                            <TableRow>
+                                                <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Cliente / Contrato</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Empresa</TableHead>
+                                                {MONTH_NAMES.map(m => (
+                                                    <TableHead key={m} className="font-bold text-slate-800 text-xs text-center py-2.5">{m}</TableHead>
+                                                ))}
+                                                <TableHead className="font-bold text-indigo-850 text-xs text-right pr-6 py-2.5">Total Vagas (SLA Médio)</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {data.recruitmentReport
+                                                .filter((c: any) => 
+                                                    c.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                                    c.companyName.toLowerCase().includes(searchQuery.toLowerCase())
+                                                )
+                                                .map((c: any) => (
+                                                    <TableRow key={c.clientId} className="hover:bg-slate-50/50">
+                                                        <TableCell className="pl-6 py-2.5 text-xs font-bold text-slate-800">{c.clientName}</TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-550 font-medium">{c.companyName}</TableCell>
+                                                        {MONTH_NAMES.map((m, idx) => {
+                                                            const val = c.monthlyData[idx];
+                                                            return (
+                                                                <TableCell 
+                                                                    key={m}
+                                                                    onClick={() => val.count > 0 && handleCellClick(
+                                                                        "recruitment",
+                                                                        c.clientId,
+                                                                        null,
+                                                                        idx,
+                                                                        `Recrutamento - Vagas Fechadas - ${c.clientName}`,
+                                                                        `Vagas preenchidas no mês de ${MONTH_FULL_NAMES[idx]} de ${year}.`
+                                                                    )}
+                                                                    className={`py-2.5 text-xs text-center font-bold transition-colors ${
+                                                                        val.count > 0 
+                                                                            ? "text-indigo-650 hover:text-indigo-850 hover:bg-indigo-50/50 cursor-pointer underline decoration-dotted" 
+                                                                            : "text-slate-400"
+                                                                    }`}
+                                                                >
+                                                                    {val.count > 0 ? (
+                                                                        <div className="flex flex-col items-center">
+                                                                            <span>{val.count}</span>
+                                                                            <span className="text-[8px] text-slate-400 font-normal mt-0.5">{val.avgSla}d</span>
+                                                                        </div>
+                                                                    ) : "-"}
+                                                                </TableCell>
+                                                            );
+                                                        })}
+                                                        <TableCell className="py-2.5 text-xs text-right pr-6 font-black text-indigo-700">
+                                                            {c.totalClosed} vagas ({c.annualSla}d)
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            }
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </Card>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* Modal Detalhado Multiuso */}
+            <Dialog open={openModal} onOpenChange={setOpenModal}>
+                <DialogContent className="max-w-[95vw] lg:max-w-5xl xl:max-w-6xl max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-[24px]">
+                    <DialogHeader className="p-6 pb-2">
+                        <DialogTitle className="text-xl font-black text-slate-900 tracking-tight">{modalTitle}</DialogTitle>
+                        <DialogDescription className="text-slate-500 text-xs font-semibold">
+                            {modalSubtitle}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex-1 overflow-y-auto overflow-x-auto max-h-[60vh] border-t border-slate-100">
+                        {modalLoading ? (
+                            <div className="py-16 text-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto" />
+                                <p className="text-[11px] font-bold text-slate-400 mt-3">Carregando listagem detalhada...</p>
+                            </div>
+                        ) : modalItems.length === 0 ? (
+                            <div className="py-16 text-center text-xs text-slate-500 font-bold">
+                                Nenhuma ocorrência encontrada.
+                            </div>
+                        ) : (
+                            <div className="w-full overflow-x-auto">
+                                <Table className="min-w-[900px]">
+                                    <TableHeader className="bg-slate-50">
+                                        {activeModalContext?.type === "cobertura" ? (
+                                            <TableRow>
+                                                <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Data</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Função</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Horário / Escala</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Colaborador Titular</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Status</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Coberto Por</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Tipo Cobertura</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs pr-6 py-2.5">Observação</TableHead>
+                                            </TableRow>
+                                        ) : activeModalContext?.type === "recruitment" ? (
+                                            <TableRow>
+                                                <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Título da Vaga</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Cliente</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Cargo / Função</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Abertura</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Fechamento</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Tempo (SLA)</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs pr-6 py-2.5">Recrutador</TableHead>
+                                            </TableRow>
+                                        ) : (
+                                            <TableRow>
+                                                <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Data</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Contrato</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Colaborador</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs py-2.5">Situação</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs text-center py-2.5">Tipo</TableHead>
+                                                <TableHead className="font-bold text-slate-800 text-xs pr-6 py-2.5">Justificativa</TableHead>
+                                            </TableRow>
+                                        )}
+                                    </TableHeader>
+                                    <TableBody>
+                                        {modalItems.map((item, idx) => (
+                                            <TableRow key={item.id || idx} className="hover:bg-slate-50/50">
+                                                {activeModalContext?.type === "cobertura" ? (
+                                                    <>
+                                                        <TableCell className="pl-6 py-2.5 text-xs font-bold text-slate-800">
+                                                            {format(new Date(item.date + "T12:00:00Z"), "dd/MM/yyyy")}
+                                                        </TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-700 font-medium">{item.postoRole}</TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-655 font-bold">
+                                                            {item.time} <span className="text-[9px] font-normal text-slate-400">({item.schedule})</span>
+                                                        </TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-700 font-semibold">{item.employeeName}</TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-center">
+                                                            <Badge className={`text-[9px] font-black uppercase ${
+                                                                item.status === "Coberto" 
+                                                                    ? "bg-emerald-50 text-emerald-700 border-emerald-100" 
+                                                                    : "bg-red-50 text-red-750 border-red-100"
+                                                            }`}>
+                                                                {item.status}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="py-2.5 text-xs">
+                                                            {item.status === "Coberto" ? (
+                                                                <span className="text-indigo-650 font-bold">{item.coveredByName}</span>
+                                                            ) : "-"}
+                                                        </TableCell>
+                                                        <TableCell className="py-2.5 text-xs">
+                                                            {item.status === "Coberto" ? (
+                                                                <Badge className="bg-indigo-50 border-indigo-150 text-indigo-700 text-[9px] font-black">
+                                                                    {item.coverageType}
+                                                                </Badge>
+                                                            ) : "-"}
+                                                        </TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-500 pr-6 max-w-xs truncate" title={item.notes}>
+                                                            {item.notes}
+                                                        </TableCell>
+                                                    </>
+                                                ) : activeModalContext?.type === "recruitment" ? (
+                                                    <>
+                                                        <TableCell className="pl-6 py-2.5 text-xs font-bold text-slate-800">{item.title}</TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-700 font-semibold">{item.clientName}</TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-600 font-medium">{item.postoRole}</TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-center font-bold text-slate-550">
+                                                            {format(new Date(item.createdAt + "T12:00:00Z"), "dd/MM/yyyy")}
+                                                        </TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-center font-bold text-slate-550">
+                                                            {format(new Date(item.closedAt + "T12:00:00Z"), "dd/MM/yyyy")}
+                                                        </TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-center font-black text-indigo-700">
+                                                            {item.slaDays} dias
+                                                        </TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-600 font-medium pr-6">{item.recruiterName}</TableCell>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <TableCell className="pl-6 py-2.5 text-xs font-bold text-slate-850">
+                                                            {format(new Date(item.date + "T12:00:00Z"), "dd/MM/yyyy")}
+                                                        </TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-700 font-semibold">{item.clientName}</TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-800 font-bold">{item.employeeName}</TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-550 font-medium">{item.situation}</TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-center">
+                                                            <Badge className={`text-[9px] font-black uppercase ${
+                                                                item.type === "ATESTADO" 
+                                                                    ? "bg-amber-50 text-amber-700 border-amber-100" 
+                                                                    : "bg-red-50 text-red-755 border-red-100"
+                                                            }`}>
+                                                                {item.type === "ATESTADO" ? "Atestado" : "Falta"}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="py-2.5 text-xs text-slate-550 pr-6 max-w-xs truncate" title={item.description}>
+                                                            {item.description}
+                                                        </TableCell>
+                                                    </>
+                                                )}
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                        {modalItems.length > 0 && (
+                            <Button 
+                                variant="outline" 
+                                onClick={handleExportModalDetails} 
+                                className="text-xs h-10 border border-slate-200 bg-white gap-1.5 font-bold text-slate-700 cursor-pointer hover:bg-slate-50"
+                            >
+                                <Download className="w-3.5 h-3.5" /> Exportar Planilha de Detalhes
+                            </Button>
+                        )}
+                        <Button variant="outline" onClick={() => setOpenModal(false)} className="text-xs h-10 border border-slate-200 bg-white cursor-pointer hover:bg-slate-50">
+                            Fechar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}

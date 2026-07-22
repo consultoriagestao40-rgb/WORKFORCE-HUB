@@ -65,6 +65,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
                 <NavLink href="/admin/companies" icon={Building2} label="Minhas Empresas" />
                 <NavLink href="/admin/clients" icon={Building} label="Cliente & Contrato" />
                 <NavLink href="/admin/performance" icon={Landmark} label="Gestão de Contratos" />
+                <NavLink href="/admin/reports" icon={BarChart} label="Relatórios" />
 
                 {role === 'ADMIN' && (
                     <NavLink href="/admin/users" icon={ShieldAlert} label="Gestão de Acessos" colorClass="text-indigo-400" />
