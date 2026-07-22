@@ -379,9 +379,17 @@ export async function getBenefitsCalculation(year: number, month: number) {
             nextPaymentDueDate = defaultNextDue.toLocaleDateString('pt-BR');
         }
 
-        // Base VT value priority: Employee record -> Posto record -> 0
-        const baseVtValue = emp.valeTransporte > 0 ? emp.valeTransporte : (posto?.valeTransporte || 0);
-        const baseVtValue2 = emp.valeTransporte2 > 0 ? emp.valeTransporte2 : (posto?.valeTransporte2 || 0);
+        // Base VT value priority: Employee record -> Posto record -> 0.
+        // If Posto VT is daily (<= 40), ignore legacy employee monthly values (> 40).
+        const isPostoVtDaily = posto?.valeTransporte && posto.valeTransporte > 0 && posto.valeTransporte <= 40;
+        const baseVtValue = isPostoVtDaily
+            ? (emp.valeTransporte > 0 && emp.valeTransporte <= 40 ? emp.valeTransporte : (posto?.valeTransporte || 0))
+            : (emp.valeTransporte > 0 ? emp.valeTransporte : (posto?.valeTransporte || 0));
+
+        const isPostoVtDaily2 = posto?.valeTransporte2 && posto.valeTransporte2 > 0 && posto.valeTransporte2 <= 40;
+        const baseVtValue2 = isPostoVtDaily2
+            ? (emp.valeTransporte2 > 0 && emp.valeTransporte2 <= 40 ? emp.valeTransporte2 : (posto?.valeTransporte2 || 0))
+            : (emp.valeTransporte2 > 0 ? emp.valeTransporte2 : (posto?.valeTransporte2 || 0));
 
         // Base VA value priority: Employee record -> Posto record -> 0
         const baseVaValue = emp.valeAlimentacao > 0 ? emp.valeAlimentacao : (posto?.valeAlimentacao || 0);
