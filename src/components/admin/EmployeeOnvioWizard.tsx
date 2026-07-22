@@ -159,7 +159,9 @@ export function EmployeeOnvioWizard({
     const [newVtMethodName, setNewVtMethodName] = useState("");
     const [newVtMethodName2, setNewVtMethodName2] = useState("");
     const [editingVtIndex, setEditingVtIndex] = useState<number | null>(null);
+    const [editingVtIndex2, setEditingVtIndex2] = useState<number | null>(null);
     const [editingVtValue, setEditingVtValue] = useState("");
+    const [editingVtValue2, setEditingVtValue2] = useState("");
 
     useEffect(() => {
         const initialMethod = initialData?.vtPaymentMethod;
@@ -171,7 +173,18 @@ export function EmployeeOnvioWizard({
         }
     }, [initialData?.vtPaymentMethod]);
 
+    useEffect(() => {
+        const initialMethod2 = initialData?.vtPaymentMethod2;
+        if (initialMethod2 && !["Metrocard", "Urbs", "PIX"].includes(initialMethod2)) {
+            setVtOptions2(prev => {
+                if (prev.includes(initialMethod2)) return prev;
+                return [...prev, initialMethod2];
+            });
+        }
+    }, [initialData?.vtPaymentMethod2]);
+
     const [vtCustomPaymentDetails, setVtCustomPaymentDetails] = useState(initialData?.vtCustomPaymentDetails || "");
+    const [vtCustomPaymentDetails2, setVtCustomPaymentDetails2] = useState(initialData?.vtCustomPaymentDetails2 || "");
     const [vaPaymentMethod, setVaPaymentMethod] = useState(initialData?.vaPaymentMethod || "Cartão Caju");
     const [vaOptions, setVaOptions] = useState<string[]>(["Cartão Caju"]);
     const [isManagingVa, setIsManagingVa] = useState(false);
