@@ -113,6 +113,8 @@ model Posto {
   valeAlimentacao   Float        @default(0)
   vaType            String       @default("mensal")
   valeTransporte    Float        @default(0)
+  valeTransporte2   Float        @default(0)
+  vtPaymentMethod2  String?      @default("Urbs")
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   originAssignments Assignment[] @relation("OriginPosto")
@@ -190,10 +192,13 @@ model Employee {
   workload               Int                 @default(220)
   valeAlimentacao        Float               @default(0)
   valeTransporte         Float               @default(0)
+  valeTransporte2        Float               @default(0)
   vtOptIn                Boolean             @default(true)
   vtPaymentMethod        String?             @default("Metrocard Metropolitana")
+  vtPaymentMethod2       String?             @default("Urbs")
   vaPaymentMethod        String?             @default("Cartão Caju")
   vtCustomPaymentDetails String?
+  vtCustomPaymentDetails2 String?
   vaCustomPaymentDetails String?
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
@@ -240,6 +245,7 @@ model BenefitsPayment {
   year           Int
   benefitType    String   // "VT", "VA", "AMBOS"
   vtAmount       Float    @default(0)
+  vtAmount2      Float    @default(0)
   vaAmount       Float    @default(0)
   paidAt         DateTime @default(now())
   paidByUserId   String?

@@ -339,6 +339,8 @@ export async function createPosto(formData: FormData) {
     const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
     const vaType = (formData.get("vaType") as string) || "mensal";
     const valeTransporte = parseFloat(formData.get("valeTransporte") as string) || 0;
+    const valeTransporte2 = parseFloat(formData.get("valeTransporte2") as string) || 0;
+    const vtPaymentMethod2 = (formData.get("vtPaymentMethod2") as string) || "Urbs";
 
     await prisma.posto.create({
         data: {
@@ -357,7 +359,9 @@ export async function createPosto(formData: FormData) {
             outrosAdicionais,
             valeAlimentacao,
             vaType,
-            valeTransporte
+            valeTransporte,
+            valeTransporte2,
+            vtPaymentMethod2
         }
     });
 
@@ -381,6 +385,9 @@ export async function createEmployee(formData: FormData) {
         const situationId = formData.get("situationId") as string;
         const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
         const valeTransporte = parseFloat(formData.get("valeTransporte") as string) || 0;
+        const valeTransporte2 = parseFloat(formData.get("valeTransporte2") as string) || 0;
+        const vtPaymentMethod = (formData.get("vtPaymentMethod") as string) || "Metrocard Metropolitana";
+        const vtPaymentMethod2 = (formData.get("vtPaymentMethod2") as string) || "Urbs";
 
         // Mandatory Posto Link
         const postoId = formData.get("postoId") as string;
@@ -462,10 +469,12 @@ export async function createEmployee(formData: FormData) {
                         insalubridade,
                         periculosidade,
                         gratificacao,
-                        outrosAdicionais,
-                        workload,
+                                              workload,
                         valeAlimentacao,
                         valeTransporte,
+                        valeTransporte2,
+                        vtPaymentMethod,
+                        vtPaymentMethod2,
                         address: (formData.get("address") as string) || existingCpf.address,
                         phone: (formData.get("phone") as string) || existingCpf.phone,
                         email: (formData.get("email") as string) || existingCpf.email,
@@ -498,6 +507,9 @@ export async function createEmployee(formData: FormData) {
                         workload,
                         valeAlimentacao,
                         valeTransporte,
+                        valeTransporte2,
+                        vtPaymentMethod,
+                        vtPaymentMethod2,
                         address: (formData.get("address") as string) || null,
                         phone: (formData.get("phone") as string) || null,
                         email: (formData.get("email") as string) || null,
@@ -1048,6 +1060,8 @@ export async function updatePosto(formData: FormData) {
     const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
     const vaType = (formData.get("vaType") as string) || "mensal";
     const valeTransporte = parseFloat(formData.get("valeTransporte") as string) || 0;
+    const valeTransporte2 = parseFloat(formData.get("valeTransporte2") as string) || 0;
+    const vtPaymentMethod2 = (formData.get("vtPaymentMethod2") as string) || "Urbs";
 
     const posto = await prisma.posto.update({
         where: { id },
@@ -1066,7 +1080,9 @@ export async function updatePosto(formData: FormData) {
             outrosAdicionais,
             valeAlimentacao,
             vaType,
-            valeTransporte
+            valeTransporte,
+            valeTransporte2,
+            vtPaymentMethod2
         }
     });
 
@@ -1094,11 +1110,14 @@ export async function updateEmployee(formData: FormData) {
         const totalVacationDaysTaken = parseInt(formData.get("totalVacationDaysTaken") as string) || 0;
         const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
         const valeTransporte = parseFloat(formData.get("valeTransporte") as string) || 0;
+        const valeTransporte2 = parseFloat(formData.get("valeTransporte2") as string) || 0;
 
         const vtOptInStr = formData.get("vtOptIn") as string;
         const vtOptIn = vtOptInStr === "true";
         const vtPaymentMethod = (formData.get("vtPaymentMethod") as string) || null;
+        const vtPaymentMethod2 = (formData.get("vtPaymentMethod2") as string) || null;
         const vtCustomPaymentDetails = (formData.get("vtCustomPaymentDetails") as string) || null;
+        const vtCustomPaymentDetails2 = (formData.get("vtCustomPaymentDetails2") as string) || null;
         const vaPaymentMethod = (formData.get("vaPaymentMethod") as string) || null;
         const vaCustomPaymentDetails = (formData.get("vaCustomPaymentDetails") as string) || null;
 
@@ -1158,9 +1177,12 @@ export async function updateEmployee(formData: FormData) {
 
                     valeAlimentacao,
                     valeTransporte,
+                    valeTransporte2,
                     vtOptIn,
                     vtPaymentMethod,
+                    vtPaymentMethod2,
                     vtCustomPaymentDetails,
+                    vtCustomPaymentDetails2,
                     vaPaymentMethod,
                     vaCustomPaymentDetails,
                     birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : null,

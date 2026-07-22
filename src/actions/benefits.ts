@@ -45,7 +45,17 @@ export interface BenefitsCalculationItem {
     vtBatchNote?: string;
     vtNeedsAlert?: boolean;
 
+    // VT 2
+    vtDailyValue2: number;
+    vtBaseValue2: number;
+    vtDeductionValue2: number;
+    vtTotalValue2: number;
+    vtDestination2: string;
+    vtBatchNote2?: string;
+    vtNeedsAlert2?: boolean;
+
     // VA
+    vaDailyValue: number;
     vaMonthlyValue: number;
     vaBaseValue: number;
     vaDeductionValue: number;
@@ -185,6 +195,7 @@ export async function markBenefitAsPaid(data: {
     year: number;
     benefitType: "VT" | "VA" | "AMBOS";
     vtAmount: number;
+    vtAmount2?: number;
     vaAmount: number;
     notes?: string;
 }) {
@@ -206,6 +217,7 @@ export async function markBenefitAsPaid(data: {
             year: data.year,
             benefitType: data.benefitType,
             vtAmount: Number(data.vtAmount || 0),
+            vtAmount2: Number(data.vtAmount2 || 0),
             vaAmount: Number(data.vaAmount || 0),
             paidAt,
             paidByUserId: user?.id,
@@ -224,6 +236,7 @@ export async function markMultipleBenefitsAsPaid(data: {
         employeeId: string;
         benefitType: "VT" | "VA" | "AMBOS";
         vtAmount: number;
+        vtAmount2?: number;
         vaAmount: number;
     }[];
     month: number;
@@ -248,6 +261,7 @@ export async function markMultipleBenefitsAsPaid(data: {
                 year: data.year,
                 benefitType: item.benefitType,
                 vtAmount: Number(item.vtAmount || 0),
+                vtAmount2: Number(item.vtAmount2 || 0),
                 vaAmount: Number(item.vaAmount || 0),
                 paidAt,
                 paidByUserId: user?.id,
@@ -367,6 +381,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
 
         // Base VT value priority: Employee record -> Posto record -> 0
         const baseVtValue = emp.valeTransporte > 0 ? emp.valeTransporte : (posto?.valeTransporte || 0);
+        const baseVtValue2 = emp.valeTransporte2 > 0 ? emp.valeTransporte2 : (posto?.valeTransporte2 || 0);
 
         // Base VA value priority: Employee record -> Posto record -> 0
         const baseVaValue = emp.valeAlimentacao > 0 ? emp.valeAlimentacao : (posto?.valeAlimentacao || 0);
@@ -377,6 +392,11 @@ export async function getBenefitsCalculation(year: number, month: number) {
         const vtDailyValue = isVtMonthly 
             ? Math.round((baseVtValue / 22) * 100) / 100 
             : baseVtValue;
+
+        const isVtMonthly2 = baseVtValue2 > 40;
+        const vtDailyValue2 = isVtMonthly2
+            ? Math.round((baseVtValue2 / 22) * 100) / 100
+            : baseVtValue2;
 
         // VT Calculation
         let vtBaseValue = 0;
@@ -413,6 +433,41 @@ export async function getBenefitsCalculation(year: number, month: number) {
             }
         }
 
+        // VT 2 Calculation
+        let vtBaseValue2 = 0;
+        let vtDeductionValue2 = 0;
+        let vtTotalValue2 = 0;
+        let vtNeedsAlert2 = false;
+        let vtBatchNote2 = "";
+
+        if (!emp.vtOptIn) {
+            vtBaseValue2 = 0;
+            vtDeductionValue2 = 0;
+            vtTotalValue2 = 0;
+            vtBatchNote2 = "Não Optante pelo VT";
+        } else if (isNewHire) {
+            // New hire fracionated VT: 5-day batches
+            vtBaseValue2 = Math.round((vtDailyValue2 * config.vtFractionDays) * 100) / 100;
+            vtDeductionValue2 = 0;
+            vtTotalValue2 = vtBaseValue2;
+            vtNeedsAlert2 = true;
+            vtBatchNote2 = `Lote de 5 Dias (Admissão em ${admissionDateObj.toLocaleDateString('pt-BR')})`;
+        } else {
+            // Regular month VT
+            if (isVtMonthly2) {
+                vtBaseValue2 = baseVtValue2;
+                vtDeductionValue2 = Math.round((occurrencesCount * vtDailyValue2) * 100) / 100;
+            } else {
+                vtBaseValue2 = Math.round((baseVtValue2 * 22) * 100) / 100;
+                vtDeductionValue2 = Math.round((baseVtValue2 * occurrencesCount) * 100) / 100;
+            }
+            vtTotalValue2 = Math.max(0, Math.round((vtBaseValue2 - vtDeductionValue2) * 100) / 100);
+
+            if (occurrencesCount > 0) {
+                vtBatchNote2 = `${occurrencesCount} falta(s)/atestado(s) abatido(s) no período 26-25`;
+            }
+        }
+
         // VA Calculation
         let vaBaseValue = 0;
         let vaDeductionValue = 0;
@@ -424,6 +479,11 @@ export async function getBenefitsCalculation(year: number, month: number) {
         const vaDailyRate = isVaDiario
             ? (emp.valeAlimentacao > 0 && emp.valeAlimentacao <= 50 ? emp.valeAlimentacao : (posto?.valeAlimentacao || 0))
             : baseVaValue;
+
+        const isVaMonthly = !isVaDiario && (vaDailyRate > 50);
+        const vaDailyValue = isVaMonthly
+            ? Math.round((vaDailyRate / 30) * 100) / 100
+            : vaDailyRate;
 
         if (isNewHire) {
             // New hire fracionated VA: 10-day batches after card delivery
@@ -480,6 +540,10 @@ export async function getBenefitsCalculation(year: number, month: number) {
             ? (emp.vtCustomPaymentDetails || "Outro")
             : (emp.vtPaymentMethod || "Metrocard Metropolitana");
 
+        const vtDestination2 = emp.vtPaymentMethod2 === "Outro"
+            ? (emp.vtCustomPaymentDetails2 || "Outro")
+            : (emp.vtPaymentMethod2 || "Urbs");
+
         const vaDestination = emp.vaPaymentMethod === "Outro"
             ? (emp.vaCustomPaymentDetails || "Outro")
             : (emp.vaPaymentMethod || "Cartão Caju");
@@ -510,6 +574,14 @@ export async function getBenefitsCalculation(year: number, month: number) {
             vtDestination,
             vtBatchNote,
             vtNeedsAlert,
+            vtDailyValue2,
+            vtBaseValue2,
+            vtDeductionValue2,
+            vtTotalValue2,
+            vtDestination2,
+            vtBatchNote2,
+            vtNeedsAlert2,
+            vaDailyValue,
             vaMonthlyValue: vaBaseValue,
             vaBaseValue,
             vaDeductionValue,

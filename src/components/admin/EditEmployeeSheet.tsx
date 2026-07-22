@@ -91,6 +91,13 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
     const [editingVtIndex, setEditingVtIndex] = useState<number | null>(null);
     const [editingVtValue, setEditingVtValue] = useState("");
 
+    const [vtPaymentMethod2, setVtPaymentMethod2] = useState(employee.vtPaymentMethod2 || "Urbs");
+    const [vtOptions2, setVtOptions2] = useState<string[]>(["Metrocard", "Urbs", "PIX"]);
+    const [isManagingVt2, setIsManagingVt2] = useState(false);
+    const [newVtMethodName2, setNewVtMethodName2] = useState("");
+    const [editingVtIndex2, setEditingVtIndex2] = useState<number | null>(null);
+    const [editingVtValue2, setEditingVtValue2] = useState("");
+
     useEffect(() => {
         const initialMethod = employee.vtPaymentMethod;
         if (initialMethod && !["Metrocard", "Urbs", "PIX"].includes(initialMethod)) {
@@ -101,7 +108,18 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
         }
     }, [employee.vtPaymentMethod]);
 
+    useEffect(() => {
+        const initialMethod2 = employee.vtPaymentMethod2;
+        if (initialMethod2 && !["Metrocard", "Urbs", "PIX"].includes(initialMethod2)) {
+            setVtOptions2(prev => {
+                if (prev.includes(initialMethod2)) return prev;
+                return [...prev, initialMethod2];
+            });
+        }
+    }, [employee.vtPaymentMethod2]);
+
     const [vtCustomPaymentDetails, setVtCustomPaymentDetails] = useState(employee.vtCustomPaymentDetails || "");
+    const [vtCustomPaymentDetails2, setVtCustomPaymentDetails2] = useState(employee.vtCustomPaymentDetails2 || "");
     const [vaPaymentMethod, setVaPaymentMethod] = useState(employee.vaPaymentMethod || "Cartão Caju");
     const [vaOptions, setVaOptions] = useState<string[]>(["Cartão Caju"]);
     const [isManagingVa, setIsManagingVa] = useState(false);
@@ -336,7 +354,9 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                     <input type="hidden" name="status" value={status} />
                     <input type="hidden" name="vtOptIn" value={vtOptIn ? "true" : "false"} />
                     <input type="hidden" name="vtPaymentMethod" value={vtPaymentMethod} />
+                    <input type="hidden" name="vtPaymentMethod2" value={vtPaymentMethod2} />
                     <input type="hidden" name="vtCustomPaymentDetails" value={vtCustomPaymentDetails} />
+                    <input type="hidden" name="vtCustomPaymentDetails2" value={vtCustomPaymentDetails2} />
                     <input type="hidden" name="vaPaymentMethod" value={vaPaymentMethod} />
                     <input type="hidden" name="vaCustomPaymentDetails" value={vaCustomPaymentDetails} />
                     <input type="hidden" name="extraFields" value={JSON.stringify(extraFieldsData)} />
@@ -648,14 +668,18 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                             <div className="pt-2 border-t border-slate-100 font-bold text-slate-800 text-[11px] uppercase tracking-wider mb-2">
                                 Vale Alimentação & Transporte Mensal
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-3 gap-4">
                                 <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Valor VA (R$/mês)</Label>
+                                    <Label className="font-bold text-slate-700">Valor VA (R$)</Label>
                                     <Input name="valeAlimentacao" type="number" step="0.01" defaultValue={employee.valeAlimentacao} className="h-9 rounded-xl border-slate-200" />
                                 </div>
                                 <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Valor VT (R$/mês)</Label>
+                                    <Label className="font-bold text-slate-700">Valor VT 1 (R$)</Label>
                                     <Input name="valeTransporte" type="number" step="0.01" defaultValue={employee.valeTransporte} className="h-9 rounded-xl border-slate-200" />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="font-bold text-slate-700">Valor VT 2 (R$)</Label>
+                                    <Input name="valeTransporte2" type="number" step="0.01" defaultValue={employee.valeTransporte2 || 0} className="h-9 rounded-xl border-slate-200" />
                                 </div>
                             </div>
 
@@ -798,6 +822,134 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         {vtOptions.map(opt => (
+                                                            <SelectItem key={opt} value={opt}>
+                                                                {opt === "PIX" ? "Depósito em PIX (Reserva)" : opt}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-1 pt-2 border-t border-dashed border-slate-200/80">
+                                            <div className="flex items-center justify-between">
+                                                <Label className="font-bold text-slate-700">Meio de Depósito do VT 2</Label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setIsManagingVt2(!isManagingVt2);
+                                                        setEditingVtIndex2(null);
+                                                    }}
+                                                    className="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-0.5 cursor-pointer"
+                                                >
+                                                    {isManagingVt2 ? "Fechar" : "Gerenciar"}
+                                                </button>
+                                            </div>
+
+                                            {isManagingVt2 ? (
+                                                <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2 mt-1">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Formas de VT 2 Cadastradas</span>
+                                                    <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                                                        {vtOptions2.map((opt, idx) => (
+                                                            <div key={opt} className="flex items-center justify-between gap-2 p-1.5 rounded-lg hover:bg-slate-50 border border-slate-100">
+                                                                {editingVtIndex2 === idx ? (
+                                                                    <div className="flex items-center gap-1 w-full">
+                                                                        <Input 
+                                                                            value={editingVtValue2}
+                                                                            onChange={e => setEditingVtValue2(e.target.value)}
+                                                                            className="h-7 text-xs rounded bg-white w-full"
+                                                                        />
+                                                                        <button 
+                                                                            type="button" 
+                                                                            onClick={() => {
+                                                                                const trimmed = editingVtValue2.trim();
+                                                                                if (!trimmed) return;
+                                                                                setVtOptions2(prev => prev.map((o, i) => i === idx ? trimmed : o));
+                                                                                if (vtPaymentMethod2 === opt) {
+                                                                                    setVtPaymentMethod2(trimmed);
+                                                                                }
+                                                                                setEditingVtIndex2(null);
+                                                                            }}
+                                                                            className="text-emerald-600 hover:text-emerald-700"
+                                                                        >
+                                                                            <Check className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                        <button 
+                                                                            type="button" 
+                                                                            onClick={() => setEditingVtIndex2(null)}
+                                                                            className="text-red-500 hover:text-red-655"
+                                                                        >
+                                                                            <X className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <>
+                                                                        <span className="text-xs text-slate-700 font-bold">{opt}</span>
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <button 
+                                                                                type="button" 
+                                                                                onClick={() => {
+                                                                                    setEditingVtIndex2(idx);
+                                                                                    setEditingVtValue2(opt);
+                                                                                }}
+                                                                                className="text-slate-400 hover:text-slate-600"
+                                                                            >
+                                                                                <Pencil className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                            <button 
+                                                                                type="button" 
+                                                                                onClick={() => {
+                                                                                    setVtOptions2(prev => prev.filter((_, i) => i !== idx));
+                                                                                    if (vtPaymentMethod2 === opt) {
+                                                                                        const remaining = vtOptions2.filter((_, i) => i !== idx);
+                                                                                        setVtPaymentMethod2(remaining[0] || "");
+                                                                                    }
+                                                                                }}
+                                                                                className="text-red-400 hover:text-red-655"
+                                                                            >
+                                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    
+                                                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                                                        <Input 
+                                                            value={newVtMethodName2}
+                                                            onChange={e => setNewVtMethodName2(e.target.value)}
+                                                            placeholder="Nova operadora de VT..."
+                                                            className="h-8 rounded bg-white text-xs"
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                const name = newVtMethodName2.trim();
+                                                                if (!name) return;
+                                                                if (vtOptions2.includes(name)) {
+                                                                    toast.error("Essa opção já existe.");
+                                                                    return;
+                                                                }
+                                                                setVtOptions2(prev => [...prev, name]);
+                                                                setVtPaymentMethod2(name);
+                                                                setNewVtMethodName2("");
+                                                            }}
+                                                            className="bg-orange-600 hover:bg-orange-700 text-white rounded h-8 text-xs px-2"
+                                                        >
+                                                            Add
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <Select value={vtPaymentMethod2} onValueChange={setVtPaymentMethod2}>
+                                                    <SelectTrigger className="h-9 rounded-xl bg-white border-slate-200">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {vtOptions2.map(opt => (
                                                             <SelectItem key={opt} value={opt}>
                                                                 {opt === "PIX" ? "Depósito em PIX (Reserva)" : opt}
                                                             </SelectItem>

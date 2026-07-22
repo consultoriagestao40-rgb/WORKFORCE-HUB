@@ -148,11 +148,16 @@ export function EmployeeOnvioWizard({
     const [workload, setWorkload] = useState("220");
     const [valeAlimentacao, setValeAlimentacao] = useState("0");
     const [valeTransporte, setValeTransporte] = useState("0");
+    const [valeTransporte2, setValeTransporte2] = useState("0");
     const [vtOptIn, setVtOptIn] = useState<boolean>(initialData?.vtOptIn !== false);
     const [vtPaymentMethod, setVtPaymentMethod] = useState(initialData?.vtPaymentMethod || "Metrocard");
+    const [vtPaymentMethod2, setVtPaymentMethod2] = useState(initialData?.vtPaymentMethod2 || "Urbs");
     const [vtOptions, setVtOptions] = useState<string[]>(["Metrocard", "Urbs", "PIX"]);
+    const [vtOptions2, setVtOptions2] = useState<string[]>(["Metrocard", "Urbs", "PIX"]);
     const [isManagingVt, setIsManagingVt] = useState(false);
+    const [isManagingVt2, setIsManagingVt2] = useState(false);
     const [newVtMethodName, setNewVtMethodName] = useState("");
+    const [newVtMethodName2, setNewVtMethodName2] = useState("");
     const [editingVtIndex, setEditingVtIndex] = useState<number | null>(null);
     const [editingVtValue, setEditingVtValue] = useState("");
 
@@ -315,6 +320,12 @@ export function EmployeeOnvioWizard({
                 }
                 if (!valeTransporte || valeTransporte === "0") {
                     setValeTransporte(String(selectedPosto.valeTransporte || 0));
+                }
+                if (!valeTransporte2 || valeTransporte2 === "0") {
+                    setValeTransporte2(String(selectedPosto.valeTransporte2 || 0));
+                    if (selectedPosto.vtPaymentMethod2) {
+                        setVtPaymentMethod2(selectedPosto.vtPaymentMethod2);
+                    }
                 }
                 if (!workload || workload === "220") {
                     setWorkload(String(selectedPosto.requiredWorkload || 220));
@@ -1408,13 +1419,19 @@ export function EmployeeOnvioWizard({
 
                                         {vtOptIn && (
                                             <>
-                                                <div className="space-y-1">
-                                                    <Label htmlFor="valeTransporte" className="text-slate-700 font-medium">Vale Transporte (R$/Dia)</Label>
-                                                    <Input id="valeTransporte" name="valeTransporte" type="number" step="0.01" value={valeTransporte} onChange={e => setValeTransporte(e.target.value)} />
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="space-y-1">
+                                                        <Label htmlFor="valeTransporte" className="text-slate-700 font-medium">Vale Transporte 1 (R$/Dia)</Label>
+                                                        <Input id="valeTransporte" name="valeTransporte" type="number" step="0.01" value={valeTransporte} onChange={e => setValeTransporte(e.target.value)} />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label htmlFor="valeTransporte2" className="text-slate-700 font-medium">Vale Transporte 2 (R$/Dia)</Label>
+                                                        <Input id="valeTransporte2" name="valeTransporte2" type="number" step="0.01" value={valeTransporte2} onChange={e => setValeTransporte2(e.target.value)} />
+                                                    </div>
                                                 </div>
                                                 <div className="space-y-1">
                                                     <div className="flex items-center justify-between">
-                                                        <Label htmlFor="vtPaymentMethod" className="text-slate-700 font-medium">Meio de Depósito do VT</Label>
+                                                        <Label htmlFor="vtPaymentMethod" className="text-slate-700 font-medium">Meio de Depósito do VT 1</Label>
                                                         <button
                                                             type="button"
                                                             onClick={() => {
@@ -1531,6 +1548,134 @@ export function EmployeeOnvioWizard({
                                                             </SelectTrigger>
                                                             <SelectContent>
                                                                 {vtOptions.map(opt => (
+                                                                    <SelectItem key={opt} value={opt}>
+                                                                        {opt}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    )}
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label htmlFor="vtPaymentMethod2" className="text-slate-700 font-medium">Meio de Depósito do VT 2</Label>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setIsManagingVt2(!isManagingVt2);
+                                                                setEditingVtIndex2(null);
+                                                            }}
+                                                            className="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-0.5 cursor-pointer"
+                                                        >
+                                                            {isManagingVt2 ? "Fechar" : "Gerenciar"}
+                                                        </button>
+                                                    </div>
+
+                                                    {isManagingVt2 ? (
+                                                        <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2 mt-1">
+                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Formas de VT 2 Cadastradas</span>
+                                                            <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                                                                {vtOptions2.map((opt, idx) => (
+                                                                    <div key={opt} className="flex items-center justify-between gap-2 p-1.5 rounded-lg hover:bg-slate-50 border border-slate-100">
+                                                                        {editingVtIndex2 === idx ? (
+                                                                            <div className="flex items-center gap-1 w-full">
+                                                                                <Input 
+                                                                                    value={editingVtValue2}
+                                                                                    onChange={e => setEditingVtValue2(e.target.value)}
+                                                                                    className="h-7 text-xs rounded bg-white w-full"
+                                                                                />
+                                                                                <button 
+                                                                                    type="button" 
+                                                                                    onClick={() => {
+                                                                                        const trimmed = editingVtValue2.trim();
+                                                                                        if (!trimmed) return;
+                                                                                        setVtOptions2(prev => prev.map((o, i) => i === idx ? trimmed : o));
+                                                                                        if (vtPaymentMethod2 === opt) {
+                                                                                            setVtPaymentMethod2(trimmed);
+                                                                                        }
+                                                                                        setEditingVtIndex2(null);
+                                                                                    }}
+                                                                                    className="text-emerald-600 hover:text-emerald-700"
+                                                                                >
+                                                                                    <Check className="w-3.5 h-3.5" />
+                                                                                </button>
+                                                                                <button 
+                                                                                    type="button" 
+                                                                                    onClick={() => setEditingVtIndex2(null)}
+                                                                                    className="text-red-500 hover:text-red-650"
+                                                                                >
+                                                                                    <X className="w-3.5 h-3.5" />
+                                                                                </button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <>
+                                                                                <span className="text-xs text-slate-700 font-bold">{opt}</span>
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <button 
+                                                                                        type="button" 
+                                                                                        onClick={() => {
+                                                                                            setEditingVtIndex2(idx);
+                                                                                            setEditingVtValue2(opt);
+                                                                                        }}
+                                                                                        className="text-slate-400 hover:text-slate-600"
+                                                                                    >
+                                                                                        <Pencil className="w-3.5 h-3.5" />
+                                                                                    </button>
+                                                                                    <button 
+                                                                                        type="button" 
+                                                                                        onClick={() => {
+                                                                                            setVtOptions2(prev => prev.filter((_, i) => i !== idx));
+                                                                                            if (vtPaymentMethod2 === opt) {
+                                                                                                const remaining = vtOptions2.filter((_, i) => i !== idx);
+                                                                                                setVtPaymentMethod2(remaining[0] || "");
+                                                                                            }
+                                                                                        }}
+                                                                                        className="text-red-400 hover:text-red-655"
+                                                                                    >
+                                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                                                    </button>
+                                                                                </div>
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            
+                                                            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                                                                <Input 
+                                                                    value={newVtMethodName2}
+                                                                    onChange={e => setNewVtMethodName2(e.target.value)}
+                                                                    placeholder="Nova operadora de VT..."
+                                                                    className="h-8 rounded bg-white text-xs"
+                                                                />
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        const name = newVtMethodName2.trim();
+                                                                        if (!name) return;
+                                                                        if (vtOptions2.includes(name)) {
+                                                                            toast.error("Essa opção já existe.");
+                                                                            return;
+                                                                        }
+                                                                        setVtOptions2(prev => [...prev, name]);
+                                                                        setVtPaymentMethod2(name);
+                                                                        setNewVtMethodName2("");
+                                                                    }}
+                                                                    className="bg-orange-655 hover:bg-orange-700 text-white rounded h-8 text-xs px-2"
+                                                                >
+                                                                    Add
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <Select value={vtPaymentMethod2} onValueChange={setVtPaymentMethod2}>
+                                                            <SelectTrigger id="vtPaymentMethod2" className="h-9 rounded-xl bg-white border-slate-200">
+                                                                <SelectValue placeholder="Selecione o meio..." />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {vtOptions2.map(opt => (
                                                                     <SelectItem key={opt} value={opt}>
                                                                         {opt}
                                                                     </SelectItem>
@@ -2172,9 +2317,12 @@ export function EmployeeOnvioWizard({
             <input type="hidden" name="workload" value={workload || "220"} />
             <input type="hidden" name="valeAlimentacao" value={valeAlimentacao || "0"} />
             <input type="hidden" name="valeTransporte" value={valeTransporte || "0"} />
+            <input type="hidden" name="valeTransporte2" value={valeTransporte2 || "0"} />
             <input type="hidden" name="vtOptIn" value={vtOptIn ? "true" : "false"} />
             <input type="hidden" name="vtPaymentMethod" value={vtPaymentMethod || "Metrocard Metropolitana"} />
+            <input type="hidden" name="vtPaymentMethod2" value={vtPaymentMethod2 || "Urbs"} />
             <input type="hidden" name="vtCustomPaymentDetails" value={vtCustomPaymentDetails || ""} />
+            <input type="hidden" name="vtCustomPaymentDetails2" value={vtCustomPaymentDetails2 || ""} />
             <input type="hidden" name="vaPaymentMethod" value={vaPaymentMethod || "Cartão Caju"} />
             <input type="hidden" name="vaCustomPaymentDetails" value={vaCustomPaymentDetails || ""} />
             <input type="hidden" name="birthDate" value={birthDate || ""} />

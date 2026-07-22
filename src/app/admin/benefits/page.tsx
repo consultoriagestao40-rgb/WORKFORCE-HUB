@@ -1118,19 +1118,45 @@ export default function BenefitsPage() {
                                                                         Faltas / Atestados na Janela (26-25)
                                                                     </div>
                                                                     <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                                                                        {item.occurrencesList.map(occ => (
-                                                                            <div key={occ.id} className="p-2 bg-slate-50 rounded-xl border border-slate-200/60 text-[11px] space-y-1">
-                                                                                <div className="font-bold text-red-600 flex justify-between">
-                                                                                    <span>{occ.type}</span>
-                                                                                    <span>{occ.date}</span>
-                                                                                </div>
-                                                                                {occ.notes && (
-                                                                                    <div className="text-slate-500 italic text-[10px]">
-                                                                                        Obs: {occ.notes}
+                                                                        {item.occurrencesList.map(occ => {
+                                                                            const vtDisc = item.vtOptIn ? item.vtDailyValue : 0;
+                                                                            const vtDisc2 = item.vtOptIn ? (item.vtDailyValue2 || 0) : 0;
+                                                                            const vaDisc = item.vaDailyValue || 0;
+                                                                            const totalDisc = vtDisc + vtDisc2 + vaDisc;
+
+                                                                            return (
+                                                                                <div key={occ.id} className="p-2.5 bg-slate-55 rounded-xl border border-slate-200/60 text-[11px] space-y-1.5 shadow-sm bg-white">
+                                                                                    <div className="font-bold text-red-600 flex justify-between items-center">
+                                                                                        <span className="flex items-center gap-1">🔴 {occ.type}</span>
+                                                                                        <span className="text-[10px] bg-red-50 text-red-700 px-1.5 py-0.5 rounded-md font-bold">{occ.date}</span>
                                                                                     </div>
-                                                                                )}
-                                                                            </div>
-                                                                        ))}
+                                                                                    
+                                                                                    <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-500 font-semibold border-t border-slate-100 pt-1.5">
+                                                                                        {item.vtOptIn && vtDisc > 0 && (
+                                                                                            <div>Desc. VT 1: <strong className="text-indigo-600">R$ {vtDisc.toFixed(2)}</strong></div>
+                                                                                        )}
+                                                                                        {item.vtOptIn && vtDisc2 > 0 && (
+                                                                                            <div>Desc. VT 2: <strong className="text-indigo-600">R$ {vtDisc2.toFixed(2)}</strong></div>
+                                                                                        )}
+                                                                                        {vaDisc > 0 && (
+                                                                                            <div>Desc. VA: <strong className="text-orange-600">R$ {vaDisc.toFixed(2)}</strong></div>
+                                                                                        )}
+                                                                                        {totalDisc > 0 && (
+                                                                                            <div className="col-span-2 font-bold text-slate-700 border-t border-slate-100/70 pt-1.5 flex justify-between">
+                                                                                                <span>Desconto Total:</span>
+                                                                                                <span className="text-red-600">R$ {totalDisc.toFixed(2)}</span>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+
+                                                                                    {occ.notes && (
+                                                                                        <div className="text-slate-400 italic text-[9px] bg-slate-50 p-1 rounded border border-slate-100 mt-1">
+                                                                                            Obs: {occ.notes}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            );
+                                                                        })}
                                                                     </div>
                                                                 </PopoverContent>
                                                             </Popover>

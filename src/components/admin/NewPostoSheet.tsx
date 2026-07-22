@@ -125,10 +125,26 @@ export function NewPostoSheet({ clientId, schedules, roles }: NewPostoSheetProps
                                      </Select>
                                  </div>
                              </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="valeTransporte">Vale Transporte (R$)</Label>
-                                <Input id="valeTransporte" name="valeTransporte" type="number" step="0.01" defaultValue="0" />
-                            </div>
+                             <div className="space-y-2">
+                                 <Label htmlFor="valeTransporte">Vale Transporte 1 (R$)</Label>
+                                 <Input id="valeTransporte" name="valeTransporte" type="number" step="0.01" defaultValue="0" />
+                             </div>
+                             <div className="space-y-2">
+                                 <Label htmlFor="valeTransporte2">Vale Transporte 2 (R$)</Label>
+                                 <div className="flex gap-2">
+                                     <Input id="valeTransporte2" name="valeTransporte2" type="number" step="0.01" defaultValue="0" className="flex-1" />
+                                     <Select name="vtPaymentMethod2" defaultValue="Urbs">
+                                         <SelectTrigger className="h-9 w-[100px] rounded-xl bg-white border-slate-200 text-xs">
+                                             <SelectValue />
+                                         </SelectTrigger>
+                                         <SelectContent>
+                                             <SelectItem value="Metrocard">Metrocard</SelectItem>
+                                             <SelectItem value="Urbs">Urbs</SelectItem>
+                                             <SelectItem value="PIX">PIX</SelectItem>
+                                         </SelectContent>
+                                     </Select>
+                                 </div>
+                             </div>
                             <div className="space-y-2 col-span-2">
                                 <Label htmlFor="outrosAdicionais">Outros Adicionais (R$)</Label>
                                 <Input id="outrosAdicionais" name="outrosAdicionais" type="number" step="0.01" defaultValue="0" />
