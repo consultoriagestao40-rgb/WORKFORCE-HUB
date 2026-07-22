@@ -128,8 +128,8 @@ export async function GET(request: Request) {
             return true;
         });
 
-        // Reserva técnica: sem alocações ativas no dia
-        const reservasList = activeFilter.filter(emp => emp.assignments.length === 0);
+        // Todos os colaboradores ativos da base para fins de cobertura
+        const reservasList = activeFilter;
 
         const isToday = targetDateStr === todayStr;
 

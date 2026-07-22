@@ -87,6 +87,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
     const [selectedItem, setSelectedItem] = useState<AttendanceItem | null>(null);
     const [coverageType, setCoverageType] = useState<string>("RESERVA_TECNICA"); // 'RESERVA_TECNICA' | 'DIARISTA' | 'VAGO'
     const [selectedReservaId, setSelectedReservaId] = useState<string>("");
+    const [reservaSearch, setReservaSearch] = useState<string>("");
     const [diaristaCost, setDiaristaCost] = useState<string>("");
     const [notes, setNotes] = useState<string>("");
     const [diaristas, setDiaristas] = useState<Array<{ id: string; nome: string }>>([]);
@@ -1464,20 +1465,31 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                         {coverageType === "RESERVA_TECNICA" && (
                             <div className="flex flex-col gap-2">
                                 <label className="text-xs font-black text-slate-700 uppercase">Escolher Colaborador Reserva</label>
+                                <Input 
+                                    type="text"
+                                    placeholder="🔍 Digite para buscar na base de colaboradores..."
+                                    value={reservaSearch}
+                                    onChange={(e) => setReservaSearch(e.target.value)}
+                                    className="h-10 text-xs border-slate-200"
+                                />
                                 {reservaList.length > 0 ? (
                                     <select
                                         value={selectedReservaId}
                                         onChange={(e) => setSelectedReservaId(e.target.value)}
-                                        className="h-10 rounded-md border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer"
+                                        className="h-10 rounded-md border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer mt-1"
                                     >
-                                        {reservaList.map(r => (
-                                            <option key={r.id} value={r.id}>{r.name}</option>
-                                        ))}
+                                        <option value="">Selecione um Reserva...</option>
+                                        {reservaList
+                                            .filter(r => r.name.toLowerCase().includes(reservaSearch.toLowerCase()))
+                                            .map(r => (
+                                                <option key={r.id} value={r.id}>{r.name}</option>
+                                            ))
+                                        }
                                     </select>
                                 ) : (
                                     <div className="text-xs text-amber-600 bg-amber-50 p-3 rounded-lg flex items-center gap-2 border border-amber-100 font-semibold">
                                         <AlertTriangle className="w-4 h-4 shrink-0" />
-                                        Nenhum funcionário na reserva técnica disponível para escala hoje.
+                                        Nenhum funcionário ativo disponível para escala hoje.
                                     </div>
                                 )}
                             </div>
@@ -1579,72 +1591,74 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                     </DialogHeader>
 
                     <ScrollArea className="flex-1 overflow-y-auto max-h-[60vh] border-t border-slate-100">
-                        <Table>
-                            <TableHeader className="bg-slate-50">
-                                <TableRow>
-                                    <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Cliente</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-xs py-2.5">Cargo / Função</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-xs py-2.5">Escala / Horário</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-xs py-2.5">Colaborador</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-xs py-2.5">Status / Cobertura</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-xs pr-6 py-2.5">Observação</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {detailsItems.map((item) => {
-                                    const att = item.attendance;
-                                    let coverageDetails = "";
-                                    let isCovered = false;
-                                    if (att.coveredBy) {
-                                        coverageDetails = `RT: ${att.coveredBy.name}`;
-                                        isCovered = true;
-                                    } else if (att.coverageType === "DIARISTA") {
-                                        coverageDetails = `Diarista`;
-                                        isCovered = true;
-                                    } else if (att.coverageType === "RESERVA_TECNICA") {
-                                        coverageDetails = `Reserva Técnica`;
-                                        isCovered = true;
-                                    }
-
-                                    let statusBadge = null;
-                                    if (att.status === "PRESENTE_MANUAL") {
-                                        statusBadge = <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[10px] font-bold">Manual</Badge>;
-                                    } else if (att.status === "AGUARDANDO" && att.isLate) {
-                                        statusBadge = <Badge className="bg-amber-50 text-amber-700 border-amber-100 text-[10px] font-bold">Atrasado</Badge>;
-                                    } else if (att.status === "FALTA") {
-                                        if (isCovered) {
-                                            statusBadge = <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 text-[10px] font-bold">{coverageDetails}</Badge>;
-                                        } else {
-                                            statusBadge = <Badge className="bg-red-50 text-red-700 border-red-100 text-[10px] font-bold">Sem Cobertura (Glosa)</Badge>;
+                        <div className="w-full overflow-x-auto">
+                            <Table className="min-w-[950px]">
+                                <TableHeader className="bg-slate-50">
+                                    <TableRow>
+                                        <TableHead className="font-bold text-slate-800 text-xs pl-6 py-2.5">Cliente</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5">Cargo / Função</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5">Escala / Horário</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5">Colaborador</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs py-2.5">Status / Cobertura</TableHead>
+                                        <TableHead className="font-bold text-slate-800 text-xs pr-6 py-2.5">Observação</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {detailsItems.map((item) => {
+                                        const att = item.attendance;
+                                        let coverageDetails = "";
+                                        let isCovered = false;
+                                        if (att.coveredBy) {
+                                            coverageDetails = `RT: ${att.coveredBy.name}`;
+                                            isCovered = true;
+                                        } else if (att.coverageType === "DIARISTA") {
+                                            coverageDetails = `Diarista`;
+                                            isCovered = true;
+                                        } else if (att.coverageType === "RESERVA_TECNICA") {
+                                            coverageDetails = `Reserva Técnica`;
+                                            isCovered = true;
                                         }
-                                    } else {
-                                        statusBadge = <Badge className="bg-slate-50 text-slate-600 border-slate-100 text-[10px] font-bold">{att.status}</Badge>;
-                                    }
 
-                                    return (
-                                        <TableRow key={item.id} className="hover:bg-slate-50/50">
-                                            <TableCell className="pl-6 py-2.5 text-xs font-bold text-slate-800">{item.clientName}</TableCell>
-                                            <TableCell className="py-2.5 text-xs text-slate-700 font-medium">{item.role}</TableCell>
-                                            <TableCell className="py-2.5 text-xs text-slate-655 font-bold">
-                                                {item.startTime} - {item.endTime} <span className="text-[9px] font-normal text-slate-400">({item.schedule})</span>
-                                            </TableCell>
-                                            <TableCell className="py-2.5 text-xs text-slate-700 font-semibold">{item.employee?.name || "Sem Titular"}</TableCell>
-                                            <TableCell className="py-2.5 text-xs">{statusBadge}</TableCell>
-                                            <TableCell className="py-2.5 text-xs text-slate-500 pr-6 max-w-xs truncate" title={att.notes || ""}>
-                                                {att.notes || "-"}
+                                        let statusBadge = null;
+                                        if (att.status === "PRESENTE_MANUAL") {
+                                            statusBadge = <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[10px] font-bold">Manual</Badge>;
+                                        } else if (att.status === "AGUARDANDO" && att.isLate) {
+                                            statusBadge = <Badge className="bg-amber-50 text-amber-700 border-amber-100 text-[10px] font-bold">Atrasado</Badge>;
+                                        } else if (att.status === "FALTA") {
+                                            if (isCovered) {
+                                                statusBadge = <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 text-[10px] font-bold">{coverageDetails}</Badge>;
+                                            } else {
+                                                statusBadge = <Badge className="bg-red-50 text-red-700 border-red-100 text-[10px] font-bold">Sem Cobertura (Glosa)</Badge>;
+                                            }
+                                        } else {
+                                            statusBadge = <Badge className="bg-slate-50 text-slate-600 border-slate-100 text-[10px] font-bold">{att.status}</Badge>;
+                                        }
+
+                                        return (
+                                            <TableRow key={item.id} className="hover:bg-slate-50/50">
+                                                <TableCell className="pl-6 py-2.5 text-xs font-bold text-slate-800">{item.clientName}</TableCell>
+                                                <TableCell className="py-2.5 text-xs text-slate-700 font-medium">{item.role}</TableCell>
+                                                <TableCell className="py-2.5 text-xs text-slate-655 font-bold">
+                                                    {item.startTime} - {item.endTime} <span className="text-[9px] font-normal text-slate-400">({item.schedule})</span>
+                                                </TableCell>
+                                                <TableCell className="py-2.5 text-xs text-slate-700 font-semibold">{item.employee?.name || "Sem Titular"}</TableCell>
+                                                <TableCell className="py-2.5 text-xs">{statusBadge}</TableCell>
+                                                <TableCell className="py-2.5 text-xs text-slate-500 pr-6 max-w-xs truncate" title={att.notes || ""}>
+                                                    {att.notes || "-"}
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                    {detailsItems.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="text-center text-xs text-slate-500 font-semibold py-12 pl-6 pr-6">
+                                                Nenhum posto encontrado com este status.
                                             </TableCell>
                                         </TableRow>
-                                    );
-                                })}
-                                {detailsItems.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="text-center text-xs text-slate-500 font-semibold py-12 pl-6 pr-6">
-                                            Nenhum posto encontrado com este status.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
                     </ScrollArea>
                     
                     <DialogFooter className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
