@@ -681,90 +681,90 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
             {activeTab === "mesa" ? (
                 <>
                     {/* Metrics Dashboard Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
-                <Card className="border-none shadow-premium bg-gradient-to-br from-indigo-900 to-slate-950 text-white p-3.5 flex flex-col justify-between h-[110px] select-none">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-2">
+                <Card className="border-none shadow-premium bg-gradient-to-br from-indigo-900 to-slate-950 text-white p-3 flex flex-col justify-between h-[112px] select-none">
                     <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-200/70">Total de Postos Ativos</p>
-                        <p className="text-2xl font-black mt-0.5">{metrics.total}</p>
+                        <p className="text-[9px] font-black uppercase tracking-wider text-indigo-200/70">Postos Ativos</p>
+                        <p className="text-xl font-black mt-1">{metrics.total}</p>
                     </div>
-                    <p className="text-[8px] text-indigo-200/80 font-bold uppercase tracking-wider">Escala linear diária completa</p>
+                    <p className="text-[8px] text-indigo-200/80 font-bold uppercase tracking-wider leading-none">Escala diária completa</p>
                 </Card>
 
-                <Card className="border-none shadow-premium bg-white p-3.5 flex flex-col justify-between h-[110px] select-none">
+                <Card className="border-none shadow-premium bg-white p-3 flex flex-col justify-between h-[112px] select-none">
                     <div className="flex items-start justify-between">
                         <div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Presença Confirmada</p>
-                            <p className="text-2xl font-black mt-0.5 text-emerald-600">{metrics.confirmed}</p>
+                            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Presenças</p>
+                            <p className="text-xl font-black mt-1 text-emerald-600">{metrics.confirmed}</p>
                         </div>
-                        <UserCheck className="w-5 h-5 text-emerald-500 bg-emerald-50 p-0.5 rounded" />
+                        <UserCheck className="w-4.5 h-4.5 text-emerald-500 bg-emerald-50 p-0.5 rounded shrink-0 ml-1" />
                     </div>
-                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">
-                        {metrics.total > 0 ? ((metrics.confirmed / metrics.total) * 100).toFixed(0) : 0}% de presença confirmada
+                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider leading-none">
+                        {metrics.total > 0 ? ((metrics.confirmed / metrics.total) * 100).toFixed(0) : 0}% presenças
                     </p>
                 </Card>
 
-                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[110px] select-none" onClick={() => handleOpenDetails("ATRASADOS")}>
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3 flex flex-col justify-between h-[112px] select-none" onClick={() => handleOpenDetails("ATRASADOS")}>
                     <div className="flex items-start justify-between">
                         <div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Postos Atrasados</p>
-                            <p className="text-2xl font-black mt-0.5 text-amber-600">{metrics.lates}</p>
+                            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Atrasados</p>
+                            <p className="text-xl font-black mt-1 text-amber-600">{metrics.lates}</p>
                         </div>
-                        <Clock className="w-5 h-5 text-amber-500 bg-amber-50 p-0.5 rounded" />
+                        <Clock className="w-4.5 h-4.5 text-amber-500 bg-amber-50 p-0.5 rounded shrink-0 ml-1" />
                     </div>
-                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Turno iniciado sem ponto batido</p>
+                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider leading-none">Iniciado sem ponto</p>
                 </Card>
 
-                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[110px] select-none" onClick={() => handleOpenDetails("COBERTURAS")}>
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3 flex flex-col justify-between h-[112px] select-none" onClick={() => handleOpenDetails("COBERTURAS")}>
                     <div className="flex items-start justify-between">
                         <div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Postos com Cobertura</p>
-                            <p className="text-2xl font-black mt-0.5 text-blue-600">{metrics.coverages}</p>
+                            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Coberturas</p>
+                            <p className="text-xl font-black mt-1 text-blue-600">{metrics.coverages}</p>
                         </div>
-                        <RefreshCw className="w-5 h-5 text-blue-500 bg-blue-50 p-0.5 rounded" />
+                        <RefreshCw className="w-4.5 h-4.5 text-blue-500 bg-blue-50 p-0.5 rounded shrink-0 ml-1" />
                     </div>
-                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Coberto por Reserva ou Diarista</p>
+                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider leading-none">Coberto por RT/Diarista</p>
                 </Card>
 
-                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[110px] select-none" onClick={() => handleOpenDetails("GLOSAS")}>
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3 flex flex-col justify-between h-[112px] select-none" onClick={() => handleOpenDetails("GLOSAS")}>
                     <div className="flex items-start justify-between">
                         <div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Faltas Sem Cobertura (Glosa)</p>
-                            <p className="text-2xl font-black mt-0.5 text-red-600">{metrics.absences}</p>
+                            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Faltas (Glosa)</p>
+                            <p className="text-xl font-black mt-1 text-red-600">{metrics.absences}</p>
                         </div>
-                        <UserX className="w-5 h-5 text-red-500 bg-red-50 p-0.5 rounded" />
+                        <UserX className="w-4.5 h-4.5 text-red-500 bg-red-50 p-0.5 rounded shrink-0 ml-1" />
                     </div>
-                    <div className="flex items-center justify-between text-[8px] text-red-500 font-extrabold uppercase tracking-wider">
-                        <span>Perda de Fat.:</span>
+                    <div className="flex items-center justify-between text-[8px] text-red-500 font-extrabold uppercase tracking-wider leading-none mt-1">
+                        <span>Perda:</span>
                         <span>{metrics.glosasValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
                     </div>
                 </Card>
 
-                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[110px] select-none" onClick={() => handleOpenDetails("COBERTURA_INDEX")}>
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3 flex flex-col justify-between h-[112px] select-none" onClick={() => handleOpenDetails("COBERTURA_INDEX")}>
                     <div className="flex items-start justify-between">
                         <div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Índice de Cobertura</p>
-                            <p className="text-2xl font-black mt-0.5 text-indigo-600">
+                            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Coberturas %</p>
+                            <p className="text-xl font-black mt-1 text-indigo-600">
                                 { (metrics.absences + metrics.coverages) > 0 ? ((metrics.coverages / (metrics.absences + metrics.coverages)) * 100).toFixed(1) : "100.0" }%
                             </p>
                         </div>
-                        <UserCheck className="w-5 h-5 text-indigo-500 bg-indigo-50 p-0.5 rounded" />
+                        <UserCheck className="w-4.5 h-4.5 text-indigo-500 bg-indigo-50 p-0.5 rounded shrink-0 ml-1" />
                     </div>
-                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider leading-none">
                         ({metrics.coverages} de {metrics.absences + metrics.coverages} cobertas)
                     </p>
                 </Card>
 
-                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3.5 flex flex-col justify-between h-[110px] select-none" onClick={() => handleOpenDetails("MANUAL_INDEX")}>
+                <Card className="border-none shadow-premium bg-white cursor-pointer hover:bg-slate-50/50 transition-colors p-3 flex flex-col justify-between h-[112px] select-none" onClick={() => handleOpenDetails("MANUAL_INDEX")}>
                     <div className="flex items-start justify-between">
                         <div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Confirmado Manual</p>
-                            <p className="text-2xl font-black mt-0.5 text-slate-750">
+                            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Manual %</p>
+                            <p className="text-xl font-black mt-1 text-slate-700">
                                 { (metrics.confirmed > 0 ? (metrics.presentesManual / metrics.confirmed) * 100 : 0).toFixed(1) }%
                             </p>
                         </div>
-                        <Edit className="w-5 h-5 text-slate-500 bg-slate-50 p-0.5 rounded" />
+                        <Edit className="w-4.5 h-4.5 text-slate-500 bg-slate-50 p-0.5 rounded shrink-0 ml-1" />
                     </div>
-                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider leading-none">
                         ({metrics.presentesManual} de {metrics.confirmed} manual)
                     </p>
                 </Card>
