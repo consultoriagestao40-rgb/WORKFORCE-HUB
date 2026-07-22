@@ -728,15 +728,20 @@ export default function BenefitsPage() {
         });
     };
 
-    // Totals
-    const totalVT = items.reduce((acc, curr) => acc + (curr.vtOptIn ? curr.vtTotalValue : 0), 0);
-    const totalVA = items.reduce((acc, curr) => acc + curr.vaTotalValue, 0);
-    const vtOptInCount = items.filter(i => i.vtOptIn).length;
-    const alertCount = items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert).length;
-    const paidCount = items.filter(i => i.isPaid).length;
-    const totalOccurrencesDeducted = items.reduce((acc, curr) => acc + curr.vtOccurrencesDeducted, 0);
-    const totalVtDeduction = items.reduce((acc, curr) => acc + (curr.vtOptIn ? curr.vtDeductionValue : 0), 0);
-    const totalVaDeduction = items.reduce((acc, curr) => acc + curr.vaDeductionValue, 0);
+    // Formatação de moeda no padrão brasileiro (R$ 00.000,00)
+    const formatCurrency = (val: number) => {
+        return "R$ " + val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    // Totals (calculados a partir dos itens filtrados para refletir as seleções de filtros)
+    const totalVT = filteredItems.reduce((acc, curr) => acc + (curr.vtOptIn ? curr.vtTotalValue : 0), 0);
+    const totalVA = filteredItems.reduce((acc, curr) => acc + curr.vaTotalValue, 0);
+    const vtOptInCount = filteredItems.filter(i => i.vtOptIn).length;
+    const alertCount = filteredItems.filter(i => i.vtNeedsAlert || i.vaNeedsAlert || i.isNewHire).length;
+    const paidCount = filteredItems.filter(i => i.isPaid).length;
+    const totalOccurrencesDeducted = filteredItems.reduce((acc, curr) => acc + curr.vtOccurrencesDeducted, 0);
+    const totalVtDeduction = filteredItems.reduce((acc, curr) => acc + (curr.vtOptIn ? curr.vtDeductionValue : 0), 0);
+    const totalVaDeduction = filteredItems.reduce((acc, curr) => acc + curr.vaDeductionValue, 0);
 
     const monthNames = [
         "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", 
@@ -826,9 +831,9 @@ export default function BenefitsPage() {
                     <div className="flex items-center gap-2 text-indigo-300 text-xs font-bold uppercase tracking-wider mb-2">
                         <Bus className="w-4 h-4" /> Total Vale Transporte (VT)
                     </div>
-                    <div className="text-2xl font-black whitespace-nowrap"><span className="text-base font-bold mr-1">R$</span>{totalVT.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                    <div className="text-2xl font-black whitespace-nowrap">{formatCurrency(totalVT)}</div>
                     <div className="text-[11px] text-indigo-200 mt-2 font-medium flex items-center gap-1.5">
-                        <UserCheck className="w-3.5 h-3.5 text-emerald-400" /> {vtOptInCount} colaboradores optantes ({items.length - vtOptInCount} dispensados)
+                        <UserCheck className="w-3.5 h-3.5 text-emerald-400" /> {vtOptInCount} colaboradores optantes ({filteredItems.length - vtOptInCount} dispensados)
                     </div>
                 </div>
 
@@ -840,7 +845,7 @@ export default function BenefitsPage() {
                     <div className="flex items-center gap-2 text-orange-100 text-xs font-bold uppercase tracking-wider mb-2">
                         <Utensils className="w-4 h-4" /> Total Vale Alimentação (VA)
                     </div>
-                    <div className="text-2xl font-black whitespace-nowrap"><span className="text-base font-bold mr-1">R$</span>{totalVA.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                    <div className="text-2xl font-black whitespace-nowrap">{formatCurrency(totalVA)}</div>
                     <div className="text-[11px] text-orange-100 mt-2 font-medium">
                         Mês de referência: {monthNames[selectedMonth - 1]} / {selectedYear}
                     </div>
@@ -860,9 +865,9 @@ export default function BenefitsPage() {
                     </div>
                     <div className="text-2xl font-black text-slate-800 whitespace-nowrap">{totalOccurrencesDeducted}</div>
                     <div className="text-[10px] text-slate-400 font-bold flex flex-wrap gap-x-1.5 whitespace-nowrap">
-                        <span>Desc. VT: <strong className="text-indigo-600">R$ {totalVtDeduction.toFixed(2)}</strong></span>
+                        <span>Desc. VT: <strong className="text-indigo-600">{formatCurrency(totalVtDeduction)}</strong></span>
                         <span className="text-slate-350">|</span>
-                        <span>Desc. VA: <strong className="text-orange-600">R$ {totalVaDeduction.toFixed(2)}</strong></span>
+                        <span>Desc. VA: <strong className="text-orange-600">{formatCurrency(totalVaDeduction)}</strong></span>
                     </div>
                     <div className="text-[10px] text-slate-500 font-medium pt-1">
                         Janela {config?.payrollCutoffStartDay || 26} a {config?.payrollCutoffEndDay || 25} (clique para detalhes).
@@ -874,9 +879,9 @@ export default function BenefitsPage() {
                     <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold uppercase tracking-wider">
                         <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Compras Pagas
                     </div>
-                    <div className="text-2xl font-black text-emerald-600 whitespace-nowrap">{paidCount} <span className="text-xs font-bold text-slate-400">/ {items.length}</span></div>
+                    <div className="text-2xl font-black text-emerald-600 whitespace-nowrap">{paidCount} <span className="text-xs font-bold text-slate-400">/ {filteredItems.length}</span></div>
                     <div className="text-[11px] text-slate-500 font-medium">
-                        {items.length - paidCount} compras pendentes de marcação.
+                        {filteredItems.length - paidCount} compras pendentes de marcação.
                     </div>
                 </div>
 
@@ -1135,7 +1140,7 @@ export default function BenefitsPage() {
                                                     </td>
 
                                                     <td className="py-3.5 px-4 text-right font-black text-indigo-700">
-                                                        R$ {item.vtTotalValue.toFixed(2)}
+                                                        {formatCurrency(item.vtTotalValue)}
                                                     </td>
 
                                                     <td className="py-3.5 px-4">
@@ -1145,7 +1150,7 @@ export default function BenefitsPage() {
                                                     </td>
 
                                                     <td className="py-3.5 px-4 text-right font-black text-orange-600">
-                                                        R$ {item.vaTotalValue.toFixed(2)}
+                                                        {formatCurrency(item.vaTotalValue)}
                                                     </td>
 
                                                     <td className="py-3.5 px-4">
@@ -1225,15 +1230,15 @@ export default function BenefitsPage() {
                                                     </div>
                                                     <div className="text-right">
                                                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Total VT</span>
-                                                        <span className="font-extrabold text-slate-850">R$ {group.vtTotal.toFixed(2)}</span>
+                                                        <span className="font-extrabold text-slate-850">{formatCurrency(group.vtTotal)}</span>
                                                     </div>
                                                     <div className="text-right">
                                                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Total VA</span>
-                                                        <span className="font-extrabold text-slate-850">R$ {group.vaTotal.toFixed(2)}</span>
+                                                        <span className="font-extrabold text-slate-850">{formatCurrency(group.vaTotal)}</span>
                                                     </div>
                                                     <div className="text-right bg-orange-50 px-3 py-1.5 rounded-xl border border-orange-200/40">
                                                         <span className="text-[9px] font-black text-orange-500 uppercase tracking-wider block">Total Geral</span>
-                                                        <span className="font-black text-orange-600 text-sm">R$ {groupTotal.toFixed(2)}</span>
+                                                        <span className="font-black text-orange-600 text-sm">{formatCurrency(groupTotal)}</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1312,13 +1317,13 @@ export default function BenefitsPage() {
                                                                         )}
                                                                     </td>
                                                                     <td className="py-3 px-4 text-right font-black text-slate-800">
-                                                                        R$ {item.vtTotalValue.toFixed(2)}
+                                                                        {formatCurrency(item.vtTotalValue)}
                                                                     </td>
                                                                     <td className="py-3 px-4 text-slate-600 truncate max-w-[120px]">
                                                                         {item.vtDestination}
                                                                     </td>
                                                                     <td className="py-3 px-4 text-right font-black text-slate-800">
-                                                                        R$ {item.vaTotalValue.toFixed(2)}
+                                                                        {formatCurrency(item.vaTotalValue)}
                                                                     </td>
                                                                     <td className="py-3 px-4 text-slate-600 truncate max-w-[120px]">
                                                                         {item.vaDestination}
@@ -1395,15 +1400,15 @@ export default function BenefitsPage() {
                                                     </div>
                                                     <div className="text-right">
                                                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Total VT</span>
-                                                        <span className="font-extrabold text-slate-850">R$ {group.vtTotal.toFixed(2)}</span>
+                                                        <span className="font-extrabold text-slate-850">{formatCurrency(group.vtTotal)}</span>
                                                     </div>
                                                     <div className="text-right">
                                                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Total VA</span>
-                                                        <span className="font-extrabold text-slate-850">R$ {group.vaTotal.toFixed(2)}</span>
+                                                        <span className="font-extrabold text-slate-850">{formatCurrency(group.vaTotal)}</span>
                                                     </div>
                                                     <div className="text-right bg-orange-50 px-3 py-1.5 rounded-xl border border-orange-200/40">
                                                         <span className="text-[9px] font-black text-orange-500 uppercase tracking-wider block">Total Geral</span>
-                                                        <span className="font-black text-orange-600 text-sm">R$ {groupTotal.toFixed(2)}</span>
+                                                        <span className="font-black text-orange-600 text-sm">{formatCurrency(groupTotal)}</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1482,13 +1487,13 @@ export default function BenefitsPage() {
                                                                         )}
                                                                     </td>
                                                                     <td className="py-3 px-4 text-right font-black text-slate-800">
-                                                                        R$ {item.vtTotalValue.toFixed(2)}
+                                                                        {formatCurrency(item.vtTotalValue)}
                                                                     </td>
                                                                     <td className="py-3 px-4 text-slate-600 truncate max-w-[120px]">
                                                                         {item.vtDestination}
                                                                     </td>
                                                                     <td className="py-3 px-4 text-right font-black text-slate-800">
-                                                                        R$ {item.vaTotalValue.toFixed(2)}
+                                                                        {formatCurrency(item.vaTotalValue)}
                                                                     </td>
                                                                     <td className="py-3 px-4 text-slate-600 truncate max-w-[120px]">
                                                                         {item.vaDestination}
@@ -1569,14 +1574,14 @@ export default function BenefitsPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 font-medium">
-                                    {items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert || i.isNewHire).length === 0 ? (
+                                    {filteredItems.filter(i => i.vtNeedsAlert || i.vaNeedsAlert || i.isNewHire).length === 0 ? (
                                         <tr>
                                             <td colSpan={9} className="py-8 text-center text-slate-400 font-medium">
                                                 Nenhum alerta de lote fracionado pendente para o mês selecionado.
                                             </td>
                                         </tr>
                                     ) : (
-                                        items.filter(i => i.vtNeedsAlert || i.vaNeedsAlert || i.isNewHire).map(item => (
+                                        filteredItems.filter(i => i.vtNeedsAlert || i.vaNeedsAlert || i.isNewHire).map(item => (
                                             <tr key={item.employeeId} className={`hover:bg-slate-50/50 ${selectedEmployeeIds.includes(item.employeeId) ? 'bg-orange-50/20' : ''}`}>
                                                 <td className="py-3 px-4 text-center">
                                                     <input 
@@ -1609,21 +1614,21 @@ export default function BenefitsPage() {
                                                 <td className="py-3 px-4 text-right font-bold">
                                                     {item.vtNeedsAlert ? (
                                                         <div className="space-y-0.5">
-                                                            <div className="text-indigo-600">R$ {item.vtTotalValue.toFixed(2)}</div>
+                                                            <div className="text-indigo-600">{formatCurrency(item.vtTotalValue)}</div>
                                                             <div className="text-[9px] text-indigo-400 font-semibold">{item.vtDestination}</div>
                                                         </div>
                                                     ) : (
-                                                        <span className="text-slate-300 font-semibold">-</span>
+                                                        <span className="text-slate-3-0 font-semibold">-</span>
                                                     )}
                                                 </td>
                                                 <td className="py-3 px-4 text-right font-bold">
                                                     {item.vaNeedsAlert ? (
                                                         <div className="space-y-0.5">
-                                                            <div className="text-orange-600">R$ {item.vaTotalValue.toFixed(2)}</div>
+                                                            <div className="text-orange-600">{formatCurrency(item.vaTotalValue)}</div>
                                                             <div className="text-[9px] text-orange-400 font-semibold">{item.vaDestination}</div>
                                                         </div>
                                                     ) : (
-                                                        <span className="text-slate-300 font-semibold">-</span>
+                                                        <span className="text-slate-3-0 font-semibold">-</span>
                                                     )}
                                                 </td>
                                                 <td className="py-3 px-4 text-center">
