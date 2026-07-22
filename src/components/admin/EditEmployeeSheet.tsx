@@ -9,7 +9,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescri
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
     Edit, Plus, Trash2, Download, UploadCloud, FileText, CheckCircle2, 
-    User, Briefcase, CreditCard, ShieldAlert, Users, Paperclip, ChevronDown 
+    User, Briefcase, CreditCard, ShieldAlert, Users, Paperclip, ChevronDown,
+    Pencil, X, Check
 } from "lucide-react";
 import { updateEmployee } from "@/app/actions";
 import { VacationHistory } from "./VacationHistory";
@@ -84,38 +85,36 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
     // Benefits specific states
     const [vtOptIn, setVtOptIn] = useState(employee.vtOptIn !== false);
     const [vtPaymentMethod, setVtPaymentMethod] = useState(employee.vtPaymentMethod || "Metrocard");
-    const [vtOptions, setVtOptions] = useState<string[]>(["Metrocard", "Urbs", "PIX", "Outro"]);
-    const [isAddingNewVtMethod, setIsAddingNewVtMethod] = useState(false);
+    const [vtOptions, setVtOptions] = useState<string[]>(["Metrocard", "Urbs", "PIX"]);
+    const [isManagingVt, setIsManagingVt] = useState(false);
     const [newVtMethodName, setNewVtMethodName] = useState("");
+    const [editingVtIndex, setEditingVtIndex] = useState<number | null>(null);
+    const [editingVtValue, setEditingVtValue] = useState("");
 
     useEffect(() => {
         const initialMethod = employee.vtPaymentMethod;
-        if (initialMethod && !["Metrocard", "Urbs", "PIX", "Outro"].includes(initialMethod)) {
+        if (initialMethod && !["Metrocard", "Urbs", "PIX"].includes(initialMethod)) {
             setVtOptions(prev => {
                 if (prev.includes(initialMethod)) return prev;
-                const next = [...prev];
-                // Inserir antes de Outro
-                next.splice(next.length - 1, 0, initialMethod);
-                return next;
+                return [...prev, initialMethod];
             });
         }
     }, [employee.vtPaymentMethod]);
 
     const [vtCustomPaymentDetails, setVtCustomPaymentDetails] = useState(employee.vtCustomPaymentDetails || "");
     const [vaPaymentMethod, setVaPaymentMethod] = useState(employee.vaPaymentMethod || "Cartão Caju");
-    const [vaOptions, setVaOptions] = useState<string[]>(["Cartão Caju", "Outro"]);
-    const [isAddingNewVaMethod, setIsAddingNewVaMethod] = useState(false);
+    const [vaOptions, setVaOptions] = useState<string[]>(["Cartão Caju"]);
+    const [isManagingVa, setIsManagingVa] = useState(false);
     const [newVaMethodName, setNewVaMethodName] = useState("");
+    const [editingVaIndex, setEditingVaIndex] = useState<number | null>(null);
+    const [editingVaValue, setEditingVaValue] = useState("");
 
     useEffect(() => {
         const initialMethod = employee.vaPaymentMethod;
-        if (initialMethod && !["Cartão Caju", "Outro"].includes(initialMethod)) {
+        if (initialMethod && !["Cartão Caju"].includes(initialMethod)) {
             setVaOptions(prev => {
                 if (prev.includes(initialMethod)) return prev;
-                const next = [...prev];
-                // Inserir antes de Outro
-                next.splice(next.length - 1, 0, initialMethod);
-                return next;
+                return [...prev, initialMethod];
             });
         }
     }, [employee.vaPaymentMethod]);
@@ -678,7 +677,6 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                                         </SelectContent>
                                     </Select>
                                 </div>
-
                                 {vtOptIn && (
                                     <div className="space-y-2 pt-2 border-t border-dashed border-slate-200/80">
                                         <div className="space-y-1">
@@ -686,60 +684,112 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                                                 <Label className="font-bold text-slate-700">Meio de Depósito do VT</Label>
                                                 <button
                                                     type="button"
-                                                    onClick={() => setIsAddingNewVtMethod(!isAddingNewVtMethod)}
+                                                    onClick={() => {
+                                                        setIsManagingVt(!isManagingVt);
+                                                        setEditingVtIndex(null);
+                                                    }}
                                                     className="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-0.5 cursor-pointer"
                                                 >
-                                                    <Plus className="w-3.5 h-3.5" /> Adicionar Novo
+                                                    {isManagingVt ? "Fechar" : "Gerenciar"}
                                                 </button>
                                             </div>
 
-                                            {isAddingNewVtMethod ? (
-                                                <div className="flex items-center gap-2">
-                                                    <Input 
-                                                        value={newVtMethodName}
-                                                        onChange={e => setNewVtMethodName(e.target.value)}
-                                                        placeholder="Ex: RioCard, Cartão Urbs..."
-                                                        className="h-9 rounded-xl bg-white border-slate-200 text-xs"
-                                                    />
-                                                    <Button
-                                                        type="button"
-                                                        size="sm"
-                                                        onClick={() => {
-                                                            const name = newVtMethodName.trim();
-                                                            if (!name) {
-                                                                toast.error("O nome não pode ser vazio.");
-                                                                return;
-                                                            }
-                                                            if (vtOptions.includes(name)) {
-                                                                toast.error("Essa opção já existe.");
-                                                                return;
-                                                            }
-                                                            setVtOptions(prev => {
-                                                                const next = [...prev];
-                                                                next.splice(next.length - 1, 0, name); // insert before Outro
-                                                                return next;
-                                                            });
-                                                            setVtPaymentMethod(name);
-                                                            setNewVtMethodName("");
-                                                            setIsAddingNewVtMethod(false);
-                                                            toast.success(`Opção "${name}" adicionada!`);
-                                                        }}
-                                                        className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-9 text-xs px-3"
-                                                    >
-                                                        Adicionar
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={() => {
-                                                            setIsAddingNewVtMethod(false);
-                                                            setNewVtMethodName("");
-                                                        }}
-                                                        className="rounded-xl h-9 text-xs text-slate-500"
-                                                    >
-                                                        Cancelar
-                                                    </Button>
+                                            {isManagingVt ? (
+                                                <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2 mt-1">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Formas de VT Cadastradas</span>
+                                                    <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                                                        {vtOptions.map((opt, idx) => (
+                                                            <div key={opt} className="flex items-center justify-between gap-2 p-1.5 rounded-lg hover:bg-slate-50 border border-slate-100">
+                                                                {editingVtIndex === idx ? (
+                                                                    <div className="flex items-center gap-1 w-full">
+                                                                        <Input 
+                                                                            value={editingVtValue}
+                                                                            onChange={e => setEditingVtValue(e.target.value)}
+                                                                            className="h-7 text-xs rounded bg-white w-full"
+                                                                        />
+                                                                        <button 
+                                                                            type="button" 
+                                                                            onClick={() => {
+                                                                                const trimmed = editingVtValue.trim();
+                                                                                if (!trimmed) return;
+                                                                                setVtOptions(prev => prev.map((o, i) => i === idx ? trimmed : o));
+                                                                                if (vtPaymentMethod === opt) {
+                                                                                    setVtPaymentMethod(trimmed);
+                                                                                }
+                                                                                setEditingVtIndex(null);
+                                                                            }}
+                                                                            className="text-emerald-600 hover:text-emerald-700"
+                                                                        >
+                                                                            <Check className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                        <button 
+                                                                            type="button" 
+                                                                            onClick={() => setEditingVtIndex(null)}
+                                                                            className="text-red-500 hover:text-red-650"
+                                                                        >
+                                                                            <X className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <>
+                                                                        <span className="text-xs text-slate-700 font-bold">{opt}</span>
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <button 
+                                                                                type="button" 
+                                                                                onClick={() => {
+                                                                                    setEditingVtIndex(idx);
+                                                                                    setEditingVtValue(opt);
+                                                                                }}
+                                                                                className="text-slate-400 hover:text-slate-600"
+                                                                            >
+                                                                                <Pencil className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                            <button 
+                                                                                type="button" 
+                                                                                onClick={() => {
+                                                                                    setVtOptions(prev => prev.filter((_, i) => i !== idx));
+                                                                                    if (vtPaymentMethod === opt) {
+                                                                                        const remaining = vtOptions.filter((_, i) => i !== idx);
+                                                                                        setVtPaymentMethod(remaining[0] || "");
+                                                                                    }
+                                                                                }}
+                                                                                className="text-red-400 hover:text-red-655"
+                                                                            >
+                                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    
+                                                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                                                        <Input 
+                                                            value={newVtMethodName}
+                                                            onChange={e => setNewVtMethodName(e.target.value)}
+                                                            placeholder="Nova operadora de VT..."
+                                                            className="h-8 rounded bg-white text-xs"
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                const name = newVtMethodName.trim();
+                                                                if (!name) return;
+                                                                if (vtOptions.includes(name)) {
+                                                                    toast.error("Essa opção já existe.");
+                                                                    return;
+                                                                }
+                                                                setVtOptions(prev => [...prev, name]);
+                                                                setVtPaymentMethod(name);
+                                                                setNewVtMethodName("");
+                                                            }}
+                                                            className="bg-orange-600 hover:bg-orange-700 text-white rounded h-8 text-xs px-2"
+                                                        >
+                                                            Add
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             ) : (
                                                 <Select value={vtPaymentMethod} onValueChange={setVtPaymentMethod}>
@@ -749,24 +799,13 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                                                     <SelectContent>
                                                         {vtOptions.map(opt => (
                                                             <SelectItem key={opt} value={opt}>
-                                                                {opt === "PIX" ? "Depósito em PIX (Reserva)" : opt === "Outro" ? "Outro..." : opt}
+                                                                {opt === "PIX" ? "Depósito em PIX (Reserva)" : opt}
                                                             </SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
                                             )}
                                         </div>
-                                        {vtPaymentMethod === "Outro" && (
-                                            <div className="space-y-1">
-                                                <Label className="font-bold text-slate-700">Especifique o Meio de Depósito VT</Label>
-                                                <Input 
-                                                    value={vtCustomPaymentDetails} 
-                                                    onChange={e => setVtCustomPaymentDetails(e.target.value)} 
-                                                    placeholder="Nome da operadora ou detalhes..." 
-                                                    className="h-9 rounded-xl bg-white border-slate-200" 
-                                                />
-                                            </div>
-                                        )}
                                     </div>
                                 )}
                             </div>
@@ -777,60 +816,112 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                                         <Label className="font-bold text-slate-700">Meio de Depósito do VA</Label>
                                         <button
                                             type="button"
-                                            onClick={() => setIsAddingNewVaMethod(!isAddingNewVaMethod)}
+                                            onClick={() => {
+                                                setIsManagingVa(!isManagingVa);
+                                                setEditingVaIndex(null);
+                                            }}
                                             className="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-0.5 cursor-pointer"
                                         >
-                                            <Plus className="w-3.5 h-3.5" /> Adicionar Novo
+                                            {isManagingVa ? "Fechar" : "Gerenciar"}
                                         </button>
                                     </div>
 
-                                    {isAddingNewVaMethod ? (
-                                        <div className="flex items-center gap-2">
-                                            <Input 
-                                                value={newVaMethodName}
-                                                onChange={e => setNewVaMethodName(e.target.value)}
-                                                placeholder="Ex: Ticket, Sodexo..."
-                                                className="h-9 rounded-xl bg-white border-slate-200 text-xs"
-                                            />
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                onClick={() => {
-                                                    const name = newVaMethodName.trim();
-                                                    if (!name) {
-                                                        toast.error("O nome não pode ser vazio.");
-                                                        return;
-                                                    }
-                                                    if (vaOptions.includes(name)) {
-                                                        toast.error("Essa opção já existe.");
-                                                        return;
-                                                    }
-                                                    setVaOptions(prev => {
-                                                        const next = [...prev];
-                                                        next.splice(next.length - 1, 0, name); // insert before Outro
-                                                        return next;
-                                                    });
-                                                    setVaPaymentMethod(name);
-                                                    setNewVaMethodName("");
-                                                    setIsAddingNewVaMethod(false);
-                                                    toast.success(`Opção "${name}" adicionada!`);
-                                                }}
-                                                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-9 text-xs px-3"
-                                            >
-                                                Adicionar
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                variant="ghost"
-                                                onClick={() => {
-                                                    setIsAddingNewVaMethod(false);
-                                                    setNewVaMethodName("");
-                                                }}
-                                                className="rounded-xl h-9 text-xs text-slate-500"
-                                            >
-                                                Cancelar
-                                            </Button>
+                                    {isManagingVa ? (
+                                        <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2 mt-1">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Formas de VA Cadastradas</span>
+                                            <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                                                {vaOptions.map((opt, idx) => (
+                                                    <div key={opt} className="flex items-center justify-between gap-2 p-1.5 rounded-lg hover:bg-slate-50 border border-slate-100">
+                                                        {editingVaIndex === idx ? (
+                                                            <div className="flex items-center gap-1 w-full">
+                                                                <Input 
+                                                                    value={editingVaValue}
+                                                                    onChange={e => setEditingVaValue(e.target.value)}
+                                                                    className="h-7 text-xs rounded bg-white w-full"
+                                                                />
+                                                                <button 
+                                                                    type="button" 
+                                                                    onClick={() => {
+                                                                        const trimmed = editingVaValue.trim();
+                                                                        if (!trimmed) return;
+                                                                        setVaOptions(prev => prev.map((o, i) => i === idx ? trimmed : o));
+                                                                        if (vaPaymentMethod === opt) {
+                                                                            setVaPaymentMethod(trimmed);
+                                                                        }
+                                                                        setEditingVaIndex(null);
+                                                                    }}
+                                                                    className="text-emerald-600 hover:text-emerald-700"
+                                                                >
+                                                                    <Check className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button 
+                                                                    type="button" 
+                                                                    onClick={() => setEditingVaIndex(null)}
+                                                                    className="text-red-500 hover:text-red-650"
+                                                                >
+                                                                    <X className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <span className="text-xs text-slate-700 font-bold">{opt}</span>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <button 
+                                                                        type="button" 
+                                                                        onClick={() => {
+                                                                            setEditingVaIndex(idx);
+                                                                            setEditingVaValue(opt);
+                                                                        }}
+                                                                        className="text-slate-400 hover:text-slate-600"
+                                                                    >
+                                                                        <Pencil className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                    <button 
+                                                                        type="button" 
+                                                                        onClick={() => {
+                                                                            setVaOptions(prev => prev.filter((_, i) => i !== idx));
+                                                                            if (vaPaymentMethod === opt) {
+                                                                                const remaining = vaOptions.filter((_, i) => i !== idx);
+                                                                                setVaPaymentMethod(remaining[0] || "");
+                                                                            }
+                                                                        }}
+                                                                        className="text-red-400 hover:text-red-650"
+                                                                    >
+                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                                                <Input 
+                                                    value={newVaMethodName}
+                                                    onChange={e => setNewVaMethodName(e.target.value)}
+                                                    placeholder="Nova operadora de VA..."
+                                                    className="h-8 rounded bg-white text-xs"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        const name = newVaMethodName.trim();
+                                                        if (!name) return;
+                                                        if (vaOptions.includes(name)) {
+                                                            toast.error("Essa opção já existe.");
+                                                            return;
+                                                        }
+                                                        setVaOptions(prev => [...prev, name]);
+                                                        setVaPaymentMethod(name);
+                                                        setNewVaMethodName("");
+                                                    }}
+                                                    className="bg-orange-650 hover:bg-orange-700 text-white rounded h-8 text-xs px-2"
+                                                >
+                                                    Add
+                                                </Button>
+                                            </div>
                                         </div>
                                     ) : (
                                         <Select value={vaPaymentMethod} onValueChange={setVaPaymentMethod}>
@@ -840,24 +931,13 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                                             <SelectContent>
                                                 {vaOptions.map(opt => (
                                                     <SelectItem key={opt} value={opt}>
-                                                        {opt === "Outro" ? "Outro..." : opt}
+                                                        {opt}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
                                     )}
                                 </div>
-                                {vaPaymentMethod === "Outro" && (
-                                    <div className="space-y-1">
-                                        <Label className="font-bold text-slate-700">Especifique o Meio de Depósito VA</Label>
-                                        <Input 
-                                            value={vaCustomPaymentDetails} 
-                                            onChange={e => setVaCustomPaymentDetails(e.target.value)} 
-                                            placeholder="Nome do cartão de VA ou detalhes..." 
-                                            className="h-9 rounded-xl bg-white border-slate-200" 
-                                        />
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </details>
