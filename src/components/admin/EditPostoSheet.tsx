@@ -27,8 +27,8 @@ interface EditPostoSheetProps {
         valeAlimentacao?: number;
         vaType?: string;
         valeTransporte?: number;
-        valeTransporte2?: number;
-        vtPaymentMethod2?: string;
+        valeTransporte2?: number | null;
+        vtPaymentMethod2?: string | null;
     };
     schedules: { id: string; name: string }[];
     roles: { id: string; name: string }[];
