@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { startOfYear, endOfYear, differenceInDays } from "date-fns";
+import { generateRoster } from "@/lib/scheduling";
 
 export async function getReportsData(year: number) {
     try {
@@ -39,9 +40,16 @@ export async function getReportsData(year: number) {
                 ]
             },
             include: {
-                employee: true,
+                employee: {
+                    include: { situation: true }
+                },
                 posto: {
-                    include: { client: true }
+                    include: {
+                        role: true,
+                        client: {
+                            include: { company: true }
+                        }
+                    }
                 }
             }
         });
@@ -53,9 +61,15 @@ export async function getReportsData(year: number) {
                 title: { startsWith: "Secullum" }
             },
             include: {
-                employee: true,
+                employee: {
+                    include: { situation: true }
+                },
                 posto: {
-                    include: { client: true }
+                    include: {
+                        client: {
+                            include: { company: true }
+                        }
+                    }
                 }
             }
         });
@@ -82,11 +96,18 @@ export async function getReportsData(year: number) {
                     { status: "OPEN" },
                     { status: "HOLD" },
                     { updatedAt: { gte: start } }
-                ]
+                ],
+                NOT: {
+                    description: { startsWith: "Vaga aberta automaticamente" }
+                }
             },
             include: {
                 posto: {
-                    include: { client: true }
+                    include: {
+                        client: {
+                            include: { company: true }
+                        }
+                    }
                 },
                 role: true,
                 recruiter: true
@@ -249,23 +270,142 @@ export async function getReportsData(year: number) {
         });
 
         // C. RELATÓRIO 3: ÍNDICE DE COBERTURA POR CONTRATO (Mesa de Operações)
+        const coberturaRawEvents: any[] = [];
+
         const coberturaReport = clients.map(client => {
-            const clientPostosIds = client.postos.map(p => p.id);
-            const clientAttendances = attendances.filter(att => clientPostosIds.includes(att.postoId));
-
+            const clientPostos = client.postos;
+            
             const monthlyData = months.map(m => {
-                const monthStart = new Date(year, m, 1);
-                const monthEnd = new Date(year, m + 1, 0, 23, 59, 59, 999);
+                const startOfMonth = new Date(year, m, 1);
+                const endOfMonth = new Date(year, m + 1, 0, 23, 59, 59, 999);
 
-                // Filtrar batidas de falta registradas na mesa neste mês
-                const monthAttendances = clientAttendances.filter(att => 
-                    att.date >= monthStart && att.date <= monthEnd && att.status === "FALTA"
-                );
+                // List of days in the month
+                const daysInMonth: Date[] = [];
+                let curDate = new Date(startOfMonth);
+                while (curDate <= endOfMonth) {
+                    daysInMonth.push(new Date(curDate));
+                    curDate.setDate(curDate.getDate() + 1);
+                }
 
-                const totalFaltas = monthAttendances.length;
-                const totalCobertas = monthAttendances.filter(att => 
-                    att.coveredById || att.coverageType === "DIARISTA" || att.coverageType === "RESERVA_TECNICA"
-                ).length;
+                let totalFaltas = 0;
+                let totalCobertas = 0;
+
+                daysInMonth.forEach(dayDate => {
+                    const dayDateStr = dayDate.toISOString().split("T")[0];
+                    clientPostos.forEach(posto => {
+                        // Find assignment on this day
+                        const assignment = assignments.find(a => 
+                            a.postoId === posto.id && 
+                            new Date(a.startDate) <= dayDate && 
+                            (!a.endDate || new Date(a.endDate) >= dayDate)
+                        );
+
+                        let shouldWork = false;
+                        if (!assignment) {
+                            const dayOfWeek = dayDate.getDay();
+                            const normSchedule = posto.schedule.replace(/\s+/g, '').toLowerCase();
+                            shouldWork = true;
+                            if (normSchedule.includes('segasex') || normSchedule.includes('mondaytofriday')) {
+                                if (dayOfWeek === 0 || dayOfWeek === 6) shouldWork = false;
+                            } else if (normSchedule.includes('segasab') || normSchedule.includes('mondaytosaturday')) {
+                                if (dayOfWeek === 0) shouldWork = false;
+                            }
+                        } else {
+                            const roster = generateRoster(posto.schedule, new Date(assignment.startDate), [dayDate]);
+                            shouldWork = roster[0]?.status === 'Trabalho';
+                        }
+
+                        if (shouldWork) {
+                            const att = attendances.find(a => a.postoId === posto.id && a.date.toISOString().split("T")[0] === dayDateStr);
+
+                            if (att) {
+                                if (att.status === "FALTA") {
+                                    totalFaltas++;
+                                    const isCovered = att.coveredById || att.coverageType === "DIARISTA" || att.coverageType === "RESERVA_TECNICA";
+                                    
+                                    const diaristaName = (() => {
+                                        if (att.coverageType === "DIARISTA" && att.notes) {
+                                            const parts = att.notes.split(" | ");
+                                            return parts[0];
+                                        }
+                                        return null;
+                                    })();
+
+                                    const parsedNotes = (() => {
+                                        if (att.coverageType === "DIARISTA" && att.notes) {
+                                            const parts = att.notes.split(" | ");
+                                            return parts.slice(1).join(" | ") || "Cobertura realizada.";
+                                        }
+                                        return att.notes || "Cobertura realizada.";
+                                    })();
+
+                                    if (isCovered) {
+                                        totalCobertas++;
+                                        coberturaRawEvents.push({
+                                            date: dayDateStr,
+                                            clientName: client.name,
+                                            companyName: client.company?.name || "-",
+                                            postoRole: posto.role?.name || "Posto",
+                                            schedule: posto.schedule,
+                                            time: `${posto.startTime} - ${posto.endTime}`,
+                                            employeeName: att.employee?.name || "Não informado",
+                                            status: "Coberto",
+                                            coveredByName: att.coveredBy?.name || diaristaName || (att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outro Colaborador"),
+                                            coverageType: att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outra Cobertura",
+                                            notes: parsedNotes
+                                        });
+                                    } else {
+                                        coberturaRawEvents.push({
+                                            date: dayDateStr,
+                                            clientName: client.name,
+                                            companyName: client.company?.name || "-",
+                                            postoRole: posto.role?.name || "Posto",
+                                            schedule: posto.schedule,
+                                            time: `${posto.startTime} - ${posto.endTime}`,
+                                            employeeName: att.employee?.name || "Não informado",
+                                            status: "Sem Cobertura",
+                                            coveredByName: "-",
+                                            coverageType: "-",
+                                            notes: att.notes || "Ausência sem cobertura."
+                                        });
+                                    }
+                                }
+                            } else {
+                                // check past day
+                                const today = new Date();
+                                const todayStr = today.toISOString().split("T")[0];
+                                const isPastDay = dayDate.getTime() < new Date(todayStr + "T00:00:59Z").getTime();
+                                let isEndedToday = false;
+                                if (today.getFullYear() === year && today.getMonth() === m && today.getDate() === dayDate.getDate()) {
+                                    const [endHour, endMinute] = (posto.endTime || "18:00").split(":").map(Number);
+                                    const shiftEnd = new Date(dayDate);
+                                    shiftEnd.setHours(endHour || 18, endMinute || 0, 0, 0);
+                                    const nowInBrazil = new Date(new Date().getTime() - 3 * 60 * 60 * 1000);
+                                    if (nowInBrazil > shiftEnd) {
+                                        isEndedToday = true;
+                                    }
+                                }
+
+                                if (isPastDay || isEndedToday) {
+                                    totalFaltas++;
+                                    coberturaRawEvents.push({
+                                        date: dayDateStr,
+                                        clientName: client.name,
+                                        companyName: client.company?.name || "-",
+                                        postoRole: posto.role?.name || "Posto",
+                                        schedule: posto.schedule,
+                                        time: `${posto.startTime} - ${posto.endTime}`,
+                                        employeeName: assignment?.employee?.name || "Sem colaborador escalado",
+                                        status: "Sem Cobertura",
+                                        coveredByName: "-",
+                                        coverageType: "-",
+                                        notes: "Falta de ponto no sistema."
+                                    });
+                                }
+                            }
+                        }
+                    });
+                });
 
                 const rate = totalFaltas > 0 ? (totalCobertas / totalFaltas) * 100 : 100;
 
@@ -296,6 +436,10 @@ export async function getReportsData(year: number) {
         const colaboradorReport = employees.map(emp => {
             const empOccurrences = occurrences.filter(occ => occ.employeeId === emp.id);
 
+            const activeAsg = assignments.find(asg => asg.employeeId === emp.id);
+            const empCompanyName = activeAsg?.posto?.client?.company?.name || "-";
+            const empClientName = activeAsg?.posto?.client?.name || "-";
+
             const monthlyData = months.map(m => {
                 const monthStart = new Date(year, m, 1);
                 const monthEnd = new Date(year, m + 1, 0, 23, 59, 59, 999);
@@ -325,6 +469,8 @@ export async function getReportsData(year: number) {
                 status: emp.status, // "Ativo" ou "Desligado"
                 situationName: emp.situation?.name || "Ativo",
                 roleName: emp.role?.name || "-",
+                companyName: empCompanyName,
+                clientName: empClientName,
                 monthlyData,
                 totalFaltas,
                 totalAtestados,
@@ -440,6 +586,63 @@ export async function getReportsData(year: number) {
         const highestDemandClient = [...recruitmentReport]
             .sort((a, b) => b.totalClosed - a.totalClosed)[0]?.clientName || "-";
 
+        // Turnover raw events list
+        const turnoverRawEvents = assignments.flatMap(asg => {
+            const results = [];
+            if (asg.startDate >= start && asg.startDate <= end) {
+                results.push({
+                    employeeName: asg.employee?.name || "-",
+                    situation: asg.employee?.situation?.name || "Ativo",
+                    clientName: asg.posto?.client?.name || "-",
+                    companyName: asg.posto?.client?.company?.name || "-",
+                    postoRole: asg.posto?.role?.name || "-",
+                    eventType: "Admissão",
+                    date: asg.startDate.toISOString().split("T")[0]
+                });
+            }
+            if (asg.endDate && asg.endDate >= start && asg.endDate <= end) {
+                results.push({
+                    employeeName: asg.employee?.name || "-",
+                    situation: asg.employee?.situation?.name || "Ativo",
+                    clientName: asg.posto?.client?.name || "-",
+                    companyName: asg.posto?.client?.company?.name || "-",
+                    postoRole: asg.posto?.role?.name || "-",
+                    eventType: "Demissão",
+                    date: asg.endDate.toISOString().split("T")[0]
+                });
+            }
+            return results;
+        }).sort((a, b) => a.date.localeCompare(b.date));
+
+        // Absenteísmo raw events list
+        const absenteismoRawEvents = occurrences.map(occ => ({
+            date: occ.date.toISOString().split("T")[0],
+            employeeName: occ.employee?.name || "-",
+            situation: occ.employee?.situation?.name || "Ativo",
+            clientName: occ.posto?.client?.name || "-",
+            companyName: occ.posto?.client?.company?.name || "-",
+            postoRole: occ.title || "-",
+            type: occ.type === "ATESTADO" ? "Atestado Médico" : "Falta",
+            description: occ.description || "-"
+        })).sort((a, b) => a.date.localeCompare(b.date));
+
+
+
+        // Recrutamento raw events list
+        const recruitmentRawEvents = vacancies.filter(v => v.status === "CLOSED" && v.updatedAt >= start && v.updatedAt <= end).map(v => {
+            const days = differenceInDays(new Date(v.updatedAt), new Date(v.createdAt));
+            return {
+                title: v.title,
+                clientName: v.posto?.client?.name || "-",
+                companyName: v.posto?.client?.company?.name || "-",
+                postoRole: v.role?.name || "-",
+                createdAt: v.createdAt.toISOString().split("T")[0],
+                closedAt: v.updatedAt.toISOString().split("T")[0],
+                slaDays: Math.max(0, days),
+                recruiterName: v.recruiter?.name || "-"
+            };
+        }).sort((a, b) => a.closedAt.localeCompare(b.closedAt));
+
         return {
             success: true,
             turnoverReport,
@@ -447,6 +650,10 @@ export async function getReportsData(year: number) {
             coberturaReport,
             colaboradorReport,
             recruitmentReport,
+            turnoverRawEvents,
+            absenteismoRawEvents,
+            coberturaRawEvents,
+            recruitmentRawEvents,
             kpis: {
                 turnover: {
                     totalSubs: totalTurnoverSubs,
@@ -486,8 +693,8 @@ export async function getReportsData(year: number) {
 // 7. Ação secundária para buscar os detalhes das ocorrências (Absenteísmo e Colaboradores) do Secullum
 export async function getMonthOccurrencesDetails(clientId: string | null, employeeId: string | null, year: number, month: number) {
     try {
-        const monthStart = new Date(year, month, 1);
-        const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
+        const monthStart = month === -1 ? new Date(year, 0, 1) : new Date(year, month, 1);
+        const monthEnd = month === -1 ? new Date(year, 11, 31, 23, 59, 59, 999) : new Date(year, month + 1, 0, 23, 59, 59, 999);
 
         const whereClause: any = {
             date: { gte: monthStart, lte: monthEnd },
@@ -539,57 +746,156 @@ export async function getMonthAttendancesDetails(clientId: string, year: number,
         const monthStart = new Date(year, month, 1);
         const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
 
-        const list = await prisma.attendance.findMany({
+        // Carregar cliente e postos
+        const client = await prisma.client.findUnique({
+            where: { id: clientId },
+            include: {
+                company: true,
+                postos: { include: { role: true } }
+            }
+        });
+        if (!client) return { success: false, error: "Cliente não encontrado" };
+
+        const clientPostosIds = client.postos.map(p => p.id);
+
+        // Carregar alocações correspondentes
+        const assignments = await prisma.assignment.findMany({
             where: {
-                posto: { clientId },
-                date: { gte: monthStart, lte: monthEnd },
-                status: "FALTA"
+                postoId: { in: clientPostosIds },
+                startDate: { lte: monthEnd },
+                OR: [
+                    { endDate: null },
+                    { endDate: { gte: monthStart } }
+                ]
+            },
+            include: {
+                employee: { include: { situation: true } }
+            }
+        });
+
+        // Carregar batidas reais
+        const attendances = await prisma.attendance.findMany({
+            where: {
+                postoId: { in: clientPostosIds },
+                date: { gte: monthStart, lte: monthEnd }
             },
             include: {
                 employee: true,
                 coveredBy: true,
-                posto: {
-                    include: { client: true, role: true }
+                posto: { include: { client: true, role: true } }
+            }
+        });
+
+        // Listar os dias do mês
+        const daysInMonth: Date[] = [];
+        let curDate = new Date(monthStart);
+        while (curDate <= monthEnd) {
+            daysInMonth.push(new Date(curDate));
+            curDate.setDate(curDate.getDate() + 1);
+        }
+
+        const eventsList: any[] = [];
+
+        daysInMonth.forEach(dayDate => {
+            const dayDateStr = dayDate.toISOString().split("T")[0];
+            client.postos.forEach(posto => {
+                const assignment = assignments.find(a => 
+                    a.postoId === posto.id && 
+                    new Date(a.startDate) <= dayDate && 
+                    (!a.endDate || new Date(a.endDate) >= dayDate)
+                );
+
+                let shouldWork = false;
+                if (!assignment) {
+                    const dayOfWeek = dayDate.getDay();
+                    const normSchedule = posto.schedule.replace(/\s+/g, '').toLowerCase();
+                    shouldWork = true;
+                    if (normSchedule.includes('segasex') || normSchedule.includes('mondaytofriday')) {
+                        if (dayOfWeek === 0 || dayOfWeek === 6) shouldWork = false;
+                    } else if (normSchedule.includes('segasab') || normSchedule.includes('mondaytosaturday')) {
+                        if (dayOfWeek === 0) shouldWork = false;
+                    }
+                } else {
+                    const roster = generateRoster(posto.schedule, new Date(assignment.startDate), [dayDate]);
+                    shouldWork = roster[0]?.status === 'Trabalho';
                 }
-            },
-            orderBy: { date: "asc" }
+
+                if (shouldWork) {
+                    const att = attendances.find(a => a.postoId === posto.id && a.date.toISOString().split("T")[0] === dayDateStr);
+
+                    if (att) {
+                        if (att.status === "FALTA") {
+                            const isCovered = att.coveredById || att.coverageType === "DIARISTA" || att.coverageType === "RESERVA_TECNICA";
+                            
+                            const diaristaName = (() => {
+                                if (att.coverageType === "DIARISTA" && att.notes) {
+                                    const parts = att.notes.split(" | ");
+                                    return parts[0];
+                                }
+                                return null;
+                            })();
+
+                            const parsedNotes = (() => {
+                                if (att.coverageType === "DIARISTA" && att.notes) {
+                                    const parts = att.notes.split(" | ");
+                                    return parts.slice(1).join(" | ") || "Cobertura realizada.";
+                                }
+                                return att.notes || "Cobertura realizada.";
+                            })();
+
+                            eventsList.push({
+                                id: att.id,
+                                date: dayDateStr,
+                                clientName: client.name,
+                                postoRole: posto.role?.name || "Posto",
+                                schedule: posto.schedule,
+                                time: `${posto.startTime} - ${posto.endTime}`,
+                                employeeName: att.employee?.name || "Não informado",
+                                status: isCovered ? "Coberto" : "Sem Cobertura",
+                                coveredByName: att.coveredBy?.name || diaristaName || (att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outro Colaborador"),
+                                coverageType: att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outra Cobertura",
+                                notes: parsedNotes
+                            });
+                        }
+                    } else {
+                        // check past day
+                        const today = new Date();
+                        const todayStr = today.toISOString().split("T")[0];
+                        const isPastDay = dayDate.getTime() < new Date(todayStr + "T00:00:59Z").getTime();
+                        let isEndedToday = false;
+                        if (today.getFullYear() === year && today.getMonth() === month && today.getDate() === dayDate.getDate()) {
+                            const [endHour, endMinute] = (posto.endTime || "18:00").split(":").map(Number);
+                            const shiftEnd = new Date(dayDate);
+                            shiftEnd.setHours(endHour || 18, endMinute || 0, 0, 0);
+                            const nowInBrazil = new Date(new Date().getTime() - 3 * 60 * 60 * 1000);
+                            if (nowInBrazil > shiftEnd) {
+                                  isEndedToday = true;
+                            }
+                        }
+
+                        if (isPastDay || isEndedToday) {
+                            eventsList.push({
+                                id: `${posto.id}-${dayDateStr}-missing`,
+                                date: dayDateStr,
+                                clientName: client.name,
+                                postoRole: posto.role?.name || "Posto",
+                                schedule: posto.schedule,
+                                time: `${posto.startTime} - ${posto.endTime}`,
+                                employeeName: assignment?.employee?.name || "Sem colaborador escalado",
+                                status: "Sem Cobertura",
+                                coveredByName: "-",
+                                coverageType: "-",
+                                notes: "Falta de ponto no sistema."
+                            });
+                        }
+                    }
+                }
+            });
         });
 
         return {
             success: true,
-            list: list.map(att => {
-                const isCovered = att.coveredById || att.coverageType === "DIARISTA" || att.coverageType === "RESERVA_TECNICA";
-                
-                const diaristaName = (() => {
-                    if (att.coverageType === "DIARISTA" && att.notes) {
-                        const parts = att.notes.split(" | ");
-                        return parts[0];
-                    }
-                    return null;
-                })();
-
-                const parsedNotes = (() => {
-                    if (att.coverageType === "DIARISTA" && att.notes) {
-                        const parts = att.notes.split(" | ");
-                        return parts.slice(1).join(" | ") || "-";
-                    }
-                    return att.notes || "Falta registrada.";
-                })();
-
-                return {
-                    id: att.id,
-                    date: att.date.toISOString().split("T")[0],
-                    clientName: att.posto?.client?.name || "-",
-                    postoRole: att.posto?.role?.name || "Posto",
-                    schedule: att.posto?.schedule || "-",
-                    time: `${att.posto?.startTime || ""} - ${att.posto?.endTime || ""}`,
-                    employeeName: att.employee?.name || "Não informado",
-                    status: isCovered ? "Coberto" : "Sem Cobertura",
-                    coveredByName: att.coveredBy?.name || diaristaName || (att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outro Colaborador"),
-                    coverageType: att.coverageType === "DIARISTA" ? "Diarista" : att.coverageType === "RESERVA_TECNICA" ? "Reserva Técnica" : "Outra Cobertura",
-                    notes: parsedNotes
-                };
-            })
+            list: eventsList.sort((a, b) => a.date.localeCompare(b.date))
         };
 
     } catch (error: any) {
@@ -608,7 +914,10 @@ export async function getMonthVacanciesDetails(clientId: string, year: number, m
             where: {
                 posto: { clientId },
                 status: "CLOSED",
-                updatedAt: { gte: monthStart, lte: monthEnd }
+                updatedAt: { gte: monthStart, lte: monthEnd },
+                NOT: {
+                    description: { startsWith: "Vaga aberta automaticamente" }
+                }
             },
             include: {
                 posto: {
@@ -639,6 +948,79 @@ export async function getMonthVacanciesDetails(clientId: string, year: number, m
 
     } catch (error: any) {
         console.error("[getMonthVacanciesDetails] Error:", error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+// 10. Ação secundária para buscar os detalhes de Turnover (Admissões e Demissões)
+export async function getMonthTurnoverDetails(clientId: string, year: number, month: number) {
+    try {
+        const monthStart = new Date(year, month, 1);
+        const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
+
+        // Buscar todos os postos deste cliente
+        const client = await prisma.client.findUnique({
+            where: { id: clientId },
+            include: { postos: true }
+        });
+        if (!client) return { success: false, error: "Cliente não encontrado" };
+
+        const postosIds = client.postos.map(p => p.id);
+
+        const list = await prisma.assignment.findMany({
+            where: {
+                postoId: { in: postosIds },
+                startDate: { lte: monthEnd },
+                OR: [
+                    { endDate: null },
+                    { endDate: { gte: monthStart } }
+                ]
+            },
+            include: {
+                employee: {
+                    include: { situation: true }
+                },
+                posto: {
+                    include: { client: { include: { company: true } }, role: true }
+                }
+            },
+            orderBy: { startDate: "asc" }
+        });
+
+        const events: any[] = [];
+        list.forEach(asg => {
+            if (asg.startDate >= monthStart && asg.startDate <= monthEnd) {
+                events.push({
+                    id: `${asg.id}-admissao`,
+                    employeeName: asg.employee?.name || "-",
+                    situation: asg.employee?.situation?.name || "Ativo",
+                    clientName: asg.posto?.client?.name || "-",
+                    companyName: asg.posto?.client?.company?.name || "-",
+                    postoRole: asg.posto?.role?.name || "-",
+                    eventType: "Admissão",
+                    date: asg.startDate.toISOString().split("T")[0]
+                });
+            }
+            if (asg.endDate && asg.endDate >= monthStart && asg.endDate <= monthEnd) {
+                events.push({
+                    id: `${asg.id}-demissao`,
+                    employeeName: asg.employee?.name || "-",
+                    situation: asg.employee?.situation?.name || "Ativo",
+                    clientName: asg.posto?.client?.name || "-",
+                    companyName: asg.posto?.client?.company?.name || "-",
+                    postoRole: asg.posto?.role?.name || "-",
+                    eventType: "Demissão",
+                    date: asg.endDate.toISOString().split("T")[0]
+                });
+            }
+        });
+
+        return {
+            success: true,
+            list: events.sort((a, b) => a.date.localeCompare(b.date))
+        };
+    } catch (error: any) {
+        console.error("[getMonthTurnoverDetails] Error:", error.message);
         return { success: false, error: error.message };
     }
 }
