@@ -101,6 +101,7 @@ export default function BenefitsPage() {
     const [isSubmittingBatchPayment, setIsSubmittingBatchPayment] = useState(false);
     const [exportCajuModalOpen, setExportCajuModalOpen] = useState(false);
     const [cajuSelectedCompany, setCajuSelectedCompany] = useState<string>("all");
+    const [cajuSelectedClient, setCajuSelectedClient] = useState<string>("all");
     const [cajuSelectedMonth, setCajuSelectedMonth] = useState<number>(selectedMonth);
     const [cajuSelectedYear, setCajuSelectedYear] = useState<number>(selectedYear);
     const [isLoadingCaju, setIsLoadingCaju] = useState(false);
@@ -110,6 +111,7 @@ export default function BenefitsPage() {
             setCajuSelectedMonth(selectedMonth);
             setCajuSelectedYear(selectedYear);
             setCajuSelectedCompany("all");
+            setCajuSelectedClient("all");
         }
     }, [exportCajuModalOpen, selectedMonth, selectedYear]);
 
@@ -526,10 +528,14 @@ export default function BenefitsPage() {
             const res = await getBenefitsCalculation(cajuSelectedYear, cajuSelectedMonth);
             const rawItems = res.items || [];
             
-            // Filter by company if not "all"
-            const filtered = cajuSelectedCompany === "all" 
-                ? rawItems 
-                : rawItems.filter(item => item.companyName === cajuSelectedCompany);
+            // Filter by company and client/contract
+            let filtered = rawItems;
+            if (cajuSelectedCompany !== "all") {
+                filtered = filtered.filter(item => item.companyName === cajuSelectedCompany);
+            }
+            if (cajuSelectedClient !== "all") {
+                filtered = filtered.filter(item => item.clientName === cajuSelectedClient);
+            }
                 
             // Check if we have records
             if (filtered.length === 0) {
@@ -537,23 +543,28 @@ export default function BenefitsPage() {
                 return;
             }
 
-            // Generate CSV
+            // Generate CSV (using standard Brazilian semicolon separator and comma decimal separator)
             // Header
-            let csvContent = "CPF,Matricula (opcional),Valor Fixo em Auxilio Alimentacao,Mobilidade,Valor Fixo em Mobilidade,Home Office,Valor Fixo em Home Office,Multi\n";
+            let csvContent = "CPF;Matricula (opcional);Valor Fixo em Auxilio Alimentacao;Mobilidade;Valor Fixo em Mobilidade;Home Office;Valor Fixo em Home Office;Multi\n";
             
             filtered.forEach(item => {
                 const rawCpf = (item.employeeCpf || "").replace(/\D/g, "");
                 const totalCaju = item.vaTotalValue + (item.absenteismoAward || 0);
+                const totalCajuFormatted = totalCaju.toFixed(2).replace(".", ",");
                 
                 // Add row: CPF, matricula (empty), Valor Fixo em Auxilio Alimentacao, Mobilidade (0), Valor Fixo em Mobilidade (0), Home Office (0), Valor Fixo em Home Office (0), Multi (0)
-                csvContent += `${rawCpf},,${totalCaju.toFixed(2)},0,0,0,0,0\n`;
+                csvContent += `${rawCpf};;${totalCajuFormatted};0;0;0;0;0\n`;
             });
 
             // Download CSV
             const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            link.download = `pedido_caju_${cajuSelectedCompany === 'all' ? 'todas_empresas' : cajuSelectedCompany.replace(/\\s+/g, '_')}_${cajuSelectedYear}_${String(cajuSelectedMonth).padStart(2, '0')}.csv`;
+            
+            const companyPart = cajuSelectedCompany === 'all' ? 'todas_empresas' : cajuSelectedCompany.replace(/\s+/g, '_');
+            const clientPart = cajuSelectedClient === 'all' ? 'todos_contratos' : cajuSelectedClient.replace(/\s+/g, '_');
+            
+            link.download = `pedido_caju_${companyPart}_${clientPart}_${cajuSelectedYear}_${String(cajuSelectedMonth).padStart(2, '0')}.csv`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -2374,6 +2385,23 @@ export default function BenefitsPage() {
                                     {uniqueCompanies.map((company, index) => (
                                         <SelectItem key={index} value={company}>
                                             {company}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label className="font-bold text-slate-700">Contrato / Centro de Custo</Label>
+                            <Select value={cajuSelectedClient} onValueChange={setCajuSelectedClient}>
+                                <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                    <SelectValue placeholder="Selecione o Contrato" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todos os Contratos</SelectItem>
+                                    {uniqueClients.map((client, index) => (
+                                        <SelectItem key={index} value={client}>
+                                            {client}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
