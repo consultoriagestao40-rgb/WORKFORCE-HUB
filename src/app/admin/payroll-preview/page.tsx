@@ -512,7 +512,7 @@ export default function PayrollPreviewPage() {
                 ) : groupedView === "colaborador" ? (
                     /* LISTAGEM POR COLABORADOR */
                     <div className="overflow-x-auto relative">
-                        <table className="text-left border-collapse" style={{ minWidth: "2900px", tableLayout: "fixed" }}>
+                        <table className="text-left border-collapse" style={{ minWidth: "2750px", tableLayout: "fixed" }}>
                             <colgroup>
                                 <col style={{ width: "280px" }} /> {/* Colaborador */}
                                 <col style={{ width: "220px" }} /> {/* Empresa / Posto */}
@@ -523,7 +523,6 @@ export default function PayrollPreviewPage() {
                                 <col style={{ width: "140px" }} /> {/* H. Extras */}
                                 <col style={{ width: "140px" }} /> {/* Adic. Noturno */}
                                 <col style={{ width: "140px" }} /> {/* Salário-Família */}
-                                <col style={{ width: "150px" }} /> {/* Prêmio Absenteísmo */}
                                 <col style={{ width: "140px" }} /> {/* Ajuda Custo */}
                                 <col style={{ width: "150px" }} /> {/* Proventos Brutos */}
                                 <col style={{ width: "100px" }} /> {/* Faltas */}
@@ -549,7 +548,6 @@ export default function PayrollPreviewPage() {
                                     <th className="py-3 px-4 text-right bg-sky-50/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>H. Extras</th>
                                     <th className="py-3 px-4 text-right bg-sky-50/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Adic. Noturno</th>
                                     <th className="py-3 px-4 text-right bg-sky-50/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Salário-Família</th>
-                                    <th className="py-3 px-4 text-right bg-sky-50/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Prêmio Absenteísmo</th>
                                     <th className="py-3 px-4 text-right bg-sky-50/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Ajuda Custo</th>
                                     <th className="py-3 px-4 text-right bg-slate-100/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Proventos Brutos</th>
                                     <th className="py-3 px-4 text-center" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Faltas</th>
@@ -654,10 +652,6 @@ export default function PayrollPreviewPage() {
                                                     </PopoverContent>
                                                 </Popover>
                                             ) : "-"}
-                                        </td>
-                                        {/* Prêmio Absenteísmo */}
-                                        <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
-                                            {item.absenteismoAward > 0 ? formatCurrency(item.absenteismoAward) : "-"}
                                         </td>
                                         {/* Ajuda Custo */}
                                         <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
@@ -1057,7 +1051,7 @@ export default function PayrollPreviewPage() {
                                                         <div className="overflow-hidden border-t border-b border-slate-100 pl-12 pr-4 py-3">
                                                             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">Detalhamento dos Colaboradores</span>
                                                             <div className="overflow-x-auto">
-                                                                <table className="text-left border-collapse bg-white rounded-2xl border border-slate-200/60 overflow-hidden text-[11px]" style={{ minWidth: "2600px", tableLayout: "fixed" }}>
+                                                                <table className="text-left border-collapse bg-white rounded-2xl border border-slate-200/60 overflow-hidden text-[11px]" style={{ minWidth: "2460px", tableLayout: "fixed" }}>
                                                                     <colgroup>
                                                                         <col style={{ width: "260px" }} /> {/* Colaborador */}
                                                                         <col style={{ width: "120px" }} /> {/* Salário Base */}
@@ -1067,7 +1061,7 @@ export default function PayrollPreviewPage() {
                                                                                                                                                  <col style={{ width: "130px" }} /> {/* H. Extras */}
                                                                          <col style={{ width: "130px" }} /> {/* Adic. Noturno */}
                                                                          <col style={{ width: "130px" }} /> {/* Salário-Família */}
-                                                                         <col style={{ width: "140px" }} /> {/* Prêmio Absenteísmo */}
+                                                                         
                                                                          <col style={{ width: "130px" }} /> {/* Ajuda Custo */}
 <col style={{ width: "140px" }} /> {/* Provento Bruto */}
                                                                         <col style={{ width: "90px" }} /> {/* Faltas */}
@@ -1092,7 +1086,7 @@ export default function PayrollPreviewPage() {
                                                                                                                                                          <th className="py-2.5 px-3 text-right bg-sky-50/50">H. Extras</th>
                                                                              <th className="py-2.5 px-3 text-right bg-sky-50/50">Adic. Noturno</th>
                                                                              <th className="py-2.5 px-3 text-right bg-sky-50/50">Salário-Família</th>
-                                                                             <th className="py-2.5 px-3 text-right bg-sky-50/50">Prêmio Absenteísmo</th>
+                                                                             
                                                                              <th className="py-2.5 px-3 text-right bg-sky-50/50">Ajuda Custo</th>
 <th className="py-2.5 px-3 text-right bg-slate-100/50">Provento Bruto</th>
                                                                             <th className="py-2.5 px-3 text-center">Faltas</th>
@@ -1185,10 +1179,6 @@ export default function PayrollPreviewPage() {
                                                                                              </PopoverContent>
                                                                                          </Popover>
                                                                                      ) : "-"}
-                                                                                 </td>
-                                                                                 {/* Prêmio Absenteísmo */}
-                                                                                 <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
-                                                                                     {sub.absenteismoAward > 0 ? formatCurrency(sub.absenteismoAward) : "-"}
                                                                                  </td>
                                                                                  {/* Ajuda Custo */}
                                                                                  <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">

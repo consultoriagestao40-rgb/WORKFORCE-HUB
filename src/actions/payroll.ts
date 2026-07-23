@@ -229,22 +229,10 @@ export async function getPayrollPreview(year: number, month: number) {
         const dependentsCount = emp.dependentsCount || 0;
         const salarioFamilia = (totalGrossSalaryBase <= 1819.26 && dependentsCount > 0) ? Math.round((62.15 * dependentsCount) * 100) / 100 : 0;
 
-        // Prêmio de Absenteísmo
-        let absenteismoAward = 0;
-        if (posto && posto.absenteismoAwardValue > 0) {
-            const period = posto.absenteismoAwardPeriod || "mensal";
-            if (period === "mensal") {
-                if (faltasCount === 0 && atestadosCount === 0) {
-                    absenteismoAward = posto.absenteismoAwardValue;
-                }
-            } else if (period === "trimestral") {
-                if (!quarterlyFailsSet.has(emp.id)) {
-                    absenteismoAward = posto.absenteismoAwardValue;
-                }
-            }
-        }
+        // Prêmio de Absenteísmo (Pago via Caju - não entra em folha)
+        const absenteismoAward = 0;
 
-        const totalGrossSalary = Math.round((totalGrossSalaryBase + horasExtras50Value + horasExtras100Value + adicionalNoturnoValue + salarioFamilia + absenteismoAward + ajudaCusto + adicionalViagem) * 100) / 100;
+        const totalGrossSalary = Math.round((totalGrossSalaryBase + horasExtras50Value + horasExtras100Value + adicionalNoturnoValue + salarioFamilia + ajudaCusto + adicionalViagem) * 100) / 100;
 
         const benefitInfo = benefitsMap.get(emp.id);
 

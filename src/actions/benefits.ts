@@ -73,6 +73,10 @@ export interface BenefitsCalculationItem {
     vaPaidOnVacation?: boolean;
     vaVacationDays?: number;
     vaVacationDeduction?: number;
+
+    // Prêmio Absenteísmo (Assiduidade)
+    absenteismoAward: number;
+    absenteismoPeriod?: string;
 }
 
 // Helper: Calculate business days in a month (excluding weekends)
@@ -427,6 +431,18 @@ export async function getBenefitsCalculation(year: number, month: number) {
         orderBy: { name: "asc" }
     });
 
+    // Fetch quarterly occurrences for absenteismo evaluation (last 3 months)
+    const quarterlyStart = new Date(endYear, endMonth - 3, config.payrollCutoffStartDay);
+    const quarterlyEnd = new Date(endYear, endMonth - 1, config.payrollCutoffEndDay);
+    const quarterlyOccurrences = await prisma.occurrence.findMany({
+        where: {
+            date: { gte: quarterlyStart, lte: quarterlyEnd },
+            type: { in: ["FALTA", "FALTA_INJUSTIFICADA", "ATESTADO"] }
+        },
+        select: { employeeId: true }
+    });
+    const quarterlyFailsSet = new Set(quarterlyOccurrences.map(o => o.employeeId).filter(Boolean) as string[]);
+
     const now = new Date();
 
     const items: BenefitsCalculationItem[] = employees.map(emp => {
@@ -699,6 +715,26 @@ export async function getBenefitsCalculation(year: number, month: number) {
             ? (emp.vaCustomPaymentDetails || "Outro")
             : (emp.vaPaymentMethod || "Cartão Caju");
 
+        // Prêmio de Absenteísmo (Assiduidade) - pago via Caju (Benefits)
+        let absenteismoAward = 0;
+        const absenteismoPeriod = posto?.absenteismoAwardPeriod || "mensal";
+        
+        // Count faltas and atestados inside occurrencesList
+        const faltasCount = occurrencesList.filter(o => o.type !== "Atestado Médico").length;
+        const atestadosCount = occurrencesList.filter(o => o.type === "Atestado Médico").length;
+
+        if (posto && posto.absenteismoAwardValue > 0) {
+            if (absenteismoPeriod === "mensal") {
+                if (faltasCount === 0 && atestadosCount === 0) {
+                    absenteismoAward = posto.absenteismoAwardValue;
+                }
+            } else if (absenteismoPeriod === "trimestral") {
+                if (!quarterlyFailsSet.has(emp.id)) {
+                    absenteismoAward = posto.absenteismoAwardValue;
+                }
+            }
+        }
+
         return {
             employeeId: emp.id,
             employeeName: emp.name,
@@ -746,8 +782,9 @@ export async function getBenefitsCalculation(year: number, month: number) {
             vaPayrollDiscount,
             vaMealsProvidedOnSite: mealsProvided,
             vaPaidOnVacation: paidOnVacation,
-            vaVacationDays: vacationDays,
-            vaVacationDeduction
+            vaVacationDeduction,
+            absenteismoAward,
+            absenteismoPeriod
         };
     });
 

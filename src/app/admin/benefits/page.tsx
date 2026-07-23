@@ -342,7 +342,7 @@ export default function BenefitsPage() {
                 year: selectedYear,
                 benefitType: "AMBOS",
                 vtAmount: selectedItemForPayment.vtOptIn ? selectedItemForPayment.vtTotalValue : 0,
-                vaAmount: selectedItemForPayment.vaTotalValue,
+                vaAmount: selectedItemForPayment.vaTotalValue + (selectedItemForPayment.absenteismoAward || 0),
                 notes: paymentNotes
             });
             toast.success(`Benefício de ${selectedItemForPayment.employeeName} marcado como PAGO!`);
@@ -385,7 +385,7 @@ export default function BenefitsPage() {
                     employeeId: item.employeeId,
                     benefitType,
                     vtAmount: item.vtOptIn ? item.vtTotalValue : 0,
-                    vaAmount: item.vaTotalValue
+                    vaAmount: item.vaTotalValue + (item.absenteismoAward || 0)
                 };
             });
 
@@ -1061,23 +1061,23 @@ export default function BenefitsPage() {
                                             <th className="py-4 px-4">Optante VT?</th>
                                             <th className="py-4 px-4 text-center">Faltas / Ocorrências</th>
                                             <th className="py-4 px-4 text-right">VT a Comprar</th>
-                                            <th className="py-4 px-4">Destino VT</th>
                                             <th className="py-4 px-4 text-right">VA a Comprar</th>
                                             <th className="py-4 px-4">Destino VA</th>
+                                            <th className="py-4 px-4 text-right">Prêmio Assiduidade</th>
                                             <th className="py-4 px-4 text-center">Status / Ação</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 text-xs">
                                         {isLoading ? (
                                             <tr>
-                                                <td colSpan={10} className="text-center py-12 text-slate-400 font-medium">
+                                                <td colSpan={11} className="text-center py-12 text-slate-400 font-medium">
                                                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-orange-500" />
                                                     Calculando benefícios do mês...
                                                 </td>
                                             </tr>
                                         ) : filteredItems.length === 0 ? (
                                             <tr>
-                                                <td colSpan={10} className="text-center py-12 text-slate-400 font-medium">
+                                                <td colSpan={11} className="text-center py-12 text-slate-400 font-medium">
                                                     Nenhum colaborador encontrado com os filtros aplicados.
                                                 </td>
                                             </tr>
@@ -1310,10 +1310,21 @@ export default function BenefitsPage() {
                                                     </td>
 
                                                     <td className="py-3.5 px-4">
-                                                        <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200/60">
-                                                            {item.vaDestination}
-                                                        </span>
-                                                    </td>
+                                                         <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200/60">
+                                                             {item.vaDestination}
+                                                         </span>
+                                                     </td>
+
+                                                     <td className="py-3.5 px-4 text-right">
+                                                         {item.absenteismoAward > 0 ? (
+                                                             <div className="text-right">
+                                                                 <span className="font-extrabold text-rose-600">{formatCurrency(item.absenteismoAward)}</span>
+                                                                 <div className="text-[9px] text-slate-400 font-bold capitalize">({item.absenteismoPeriod})</div>
+                                                             </div>
+                                                         ) : (
+                                                             <span className="text-slate-400 font-medium">-</span>
+                                                         )}
+                                                     </td>
 
                                                     {/* Status / Ação de Pagamento */}
                                                     <td className="py-3.5 px-4 text-center">
@@ -1859,6 +1870,19 @@ export default function BenefitsPage() {
                                         <span>Destino: {selectedItemForPayment.vaDestination}</span>
                                     </div>
                                 </div>
+
+                                {selectedItemForPayment.absenteismoAward > 0 && (
+                                    <div className="p-3 bg-rose-50/70 border border-rose-100/80 rounded-2xl space-y-1 text-rose-950">
+                                        <div className="flex justify-between font-black text-rose-900">
+                                            <span>Prêmio Assiduidade (Pago via Caju):</span>
+                                            <span>R$ {selectedItemForPayment.absenteismoAward.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-[10px] text-rose-700/90 font-medium">
+                                            <span>Apuração: <span className="capitalize">{selectedItemForPayment.absenteismoPeriod}</span></span>
+                                            <span>Destino: Cartão Caju</span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="space-y-1">
