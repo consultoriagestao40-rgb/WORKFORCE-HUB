@@ -3,29 +3,46 @@ import { prisma } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
     try {
-        const occurrences = await prisma.occurrence.findMany({
-            select: {
-                type: true,
-                date: true
+        const month = 7;
+        const year = 2026;
+
+        let startMonth = month - 1;
+        let startYear = year;
+        if (startMonth <= 0) {
+            startMonth += 12;
+            startYear -= 1;
+        }
+        const windowStart = new Date(startYear, startMonth - 1, 26);
+        const windowEnd = new Date(year, month - 1, 25);
+
+        // Fetch all occurrences of type ATESTADO in the window
+        const atestados = await prisma.occurrence.findMany({
+            where: {
+                type: "ATESTADO",
+                date: {
+                    gte: windowStart,
+                    lte: windowEnd
+                }
+            },
+            include: {
+                employee: true
             }
         });
 
-        // Group by month and type
-        const stats: Record<string, Record<string, number>> = {};
-        for (const occ of occurrences) {
-            const date = new Date(occ.date);
-            const y = date.getFullYear();
-            const m = date.getMonth() + 1;
-            const monthStr = `${y}-${String(m).padStart(2, '0')}`;
-            if (!stats[monthStr]) stats[monthStr] = {};
-            if (!stats[monthStr][occ.type]) stats[monthStr][occ.type] = 0;
-            stats[monthStr][occ.type]++;
-        }
+        const list = atestados.map(a => ({
+            employeeName: a.employee?.name,
+            date: a.date,
+            title: a.title
+        }));
 
         return NextResponse.json({
             success: true,
-            totalOccurrencesCount: occurrences.length,
-            stats
+            window: {
+                start: windowStart.toISOString(),
+                end: windowEnd.toISOString()
+            },
+            atestadosCount: atestados.length,
+            list
         });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
