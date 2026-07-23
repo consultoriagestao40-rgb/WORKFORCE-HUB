@@ -99,6 +99,19 @@ export default function BenefitsPage() {
     const [batchPaymentModalOpen, setBatchPaymentModalOpen] = useState(false);
     const [batchPaymentNotes, setBatchPaymentNotes] = useState("");
     const [isSubmittingBatchPayment, setIsSubmittingBatchPayment] = useState(false);
+    const [exportCajuModalOpen, setExportCajuModalOpen] = useState(false);
+    const [cajuSelectedCompany, setCajuSelectedCompany] = useState<string>("all");
+    const [cajuSelectedMonth, setCajuSelectedMonth] = useState<number>(selectedMonth);
+    const [cajuSelectedYear, setCajuSelectedYear] = useState<number>(selectedYear);
+    const [isLoadingCaju, setIsLoadingCaju] = useState(false);
+
+    useEffect(() => {
+        if (exportCajuModalOpen) {
+            setCajuSelectedMonth(selectedMonth);
+            setCajuSelectedYear(selectedYear);
+            setCajuSelectedCompany("all");
+        }
+    }, [exportCajuModalOpen, selectedMonth, selectedYear]);
 
     useEffect(() => {
         setSelectedEmployeeIds([]);
@@ -507,6 +520,53 @@ export default function BenefitsPage() {
         toast.success("Planilha Excel baixada com sucesso!");
     };
 
+    const exportToCajuCsv = async () => {
+        setIsLoadingCaju(true);
+        try {
+            const res = await getBenefitsCalculation(cajuSelectedYear, cajuSelectedMonth);
+            const rawItems = res.items || [];
+            
+            // Filter by company if not "all"
+            const filtered = cajuSelectedCompany === "all" 
+                ? rawItems 
+                : rawItems.filter(item => item.companyName === cajuSelectedCompany);
+                
+            // Check if we have records
+            if (filtered.length === 0) {
+                toast.error("Nenhum dado de benefícios encontrado para os filtros selecionados.");
+                return;
+            }
+
+            // Generate CSV
+            // Header
+            let csvContent = "CPF,Matricula (opcional),Valor Fixo em Auxilio Alimentacao,Mobilidade,Valor Fixo em Mobilidade,Home Office,Valor Fixo em Home Office,Multi\n";
+            
+            filtered.forEach(item => {
+                const rawCpf = (item.employeeCpf || "").replace(/\D/g, "");
+                const totalCaju = item.vaTotalValue + (item.absenteismoAward || 0);
+                
+                // Add row: CPF, matricula (empty), Valor Fixo em Auxilio Alimentacao, Mobilidade (0), Valor Fixo em Mobilidade (0), Home Office (0), Valor Fixo em Home Office (0), Multi (0)
+                csvContent += `${rawCpf},,${totalCaju.toFixed(2)},0,0,0,0,0\n`;
+            });
+
+            // Download CSV
+            const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `pedido_caju_${cajuSelectedCompany === 'all' ? 'todas_empresas' : cajuSelectedCompany.replace(/\\s+/g, '_')}_${cajuSelectedYear}_${String(cajuSelectedMonth).padStart(2, '0')}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast.success("Arquivo CSV do Caju exportado com sucesso!");
+            setExportCajuModalOpen(false);
+        } catch (error) {
+            console.error("Erro ao exportar pedido Caju:", error);
+            toast.error("Ocorreu um erro ao gerar o arquivo de exportação.");
+        } finally {
+            setIsLoadingCaju(false);
+        }
+    };
+
     const exportOccurrencesToExcel = () => {
         const occurrencesItems = items.filter(item => item.vtOccurrencesDeducted > 0);
         if (occurrencesItems.length === 0) {
@@ -816,6 +876,13 @@ export default function BenefitsPage() {
                         className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-md h-9 w-9 shrink-0"
                     >
                         <RefreshCw className={`w-4 h-4 ${isSyncingSecullum ? "animate-spin" : "text-indigo-200"}`} />
+                    </Button>
+
+                    <Button 
+                        onClick={() => setExportCajuModalOpen(true)}
+                        className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-md h-9 px-4 shrink-0"
+                    >
+                        <Download className="w-4 h-4" /> Exportar Pedido Caju
                     </Button>
 
                     <Button 
@@ -2278,6 +2345,80 @@ export default function BenefitsPage() {
                             className="bg-orange-500 hover:bg-orange-600 text-white font-bold gap-2"
                         >
                             {isSubmittingBatchPayment ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Confirmar Lote
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* EXPORT CAJU CSV MODAL */}
+            <Dialog open={exportCajuModalOpen} onOpenChange={setExportCajuModalOpen}>
+                <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-3xl">
+                    <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-orange-50/50">
+                        <DialogTitle className="flex items-center gap-2 text-lg font-black text-orange-700">
+                            <Download className="w-5 h-5 text-orange-600" /> Exportar Pedido Caju (CSV)
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-orange-850">
+                            Gere o arquivo CSV formatado para importação em lote no portal do Caju.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+                        <div className="space-y-1.5">
+                            <Label className="font-bold text-slate-700">Empresa</Label>
+                            <Select value={cajuSelectedCompany} onValueChange={setCajuSelectedCompany}>
+                                <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                    <SelectValue placeholder="Selecione a Empresa" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todas as Empresas</SelectItem>
+                                    {uniqueCompanies.map((company, index) => (
+                                        <SelectItem key={index} value={company}>
+                                            {company}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <Label className="font-bold text-slate-700">Mês de Competência</Label>
+                                <Select value={String(cajuSelectedMonth)} onValueChange={val => setCajuSelectedMonth(Number(val))}>
+                                    <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {monthNames.map((m, idx) => (
+                                            <SelectItem key={idx + 1} value={String(idx + 1)}>{m}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="font-bold text-slate-700">Ano</Label>
+                                <Select value={String(cajuSelectedYear)} onValueChange={val => setCajuSelectedYear(Number(val))}>
+                                    <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="2025">2025</SelectItem>
+                                        <SelectItem value="2026">2026</SelectItem>
+                                        <SelectItem value="2027">2027</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={() => setExportCajuModalOpen(false)}>Cancelar</Button>
+                        <Button 
+                            onClick={exportToCajuCsv} 
+                            disabled={isLoadingCaju}
+                            className="bg-orange-500 hover:bg-orange-600 text-white font-bold gap-2"
+                        >
+                            {isLoadingCaju ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Exportar CSV
                         </Button>
                     </DialogFooter>
                 </DialogContent>
