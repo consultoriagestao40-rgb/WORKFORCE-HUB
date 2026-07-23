@@ -413,7 +413,7 @@ export default function PayrollPreviewPage() {
                     </div>
                 ) : groupedView === "colaborador" ? (
                     /* LISTAGEM POR COLABORADOR */
-                    <div className="overflow-auto max-h-[calc(100vh-280px)] border border-slate-200/60 rounded-3xl relative">
+                    <div className="overflow-x-auto relative">
                         <table className="text-left border-collapse" style={{ minWidth: "2100px", tableLayout: "fixed" }}>
                             <colgroup>
                                 <col style={{ width: "280px" }} /> {/* Colaborador */}
@@ -686,7 +686,7 @@ export default function PayrollPreviewPage() {
                     </div>
                 ) : (
                     /* VISÕES AGRUPADAS (EMPRESA OU CONTRATO) */
-                    <div className="overflow-auto max-h-[calc(100vh-280px)] border border-slate-200/60 rounded-3xl relative">
+                    <div className="overflow-x-auto relative">
                         <table className="text-left border-collapse" style={{ minWidth: "1400px", tableLayout: "fixed" }}>
                             <colgroup>
                                 <col style={{ width: "60px" }} /> {/* Toggle button */}
