@@ -3,57 +3,29 @@ import { prisma } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
     try {
-        const { searchParams } = new URL(request.url);
-        const monthParam = searchParams.get("month");
-        const month = monthParam ? parseInt(monthParam) : 6;
-        const year = 2026;
-
-        let startMonth = month - 1;
-        let startYear = year;
-        if (startMonth <= 0) {
-            startMonth += 12;
-            startYear -= 1;
-        }
-        const windowStart = new Date(startYear, startMonth - 1, 26);
-        const windowEnd = new Date(year, month - 1, 25);
-
-        // Fetch Luzia with occurrences within the window
-        const luzia = await prisma.employee.findFirst({
-            where: { name: { contains: "LUZIA CORDEIRO", mode: "insensitive" } },
-            include: {
-                occurrences: {
-                    where: {
-                        date: {
-                            gte: windowStart,
-                            lte: windowEnd
-                        },
-                        type: { in: ["FALTA", "FALTA_INJUSTIFICADA", "ATESTADO"] }
-                    },
-                    orderBy: { date: "asc" }
-                }
+        const occurrences = await prisma.occurrence.findMany({
+            select: {
+                type: true,
+                date: true
             }
         });
 
-        // Get ALL Luzia occurrences in DB (no date filter)
-        let allOccs: any[] = [];
-        if (luzia) {
-            allOccs = await prisma.occurrence.findMany({
-                where: { employeeId: luzia.id }
-            });
+        // Group by month and type
+        const stats: Record<string, Record<string, number>> = {};
+        for (const occ of occurrences) {
+            const date = new Date(occ.date);
+            const y = date.getFullYear();
+            const m = date.getMonth() + 1;
+            const monthStr = `${y}-${String(m).padStart(2, '0')}`;
+            if (!stats[monthStr]) stats[monthStr] = {};
+            if (!stats[monthStr][occ.type]) stats[monthStr][occ.type] = 0;
+            stats[monthStr][occ.type]++;
         }
 
         return NextResponse.json({
             success: true,
-            window: {
-                start: windowStart.toISOString(),
-                end: windowEnd.toISOString()
-            },
-            luziaFound: luzia ? {
-                id: luzia.id,
-                name: luzia.name,
-                occurrencesInWindow: luzia.occurrences,
-                allOccsInDb: allOccs
-            } : null
+            totalOccurrencesCount: occurrences.length,
+            stats
         });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
