@@ -1165,18 +1165,115 @@ export default function BenefitsPage() {
                                                         )}
                                                     </td>
 
-                                                    <td className="py-3.5 px-4 text-right font-black text-indigo-700">
-                                                        {formatCurrency(item.vtTotalValue)}
-                                                    </td>
+                                                    <td className="py-3.5 px-4 text-right">
+                                                         <Popover>
+                                                             <PopoverTrigger asChild>
+                                                                 <button className="font-black text-indigo-700 hover:text-indigo-800 underline decoration-dashed cursor-pointer text-right block w-full">
+                                                                     <div>{formatCurrency(item.vtTotalValue)}</div>
+                                                                     {item.vtTotalValue2 > 0 && (
+                                                                         <div className="text-[10px] font-bold text-slate-500 mt-0.5">VT 2: {formatCurrency(item.vtTotalValue2)}</div>
+                                                                     )}
+                                                                 </button>
+                                                             </PopoverTrigger>
+                                                             <PopoverContent className="w-68 p-3 text-xs space-y-2">
+                                                                 <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">
+                                                                     Composição do VT a Pagar
+                                                                 </div>
+                                                                 <div className="space-y-1.5 font-semibold text-slate-650 text-[10px]">
+                                                                     <div className="border-b border-slate-100 pb-1.5">
+                                                                         <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Vale Transporte 1 ({item.vtDestination})</span>
+                                                                         <div className="flex justify-between">
+                                                                             <span>Valor Base:</span>
+                                                                             <span>R$ {item.vtBaseValue.toFixed(2)}</span>
+                                                                         </div>
+                                                                         {item.vtDeductionValue > 0 && (
+                                                                             <div className="flex justify-between text-red-600">
+                                                                                 <span>(-) Descontos ({item.vtOccurrencesDeducted} faltas):</span>
+                                                                                 <span>- R$ {item.vtDeductionValue.toFixed(2)}</span>
+                                                                             </div>
+                                                                         )}
+                                                                         <div className="flex justify-between font-bold text-indigo-700 pt-0.5">
+                                                                             <span>Subtotal VT 1:</span>
+                                                                             <span>R$ {item.vtTotalValue.toFixed(2)}</span>
+                                                                         </div>
+                                                                     </div>
+
+                                                                     {item.vtTotalValue2 > 0 && (
+                                                                         <div className="border-b border-slate-100 pb-1.5">
+                                                                             <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Vale Transporte 2 ({item.vtDestination2})</span>
+                                                                             <div className="flex justify-between">
+                                                                                 <span>Valor Base:</span>
+                                                                                 <span>R$ {item.vtBaseValue2.toFixed(2)}</span>
+                                                                             </div>
+                                                                             {item.vtDeductionValue2 > 0 && (
+                                                                                 <div className="flex justify-between text-red-600">
+                                                                                     <span>(-) Descontos ({item.vtOccurrencesDeducted} faltas):</span>
+                                                                                     <span>- R$ {item.vtDeductionValue2.toFixed(2)}</span>
+                                                                                 </div>
+                                                                             )}
+                                                                             <div className="flex justify-between font-bold text-slate-650 pt-0.5">
+                                                                                 <span>Subtotal VT 2:</span>
+                                                                                 <span>R$ {item.vtTotalValue2.toFixed(2)}</span>
+                                                                             </div>
+                                                                         </div>
+                                                                     )}
+
+                                                                     <div className="flex justify-between font-bold text-slate-800 pt-1 text-[11px]">
+                                                                         <span>Total Geral VT:</span>
+                                                                         <span className="text-indigo-700">R$ {(item.vtTotalValue + (item.vtTotalValue2 || 0)).toFixed(2)}</span>
+                                                                     </div>
+                                                                 </div>
+                                                             </PopoverContent>
+                                                         </Popover>
+                                                     </td>
 
                                                     <td className="py-3.5 px-4">
-                                                        <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                                                            {item.vtDestination}
-                                                        </span>
-                                                    </td>
+                                                         <div className="flex flex-col gap-1">
+                                                             <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60 w-fit">
+                                                                 {item.vtDestination}
+                                                             </span>
+                                                             {item.vtTotalValue2 > 0 && (
+                                                                 <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 w-fit">
+                                                                     {item.vtDestination2}
+                                                                 </span>
+                                                             )}
+                                                         </div>
+                                                     </td>
 
                                                     <td className="py-3.5 px-4 text-right font-black text-orange-600">
-                                                        {formatCurrency(item.vaTotalValue)}
+                                                         <Popover>
+                                                             <PopoverTrigger asChild>
+                                                                 <button className="font-black text-orange-600 hover:text-orange-700 underline decoration-dashed cursor-pointer text-right block w-full">
+                                                                     {formatCurrency(item.vaTotalValue)}
+                                                                 </button>
+                                                             </PopoverTrigger>
+                                                             <PopoverContent className="w-64 p-3 text-xs space-y-2">
+                                                                 <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">
+                                                                     Composição do VA a Pagar
+                                                                 </div>
+                                                                 <div className="space-y-1.5 font-semibold text-slate-650 text-[10px]">
+                                                                     <div className="flex justify-between">
+                                                                         <span>Valor Base:</span>
+                                                                         <span>R$ {item.vaBaseValue.toFixed(2)}</span>
+                                                                     </div>
+                                                                     {item.vaDeductionValue > 0 && (
+                                                                         <div className="flex justify-between text-red-600">
+                                                                             <span>(-) Descontos ({item.vaOccurrencesDeducted} faltas):</span>
+                                                                             <span>- R$ {item.vaDeductionValue.toFixed(2)}</span>
+                                                                         </div>
+                                                                     )}
+                                                                     <div className="flex justify-between font-bold text-slate-800 border-t border-slate-100 pt-1 text-[11px]">
+                                                                         <span>Total Líquido:</span>
+                                                                         <span className="text-orange-600">R$ {item.vaTotalValue.toFixed(2)}</span>
+                                                                     </div>
+                                                                 </div>
+                                                                 {item.vaBatchNote && (
+                                                                     <div className="text-[9px] text-slate-400 border-t border-slate-100/70 pt-1 mt-1 italic font-medium leading-normal">
+                                                                         Info: {item.vaBatchNote}
+                                                                     </div>
+                                                                 )}
+                                                             </PopoverContent>
+                                                         </Popover>
                                                     </td>
 
                                                     <td className="py-3.5 px-4">
