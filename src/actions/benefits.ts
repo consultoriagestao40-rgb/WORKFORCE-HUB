@@ -468,25 +468,14 @@ export async function getBenefitsCalculation(year: number, month: number) {
             const defaultNextDue = new Date(admissionDateObj);
             defaultNextDue.setDate(defaultNextDue.getDate() + config.vtFractionDays);
             nextPaymentDueDate = defaultNextDue.toLocaleDateString('pt-BR');
-        }
+        }        // Base VT value priority: Employee record -> 0.
+        const baseVtValue = emp.valeTransporte || 0;
+        const baseVtValue2 = emp.valeTransporte2 || 0;
 
-        // Base VT value priority: Employee record -> Posto record -> 0.
-        // If Posto VT is daily (<= 40), ignore legacy employee monthly values (> 40).
-        const isPostoVtDaily = posto?.valeTransporte && posto.valeTransporte > 0 && posto.valeTransporte <= 40;
-        const baseVtValue = isPostoVtDaily
-            ? (emp.valeTransporte > 0 && emp.valeTransporte <= 40 ? emp.valeTransporte : (posto?.valeTransporte || 0))
-            : (emp.valeTransporte > 0 ? emp.valeTransporte : (posto?.valeTransporte || 0));
-
-        const isPostoVtDaily2 = posto?.valeTransporte2 && posto.valeTransporte2 > 0 && posto.valeTransporte2 <= 40;
-        const baseVtValue2 = isPostoVtDaily2
-            ? (emp.valeTransporte2 > 0 && emp.valeTransporte2 <= 40 ? emp.valeTransporte2 : (posto?.valeTransporte2 || 0))
-            : (emp.valeTransporte2 > 0 ? emp.valeTransporte2 : (posto?.valeTransporte2 || 0));
-
-        // Base VA value priority: Employee record -> Posto record -> 0. (Meals provided override to 494.00)
+        // Base VA value priority: Employee record -> 0. (Meals provided override to 494.00 if employee receives VA)
         const mealsProvided = !!posto?.vaMealsProvidedOnSite;
-        const rawBaseVaValue = emp.valeAlimentacao > 0 ? emp.valeAlimentacao : (posto?.valeAlimentacao || 0);
-        const baseVaValue = mealsProvided ? 494.00 : rawBaseVaValue;
-
+        const rawBaseVaValue = emp.valeAlimentacao || 0;
+        const baseVaValue = (rawBaseVaValue > 0 && mealsProvided) ? 494.00 : rawBaseVaValue;
         // Determine if VT value is stored as Monthly (> 40) or Daily (<= 40)
         // Standard working/scale days for VT is 22 days.
         const isVtMonthly = baseVtValue > 40;
@@ -586,7 +575,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
 
         const isVaDiario = posto?.vaType === "diario";
         const vaDailyRate = isVaDiario
-            ? (emp.valeAlimentacao > 0 && emp.valeAlimentacao <= 50 ? emp.valeAlimentacao : (posto?.valeAlimentacao || 0))
+            ? (emp.valeAlimentacao > 0 && emp.valeAlimentacao <= 50 ? emp.valeAlimentacao : 0)
             : baseVaValue;
 
         const isVaMonthly = !isVaDiario && (vaDailyRate > 50);
