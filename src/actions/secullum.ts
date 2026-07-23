@@ -274,6 +274,100 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
             }
         }
 
+        // E. Fetch calculations for each employee in parallel chunks to prevent timeouts
+        const employeesWithCpf = dbEmployees.filter(emp => emp.cpf);
+        const chunkSize = 15; // 15 parallel requests
+        for (let i = 0; i < employeesWithCpf.length; i += chunkSize) {
+            const chunk = employeesWithCpf.slice(i, i + chunkSize);
+            await Promise.all(chunk.map(async (emp) => {
+                try {
+                    const cleanCpf = cleanCpfStr(emp.cpf!);
+                    const res = await client.getCalculos(cleanCpf, startDateStr, endDateStr);
+                    if (res && res.Colunas && res.Totais) {
+                        const cols = res.Colunas as string[];
+                        const totais = res.Totais as string[];
+                        
+                        const atrasIdx = cols.indexOf("Atras.");
+                        const extrasIdx = cols.indexOf("Extras");
+                        const notIdx = cols.indexOf("Not.Tot.");
+                        
+                        const parseTimeToHours = (timeStr: string): number => {
+                            if (!timeStr) return 0;
+                            const isNegative = timeStr.startsWith("-");
+                            const cleanStr = isNegative ? timeStr.substring(1) : timeStr;
+                            const parts = cleanStr.split(":");
+                            if (parts.length < 2) return 0;
+                            const hours = parseInt(parts[0], 10) || 0;
+                            const minutes = parseInt(parts[1], 10) || 0;
+                            const decimal = hours + (minutes / 60);
+                            return isNegative ? -decimal : decimal;
+                        };
+                        
+                        const atrasosHours = atrasIdx !== -1 && atrasIdx < totais.length ? parseTimeToHours(totais[atrasIdx]) : 0;
+                        const extrasHours = extrasIdx !== -1 && extrasIdx < totais.length ? parseTimeToHours(totais[extrasIdx]) : 0;
+                        const notHours = notIdx !== -1 && notIdx < totais.length ? parseTimeToHours(totais[notIdx]) : 0;
+                        
+                        // Separate 50% from 100% Extras based on Sunday check
+                        let extras50Hours = 0;
+                        let extras100Hours = 0;
+                        
+                        const dateIdx = cols.indexOf("Data");
+                        const extrasColIdx = cols.indexOf("Extras");
+                        
+                        if (res.Linhas && Array.isArray(res.Linhas)) {
+                            res.Linhas.forEach((row: any) => {
+                                if (row.Value && Array.isArray(row.Value)) {
+                                    const dateVal = dateIdx !== -1 ? row.Value[dateIdx] : "";
+                                    const extrasValStr = extrasColIdx !== -1 ? row.Value[extrasColIdx] : "";
+                                    const extrasVal = parseTimeToHours(extrasValStr);
+                                    
+                                    if (extrasVal > 0) {
+                                        const isSunday = row.Key ? new Date(row.Key).getDay() === 0 : (dateVal && dateVal.includes("Dom"));
+                                        if (isSunday) {
+                                            extras100Hours += extrasVal;
+                                        } else {
+                                            extras50Hours += extrasVal;
+                                        }
+                                    }
+                                }
+                            });
+                        } else {
+                            extras50Hours = extrasHours;
+                            extras100Hours = 0;
+                        }
+                        
+                        // Upsert monthly calculation
+                        await prisma.employeeMonthlyCalculus.upsert({
+                            where: {
+                                employeeId_year_month: {
+                                    employeeId: emp.id,
+                                    year,
+                                    month
+                                }
+                            },
+                            update: {
+                                atrasosHours,
+                                extras50Hours,
+                                extras100Hours,
+                                adicionalNoturnoHours: notHours
+                            },
+                            create: {
+                                employeeId: emp.id,
+                                year,
+                                month,
+                                atrasosHours,
+                                extras50Hours,
+                                extras100Hours,
+                                adicionalNoturnoHours: notHours
+                            }
+                        });
+                    }
+                } catch (calcErr) {
+                    // Suppress individual point API errors (e.g. employee not found in point web system)
+                }
+            }));
+        }
+
         // Update Last Sync Timestamp
         await prisma.benefitsConfig.update({
             where: { id: config.id },

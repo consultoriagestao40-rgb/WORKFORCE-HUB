@@ -33,6 +33,8 @@ interface EditPostoSheetProps {
         vaDiscountPercentage?: number;
         vaMealsProvidedOnSite?: boolean;
         vaPaidOnVacation?: boolean;
+        absenteismoAwardValue?: number;
+        absenteismoAwardPeriod?: string;
     };
     schedules: { id: string; name: string }[];
     roles: { id: string; name: string }[];
@@ -208,6 +210,27 @@ export function EditPostoSheet({ posto, schedules, roles }: EditPostoSheetProps)
                                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
                                          />
                                          <Label htmlFor={`vaPaidOnVacation-${posto.id}`} className="text-xs font-semibold text-slate-700">Pagar VA nas Férias?</Label>
+                                     </div>
+                                 </div>
+                                 <div className="border-t pt-4 mt-4">
+                                     <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Premiação por Absenteísmo</h4>
+                                     <div className="grid grid-cols-2 gap-4">
+                                         <div className="space-y-2">
+                                             <Label htmlFor={`absenteismoAwardValue-${posto.id}`}>Valor do Prêmio (R$)</Label>
+                                             <Input id={`absenteismoAwardValue-${posto.id}`} name="absenteismoAwardValue" type="number" step="0.01" defaultValue={posto.absenteismoAwardValue || 0} />
+                                         </div>
+                                         <div className="space-y-2">
+                                             <Label htmlFor={`absenteismoAwardPeriod-${posto.id}`}>Apuração</Label>
+                                             <Select name="absenteismoAwardPeriod" defaultValue={posto.absenteismoAwardPeriod || "mensal"}>
+                                                 <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                                     <SelectValue />
+                                                 </SelectTrigger>
+                                                 <SelectContent>
+                                                     <SelectItem value="mensal">Mensal</SelectItem>
+                                                     <SelectItem value="trimestral">Trimestral</SelectItem>
+                                                 </SelectContent>
+                                             </Select>
+                                         </div>
                                      </div>
                                  </div>
                              </div>

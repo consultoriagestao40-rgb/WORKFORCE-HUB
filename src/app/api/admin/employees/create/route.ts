@@ -17,6 +17,9 @@ export async function POST(req: Request) {
         const periculosidade = parseFloat(formData.get("periculosidade") as string) || 0;
         const gratificacao = parseFloat(formData.get("gratificacao") as string) || 0;
         const outrosAdicionais = parseFloat(formData.get("outrosAdicionais") as string) || 0;
+        const dependentsCount = parseInt(formData.get("dependentsCount") as string) || 0;
+        const ajudaCusto = parseFloat(formData.get("ajudaCusto") as string) || 0;
+        const adicionalViagem = parseFloat(formData.get("adicionalViagem") as string) || 0;
         const workload = parseInt(formData.get("workload") as string) || 220;
         const admissionDateStr = formData.get("admissionDate") as string;
         const situationId = formData.get("situationId") as string;
@@ -120,6 +123,9 @@ export async function POST(req: Request) {
                         periculosidade,
                         gratificacao,
                         outrosAdicionais,
+                        dependentsCount,
+                        ajudaCusto,
+                        adicionalViagem,
                         workload,
                         valeAlimentacao,
                         valeTransporte,
@@ -171,6 +177,9 @@ export async function POST(req: Request) {
                         periculosidade,
                         gratificacao,
                         outrosAdicionais,
+                        dependentsCount,
+                        ajudaCusto,
+                        adicionalViagem,
                         workload,
                         valeAlimentacao,
                         valeTransporte,

@@ -209,4 +209,34 @@ export class SecullumApiClient {
         const data = await res.json();
         return Array.isArray(data) ? data : [];
     }
+
+    /**
+     * Busca cálculos consolidados do Secullum para atrasos, horas extras e adicional noturno
+     */
+    async getCalculos(cpf: string, startDateStr: string, endDateStr: string): Promise<any> {
+        const url = `${this.baseUrl}/IntegracaoExterna/Calcular`;
+        const headers = await this.getHeaders();
+        const finalHeaders = {
+            ...headers,
+            "Content-Type": "application/json"
+        };
+
+        const res = await fetch(url, {
+            method: "POST",
+            headers: finalHeaders,
+            body: JSON.stringify({
+                funcionarioCpf: cpf,
+                dataInicial: `${startDateStr}T00:00:00`,
+                dataFinal: `${endDateStr}T23:59:59`
+            }),
+            cache: "no-store"
+        });
+
+        if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`Erro ao buscar cálculos do Secullum (${res.status}): ${errText}`);
+        }
+
+        return await res.json();
+    }
 }

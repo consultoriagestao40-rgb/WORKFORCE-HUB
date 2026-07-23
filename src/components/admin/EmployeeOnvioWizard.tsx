@@ -145,6 +145,9 @@ export function EmployeeOnvioWizard({
     const [periculosidade, setPericulosidade] = useState("0");
     const [gratificacao, setGratificacao] = useState("0");
     const [outrosAdicionais, setOutrosAdicionais] = useState("0");
+    const [dependentsCount, setDependentsCount] = useState("0");
+    const [ajudaCusto, setAjudaCusto] = useState("0");
+    const [adicionalViagem, setAdicionalViagem] = useState("0");
     const [workload, setWorkload] = useState("220");
     const [valeAlimentacao, setValeAlimentacao] = useState("0");
     const [valeTransporte, setValeTransporte] = useState("0");
@@ -433,6 +436,9 @@ export function EmployeeOnvioWizard({
             setPericulosidade(initialData.periculosidade ? String(initialData.periculosidade) : (selectedPosto ? String(selectedPosto.periculosidade || 0) : "0"));
             setGratificacao(initialData.gratificacao ? String(initialData.gratificacao) : (selectedPosto ? String(selectedPosto.gratificacao || 0) : "0"));
             setOutrosAdicionais(initialData.outrosAdicionais ? String(initialData.outrosAdicionais) : (selectedPosto ? String(selectedPosto.outrosAdicionais || 0) : "0"));
+            setDependentsCount(initialData.dependentsCount ? String(initialData.dependentsCount) : "0");
+            setAjudaCusto(initialData.ajudaCusto ? String(initialData.ajudaCusto) : "0");
+            setAdicionalViagem(initialData.adicionalViagem ? String(initialData.adicionalViagem) : "0");
             setValeAlimentacao(initialData.valeAlimentacao ? String(initialData.valeAlimentacao) : (selectedPosto ? String(selectedPosto.valeAlimentacao || 0) : "0"));
             setValeTransporte(initialData.valeTransporte ? String(initialData.valeTransporte) : (selectedPosto ? String(selectedPosto.valeTransporte || 0) : "0"));
             setWorkload(initialData.workload ? String(initialData.workload) : (selectedPosto ? String(selectedPosto.requiredWorkload || 220) : "220"));
@@ -1287,6 +1293,18 @@ export function EmployeeOnvioWizard({
                                         <div className="space-y-1">
                                             <Label htmlFor="outrosAdicionais" className="text-slate-700 font-medium">Outros Adicionais (R$)</Label>
                                             <Input id="outrosAdicionais" name="outrosAdicionais" type="number" step="0.01" value={outrosAdicionais} onChange={e => setOutrosAdicionais(e.target.value)} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="dependentsCount" className="text-slate-700 font-medium">Qtd Dependentes/Filhos</Label>
+                                            <Input id="dependentsCount" name="dependentsCount" type="number" step="1" value={dependentsCount} onChange={e => setDependentsCount(e.target.value)} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="ajudaCusto" className="text-slate-700 font-medium">Ajuda de Custo (R$)</Label>
+                                            <Input id="ajudaCusto" name="ajudaCusto" type="number" step="0.01" value={ajudaCusto} onChange={e => setAjudaCusto(e.target.value)} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="adicionalViagem" className="text-slate-700 font-medium">Adicional de Viagem (R$)</Label>
+                                            <Input id="adicionalViagem" name="adicionalViagem" type="number" step="0.01" value={adicionalViagem} onChange={e => setAdicionalViagem(e.target.value)} />
                                         </div>
                                         <div className="space-y-1">
                                             <Label htmlFor="valeAlimentacao" className="text-slate-700 font-medium">Vale Alimentação (R$)</Label>
@@ -2361,6 +2379,9 @@ export function EmployeeOnvioWizard({
             <input type="hidden" name="periculosidade" value={periculosidade || "0"} />
             <input type="hidden" name="gratificacao" value={gratificacao || "0"} />
             <input type="hidden" name="outrosAdicionais" value={outrosAdicionais || "0"} />
+            <input type="hidden" name="dependentsCount" value={dependentsCount || "0"} />
+            <input type="hidden" name="ajudaCusto" value={ajudaCusto || "0"} />
+            <input type="hidden" name="adicionalViagem" value={adicionalViagem || "0"} />
             <input type="hidden" name="workload" value={workload || "220"} />
             <input type="hidden" name="valeAlimentacao" value={valeAlimentacao || "0"} />
             <input type="hidden" name="valeTransporte" value={valeTransporte || "0"} />

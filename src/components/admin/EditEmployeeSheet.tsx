@@ -670,6 +670,21 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                                 <Input name="outrosAdicionais" type="number" step="0.01" defaultValue={employee.outrosAdicionais} className="h-9 rounded-xl border-slate-200" />
                             </div>
 
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="space-y-1">
+                                    <Label className="font-bold text-slate-700">Dep. Salário-Família</Label>
+                                    <Input name="dependentsCount" type="number" step="1" defaultValue={employee.dependentsCount || 0} className="h-9 rounded-xl border-slate-200" />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="font-bold text-slate-700">Ajuda de Custo (R$)</Label>
+                                    <Input name="ajudaCusto" type="number" step="0.01" defaultValue={employee.ajudaCusto || 0} className="h-9 rounded-xl border-slate-200" />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="font-bold text-slate-700">Adic. Viagem (R$)</Label>
+                                    <Input name="adicionalViagem" type="number" step="0.01" defaultValue={employee.adicionalViagem || 0} className="h-9 rounded-xl border-slate-200" />
+                                </div>
+                            </div>
+
                             <div className="pt-2 border-t border-slate-100 font-bold text-slate-800 text-[11px] uppercase tracking-wider mb-2">
                                 Vale Alimentação & Transporte Mensal
                             </div>

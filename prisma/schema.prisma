@@ -119,6 +119,8 @@ model Posto {
   vaDiscountPercentage Float     @default(20.0)
   vaMealsProvidedOnSite Boolean  @default(false)
   vaPaidOnVacation  Boolean      @default(false)
+  absenteismoAwardValue Float      @default(0)
+  absenteismoAwardPeriod String     @default("mensal")
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   originAssignments Assignment[] @relation("OriginPosto")
@@ -206,6 +208,9 @@ model Employee {
   vaCustomPaymentDetails String?
   vtDiscountPercentage   Float?
   vaDiscountPercentage   Float?
+  dependentsCount        Int                 @default(0)
+  ajudaCusto             Float               @default(0)
+  adicionalViagem        Float               @default(0)
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
   dismissalReason        String?
@@ -217,6 +222,7 @@ model Employee {
   role                   Role                @relation(fields: [roleId], references: [id])
   situation              Situation?          @relation(fields: [situationId], references: [id])
   customAllowances       EmployeeAllowance[]
+  monthlyCalculations    EmployeeMonthlyCalculus[]
   logs                   Log[]
   occurrences            Occurrence[]
   requests               Request[]
@@ -403,6 +409,22 @@ model EmployeeAllowance {
   employee        Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, allowanceTypeId])
+}
+
+model EmployeeMonthlyCalculus {
+  id                    String   @id @default(uuid())
+  employeeId            String
+  year                  Int
+  month                 Int
+  atrasosHours          Float    @default(0)
+  extras50Hours         Float    @default(0)
+  extras100Hours        Float    @default(0)
+  adicionalNoturnoHours Float    @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  employee              Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, year, month])
 }
 
 model Assignment {

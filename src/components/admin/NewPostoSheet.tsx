@@ -162,16 +162,37 @@ export function NewPostoSheet({ clientId, schedules, roles }: NewPostoSheetProps
                                          <Input id="vaDiscountPercentage" name="vaDiscountPercentage" type="number" step="0.01" defaultValue="20" />
                                      </div>
                                  </div>
-                                 <div className="flex flex-col gap-2 pt-2">
-                                     <div className="flex items-center space-x-2">
-                                         <input type="checkbox" id="vaMealsProvidedOnSite" name="vaMealsProvidedOnSite" value="true" className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" />
-                                         <Label htmlFor="vaMealsProvidedOnSite" className="text-xs font-semibold text-slate-700">Refeição Fornecida no Local?</Label>
-                                     </div>
-                                     <div className="flex items-center space-x-2">
-                                         <input type="checkbox" id="vaPaidOnVacation" name="vaPaidOnVacation" value="true" className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" />
-                                         <Label htmlFor="vaPaidOnVacation" className="text-xs font-semibold text-slate-700">Pagar VA nas Férias?</Label>
-                                     </div>
-                                 </div>
+                                  <div className="flex flex-col gap-2 pt-2">
+                                      <div className="flex items-center space-x-2">
+                                          <input type="checkbox" id="vaMealsProvidedOnSite" name="vaMealsProvidedOnSite" value="true" className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" />
+                                          <Label htmlFor="vaMealsProvidedOnSite" className="text-xs font-semibold text-slate-700">Refeição Fornecida no Local?</Label>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                          <input type="checkbox" id="vaPaidOnVacation" name="vaPaidOnVacation" value="true" className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" />
+                                          <Label htmlFor="vaPaidOnVacation" className="text-xs font-semibold text-slate-700">Pagar VA nas Férias?</Label>
+                                      </div>
+                                  </div>
+                                  <div className="border-t pt-4 mt-4">
+                                      <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Premiação por Absenteísmo</h4>
+                                      <div className="grid grid-cols-2 gap-4">
+                                          <div className="space-y-2">
+                                              <Label htmlFor="absenteismoAwardValue">Valor do Prêmio (R$)</Label>
+                                              <Input id="absenteismoAwardValue" name="absenteismoAwardValue" type="number" step="0.01" defaultValue="0" />
+                                          </div>
+                                          <div className="space-y-2">
+                                              <Label htmlFor="absenteismoAwardPeriod">Apuração</Label>
+                                              <Select name="absenteismoAwardPeriod" defaultValue="mensal">
+                                                  <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                                      <SelectValue />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                      <SelectItem value="mensal">Mensal</SelectItem>
+                                                      <SelectItem value="trimestral">Trimestral</SelectItem>
+                                                  </SelectContent>
+                                              </Select>
+                                          </div>
+                                      </div>
+                                  </div>
                              </div>
                          </div>
                      </div>

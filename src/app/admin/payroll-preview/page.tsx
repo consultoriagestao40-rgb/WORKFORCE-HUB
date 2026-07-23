@@ -250,6 +250,19 @@ export default function PayrollPreviewPage() {
             "Gratificação (R$)": item.gratificacao,
             "Outros Adicionais (R$)": item.outrosAdicionais,
             "Salário Bruto (R$)": item.totalGrossSalary,
+            "Atrasos (Horas)": item.atrasosHours,
+            "Desc. Atrasos (R$)": item.atrasosDeduction,
+            "H.Extras 50% (H)": item.extras50Hours,
+            "Valor Extras 50% (R$)": item.horasExtras50Value,
+            "H.Extras 100% (H)": item.extras100Hours,
+            "Valor Extras 100% (R$)": item.horasExtras100Value,
+            "Adic. Noturno (H)": item.adicionalNoturnoHours,
+            "Valor Adic. Noturno (R$)": item.adicionalNoturnoValue,
+            "Dependentes (Qtd)": item.dependentsCount,
+            "Salário-Família (R$)": item.salarioFamilia,
+            "Prêmio Absenteísmo (R$)": item.absenteismoAward,
+            "Ajuda de Custo (R$)": item.ajudaCusto,
+            "Adic. Viagem (R$)": item.adicionalViagem,
             "Faltas (Dias)": item.faltasCount,
             "Desc. Faltas (R$)": item.faltaDeduction,
             "DSR Perdidos": item.dsrDeductionsCount,
@@ -595,15 +608,22 @@ export default function PayrollPreviewPage() {
                                                             <div className="flex justify-between"><span>Salário Base Cheio:</span><span className="font-bold">{formatCurrency(item.originalSalary)}</span></div>
                                                             <div className="flex justify-between"><span>Valor Diário:</span><span className="font-bold">{formatCurrency(Math.round((item.originalSalary / item.totalDaysInMonth) * 100) / 100)}/dia</span></div>
                                                         </div>
-                                                    )}
+                                                     )}
 
-                                                    <div className="space-y-1 text-[10px] text-slate-650 font-medium">
-                                                        <div className="flex justify-between"><span>Salário Base Pago:</span><span className="font-bold text-slate-800">{formatCurrency(item.baseSalary)}</span></div>
-                                                        {item.insalubridade > 0 && <div className="flex justify-between"><span>Insalubridade:</span><span className="font-bold text-slate-800">{formatCurrency(item.insalubridade)}</span></div>}
-                                                        {item.periculosidade > 0 && <div className="flex justify-between"><span>Periculosidade:</span><span className="font-bold text-slate-800">{formatCurrency(item.periculosidade)}</span></div>}
-                                                        {item.gratificacao > 0 && <div className="flex justify-between"><span>Gratificação CCT:</span><span className="font-bold text-slate-800">{formatCurrency(item.gratificacao)}</span></div>}
-                                                        {item.outrosAdicionais > 0 && <div className="flex justify-between"><span>Outros Adicionais:</span><span className="font-bold text-slate-800">{formatCurrency(item.outrosAdicionais)}</span></div>}
-                                                    </div>
+                                                     <div className="space-y-1 text-[10px] text-slate-655 font-medium">
+                                                         <div className="flex justify-between"><span>Salário Base Pago:</span><span className="font-bold text-slate-800">{formatCurrency(item.baseSalary)}</span></div>
+                                                         {item.insalubridade > 0 && <div className="flex justify-between"><span>Insalubridade:</span><span className="font-bold text-slate-800">{formatCurrency(item.insalubridade)}</span></div>}
+                                                         {item.periculosidade > 0 && <div className="flex justify-between"><span>Periculosidade:</span><span className="font-bold text-slate-800">{formatCurrency(item.periculosidade)}</span></div>}
+                                                         {item.gratificacao > 0 && <div className="flex justify-between"><span>Gratificação CCT:</span><span className="font-bold text-slate-800">{formatCurrency(item.gratificacao)}</span></div>}
+                                                         {item.outrosAdicionais > 0 && <div className="flex justify-between"><span>Outros Adicionais:</span><span className="font-bold text-slate-800">{formatCurrency(item.outrosAdicionais)}</span></div>}
+                                                         {item.horasExtras50Value > 0 && <div className="flex justify-between"><span>H. Extras 50% ({item.extras50Hours}h):</span><span className="font-bold text-slate-800">{formatCurrency(item.horasExtras50Value)}</span></div>}
+                                                         {item.horasExtras100Value > 0 && <div className="flex justify-between"><span>H. Extras 100% ({item.extras100Hours}h):</span><span className="font-bold text-slate-800">{formatCurrency(item.horasExtras100Value)}</span></div>}
+                                                         {item.adicionalNoturnoValue > 0 && <div className="flex justify-between"><span>Adic. Noturno ({item.adicionalNoturnoHours}h):</span><span className="font-bold text-slate-800">{formatCurrency(item.adicionalNoturnoValue)}</span></div>}
+                                                         {item.salarioFamilia > 0 && <div className="flex justify-between"><span>Salário-Família:</span><span className="font-bold text-slate-800">{formatCurrency(item.salarioFamilia)}</span></div>}
+                                                         {item.absenteismoAward > 0 && <div className="flex justify-between"><span>Prêmio Absenteísmo:</span><span className="font-bold text-slate-800">{formatCurrency(item.absenteismoAward)}</span></div>}
+                                                         {item.ajudaCusto > 0 && <div className="flex justify-between"><span>Ajuda de Custo:</span><span className="font-bold text-slate-800">{formatCurrency(item.ajudaCusto)}</span></div>}
+                                                         {item.adicionalViagem > 0 && <div className="flex justify-between"><span>Adicional Viagem:</span><span className="font-bold text-slate-800">{formatCurrency(item.adicionalViagem)}</span></div>}
+                                                     </div>
                                                 </PopoverContent>
                                             </Popover>
                                         </td>
@@ -1015,6 +1035,13 @@ export default function PayrollPreviewPage() {
                                                                                                 {sub.periculosidade > 0 && <div className="flex justify-between"><span>Periculosidade:</span><span className="font-bold text-slate-800">{formatCurrency(sub.periculosidade)}</span></div>}
                                                                                                 {sub.gratificacao > 0 && <div className="flex justify-between"><span>Gratificação CCT:</span><span className="font-bold text-slate-800">{formatCurrency(sub.gratificacao)}</span></div>}
                                                                                                 {sub.outrosAdicionais > 0 && <div className="flex justify-between"><span>Outros Adicionais:</span><span className="font-bold text-slate-800">{formatCurrency(sub.outrosAdicionais)}</span></div>}
+                                                                                                {sub.horasExtras50Value > 0 && <div className="flex justify-between"><span>H. Extras 50% ({sub.extras50Hours}h):</span><span className="font-bold text-slate-800">{formatCurrency(sub.horasExtras50Value)}</span></div>}
+                                                                                                {sub.horasExtras100Value > 0 && <div className="flex justify-between"><span>H. Extras 100% ({sub.extras100Hours}h):</span><span className="font-bold text-slate-800">{formatCurrency(sub.horasExtras100Value)}</span></div>}
+                                                                                                {sub.adicionalNoturnoValue > 0 && <div className="flex justify-between"><span>Adic. Noturno ({sub.adicionalNoturnoHours}h):</span><span className="font-bold text-slate-800">{formatCurrency(sub.adicionalNoturnoValue)}</span></div>}
+                                                                                                {sub.salarioFamilia > 0 && <div className="flex justify-between"><span>Salário-Família:</span><span className="font-bold text-slate-800">{formatCurrency(sub.salarioFamilia)}</span></div>}
+                                                                                                {sub.absenteismoAward > 0 && <div className="flex justify-between"><span>Prêmio Absenteísmo:</span><span className="font-bold text-slate-800">{formatCurrency(sub.absenteismoAward)}</span></div>}
+                                                                                                {sub.ajudaCusto > 0 && <div className="flex justify-between"><span>Ajuda de Custo:</span><span className="font-bold text-slate-800">{formatCurrency(sub.ajudaCusto)}</span></div>}
+                                                                                                {sub.adicionalViagem > 0 && <div className="flex justify-between"><span>Adicional Viagem:</span><span className="font-bold text-slate-800">{formatCurrency(sub.adicionalViagem)}</span></div>}
                                                                                             </div>
                                                                                         </PopoverContent>
                                                                                     </Popover>

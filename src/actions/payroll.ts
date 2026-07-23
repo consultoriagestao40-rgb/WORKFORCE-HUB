@@ -43,6 +43,21 @@ export interface PayrollPreviewItem {
     // Taxes
     inssDeduction: number;
     irrfDeduction: number;
+
+    // Proventos e Descontos Avulsos / Secullum
+    ajudaCusto: number;
+    adicionalViagem: number;
+    dependentsCount: number;
+    salarioFamilia: number;
+    absenteismoAward: number;
+    atrasosHours: number;
+    atrasosDeduction: number;
+    extras50Hours: number;
+    horasExtras50Value: number;
+    extras100Hours: number;
+    horasExtras100Value: number;
+    adicionalNoturnoHours: number;
+    adicionalNoturnoValue: number;
     
     // Net
     totalDeductions: number;
@@ -114,10 +129,25 @@ export async function getPayrollPreview(year: number, month: number) {
                     type: { in: ["FALTA", "FALTA_INJUSTIFICADA", "ATESTADO"] }
                 },
                 orderBy: { date: "asc" }
+            },
+            monthlyCalculations: {
+                where: { year, month }
             }
         },
         orderBy: { name: "asc" }
     });
+
+    // Fetch quarterly occurrences for absenteismo evaluation (last 3 months)
+    const quarterlyStart = new Date(year, month - 3, 26);
+    const quarterlyEnd = new Date(year, month - 1, 25);
+    const quarterlyOccurrences = await prisma.occurrence.findMany({
+        where: {
+            date: { gte: quarterlyStart, lte: quarterlyEnd },
+            type: { in: ["FALTA", "FALTA_INJUSTIFICADA", "ATESTADO"] }
+        },
+        select: { employeeId: true }
+    });
+    const quarterlyFailsSet = new Set(quarterlyOccurrences.map(o => o.employeeId).filter(Boolean) as string[]);
 
     // Real VT/VA values for month M to compute CCT cap
     const benefitsRes = await getBenefitsCalculation(year, month);
@@ -155,7 +185,7 @@ export async function getPayrollPreview(year: number, month: number) {
             outrosAdicionais = Math.round(((emp.outrosAdicionais / totalDaysInMonth) * daysWorked) * 100) / 100;
         }
 
-        const totalGrossSalary = baseSalary + insalubridade + periculosidade + gratificacao + outrosAdicionais;
+        const totalGrossSalaryBase = baseSalary + insalubridade + periculosidade + gratificacao + outrosAdicionais;
 
         // Occurrences list & count in payroll window
         const occurrencesList = (emp.occurrences || []).map(occ => ({
@@ -179,6 +209,42 @@ export async function getPayrollPreview(year: number, month: number) {
         const dailyRate = fullFixedSalary / 30;
         const faltaDeduction = Math.round((dailyRate * faltasCount) * 100) / 100;
         const dsrDeduction = Math.round((dailyRate * dsrDeductionsCount) * 100) / 100;
+
+        // Secullum Calculations (Atrasos, Horas Extras, Adicional Noturno)
+        const calc = emp.monthlyCalculations && emp.monthlyCalculations.length > 0 ? emp.monthlyCalculations[0] : null;
+        const atrasosHours = calc?.atrasosHours || 0;
+        const extras50Hours = calc?.extras50Hours || 0;
+        const extras100Hours = calc?.extras100Hours || 0;
+        const adicionalNoturnoHours = calc?.adicionalNoturnoHours || 0;
+
+        const hourlyRate = fullFixedSalary / (emp.workload || 220);
+        const atrasosDeduction = Math.round((hourlyRate * atrasosHours) * 100) / 100;
+        const horasExtras50Value = Math.round((hourlyRate * 1.5 * extras50Hours) * 100) / 100;
+        const horasExtras100Value = Math.round((hourlyRate * 2.0 * extras100Hours) * 100) / 100;
+        const adicionalNoturnoValue = Math.round((hourlyRate * 0.2 * adicionalNoturnoHours) * 100) / 100;
+
+        // Proventos avulsos
+        const ajudaCusto = emp.ajudaCusto || 0;
+        const adicionalViagem = emp.adicionalViagem || 0;
+        const dependentsCount = emp.dependentsCount || 0;
+        const salarioFamilia = (totalGrossSalaryBase <= 1819.26 && dependentsCount > 0) ? Math.round((62.15 * dependentsCount) * 100) / 100 : 0;
+
+        // Prêmio de Absenteísmo
+        let absenteismoAward = 0;
+        if (posto && posto.absenteismoAwardValue > 0) {
+            const period = posto.absenteismoAwardPeriod || "mensal";
+            if (period === "mensal") {
+                if (faltasCount === 0 && atestadosCount === 0) {
+                    absenteismoAward = posto.absenteismoAwardValue;
+                }
+            } else if (period === "trimestral") {
+                if (!quarterlyFailsSet.has(emp.id)) {
+                    absenteismoAward = posto.absenteismoAwardValue;
+                }
+            }
+        }
+
+        const totalGrossSalary = Math.round((totalGrossSalaryBase + horasExtras50Value + horasExtras100Value + adicionalNoturnoValue + salarioFamilia + absenteismoAward + ajudaCusto + adicionalViagem) * 100) / 100;
 
         const benefitInfo = benefitsMap.get(emp.id);
 
@@ -211,7 +277,7 @@ export async function getPayrollPreview(year: number, month: number) {
         }
 
         // Progressive INSS calculation
-        const inssBase = Math.max(0, totalGrossSalary - faltaDeduction - dsrDeduction);
+        const inssBase = Math.max(0, (totalGrossSalaryBase + horasExtras50Value + horasExtras100Value + adicionalNoturnoValue) - faltaDeduction - dsrDeduction - atrasosDeduction);
         const inssDeduction = calculateINSS(inssBase);
 
         // Progressive IRRF calculation
@@ -220,7 +286,7 @@ export async function getPayrollPreview(year: number, month: number) {
         const irrfBase = Math.min(irrfBaseA, irrfBaseB);
         const irrfDeduction = calculateIRRF(irrfBase);
 
-        const totalDeductions = Math.round((faltaDeduction + dsrDeduction + vtPayrollDiscount + vaPayrollDiscount + inssDeduction + irrfDeduction) * 100) / 100;
+        const totalDeductions = Math.round((faltaDeduction + dsrDeduction + atrasosDeduction + vtPayrollDiscount + vaPayrollDiscount + inssDeduction + irrfDeduction) * 100) / 100;
         const netSalary = Math.max(0, Math.round((totalGrossSalary - totalDeductions) * 100) / 100);
 
         return {
@@ -248,6 +314,19 @@ export async function getPayrollPreview(year: number, month: number) {
             vaDiscountPercentage,
             inssDeduction,
             irrfDeduction,
+            ajudaCusto,
+            adicionalViagem,
+            dependentsCount,
+            salarioFamilia,
+            absenteismoAward,
+            atrasosHours,
+            atrasosDeduction,
+            extras50Hours,
+            horasExtras50Value,
+            extras100Hours,
+            horasExtras100Value,
+            adicionalNoturnoHours,
+            adicionalNoturnoValue,
             totalDeductions,
             netSalary,
             isAdmittedThisMonth,
