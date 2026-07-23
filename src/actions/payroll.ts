@@ -95,6 +95,8 @@ export async function getPayrollPreview(year: number, month: number) {
     const benefitsRes = await getBenefitsCalculation(year, month);
     const benefitsMap = new Map(benefitsRes.items.map(b => [b.employeeId, b]));
 
+    const totalDaysInMonth = new Date(year, month, 0).getDate();
+
     const items: PayrollPreviewItem[] = employees.map(emp => {
         const activeAssignment = emp.assignments && emp.assignments.length > 0 ? emp.assignments[0] : null;
         const posto = activeAssignment?.posto;
@@ -103,11 +105,28 @@ export async function getPayrollPreview(year: number, month: number) {
         const clientName = posto?.client ? posto.client.name : "Interno";
         const postoName = posto ? (posto.role?.name || "Posto") : "Sem Posto";
 
-        const baseSalary = emp.salary;
-        const insalubridade = emp.insalubridade;
-        const periculosidade = emp.periculosidade;
-        const gratificacao = emp.gratificacao;
-        const outrosAdicionais = emp.outrosAdicionais;
+        // Pro-rata based on admission date
+        const admissionDateObj = new Date(emp.admissionDate);
+        const admissionYear = admissionDateObj.getFullYear();
+        const admissionMonth = admissionDateObj.getMonth() + 1;
+        const isAdmittedThisMonth = (admissionYear === year && admissionMonth === month);
+
+        let daysWorked = totalDaysInMonth;
+        let baseSalary = emp.salary;
+        let insalubridade = emp.insalubridade;
+        let periculosidade = emp.periculosidade;
+        let gratificacao = emp.gratificacao;
+        let outrosAdicionais = emp.outrosAdicionais;
+
+        if (isAdmittedThisMonth) {
+            daysWorked = totalDaysInMonth - admissionDateObj.getDate() + 1;
+            baseSalary = Math.round(((emp.salary / totalDaysInMonth) * daysWorked) * 100) / 100;
+            insalubridade = Math.round(((emp.insalubridade / totalDaysInMonth) * daysWorked) * 100) / 100;
+            periculosidade = Math.round(((emp.periculosidade / totalDaysInMonth) * daysWorked) * 100) / 100;
+            gratificacao = Math.round(((emp.gratificacao / totalDaysInMonth) * daysWorked) * 100) / 100;
+            outrosAdicionais = Math.round(((emp.outrosAdicionais / totalDaysInMonth) * daysWorked) * 100) / 100;
+        }
+
         const totalGrossSalary = baseSalary + insalubridade + periculosidade + gratificacao + outrosAdicionais;
 
         // Occurrences list & count in payroll window
@@ -119,9 +138,9 @@ export async function getPayrollPreview(year: number, month: number) {
         }));
         const occurrencesCount = occurrencesList.length;
 
-        // Deduction formula: (salary + insalubridade + periculosidade + gratificacao) / 30
-        const fixedSalaryForDeduction = baseSalary + insalubridade + periculosidade + gratificacao;
-        const dailyRate = fixedSalaryForDeduction / 30;
+        // Absence deduction based on full fixed salary / 30
+        const fullFixedSalary = emp.salary + emp.insalubridade + emp.periculosidade + emp.gratificacao;
+        const dailyRate = fullFixedSalary / 30;
         const faltaDeduction = Math.round((dailyRate * occurrencesCount) * 100) / 100;
 
         const benefitInfo = benefitsMap.get(emp.id);
