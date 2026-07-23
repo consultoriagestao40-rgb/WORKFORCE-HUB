@@ -16,13 +16,16 @@ import {
     TrendingDown,
     TrendingUp,
     Percent,
-    FileSpreadsheet
+    FileSpreadsheet,
+    Download,
+    RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { getPayrollPreview, PayrollPreviewItem } from "@/actions/payroll";
 import * as XLSX from "xlsx";
@@ -40,6 +43,22 @@ export default function PayrollPreviewPage() {
     const [selectedClient, setSelectedClient] = useState<string>("all");
     const [groupedView, setGroupedView] = useState<"colaborador" | "empresa" | "contrato">("colaborador");
     const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+
+    const [exportModalOpen, setExportModalOpen] = useState(false);
+    const [exportSelectedCompany, setExportSelectedCompany] = useState<string>("all");
+    const [exportSelectedClient, setExportSelectedClient] = useState<string>("all");
+    const [exportSelectedMonth, setExportSelectedMonth] = useState<number>(selectedMonth);
+    const [exportSelectedYear, setExportSelectedYear] = useState<number>(selectedYear);
+    const [isLoadingExport, setIsLoadingExport] = useState(false);
+
+    useEffect(() => {
+        if (exportModalOpen) {
+            setExportSelectedMonth(selectedMonth);
+            setExportSelectedYear(selectedYear);
+            setExportSelectedCompany("all");
+            setExportSelectedClient("all");
+        }
+    }, [exportModalOpen, selectedMonth, selectedYear]);
 
     const loadData = async () => {
         setIsLoading(true);
@@ -214,81 +233,90 @@ export default function PayrollPreviewPage() {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
     };
 
-    const handleExportToExcel = () => {
-        if (!items || items.length === 0) {
-            toast.error("Nenhum dado disponível para exportar.");
-            return;
-        }
-
-        const filteredExport = items.filter(item => {
-            const matchesSearch = 
-                item.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.employeeCpf.includes(searchTerm);
+    const handleExportToExcel = async () => {
+        setIsLoadingExport(true);
+        try {
+            const res = await getPayrollPreview(exportSelectedYear, exportSelectedMonth);
+            const rawItems = res.items || [];
             
-            const matchesCompany = selectedCompany === "all" || item.companyName === selectedCompany;
-            const matchesClient = selectedClient === "all" || item.clientName === selectedClient;
+            // Filter by company and client/contract
+            let filtered = rawItems;
+            if (exportSelectedCompany !== "all") {
+                filtered = filtered.filter(item => item.companyName === exportSelectedCompany);
+            }
+            if (exportSelectedClient !== "all") {
+                filtered = filtered.filter(item => item.clientName === exportSelectedClient);
+            }
+
+            if (filtered.length === 0) {
+                toast.error("Nenhum dado disponível para os filtros selecionados.");
+                return;
+            }
+
+            const excelData = filtered.map(item => ({
+                "Colaborador": item.employeeName,
+                "CPF": item.employeeCpf,
+                "Empresa": item.companyName,
+                "Cliente / Contrato": item.clientName,
+                "Posto / Função": item.postoName,
+                "Admissão": item.admissionDate,
+                "Dias Trab.": item.daysWorked,
+                "Salário Base (R$)": item.baseSalary,
+                "Insalubridade (R$)": item.insalubridade,
+                "Periculosidade (R$)": item.periculosidade,
+                "Gratificação (R$)": item.gratificacao,
+                "Outros Adicionais (R$)": item.outrosAdicionais,
+                "Salário Bruto (R$)": item.totalGrossSalary,
+                "Atrasos (Horas)": item.atrasosHours,
+                "Desc. Atrasos (R$)": item.atrasosDeduction,
+                "H.Extras 50% (H)": item.extras50Hours,
+                "Valor Extras 50% (R$)": item.horasExtras50Value,
+                "H.Extras 100% (H)": item.extras100Hours,
+                "Valor Extras 100% (R$)": item.horasExtras100Value,
+                "Adic. Noturno (H)": item.adicionalNoturnoHours,
+                "Valor Adic. Noturno (R$)": item.adicionalNoturnoValue,
+                "Dependentes (Qtd)": item.dependentsCount,
+                "Salário-Família (R$)": item.salarioFamilia,
+                "Prêmio Absenteísmo (R$)": item.absenteismoAward,
+                "Ajuda de Custo (R$)": item.ajudaCusto,
+                "Adic. Viagem (R$)": item.adicionalViagem,
+                "Faltas (Dias)": item.faltasCount,
+                "Desc. Faltas (R$)": item.faltaDeduction,
+                "DSR Perdidos": item.dsrDeductionsCount,
+                "Desc. DSR (R$)": item.dsrDeduction,
+                "Desc. VT (R$)": item.vtPayrollDiscount,
+                "Desc. VA (R$)": item.vaPayrollDiscount,
+                "Desc. INSS (R$)": item.inssDeduction,
+                "Desc. IRRF (R$)": item.irrfDeduction,
+                "Total Descontos (R$)": item.totalDeductions,
+                "Salário Líquido (R$)": item.netSalary
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(excelData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Prévia de Folha");
+
+            // Auto-fit columns
+            const maxCols = Object.keys(excelData[0] || {}).map(key => ({
+                wch: Math.max(key.length + 3, 12)
+            }));
+            worksheet["!cols"] = maxCols;
+
+            const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+            const monthName = months[exportSelectedMonth - 1] || "competencia";
             
-            return matchesSearch && matchesCompany && matchesClient;
-        });
+            const companyPart = exportSelectedCompany === 'all' ? 'todas_empresas' : exportSelectedCompany.replace(/\s+/g, '_');
+            const clientPart = exportSelectedClient === 'all' ? 'todos_contratos' : exportSelectedClient.replace(/\s+/g, '_');
 
-        if (filteredExport.length === 0) {
-            toast.error("Nenhum colaborador encontrado com os filtros atuais.");
-            return;
+            XLSX.writeFile(workbook, `previa_folha_${companyPart}_${clientPart}_${monthName.toLowerCase()}_${exportSelectedYear}.xlsx`);
+            toast.success("Excel exportado com sucesso!");
+            setExportModalOpen(false);
+        } catch (error) {
+            console.error("Erro ao exportar prévia de folha:", error);
+            toast.error("Ocorreu um erro ao gerar o arquivo Excel.");
+        } finally {
+            setIsLoadingExport(false);
         }
-
-        const excelData = filteredExport.map(item => ({
-            "Colaborador": item.employeeName,
-            "CPF": item.employeeCpf,
-            "Empresa": item.companyName,
-            "Cliente / Contrato": item.clientName,
-            "Posto / Função": item.postoName,
-            "Admissão": item.admissionDate,
-            "Dias Trab.": item.daysWorked,
-            "Salário Base (R$)": item.baseSalary,
-            "Insalubridade (R$)": item.insalubridade,
-            "Periculosidade (R$)": item.periculosidade,
-            "Gratificação (R$)": item.gratificacao,
-            "Outros Adicionais (R$)": item.outrosAdicionais,
-            "Salário Bruto (R$)": item.totalGrossSalary,
-            "Atrasos (Horas)": item.atrasosHours,
-            "Desc. Atrasos (R$)": item.atrasosDeduction,
-            "H.Extras 50% (H)": item.extras50Hours,
-            "Valor Extras 50% (R$)": item.horasExtras50Value,
-            "H.Extras 100% (H)": item.extras100Hours,
-            "Valor Extras 100% (R$)": item.horasExtras100Value,
-            "Adic. Noturno (H)": item.adicionalNoturnoHours,
-            "Valor Adic. Noturno (R$)": item.adicionalNoturnoValue,
-            "Dependentes (Qtd)": item.dependentsCount,
-            "Salário-Família (R$)": item.salarioFamilia,
-            "Prêmio Absenteísmo (R$)": item.absenteismoAward,
-            "Ajuda de Custo (R$)": item.ajudaCusto,
-            "Adic. Viagem (R$)": item.adicionalViagem,
-            "Faltas (Dias)": item.faltasCount,
-            "Desc. Faltas (R$)": item.faltaDeduction,
-            "DSR Perdidos": item.dsrDeductionsCount,
-            "Desc. DSR (R$)": item.dsrDeduction,
-            "Desc. VT (R$)": item.vtPayrollDiscount,
-            "Desc. VA (R$)": item.vaPayrollDiscount,
-            "Desc. INSS (R$)": item.inssDeduction,
-            "Desc. IRRF (R$)": item.irrfDeduction,
-            "Total Descontos (R$)": item.totalDeductions,
-            "Salário Líquido (R$)": item.netSalary
-        }));
-
-        const worksheet = XLSX.utils.json_to_sheet(excelData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Prévia de Folha");
-
-        // Auto-fit columns
-        const maxCols = Object.keys(excelData[0] || {}).map(key => ({
-            wch: Math.max(key.length + 3, 12)
-        }));
-        worksheet["!cols"] = maxCols;
-
-        const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-        const monthName = months[selectedMonth - 1] || "competencia";
-        XLSX.writeFile(workbook, `previa_folha_${monthName.toLowerCase()}_${selectedYear}.xlsx`);
-        toast.success("Excel exportado com sucesso!");
     };
 
     return (
@@ -351,7 +379,7 @@ export default function PayrollPreviewPage() {
 
                         {/* Exportar Excel */}
                         <button
-                            onClick={handleExportToExcel}
+                            onClick={() => setExportModalOpen(true)}
                             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-11 px-4 rounded-2xl border border-emerald-500/30 transition-all cursor-pointer shadow-lg shadow-slate-950/20 active:scale-[0.98]"
                         >
                             <FileSpreadsheet className="w-4 h-4" />
@@ -1373,6 +1401,105 @@ export default function PayrollPreviewPage() {
                     </div>
                 )}
             </div>
+            {/* EXPORT PAYROLL EXCEL MODAL */}
+            <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>
+                <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-3xl">
+                    <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-emerald-50/50">
+                        <DialogTitle className="flex items-center gap-2 text-lg font-black text-emerald-700">
+                            <Download className="w-5 h-5 text-emerald-600" /> Exportar Prévia de Folha
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-emerald-805">
+                            Selecione os filtros de empresa, contrato e competência para gerar a planilha.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+                        <div className="space-y-1.5">
+                            <Label className="font-bold text-slate-700">Empresa</Label>
+                            <Select value={exportSelectedCompany} onValueChange={setExportSelectedCompany}>
+                                <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                    <SelectValue placeholder="Todas as Empresas" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todas as Empresas</SelectItem>
+                                    {uniqueCompanies.map((company, index) => (
+                                        <SelectItem key={index} value={company}>
+                                            {company}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label className="font-bold text-slate-700">Contrato / Centro de Custo</Label>
+                            <Select value={exportSelectedClient} onValueChange={setExportSelectedClient}>
+                                <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                    <SelectValue placeholder="Todos os Contratos" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todos os Contratos</SelectItem>
+                                    {uniqueClients.map((client, index) => (
+                                        <SelectItem key={index} value={client}>
+                                            {client}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <Label className="font-bold text-slate-700">Mês de Competência</Label>
+                                <Select value={String(exportSelectedMonth)} onValueChange={val => setExportSelectedMonth(Number(val))}>
+                                    <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="1">Janeiro</SelectItem>
+                                        <SelectItem value="2">Fevereiro</SelectItem>
+                                        <SelectItem value="3">Março</SelectItem>
+                                        <SelectItem value="4">Abril</SelectItem>
+                                        <SelectItem value="5">Maio</SelectItem>
+                                        <SelectItem value="6">Junho</SelectItem>
+                                        <SelectItem value="7">Julho</SelectItem>
+                                        <SelectItem value="8">Agosto</SelectItem>
+                                        <SelectItem value="9">Setembro</SelectItem>
+                                        <SelectItem value="10">Outubro</SelectItem>
+                                        <SelectItem value="11">Novembro</SelectItem>
+                                        <SelectItem value="12">Dezembro</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="font-bold text-slate-700">Ano</Label>
+                                <Select value={String(exportSelectedYear)} onValueChange={val => setExportSelectedYear(Number(val))}>
+                                    <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="2025">2025</SelectItem>
+                                        <SelectItem value="2026">2026</SelectItem>
+                                        <SelectItem value="2027">2027</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={() => setExportModalOpen(false)}>Cancelar</Button>
+                        <Button 
+                            onClick={handleExportToExcel} 
+                            disabled={isLoadingExport}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
+                        >
+                            {isLoadingExport ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />} Exportar Excel
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
