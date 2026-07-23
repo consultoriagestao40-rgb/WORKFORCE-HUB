@@ -434,7 +434,7 @@ export default function PayrollPreviewPage() {
                             </colgroup>
                             <thead>
                                 <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                                    <th className="py-3 px-4 sticky left-0 bg-slate-50 z-20">Colaborador / CPF / Função</th>
+                                    <th className="py-3 px-4 sticky left-0 z-20" style={{ position: "sticky", left: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Colaborador / CPF / Função</th>
                                     <th className="py-3 px-4">Empresa / Posto</th>
                                     <th className="py-3 px-4 text-right">Salário Base</th>
                                     <th className="py-3 px-4 text-right">Insalubridade</th>
@@ -448,14 +448,14 @@ export default function PayrollPreviewPage() {
                                     <th className="py-3 px-4 text-right text-red-500 bg-red-50/20">Desc. DSR</th>
                                     <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20">Desc. VT</th>
                                     <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20">Desc. VA</th>
-                                    <th className="py-3 px-4 text-right font-bold text-sky-900 bg-sky-100 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]">Líquido Final</th>
+                                    <th className="py-3 px-4 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]" style={{ position: "sticky", right: 0, backgroundColor: "#f1f5f9", zIndex: 20 }}>Líquido Final</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-650">
                                 {filteredItems.map(item => (
                                     <tr key={item.employeeId} className="hover:bg-slate-50/60 transition-colors group">
                                         {/* Colaborador */}
-                                        <td className="py-3 px-4 sticky left-0 bg-white group-hover:bg-slate-50/65 z-10 whitespace-nowrap">
+                                        <td className="py-3 px-4 sticky left-0 z-10 whitespace-nowrap" style={{ position: "sticky", left: 0, backgroundColor: "#ffffff", zIndex: 10 }}>
                                             <div>
                                                 <div className="font-bold text-slate-900 text-[13px]">{item.employeeName}</div>
                                                 <div className="text-[10px] text-slate-400 font-medium mt-0.5">CPF: {item.employeeCpf} | {item.postoName}</div>
@@ -676,7 +676,7 @@ export default function PayrollPreviewPage() {
                                             )}
                                         </td>
                                         {/* Salário Líquido */}
-                                        <td className="py-3 px-4 text-right font-black text-[13px] text-sky-700 bg-sky-100 sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)] whitespace-nowrap">
+                                        <td className="py-3 px-4 text-right font-black text-[13px] text-sky-700 sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)] whitespace-nowrap" style={{ position: "sticky", right: 0, backgroundColor: "#f0f9ff", zIndex: 10 }}>
                                             {formatCurrency(item.netSalary)}
                                         </td>
                                     </tr>
@@ -709,7 +709,7 @@ export default function PayrollPreviewPage() {
                                     <th className="py-3 px-4 text-right text-red-500 bg-red-50/20">Total Desc. DSR</th>
                                     <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20">Total Desc. VT</th>
                                     <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20">Total Desc. VA</th>
-                                    <th className="py-3 px-4 text-right font-bold text-sky-900 bg-sky-100 sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]">Líquido Consolidado</th>
+                                    <th className="py-3 px-4 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]" style={{ position: "sticky", right: 0, backgroundColor: "#f1f5f9", zIndex: 20 }}>Líquido Consolidado</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-650">
@@ -758,7 +758,7 @@ export default function PayrollPreviewPage() {
                                                     {group.vaPayrollDiscount > 0 ? `-${formatCurrency(group.vaPayrollDiscount)}` : "-"}
                                                 </td>
                                                 {/* Líquido */}
-                                                <td className="py-3 px-4 text-right font-black text-sky-700 text-[13px] bg-sky-100 sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)] whitespace-nowrap">
+                                                <td className="py-3 px-4 text-right font-black text-sky-700 text-[13px] sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)] whitespace-nowrap" style={{ position: "sticky", right: 0, backgroundColor: "#f0f9ff", zIndex: 10 }}>
                                                     {formatCurrency(group.netSalary)}
                                                 </td>
                                             </tr>
@@ -802,7 +802,7 @@ export default function PayrollPreviewPage() {
                                                                             <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">Desc. DSR</th>
                                                                             <th className="py-2.5 px-3 text-right text-orange-650 bg-orange-50/5">Desc. VT</th>
                                                                             <th className="py-2.5 px-3 text-right text-orange-655 bg-orange-50/5">Desc. VA</th>
-                                                                            <th className="py-2.5 px-3 text-right font-bold text-sky-900 bg-sky-100 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]">Líquido Final</th>
+                                                                            <th className="py-2.5 px-3 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]" style={{ position: "sticky", right: 0, backgroundColor: "#f1f5f9", zIndex: 20 }}>Líquido Final</th>
                                                                         </tr>
                                                                     </thead>
                                                                     <tbody className="divide-y divide-slate-100 font-semibold text-slate-650">
@@ -948,7 +948,7 @@ export default function PayrollPreviewPage() {
                                                                                 <td className="py-2.5 px-3 text-right text-orange-600 whitespace-nowrap">
                                                                                     {sub.vaPayrollDiscount > 0 ? `-${formatCurrency(sub.vaPayrollDiscount)}` : "-"}
                                                                                 </td>
-                                                                                <td className="py-2.5 px-3 text-right font-bold text-sky-900 bg-sky-100 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)] whitespace-nowrap">
+                                                                                <td className="py-2.5 px-3 text-right font-bold text-sky-900 sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)] whitespace-nowrap" style={{ position: "sticky", right: 0, backgroundColor: "#f0f9ff", zIndex: 10 }}>
                                                                                     {formatCurrency(sub.netSalary)}
                                                                                 </td>
                                                                             </tr>
