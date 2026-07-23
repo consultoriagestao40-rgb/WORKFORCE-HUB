@@ -59,7 +59,8 @@ export async function GET() {
                     where: { id: employee.id },
                     data: {
                         urbsSic: item.sic || employee.urbsSic,
-                        urbsCqCtNf: item.cq || employee.urbsCqCtNf
+                        urbsCqCtNf: item.cq || employee.urbsCqCtNf,
+                        vtPaymentMethod: "Urbs"
                     }
                 });
                 results.push({ name: item.name, status: "updated", sic: item.sic, cq: item.cq });

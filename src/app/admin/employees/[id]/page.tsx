@@ -180,6 +180,18 @@ export default async function EmployeeProfilePage(props: {
                                 <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest">Workload</span>
                                 <span className="text-xs font-black text-slate-800">{employee.workload}h/m</span>
                             </div>
+                            {employee.urbsSic && (
+                                <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 flex flex-col">
+                                    <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest">Código SIC</span>
+                                    <span className="text-xs font-black text-slate-800">{employee.urbsSic}</span>
+                                </div>
+                            )}
+                            {employee.urbsCqCtNf && (
+                                <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 flex flex-col">
+                                    <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest">CQ/CT/NF</span>
+                                    <span className="text-xs font-black text-slate-800">{employee.urbsCqCtNf}</span>
+                                </div>
+                            )}
                         </div>
                     </div>
 
