@@ -145,12 +145,36 @@ export function NewPostoSheet({ clientId, schedules, roles }: NewPostoSheetProps
                                      </Select>
                                  </div>
                              </div>
-                            <div className="space-y-2 col-span-2">
-                                <Label htmlFor="outrosAdicionais">Outros Adicionais (R$)</Label>
-                                <Input id="outrosAdicionais" name="outrosAdicionais" type="number" step="0.01" defaultValue="0" />
-                            </div>
-                        </div>
-                    </div>
+                             <div className="space-y-2 col-span-2">
+                                 <Label htmlFor="outrosAdicionais">Outros Adicionais (R$)</Label>
+                                 <Input id="outrosAdicionais" name="outrosAdicionais" type="number" step="0.01" defaultValue="0" />
+                             </div>
+
+                             <div className="space-y-2 col-span-2 border-t pt-4 mt-2">
+                                 <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400">Regras de CCT e Descontos</h4>
+                                 <div className="grid grid-cols-2 gap-4">
+                                     <div className="space-y-2">
+                                         <Label htmlFor="vtDiscountPercentage">Desconto VT em Folha (%)</Label>
+                                         <Input id="vtDiscountPercentage" name="vtDiscountPercentage" type="number" step="0.01" defaultValue="6" />
+                                     </div>
+                                     <div className="space-y-2">
+                                         <Label htmlFor="vaDiscountPercentage">Desconto VA em Folha (%)</Label>
+                                         <Input id="vaDiscountPercentage" name="vaDiscountPercentage" type="number" step="0.01" defaultValue="20" />
+                                     </div>
+                                 </div>
+                                 <div className="flex flex-col gap-2 pt-2">
+                                     <div className="flex items-center space-x-2">
+                                         <input type="checkbox" id="vaMealsProvidedOnSite" name="vaMealsProvidedOnSite" value="true" className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" />
+                                         <Label htmlFor="vaMealsProvidedOnSite" className="text-xs font-semibold text-slate-700">Refeição Fornecida no Local?</Label>
+                                     </div>
+                                     <div className="flex items-center space-x-2">
+                                         <input type="checkbox" id="vaPaidOnVacation" name="vaPaidOnVacation" value="true" className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" />
+                                         <Label htmlFor="vaPaidOnVacation" className="text-xs font-semibold text-slate-700">Pagar VA nas Férias?</Label>
+                                     </div>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
 
                     <div className="flex items-center space-x-2 pt-2 pb-6">
                         <input type="checkbox" id="isNightShift" name="isNightShift" value="true" className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500" />

@@ -98,6 +98,11 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
     const [editingVtIndex2, setEditingVtIndex2] = useState<number | null>(null);
     const [editingVtValue2, setEditingVtValue2] = useState("");
 
+    const [valeTransporte, setValeTransporte] = useState(employee.valeTransporte.toString());
+    const [valeTransporte2, setValeTransporte2] = useState((employee.valeTransporte2 || 0).toString());
+    const [vtDiscountPercentage, setVtDiscountPercentage] = useState(employee.vtDiscountPercentage !== null && employee.vtDiscountPercentage !== undefined ? employee.vtDiscountPercentage.toString() : "");
+    const [vaDiscountPercentage, setVaDiscountPercentage] = useState(employee.vaDiscountPercentage !== null && employee.vaDiscountPercentage !== undefined ? employee.vaDiscountPercentage.toString() : "");
+
     useEffect(() => {
         const initialMethod = employee.vtPaymentMethod;
         if (initialMethod && !["Metrocard", "Urbs", "PIX"].includes(initialMethod)) {
@@ -675,11 +680,11 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                                 </div>
                                 <div className="space-y-1">
                                     <Label className="font-bold text-slate-700">Valor VT 1 (R$)</Label>
-                                    <Input name="valeTransporte" type="number" step="0.01" defaultValue={employee.valeTransporte} className="h-9 rounded-xl border-slate-200" />
+                                    <Input name="valeTransporte" type="number" step="0.01" value={vtOptIn ? valeTransporte : "0"} onChange={e => setValeTransporte(e.target.value)} disabled={!vtOptIn} className="h-9 rounded-xl border-slate-200 bg-white disabled:bg-slate-100" />
                                 </div>
                                 <div className="space-y-1">
                                     <Label className="font-bold text-slate-700">Valor VT 2 (R$)</Label>
-                                    <Input name="valeTransporte2" type="number" step="0.01" defaultValue={employee.valeTransporte2 || 0} className="h-9 rounded-xl border-slate-200" />
+                                    <Input name="valeTransporte2" type="number" step="0.01" value={vtOptIn ? valeTransporte2 : "0"} onChange={e => setValeTransporte2(e.target.value)} disabled={!vtOptIn} className="h-9 rounded-xl border-slate-200 bg-white disabled:bg-slate-100" />
                                 </div>
                             </div>
 
@@ -700,6 +705,35 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                                             <SelectItem value="false">Não (Não Optante pelo VT)</SelectItem>
                                         </SelectContent>
                                     </Select>
+                                </div>
+
+                                {/* Sobrecargas de Porcentagem de Desconto CCT */}
+                                <div className="pt-2 border-t border-dashed border-slate-200/80 grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <Label className="font-bold text-slate-700">Desconto VT Sobrecarga (%)</Label>
+                                        <Input 
+                                            name="vtDiscountPercentage" 
+                                            type="number" 
+                                            step="0.01" 
+                                            value={vtOptIn ? vtDiscountPercentage : ""} 
+                                            onChange={e => setVtDiscountPercentage(e.target.value)} 
+                                            placeholder="Padrão do Posto (6%)" 
+                                            disabled={!vtOptIn} 
+                                            className="h-9 rounded-xl border-slate-200 bg-white disabled:bg-slate-100" 
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="font-bold text-slate-700">Desconto VA Sobrecarga (%)</Label>
+                                        <Input 
+                                            name="vaDiscountPercentage" 
+                                            type="number" 
+                                            step="0.01" 
+                                            value={vaDiscountPercentage} 
+                                            onChange={e => setVaDiscountPercentage(e.target.value)} 
+                                            placeholder="Padrão do Posto (20%)" 
+                                            className="h-9 rounded-xl border-slate-200 bg-white" 
+                                        />
+                                    </div>
                                 </div>
                                 {vtOptIn && (
                                     <div className="space-y-2 pt-2 border-t border-dashed border-slate-200/80">

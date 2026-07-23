@@ -1230,6 +1230,15 @@ export default function BenefitsPage() {
                                                                          </div>
                                                                      )}
 
+                                                                     {item.vtPayrollDiscount !== undefined && item.vtPayrollDiscount > 0 && (
+                                                                         <div className="border-b border-slate-100 pb-1.5 text-orange-700">
+                                                                             <div className="flex justify-between">
+                                                                                 <span>(-) Desconto em Folha ({item.vtDiscountPercentage}%):</span>
+                                                                                 <span>- R$ {item.vtPayrollDiscount.toFixed(2)}</span>
+                                                                             </div>
+                                                                         </div>
+                                                                     )}
+
                                                                      <div className="flex justify-between font-bold text-slate-800 pt-1 text-[11px]">
                                                                          <span>Total Geral VT:</span>
                                                                          <span className="text-indigo-700">R$ {(item.vtTotalValue + (item.vtTotalValue2 || 0)).toFixed(2)}</span>
@@ -1265,13 +1274,25 @@ export default function BenefitsPage() {
                                                                  </div>
                                                                  <div className="space-y-1.5 font-semibold text-slate-650 text-[10px]">
                                                                      <div className="flex justify-between">
-                                                                         <span>Valor Base:</span>
+                                                                         <span>Valor Base {item.vaMealsProvidedOnSite ? "(Refeição no Local)" : ""}:</span>
                                                                          <span>R$ {item.vaBaseValue.toFixed(2)}</span>
                                                                      </div>
                                                                      {item.vaDeductionValue > 0 && (
                                                                          <div className="flex justify-between text-red-600">
                                                                              <span>(-) Descontos ({item.vaOccurrencesDeducted} faltas):</span>
                                                                              <span>- R$ {item.vaDeductionValue.toFixed(2)}</span>
+                                                                         </div>
+                                                                     )}
+                                                                     {item.vaVacationDeduction !== undefined && item.vaVacationDeduction > 0 && (
+                                                                         <div className="flex justify-between text-red-600">
+                                                                             <span>(-) Proporcional Férias ({item.vaVacationDays} dias):</span>
+                                                                             <span>- R$ {item.vaVacationDeduction.toFixed(2)}</span>
+                                                                         </div>
+                                                                     )}
+                                                                     {item.vaPayrollDiscount !== undefined && item.vaPayrollDiscount > 0 && (
+                                                                         <div className="flex justify-between text-orange-700 border-t border-dashed border-slate-100 pt-1">
+                                                                             <span>(-) Desconto em Folha ({item.vaDiscountPercentage}%):</span>
+                                                                             <span>- R$ {item.vaPayrollDiscount.toFixed(2)}</span>
                                                                          </div>
                                                                      )}
                                                                      <div className="flex justify-between font-bold text-slate-800 border-t border-slate-100 pt-1 text-[11px]">

@@ -63,6 +63,16 @@ export interface BenefitsCalculationItem {
     vaDestination: string;
     vaBatchNote?: string;
     vaNeedsAlert?: boolean;
+
+    // CCT & Payroll Discounts
+    vtDiscountPercentage?: number;
+    vaDiscountPercentage?: number;
+    vtPayrollDiscount?: number;
+    vaPayrollDiscount?: number;
+    vaMealsProvidedOnSite?: boolean;
+    vaPaidOnVacation?: boolean;
+    vaVacationDays?: number;
+    vaVacationDeduction?: number;
 }
 
 // Helper: Calculate business days in a month (excluding weekends)
@@ -77,6 +87,26 @@ function getBusinessDaysInMonth(year: number, month: number): number {
         date.setDate(date.getDate() + 1);
     }
     return count;
+}
+
+function getVacationDaysInMonth(startDate: Date | null, endDate: Date | null, year: number, month: number): number {
+    if (!startDate || !endDate) return 0;
+    
+    // First day of reference month
+    const startOfMonth = new Date(year, month - 1, 1);
+    // Last day of reference month
+    const endOfMonth = new Date(year, month, 0);
+    
+    // Clamp the vacation dates to the reference month
+    const clampStart = new Date(Math.max(startDate.getTime(), startOfMonth.getTime()));
+    const clampEnd = new Date(Math.min(endDate.getTime(), endOfMonth.getTime()));
+    
+    if (clampStart > clampEnd) return 0;
+    
+    // Calculate difference in days (inclusive)
+    const diffTime = Math.abs(clampEnd.getTime() - clampStart.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    return diffDays;
 }
 
 const FIXED_HOLIDAYS = [
@@ -452,8 +482,10 @@ export async function getBenefitsCalculation(year: number, month: number) {
             ? (emp.valeTransporte2 > 0 && emp.valeTransporte2 <= 40 ? emp.valeTransporte2 : (posto?.valeTransporte2 || 0))
             : (emp.valeTransporte2 > 0 ? emp.valeTransporte2 : (posto?.valeTransporte2 || 0));
 
-        // Base VA value priority: Employee record -> Posto record -> 0
-        const baseVaValue = emp.valeAlimentacao > 0 ? emp.valeAlimentacao : (posto?.valeAlimentacao || 0);
+        // Base VA value priority: Employee record -> Posto record -> 0. (Meals provided override to 494.00)
+        const mealsProvided = !!posto?.vaMealsProvidedOnSite;
+        const rawBaseVaValue = emp.valeAlimentacao > 0 ? emp.valeAlimentacao : (posto?.valeAlimentacao || 0);
+        const baseVaValue = mealsProvided ? 494.00 : rawBaseVaValue;
 
         // Determine if VT value is stored as Monthly (> 40) or Daily (<= 40)
         // Standard working/scale days for VT is 22 days.
@@ -551,11 +583,6 @@ export async function getBenefitsCalculation(year: number, month: number) {
         }
 
         // VA Calculation
-        let vaBaseValue = 0;
-        let vaDeductionValue = 0;
-        let vaTotalValue = 0;
-        let vaNeedsAlert = false;
-        let vaBatchNote = "";
 
         const isVaDiario = posto?.vaType === "diario";
         const vaDailyRate = isVaDiario
@@ -566,6 +593,17 @@ export async function getBenefitsCalculation(year: number, month: number) {
         const vaDailyValue = isVaMonthly
             ? Math.round((vaDailyRate / 30) * 100) / 100
             : vaDailyRate;
+
+        // Vacation variables
+        const vacationDays = getVacationDaysInMonth(emp.lastVacationStart, emp.lastVacationEnd, year, month);
+        const paidOnVacation = posto?.vaPaidOnVacation !== false; // default to true
+        let vaVacationDeduction = 0;
+
+        let vaBaseValue = 0;
+        let vaDeductionValue = 0;
+        let vaTotalValue = 0;
+        let vaNeedsAlert = false;
+        let vaBatchNote = "";
 
         if (isNewHire) {
             // New hire fracionated VA: 10-day batches after card delivery
@@ -593,11 +631,20 @@ export async function getBenefitsCalculation(year: number, month: number) {
                 
                 vaBaseValue = Math.round((scheduledWorkDays * vaDailyRate) * 100) / 100;
                 vaDeductionValue = Math.round((occurrencesCount * vaDailyRate) * 100) / 100;
-                vaTotalValue = Math.max(0, Math.round((vaBaseValue - vaDeductionValue) * 100) / 100);
+                
+                if (!paidOnVacation && vacationDays > 0) {
+                    const estVacationWorkDays = Math.min(scheduledWorkDays, Math.round(vacationDays * (scheduledWorkDays / 30)));
+                    vaVacationDeduction = Math.round((estVacationWorkDays * vaDailyRate) * 100) / 100;
+                }
+                
+                vaTotalValue = Math.max(0, Math.round((vaBaseValue - vaDeductionValue - vaVacationDeduction) * 100) / 100);
                 
                 vaBatchNote = `${scheduledWorkDays} dias de escala (excl. fds/feriados) x R$ ${vaDailyRate.toFixed(2)}`;
                 if (occurrencesCount > 0) {
                     vaBatchNote += ` | ${occurrencesCount} falta(s) abatida(s) no período 26-25`;
+                }
+                if (vaVacationDeduction > 0) {
+                    vaBatchNote += ` | ${vacationDays} dias de férias abatidos (-R$ ${vaVacationDeduction.toFixed(2)})`;
                 }
             } else {
                 const isVaMonthly = vaDailyRate > 50;
@@ -605,17 +652,50 @@ export async function getBenefitsCalculation(year: number, month: number) {
                     vaBaseValue = vaDailyRate;
                     const dailyDeductionRate = vaDailyRate / 30;
                     vaDeductionValue = Math.round((occurrencesCount * dailyDeductionRate) * 100) / 100;
+                    
+                    if (!paidOnVacation && vacationDays > 0) {
+                        vaVacationDeduction = Math.min(vaBaseValue, Math.round((vacationDays * dailyDeductionRate) * 100) / 100);
+                    }
                 } else {
                     vaBaseValue = Math.round((vaDailyRate * 30) * 100) / 100;
                     vaDeductionValue = Math.round((vaDailyRate * occurrencesCount) * 100) / 100;
+                    
+                    if (!paidOnVacation && vacationDays > 0) {
+                        vaVacationDeduction = Math.min(vaBaseValue, Math.round((vacationDays * vaDailyRate) * 100) / 100);
+                    }
                 }
-                vaTotalValue = Math.max(0, Math.round((vaBaseValue - vaDeductionValue) * 100) / 100);
+                vaTotalValue = Math.max(0, Math.round((vaBaseValue - vaDeductionValue - vaVacationDeduction) * 100) / 100);
 
                 if (occurrencesCount > 0) {
                     vaBatchNote = `${occurrencesCount} falta(s)/atestado(s) abatido(s) no período 26-25`;
                 }
+                if (vaVacationDeduction > 0) {
+                    if (vaBatchNote) {
+                        vaBatchNote += ` | ${vacationDays} dias de férias abatidos (-R$ ${vaVacationDeduction.toFixed(2)})`;
+                    } else {
+                        vaBatchNote = `${vacationDays} dias de férias abatidos (-R$ ${vaVacationDeduction.toFixed(2)})`;
+                    }
+                }
             }
         }
+
+        // Payroll Discounts calculations
+        let vtDiscountPercentage = 6.0;
+        let vtPayrollDiscount = 0;
+        if (emp.vtOptIn) {
+            vtDiscountPercentage = emp.vtDiscountPercentage !== null && emp.vtDiscountPercentage !== undefined
+                ? emp.vtDiscountPercentage
+                : (posto?.vtDiscountPercentage !== null && posto?.vtDiscountPercentage !== undefined ? posto.vtDiscountPercentage : 6.0);
+            
+            const rawDiscount = Math.round((emp.salary * (vtDiscountPercentage / 100)) * 100) / 100;
+            vtPayrollDiscount = Math.min(rawDiscount, vtTotalValue + vtTotalValue2);
+        }
+
+        const vaDiscountPercentage = emp.vaDiscountPercentage !== null && emp.vaDiscountPercentage !== undefined
+            ? emp.vaDiscountPercentage
+            : (posto?.vaDiscountPercentage !== null && posto?.vaDiscountPercentage !== undefined ? posto.vaDiscountPercentage : 20.0);
+        
+        const vaPayrollDiscount = Math.round((vaBaseValue * (vaDiscountPercentage / 100)) * 100) / 100;
 
         // Payment destinations
         const vtDestination = emp.vtPaymentMethod === "Outro"
@@ -670,7 +750,15 @@ export async function getBenefitsCalculation(year: number, month: number) {
             vaTotalValue,
             vaDestination,
             vaBatchNote,
-            vaNeedsAlert
+            vaNeedsAlert,
+            vtDiscountPercentage,
+            vaDiscountPercentage,
+            vtPayrollDiscount,
+            vaPayrollDiscount,
+            vaMealsProvidedOnSite: mealsProvided,
+            vaPaidOnVacation: paidOnVacation,
+            vaVacationDays: vacationDays,
+            vaVacationDeduction
         };
     });
 

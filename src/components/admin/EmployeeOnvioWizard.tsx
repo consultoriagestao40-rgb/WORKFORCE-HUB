@@ -162,6 +162,9 @@ export function EmployeeOnvioWizard({
     const [editingVtIndex2, setEditingVtIndex2] = useState<number | null>(null);
     const [editingVtValue, setEditingVtValue] = useState("");
     const [editingVtValue2, setEditingVtValue2] = useState("");
+    
+    const [vtDiscountPercentage, setVtDiscountPercentage] = useState(initialData?.vtDiscountPercentage !== null && initialData?.vtDiscountPercentage !== undefined ? initialData.vtDiscountPercentage.toString() : "");
+    const [vaDiscountPercentage, setVaDiscountPercentage] = useState(initialData?.vaDiscountPercentage !== null && initialData?.vaDiscountPercentage !== undefined ? initialData.vaDiscountPercentage.toString() : "");
 
     useEffect(() => {
         const initialMethod = initialData?.vtPaymentMethod;
@@ -1699,6 +1702,37 @@ export function EmployeeOnvioWizard({
                                                 </div>
                                             </>
                                         )}
+
+                                        {/* Sobrecargas de Porcentagem de Desconto CCT */}
+                                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                                            <div className="space-y-1">
+                                                <Label htmlFor="vtDiscountPercentage" className="text-slate-700 font-medium">Desconto VT Sobrecarga (%)</Label>
+                                                <Input 
+                                                    id="vtDiscountPercentage" 
+                                                    name="vtDiscountPercentage" 
+                                                    type="number" 
+                                                    step="0.01" 
+                                                    value={vtOptIn ? vtDiscountPercentage : ""} 
+                                                    onChange={e => setVtDiscountPercentage(e.target.value)} 
+                                                    placeholder="Padrão do Posto (6%)" 
+                                                    disabled={!vtOptIn} 
+                                                    className="h-9 rounded-xl border-slate-200 bg-white disabled:bg-slate-50" 
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label htmlFor="vaDiscountPercentage" className="text-slate-700 font-medium">Desconto VA Sobrecarga (%)</Label>
+                                                <Input 
+                                                    id="vaDiscountPercentage" 
+                                                    name="vaDiscountPercentage" 
+                                                    type="number" 
+                                                    step="0.01" 
+                                                    value={vaDiscountPercentage} 
+                                                    onChange={e => setVaDiscountPercentage(e.target.value)} 
+                                                    placeholder="Padrão do Posto (20%)" 
+                                                    className="h-9 rounded-xl border-slate-200 bg-white" 
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -2338,6 +2372,8 @@ export function EmployeeOnvioWizard({
             <input type="hidden" name="vtCustomPaymentDetails2" value={vtCustomPaymentDetails2 || ""} />
             <input type="hidden" name="vaPaymentMethod" value={vaPaymentMethod || "Cartão Caju"} />
             <input type="hidden" name="vaCustomPaymentDetails" value={vaCustomPaymentDetails || ""} />
+            <input type="hidden" name="vtDiscountPercentage" value={vtDiscountPercentage || ""} />
+            <input type="hidden" name="vaDiscountPercentage" value={vaDiscountPercentage || ""} />
             <input type="hidden" name="birthDate" value={birthDate || ""} />
             <input type="hidden" name="gender" value={gender || ""} />
             <input type="hidden" name="address" value={address || ""} />

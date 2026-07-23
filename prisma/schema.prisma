@@ -115,6 +115,10 @@ model Posto {
   valeTransporte    Float        @default(0)
   valeTransporte2   Float        @default(0)
   vtPaymentMethod2  String?      @default("Urbs")
+  vtDiscountPercentage Float     @default(6.0)
+  vaDiscountPercentage Float     @default(20.0)
+  vaMealsProvidedOnSite Boolean  @default(false)
+  vaPaidOnVacation  Boolean      @default(false)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   originAssignments Assignment[] @relation("OriginPosto")
@@ -200,6 +204,8 @@ model Employee {
   vtCustomPaymentDetails String?
   vtCustomPaymentDetails2 String?
   vaCustomPaymentDetails String?
+  vtDiscountPercentage   Float?
+  vaDiscountPercentage   Float?
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
   dismissalReason        String?

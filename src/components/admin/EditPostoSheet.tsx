@@ -29,6 +29,10 @@ interface EditPostoSheetProps {
         valeTransporte?: number;
         valeTransporte2?: number | null;
         vtPaymentMethod2?: string | null;
+        vtDiscountPercentage?: number;
+        vaDiscountPercentage?: number;
+        vaMealsProvidedOnSite?: boolean;
+        vaPaidOnVacation?: boolean;
     };
     schedules: { id: string; name: string }[];
     roles: { id: string; name: string }[];
@@ -169,6 +173,44 @@ export function EditPostoSheet({ posto, schedules, roles }: EditPostoSheetProps)
                                 <Label htmlFor="outrosAdicionais">Outros Adicionais (R$)</Label>
                                 <Input id="outrosAdicionais" name="outrosAdicionais" type="number" step="0.01" defaultValue={posto.outrosAdicionais} />
                             </div>
+
+                             <div className="space-y-2 col-span-2 border-t pt-4 mt-2">
+                                 <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400">Regras de CCT e Descontos</h4>
+                                 <div className="grid grid-cols-2 gap-4">
+                                     <div className="space-y-2">
+                                         <Label htmlFor="vtDiscountPercentage">Desconto VT em Folha (%)</Label>
+                                         <Input id="vtDiscountPercentage" name="vtDiscountPercentage" type="number" step="0.01" defaultValue={posto.vtDiscountPercentage !== undefined ? posto.vtDiscountPercentage : 6} />
+                                     </div>
+                                     <div className="space-y-2">
+                                         <Label htmlFor="vaDiscountPercentage">Desconto VA em Folha (%)</Label>
+                                         <Input id="vaDiscountPercentage" name="vaDiscountPercentage" type="number" step="0.01" defaultValue={posto.vaDiscountPercentage !== undefined ? posto.vaDiscountPercentage : 20} />
+                                     </div>
+                                 </div>
+                                 <div className="flex flex-col gap-2 pt-2">
+                                     <div className="flex items-center space-x-2">
+                                         <input
+                                             type="checkbox"
+                                             id={`vaMealsProvidedOnSite-${posto.id}`}
+                                             name="vaMealsProvidedOnSite"
+                                             value="true"
+                                             defaultChecked={posto.vaMealsProvidedOnSite}
+                                             className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                                         />
+                                         <Label htmlFor={`vaMealsProvidedOnSite-${posto.id}`} className="text-xs font-semibold text-slate-700">Refeição Fornecida no Local?</Label>
+                                     </div>
+                                     <div className="flex items-center space-x-2">
+                                         <input
+                                             type="checkbox"
+                                             id={`vaPaidOnVacation-${posto.id}`}
+                                             name="vaPaidOnVacation"
+                                             value="true"
+                                             defaultChecked={posto.vaPaidOnVacation}
+                                             className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                                         />
+                                         <Label htmlFor={`vaPaidOnVacation-${posto.id}`} className="text-xs font-semibold text-slate-700">Pagar VA nas Férias?</Label>
+                                     </div>
+                                 </div>
+                             </div>
                         </div>
                     </div>
 
