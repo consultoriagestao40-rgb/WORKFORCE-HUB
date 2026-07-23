@@ -121,6 +121,8 @@ model Posto {
   vaPaidOnVacation  Boolean      @default(false)
   absenteismoAwardValue Float      @default(0)
   absenteismoAwardPeriod String     @default("mensal")
+  absenteismoAwardType   String       @default("prorrata")
+  absenteismoMinDays     Int          @default(0)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   originAssignments Assignment[] @relation("OriginPosto")

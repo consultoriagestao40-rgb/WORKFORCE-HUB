@@ -35,6 +35,8 @@ interface EditPostoSheetProps {
         vaPaidOnVacation?: boolean;
         absenteismoAwardValue?: number;
         absenteismoAwardPeriod?: string;
+        absenteismoAwardType?: string;
+        absenteismoMinDays?: number;
     };
     schedules: { id: string; name: string }[];
     roles: { id: string; name: string }[];
@@ -256,6 +258,32 @@ export function EditPostoSheet({ posto, schedules, roles }: EditPostoSheetProps)
                                               <Label htmlFor={`replicateAllBenefits-${posto.id}`} className="text-xs font-semibold text-slate-700 cursor-pointer">
                                                   Aplicar todas as regras de CCT e benefícios (VT/VA) a todos os postos deste contrato
                                               </Label>
+                                          </div>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-4 mt-3">
+                                          <div className="space-y-2">
+                                              <Label htmlFor={`absenteismoAwardType-${posto.id}`}>Tipo de Pagamento</Label>
+                                              <Select name="absenteismoAwardType" defaultValue={posto.absenteismoAwardType || "prorrata"}>
+                                                  <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                                      <SelectValue />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                      <SelectItem value="prorrata">Pró-rata (Proporcional ao mês)</SelectItem>
+                                                      <SelectItem value="integral">Integral (Apenas mês completo)</SelectItem>
+                                                  </SelectContent>
+                                              </Select>
+                                          </div>
+                                          <div className="space-y-2">
+                                              <Label htmlFor={`absenteismoMinDays-${posto.id}`}>Carência (Dias Experiência)</Label>
+                                              <Select name="absenteismoMinDays" defaultValue={String(posto.absenteismoMinDays || 0)}>
+                                                  <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                                      <SelectValue />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                      <SelectItem value="0">Sem Carência (Desde a admissão)</SelectItem>
+                                                      <SelectItem value="90">90 Dias (Após a experiência)</SelectItem>
+                                                  </SelectContent>
+                                              </Select>
                                           </div>
                                       </div>
                                   </div>

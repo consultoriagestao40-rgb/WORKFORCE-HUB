@@ -192,6 +192,32 @@ export function NewPostoSheet({ clientId, schedules, roles }: NewPostoSheetProps
                                               </Select>
                                           </div>
                                       </div>
+                                      <div className="grid grid-cols-2 gap-4 mt-3">
+                                          <div className="space-y-2">
+                                              <Label htmlFor="absenteismoAwardType">Tipo de Pagamento</Label>
+                                              <Select name="absenteismoAwardType" defaultValue="prorrata">
+                                                  <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                                      <SelectValue />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                      <SelectItem value="prorrata">Pró-rata (Proporcional ao mês)</SelectItem>
+                                                      <SelectItem value="integral">Integral (Apenas mês completo)</SelectItem>
+                                                  </SelectContent>
+                                              </Select>
+                                          </div>
+                                          <div className="space-y-2">
+                                              <Label htmlFor="absenteismoMinDays">Carência (Dias Experiência)</Label>
+                                              <Select name="absenteismoMinDays" defaultValue="0">
+                                                  <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                                      <SelectValue />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                      <SelectItem value="0">Sem Carência (Desde a admissão)</SelectItem>
+                                                      <SelectItem value="90">90 Dias (Após a experiência)</SelectItem>
+                                                  </SelectContent>
+                                              </Select>
+                                          </div>
+                                      </div>
                                   </div>
                              </div>
                          </div>

@@ -456,6 +456,8 @@ export default function BenefitsPage() {
     <Cell><Data ss:Type="String">VA Base (R$)</Data></Cell>
     <Cell><Data ss:Type="String">VA Desconto (R$)</Data></Cell>
     <Cell><Data ss:Type="String">VA Valor Líquido (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">Prêmio Assiduidade (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">Total Caju (R$)</Data></Cell>
     <Cell><Data ss:Type="String">Destino VA</Data></Cell>
     <Cell><Data ss:Type="String">Status Pagamento</Data></Cell>
     <Cell><Data ss:Type="String">Data Pagamento</Data></Cell>
@@ -480,6 +482,8 @@ export default function BenefitsPage() {
     <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaBaseValue}</Data></Cell>
     <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaDeductionValue}</Data></Cell>
     <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaTotalValue}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.absenteismoAward || 0}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaTotalValue + (item.absenteismoAward || 0)}</Data></Cell>
     <Cell><Data ss:Type="String">${item.vaDestination}</Data></Cell>
     <Cell ss:StyleID="Center"><Data ss:Type="String">${item.isPaid ? 'PAGO' : 'PENDENTE'}</Data></Cell>
     <Cell ss:StyleID="Center"><Data ss:Type="String">${item.paidAt || '-'}</Data></Cell>
@@ -1065,20 +1069,21 @@ export default function BenefitsPage() {
                                             <th className="py-4 px-4 text-right">VA a Comprar</th>
                                             <th className="py-4 px-4">Destino VA</th>
                                             <th className="py-4 px-4 text-right">Prêmio Assiduidade</th>
+                                            <th className="py-4 px-4 text-right">Total Caju</th>
                                             <th className="py-4 px-4 text-center">Status / Ação</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 text-xs">
                                         {isLoading ? (
                                             <tr>
-                                                <td colSpan={11} className="text-center py-12 text-slate-400 font-medium">
+                                                <td colSpan={12} className="text-center py-12 text-slate-400 font-medium">
                                                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-orange-500" />
                                                     Calculando benefícios do mês...
                                                 </td>
                                             </tr>
                                         ) : filteredItems.length === 0 ? (
                                             <tr>
-                                                <td colSpan={11} className="text-center py-12 text-slate-400 font-medium">
+                                                <td colSpan={12} className="text-center py-12 text-slate-400 font-medium">
                                                     Nenhum colaborador encontrado com os filtros aplicados.
                                                 </td>
                                             </tr>
@@ -1325,6 +1330,10 @@ export default function BenefitsPage() {
                                                          ) : (
                                                              <span className="text-slate-400 font-medium">-</span>
                                                          )}
+                                                     </td>
+
+                                                     <td className="py-3.5 px-4 text-right font-black text-slate-900">
+                                                         {formatCurrency(item.vaTotalValue + (item.absenteismoAward || 0))}
                                                      </td>
 
                                                     {/* Status / Ação de Pagamento */}

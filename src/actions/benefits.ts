@@ -724,13 +724,33 @@ export async function getBenefitsCalculation(year: number, month: number) {
         const atestadosCount = occurrencesList.filter(o => o.type === "Atestado Médico").length;
 
         if (posto && posto.absenteismoAwardValue > 0) {
-            if (absenteismoPeriod === "mensal") {
-                if (faltasCount === 0 && atestadosCount === 0) {
-                    absenteismoAward = posto.absenteismoAwardValue;
+            const minDays = posto.absenteismoMinDays || 0;
+            const daysSinceAdmission = Math.floor((windowEnd.getTime() - admissionDateObj.getTime()) / (1000 * 60 * 60 * 24));
+            
+            // Check experience period (probation limit)
+            const meetsExperience = minDays === 0 || daysSinceAdmission >= minDays;
+
+            // Check full month worked
+            const isFullMonth = !isNewHire || posto.absenteismoAwardType === "prorrata";
+
+            if (meetsExperience && isFullMonth) {
+                let baseValue = posto.absenteismoAwardValue;
+                
+                // Pro-rata calculation
+                if (isNewHire && posto.absenteismoAwardType === "prorrata") {
+                    const totalDaysInMonth = new Date(year, month, 0).getDate();
+                    const daysWorked = totalDaysInMonth - admissionDateObj.getDate() + 1;
+                    baseValue = Math.round(((posto.absenteismoAwardValue / totalDaysInMonth) * daysWorked) * 100) / 100;
                 }
-            } else if (absenteismoPeriod === "trimestral") {
-                if (!quarterlyFailsSet.has(emp.id)) {
-                    absenteismoAward = posto.absenteismoAwardValue;
+
+                if (absenteismoPeriod === "mensal") {
+                    if (faltasCount === 0 && atestadosCount === 0) {
+                        absenteismoAward = baseValue;
+                    }
+                } else if (absenteismoPeriod === "trimestral") {
+                    if (!quarterlyFailsSet.has(emp.id)) {
+                        absenteismoAward = baseValue;
+                    }
                 }
             }
         }

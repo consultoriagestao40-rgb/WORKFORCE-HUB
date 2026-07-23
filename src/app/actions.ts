@@ -348,6 +348,8 @@ export async function createPosto(formData: FormData) {
     const vaPaidOnVacation = formData.get("vaPaidOnVacation") === "true";
     const absenteismoAwardValue = parseFloat(formData.get("absenteismoAwardValue") as string) || 0;
     const absenteismoAwardPeriod = (formData.get("absenteismoAwardPeriod") as string) || "mensal";
+    const absenteismoAwardType = (formData.get("absenteismoAwardType") as string) || "prorrata";
+    const absenteismoMinDays = parseInt(formData.get("absenteismoMinDays") as string) || 0;
 
     await prisma.posto.create({
         data: {
@@ -374,7 +376,9 @@ export async function createPosto(formData: FormData) {
             vaMealsProvidedOnSite,
             vaPaidOnVacation,
             absenteismoAwardValue,
-            absenteismoAwardPeriod
+            absenteismoAwardPeriod,
+            absenteismoAwardType,
+            absenteismoMinDays
         }
     });
 
@@ -1102,6 +1106,8 @@ export async function updatePosto(formData: FormData) {
     const vaPaidOnVacation = formData.get("vaPaidOnVacation") === "true";
     const absenteismoAwardValue = parseFloat(formData.get("absenteismoAwardValue") as string) || 0;
     const absenteismoAwardPeriod = (formData.get("absenteismoAwardPeriod") as string) || "mensal";
+    const absenteismoAwardType = (formData.get("absenteismoAwardType") as string) || "prorrata";
+    const absenteismoMinDays = parseInt(formData.get("absenteismoMinDays") as string) || 0;
 
     const posto = await prisma.posto.update({
         where: { id },
@@ -1128,7 +1134,9 @@ export async function updatePosto(formData: FormData) {
             vaMealsProvidedOnSite,
             vaPaidOnVacation,
             absenteismoAwardValue,
-            absenteismoAwardPeriod
+            absenteismoAwardPeriod,
+            absenteismoAwardType,
+            absenteismoMinDays
         }
     });
 
@@ -1140,7 +1148,9 @@ export async function updatePosto(formData: FormData) {
             where: { clientId: posto.clientId },
             data: {
                 absenteismoAwardValue,
-                absenteismoAwardPeriod
+                absenteismoAwardPeriod,
+                absenteismoAwardType,
+                absenteismoMinDays
             }
         });
     }
