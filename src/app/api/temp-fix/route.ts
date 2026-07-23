@@ -5,9 +5,9 @@ import { syncSecullumOccurrences } from "@/actions/secullum";
 export async function GET() {
     try {
         console.log("Triggering production sync from API route for Month 5, 6, 7...");
-        const res5 = await syncSecullumOccurrences(2026, 5);
-        const res6 = await syncSecullumOccurrences(2026, 6);
-        const res7 = await syncSecullumOccurrences(2026, 7);
+        const res5 = await syncSecullumOccurrences(2026, 5, true);
+        const res6 = await syncSecullumOccurrences(2026, 6, true);
+        const res7 = await syncSecullumOccurrences(2026, 7, true);
 
         const occurrencesCount = await prisma.occurrence.groupBy({
             by: ['type'],

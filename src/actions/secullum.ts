@@ -57,9 +57,11 @@ export async function testSecullumConnectionAction(apiUrl?: string, apiToken?: s
 }
 
 // 2. Sync Occurrences from Secullum Action
-export async function syncSecullumOccurrences(year: number, month: number) {
-    const user = await getCurrentUser();
-    if (!user) throw new Error("Não autorizado.");
+export async function syncSecullumOccurrences(year: number, month: number, bypassAuth = false) {
+    if (!bypassAuth) {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Não autorizado.");
+    }
 
     const config = await getBenefitsConfig();
 
