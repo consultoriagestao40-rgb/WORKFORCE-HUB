@@ -436,10 +436,24 @@ export default function PayrollPreviewPage() {
                                                         {formatCurrency(item.totalGrossSalary)}
                                                     </button>
                                                 </PopoverTrigger>
-                                                <PopoverContent className="w-56 p-3 text-xs space-y-2">
+                                                <PopoverContent className="w-64 p-3 text-xs space-y-2.5">
                                                     <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Composição do Salário Bruto</div>
-                                                    <div className="space-y-1 text-[10px] text-slate-600 font-medium">
-                                                        <div className="flex justify-between"><span>Salário Base:</span><span className="font-bold text-slate-800">{formatCurrency(item.baseSalary)}</span></div>
+                                                    
+                                                    {item.isAdmittedThisMonth && (
+                                                        <div className="bg-sky-50 p-2.5 rounded-xl border border-sky-100 text-[10px] space-y-1 text-sky-850 font-medium">
+                                                            <div className="font-black text-sky-950 flex items-center gap-1">
+                                                                <Info className="w-3.5 h-3.5 text-sky-500" />
+                                                                <span>Admissão Proporcional (Pró-rata)</span>
+                                                            </div>
+                                                            <div className="flex justify-between"><span>Data de Admissão:</span><span className="font-bold">{item.admissionDate}</span></div>
+                                                            <div className="flex justify-between"><span>Dias Proporcionais:</span><span className="font-bold">{item.daysWorked} de {item.totalDaysInMonth} dias</span></div>
+                                                            <div className="flex justify-between"><span>Salário Base Cheio:</span><span className="font-bold">{formatCurrency(item.originalSalary)}</span></div>
+                                                            <div className="flex justify-between"><span>Valor Diário:</span><span className="font-bold">{formatCurrency(Math.round((item.originalSalary / item.totalDaysInMonth) * 100) / 100)}/dia</span></div>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="space-y-1 text-[10px] text-slate-650 font-medium">
+                                                        <div className="flex justify-between"><span>Salário Base Pago:</span><span className="font-bold text-slate-800">{formatCurrency(item.baseSalary)}</span></div>
                                                         {item.insalubridade > 0 && <div className="flex justify-between"><span>Insalubridade:</span><span className="font-bold text-slate-800">{formatCurrency(item.insalubridade)}</span></div>}
                                                         {item.periculosidade > 0 && <div className="flex justify-between"><span>Periculosidade:</span><span className="font-bold text-slate-800">{formatCurrency(item.periculosidade)}</span></div>}
                                                         {item.gratificacao > 0 && <div className="flex justify-between"><span>Gratificação CCT:</span><span className="font-bold text-slate-800">{formatCurrency(item.gratificacao)}</span></div>}
@@ -640,9 +654,39 @@ export default function PayrollPreviewPage() {
                                                                                     <div className="text-[9px] text-slate-400 font-medium">CPF: {sub.employeeCpf} | {sub.postoName}</div>
                                                                                 </div>
                                                                             </td>
-                                                                            <td className="py-2.5 px-3 text-right font-bold text-slate-700">
-                                                                                {formatCurrency(sub.totalGrossSalary)}
-                                                                            </td>
+                                                                             <td className="py-2.5 px-3 text-right">
+                                                                                 <Popover>
+                                                                                     <PopoverTrigger asChild>
+                                                                                         <button className="font-bold text-slate-700 hover:text-slate-800 underline decoration-dashed cursor-pointer">
+                                                                                             {formatCurrency(sub.totalGrossSalary)}
+                                                                                         </button>
+                                                                                     </PopoverTrigger>
+                                                                                     <PopoverContent className="w-64 p-3 text-xs space-y-2.5">
+                                                                                         <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Composição do Salário Bruto</div>
+                                                                                         
+                                                                                         {sub.isAdmittedThisMonth && (
+                                                                                             <div className="bg-sky-50 p-2.5 rounded-xl border border-sky-100 text-[10px] space-y-1 text-sky-850 font-medium">
+                                                                                                 <div className="font-black text-sky-950 flex items-center gap-1">
+                                                                                                     <Info className="w-3.5 h-3.5 text-sky-500" />
+                                                                                                     <span>Admissão Proporcional (Pró-rata)</span>
+                                                                                                 </div>
+                                                                                                 <div className="flex justify-between"><span>Data de Admissão:</span><span className="font-bold">{sub.admissionDate}</span></div>
+                                                                                                 <div className="flex justify-between"><span>Dias Proporcionais:</span><span className="font-bold">{sub.daysWorked} de {sub.totalDaysInMonth} dias</span></div>
+                                                                                                 <div className="flex justify-between"><span>Salário Base Cheio:</span><span className="font-bold">{formatCurrency(sub.originalSalary)}</span></div>
+                                                                                                 <div className="flex justify-between"><span>Valor Diário:</span><span className="font-bold">{formatCurrency(Math.round((sub.originalSalary / sub.totalDaysInMonth) * 100) / 100)}/dia</span></div>
+                                                                                             </div>
+                                                                                         )}
+
+                                                                                         <div className="space-y-1 text-[10px] text-slate-650 font-medium">
+                                                                                             <div className="flex justify-between"><span>Salário Base Pago:</span><span className="font-bold text-slate-800">{formatCurrency(sub.baseSalary)}</span></div>
+                                                                                             {sub.insalubridade > 0 && <div className="flex justify-between"><span>Insalubridade:</span><span className="font-bold text-slate-800">{formatCurrency(sub.insalubridade)}</span></div>}
+                                                                                             {sub.periculosidade > 0 && <div className="flex justify-between"><span>Periculosidade:</span><span className="font-bold text-slate-800">{formatCurrency(sub.periculosidade)}</span></div>}
+                                                                                             {sub.gratificacao > 0 && <div className="flex justify-between"><span>Gratificação CCT:</span><span className="font-bold text-slate-800">{formatCurrency(sub.gratificacao)}</span></div>}
+                                                                                             {sub.outrosAdicionais > 0 && <div className="flex justify-between"><span>Outros Adicionais:</span><span className="font-bold text-slate-800">{formatCurrency(sub.outrosAdicionais)}</span></div>}
+                                                                                         </div>
+                                                                                     </PopoverContent>
+                                                                                 </Popover>
+                                                                             </td>
                                                                             <td className="py-2.5 px-3 text-center">
                                                                                 {sub.occurrencesCount > 0 ? (
                                                                                     <span className="bg-red-50 text-red-600 font-bold px-1.5 py-0.5 rounded text-[10px] border border-red-200/50">

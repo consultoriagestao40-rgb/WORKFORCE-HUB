@@ -39,6 +39,13 @@ export interface PayrollPreviewItem {
     // Net
     totalDeductions: number;
     netSalary: number;
+
+    // Proration detail
+    isAdmittedThisMonth: boolean;
+    admissionDate: string;
+    daysWorked: number;
+    totalDaysInMonth: number;
+    originalSalary: number;
 }
 
 export async function getPayrollPreview(year: number, month: number) {
@@ -197,7 +204,12 @@ export async function getPayrollPreview(year: number, month: number) {
             vaPayrollDiscount,
             vaDiscountPercentage,
             totalDeductions,
-            netSalary
+            netSalary,
+            isAdmittedThisMonth,
+            admissionDate: new Date(emp.admissionDate).toLocaleDateString('pt-BR'),
+            daysWorked,
+            totalDaysInMonth,
+            originalSalary: emp.salary
         };
     });
 
