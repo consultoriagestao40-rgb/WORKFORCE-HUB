@@ -208,6 +208,8 @@ model Employee {
   vtCustomPaymentDetails String?
   vtCustomPaymentDetails2 String?
   vaCustomPaymentDetails String?
+  urbsSic                String?
+  urbsCqCtNf             String?
   vtDiscountPercentage   Float?
   vaDiscountPercentage   Float?
   dependentsCount        Int                 @default(0)
