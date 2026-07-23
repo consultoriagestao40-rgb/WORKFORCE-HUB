@@ -15,7 +15,8 @@ import {
     ChevronRight,
     TrendingDown,
     TrendingUp,
-    Percent
+    Percent,
+    FileSpreadsheet
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { getPayrollPreview, PayrollPreviewItem } from "@/actions/payroll";
+import * as XLSX from "xlsx";
 
 export default function PayrollPreviewPage() {
     const today = new Date();
@@ -212,6 +214,70 @@ export default function PayrollPreviewPage() {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
     };
 
+    const handleExportToExcel = () => {
+        if (!items || items.length === 0) {
+            toast.error("Nenhum dado disponível para exportar.");
+            return;
+        }
+
+        const filteredExport = items.filter(item => {
+            const matchesSearch = 
+                item.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                item.employeeCpf.includes(searchTerm);
+            
+            const matchesCompany = selectedCompany === "all" || item.companyName === selectedCompany;
+            const matchesClient = selectedClient === "all" || item.clientName === selectedClient;
+            
+            return matchesSearch && matchesCompany && matchesClient;
+        });
+
+        if (filteredExport.length === 0) {
+            toast.error("Nenhum colaborador encontrado com os filtros atuais.");
+            return;
+        }
+
+        const excelData = filteredExport.map(item => ({
+            "Colaborador": item.employeeName,
+            "CPF": item.employeeCpf,
+            "Empresa": item.companyName,
+            "Cliente / Contrato": item.clientName,
+            "Posto / Função": item.postoName,
+            "Admissão": item.admissionDate,
+            "Dias Trab.": item.daysWorked,
+            "Salário Base (R$)": item.baseSalary,
+            "Insalubridade (R$)": item.insalubridade,
+            "Periculosidade (R$)": item.periculosidade,
+            "Gratificação (R$)": item.gratificacao,
+            "Outros Adicionais (R$)": item.outrosAdicionais,
+            "Salário Bruto (R$)": item.totalGrossSalary,
+            "Faltas (Dias)": item.faltasCount,
+            "Desc. Faltas (R$)": item.faltaDeduction,
+            "DSR Perdidos": item.dsrDeductionsCount,
+            "Desc. DSR (R$)": item.dsrDeduction,
+            "Desc. VT (R$)": item.vtPayrollDiscount,
+            "Desc. VA (R$)": item.vaPayrollDiscount,
+            "Desc. INSS (R$)": item.inssDeduction,
+            "Desc. IRRF (R$)": item.irrfDeduction,
+            "Total Descontos (R$)": item.totalDeductions,
+            "Salário Líquido (R$)": item.netSalary
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Prévia de Folha");
+
+        // Auto-fit columns
+        const maxCols = Object.keys(excelData[0] || {}).map(key => ({
+            wch: Math.max(key.length + 3, 12)
+        }));
+        worksheet["!cols"] = maxCols;
+
+        const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+        const monthName = months[selectedMonth - 1] || "competencia";
+        XLSX.writeFile(workbook, `previa_folha_${monthName.toLowerCase()}_${selectedYear}.xlsx`);
+        toast.success("Excel exportado com sucesso!");
+    };
+
     return (
         <div className="space-y-6">
             {/* Header com gradiente */}
@@ -234,39 +300,50 @@ export default function PayrollPreviewPage() {
                         </p>
                     </div>
 
-                    {/* Ano / Mês Selector */}
-                    <div className="flex items-center gap-2 bg-slate-800/80 p-2 rounded-2xl border border-slate-700/60 w-fit backdrop-blur-sm self-start md:self-center">
-                        <Calendar className="w-4 h-4 text-sky-400 ml-1.5" />
-                        <Select value={String(selectedMonth)} onValueChange={v => setSelectedMonth(Number(v))}>
-                            <SelectTrigger className="h-8 border-none bg-transparent hover:bg-slate-700 text-white font-bold text-xs rounded-xl w-[100px]">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-slate-900 border-slate-800 text-white text-xs">
-                                <SelectItem value="1">Janeiro</SelectItem>
-                                <SelectItem value="2">Fevereiro</SelectItem>
-                                <SelectItem value="3">Março</SelectItem>
-                                <SelectItem value="4">Abril</SelectItem>
-                                <SelectItem value="5">Maio</SelectItem>
-                                <SelectItem value="6">Junho</SelectItem>
-                                <SelectItem value="7">Julho</SelectItem>
-                                <SelectItem value="8">Agosto</SelectItem>
-                                <SelectItem value="9">Setembro</SelectItem>
-                                <SelectItem value="10">Outubro</SelectItem>
-                                <SelectItem value="11">Novembro</SelectItem>
-                                <SelectItem value="12">Dezembro</SelectItem>
-                            </SelectContent>
-                        </Select>
+                    <div className="flex items-center gap-3 self-start md:self-center">
+                        {/* Ano / Mês Selector */}
+                        <div className="flex items-center gap-2 bg-slate-800/80 p-2 rounded-2xl border border-slate-700/60 w-fit backdrop-blur-sm">
+                            <Calendar className="w-4 h-4 text-sky-400 ml-1.5" />
+                            <Select value={String(selectedMonth)} onValueChange={v => setSelectedMonth(Number(v))}>
+                                <SelectTrigger className="h-8 border-none bg-transparent hover:bg-slate-700 text-white font-bold text-xs rounded-xl w-[100px] cursor-pointer">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-slate-900 border-slate-800 text-white text-xs">
+                                    <SelectItem value="1">Janeiro</SelectItem>
+                                    <SelectItem value="2">Fevereiro</SelectItem>
+                                    <SelectItem value="3">Março</SelectItem>
+                                    <SelectItem value="4">Abril</SelectItem>
+                                    <SelectItem value="5">Maio</SelectItem>
+                                    <SelectItem value="6">Junho</SelectItem>
+                                    <SelectItem value="7">Julho</SelectItem>
+                                    <SelectItem value="8">Agosto</SelectItem>
+                                    <SelectItem value="9">Setembro</SelectItem>
+                                    <SelectItem value="10">Outubro</SelectItem>
+                                    <SelectItem value="11">Novembro</SelectItem>
+                                    <SelectItem value="12">Dezembro</SelectItem>
+                                </SelectContent>
+                            </Select>
 
-                        <Select value={String(selectedYear)} onValueChange={v => setSelectedYear(Number(v))}>
-                            <SelectTrigger className="h-8 border-none bg-transparent hover:bg-slate-700 text-white font-bold text-xs rounded-xl w-[80px]">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-slate-900 border-slate-800 text-white text-xs">
-                                <SelectItem value="2025">2025</SelectItem>
-                                <SelectItem value="2026">2026</SelectItem>
-                                <SelectItem value="2027">2027</SelectItem>
-                            </SelectContent>
-                        </Select>
+                            <Select value={String(selectedYear)} onValueChange={v => setSelectedYear(Number(v))}>
+                                <SelectTrigger className="h-8 border-none bg-transparent hover:bg-slate-700 text-white font-bold text-xs rounded-xl w-[80px] cursor-pointer">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-slate-900 border-slate-800 text-white text-xs">
+                                    <SelectItem value="2025">2025</SelectItem>
+                                    <SelectItem value="2026">2026</SelectItem>
+                                    <SelectItem value="2027">2027</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Exportar Excel */}
+                        <button
+                            onClick={handleExportToExcel}
+                            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-11 px-4 rounded-2xl border border-emerald-500/30 transition-all cursor-pointer shadow-lg shadow-slate-950/20 active:scale-[0.98]"
+                        >
+                            <FileSpreadsheet className="w-4 h-4" />
+                            <span>Exportar Excel</span>
+                        </button>
                     </div>
                 </div>
             </div>
