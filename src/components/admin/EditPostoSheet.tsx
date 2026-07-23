@@ -230,10 +230,36 @@ export function EditPostoSheet({ posto, schedules, roles }: EditPostoSheetProps)
                                                      <SelectItem value="trimestral">Trimestral</SelectItem>
                                                  </SelectContent>
                                              </Select>
-                                         </div>
-                                     </div>
-                                 </div>
-                             </div>
+                                      </div>
+                                      </div>
+                                      <div className="mt-3 space-y-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                          <div className="flex items-center space-x-2">
+                                              <input
+                                                  type="checkbox"
+                                                  id={`replicateAbsenteismo-${posto.id}`}
+                                                  name="replicateAbsenteismo"
+                                                  value="true"
+                                                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                                              />
+                                              <Label htmlFor={`replicateAbsenteismo-${posto.id}`} className="text-xs font-semibold text-slate-700 cursor-pointer">
+                                                  Aplicar esta premiação a todos os postos deste contrato
+                                              </Label>
+                                          </div>
+                                          <div className="flex items-center space-x-2">
+                                              <input
+                                                  type="checkbox"
+                                                  id={`replicateAllBenefits-${posto.id}`}
+                                                  name="replicateAllBenefits"
+                                                  value="true"
+                                                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                                              />
+                                              <Label htmlFor={`replicateAllBenefits-${posto.id}`} className="text-xs font-semibold text-slate-700 cursor-pointer">
+                                                  Aplicar todas as regras de CCT e benefícios (VT/VA) a todos os postos deste contrato
+                                              </Label>
+                                          </div>
+                                      </div>
+                                  </div>
+                              </div>
                         </div>
                     </div>
 

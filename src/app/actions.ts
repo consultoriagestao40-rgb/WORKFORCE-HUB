@@ -1132,6 +1132,36 @@ export async function updatePosto(formData: FormData) {
         }
     });
 
+    const replicateAbsenteismo = formData.get("replicateAbsenteismo") === "true";
+    const replicateAllBenefits = formData.get("replicateAllBenefits") === "true";
+
+    if (replicateAbsenteismo) {
+        await prisma.posto.updateMany({
+            where: { clientId: posto.clientId },
+            data: {
+                absenteismoAwardValue,
+                absenteismoAwardPeriod
+            }
+        });
+    }
+
+    if (replicateAllBenefits) {
+        await prisma.posto.updateMany({
+            where: { clientId: posto.clientId },
+            data: {
+                valeAlimentacao,
+                vaType,
+                valeTransporte,
+                valeTransporte2,
+                vtPaymentMethod2,
+                vtDiscountPercentage,
+                vaDiscountPercentage,
+                vaMealsProvidedOnSite,
+                vaPaidOnVacation
+            }
+        });
+    }
+
     revalidatePath(`/admin/clients/${posto.clientId}`);
 }
 
