@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Users, Building, ClipboardList, LayoutDashboard, History, Clock, Calendar, Building2, ShieldAlert, Briefcase, DollarSign, LogOut, Inbox, AlertCircle, BarChart, UserPlus, Landmark, CreditCard } from "lucide-react";
+import { Users, Building, ClipboardList, LayoutDashboard, History, Clock, Calendar, Building2, ShieldAlert, Briefcase, DollarSign, LogOut, Inbox, AlertCircle, BarChart, UserPlus, Landmark, CreditCard, Calculator } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -92,6 +92,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
                 <NavLink href="/admin/probation-monitor" icon={Clock} label="Monitor de Experiência" colorClass="text-amber-500" />
                 <NavLink href="/admin/vacation-monitor" icon={Calendar} label="Monitor de Férias" colorClass="text-emerald-400" />
                 <NavLink href="/admin/financial-costs" icon={DollarSign} label="Gestão de Custos" colorClass="text-emerald-500" />
+                <NavLink href="/admin/payroll-preview" icon={Calculator} label="Prévia de Folha" colorClass="text-sky-400" />
                 <NavLink href="/admin/benefits" icon={CreditCard} label="Compra de Benefícios" colorClass="text-orange-400" />
 
                 {!isCollapsed && <div className="h-px bg-white/5 my-6 mx-3" />}
