@@ -406,6 +406,9 @@ export async function getBenefitsCalculation(year: number, month: number) {
             ? Math.round((baseVtValue2 / 22) * 100) / 100
             : baseVtValue2;
 
+        const pivotDateForVt = activeAssignment?.startDate ? new Date(activeAssignment.startDate) : admissionDateObj;
+        const scheduledWorkDays = getVaDaysForDaily(posto?.schedule || "5x2", pivotDateForVt, year, month);
+
         // VT Calculation
         let vtBaseValue = 0;
         let vtDeductionValue = 0;
@@ -431,13 +434,18 @@ export async function getBenefitsCalculation(year: number, month: number) {
                 vtBaseValue = baseVtValue;
                 vtDeductionValue = Math.round((occurrencesCount * vtDailyValue) * 100) / 100;
             } else {
-                vtBaseValue = Math.round((baseVtValue * 22) * 100) / 100;
-                vtDeductionValue = Math.round((baseVtValue * occurrencesCount) * 100) / 100;
+                vtBaseValue = Math.round((scheduledWorkDays * vtDailyValue) * 100) / 100;
+                vtDeductionValue = Math.round((vtDailyValue * occurrencesCount) * 100) / 100;
+                vtBatchNote = `${scheduledWorkDays} dias de escala x R$ ${vtDailyValue.toFixed(2)}`;
             }
             vtTotalValue = Math.max(0, Math.round((vtBaseValue - vtDeductionValue) * 100) / 100);
 
             if (occurrencesCount > 0) {
-                vtBatchNote = `${occurrencesCount} falta(s)/atestado(s) abatido(s) no período 26-25`;
+                if (vtBatchNote) {
+                    vtBatchNote += ` | ${occurrencesCount} falta(s) abatida(s) no período 26-25`;
+                } else {
+                    vtBatchNote = `${occurrencesCount} falta(s)/atestado(s) abatido(s) no período 26-25`;
+                }
             }
         }
 
@@ -466,13 +474,18 @@ export async function getBenefitsCalculation(year: number, month: number) {
                 vtBaseValue2 = baseVtValue2;
                 vtDeductionValue2 = Math.round((occurrencesCount * vtDailyValue2) * 100) / 100;
             } else {
-                vtBaseValue2 = Math.round((baseVtValue2 * 22) * 100) / 100;
-                vtDeductionValue2 = Math.round((baseVtValue2 * occurrencesCount) * 100) / 100;
+                vtBaseValue2 = Math.round((scheduledWorkDays * vtDailyValue2) * 100) / 100;
+                vtDeductionValue2 = Math.round((vtDailyValue2 * occurrencesCount) * 100) / 100;
+                vtBatchNote2 = `${scheduledWorkDays} dias de escala x R$ ${vtDailyValue2.toFixed(2)}`;
             }
             vtTotalValue2 = Math.max(0, Math.round((vtBaseValue2 - vtDeductionValue2) * 100) / 100);
 
             if (occurrencesCount > 0) {
-                vtBatchNote2 = `${occurrencesCount} falta(s)/atestado(s) abatido(s) no período 26-25`;
+                if (vtBatchNote2) {
+                    vtBatchNote2 += ` | ${occurrencesCount} falta(s) abatida(s) no período 26-25`;
+                } else {
+                    vtBatchNote2 = `${occurrencesCount} falta(s)/atestado(s) abatido(s) no período 26-25`;
+                }
             }
         }
 
