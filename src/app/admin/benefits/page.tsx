@@ -1061,6 +1061,7 @@ export default function BenefitsPage() {
                                             <th className="py-4 px-4">Optante VT?</th>
                                             <th className="py-4 px-4 text-center">Faltas / Ocorrências</th>
                                             <th className="py-4 px-4 text-right">VT a Comprar</th>
+                                            <th className="py-4 px-4">Destino VT</th>
                                             <th className="py-4 px-4 text-right">VA a Comprar</th>
                                             <th className="py-4 px-4">Destino VA</th>
                                             <th className="py-4 px-4 text-right">Prêmio Assiduidade</th>
