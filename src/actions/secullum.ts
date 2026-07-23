@@ -179,12 +179,17 @@ export async function syncSecullumOccurrences(year: number, month: number) {
             }
         }
 
-        // D. Fetch daily Batidas (to detect single-day Faltas)
+        // D. Fetch daily Batidas (to detect single-day Faltas & Atestados)
         const batidas = await client.getBatidas(startDateStr, endDateStr);
         for (const b of batidas) {
-            // Check if it is a Falta
-            const isFalta = b.Entrada1 === "FALTA" || b.Observacoes?.toLowerCase().includes("falta");
-            if (!isFalta) continue;
+            const rawObs = (b.Observacoes || "").toLowerCase();
+            const rawEntrada = (b.Entrada1 || "").toLowerCase();
+            
+            const isFalta = rawEntrada.includes("falta") || rawObs.includes("falta");
+            const isAtestado = rawEntrada.includes("atestado") || rawEntrada.includes("medico") || rawEntrada.includes("médico") ||
+                               rawObs.includes("atestado") || rawObs.includes("medico") || rawObs.includes("médico") || rawObs.includes("atest");
+            
+            if (!isFalta && !isAtestado) continue;
 
             const folha = b.Funcionario?.NumeroFolha?.trim();
             if (!folha) continue;
@@ -209,7 +214,24 @@ export async function syncSecullumOccurrences(year: number, month: number) {
                 }
             });
 
-            if (!existing) {
+            const occType = isAtestado ? "ATESTADO" : "FALTA";
+            const occTitle = isAtestado 
+                ? `Secullum (Atestado): ${b.Observacoes || "Atestado Médico registrado"}`
+                : "Secullum (Falta): Falta registrada";
+
+            if (existing) {
+                // If it is now an atestado but was previously saved as a falta, update it!
+                if (existing.type !== "ATESTADO" && isAtestado) {
+                    await prisma.occurrence.update({
+                        where: { id: existing.id },
+                        data: {
+                            type: "ATESTADO",
+                            title: occTitle,
+                            description: `Atualizado automaticamente da API Secullum Ponto Web (Falta justificada).`
+                        }
+                    });
+                }
+            } else {
                 const assignment = await prisma.assignment.findFirst({
                     where: { employeeId, endDate: null }
                 });
@@ -219,9 +241,9 @@ export async function syncSecullumOccurrences(year: number, month: number) {
                         data: {
                             employeeId,
                             postoId,
-                            type: "FALTA",
+                            type: occType,
                             date: occDate,
-                            title: "Secullum (Falta): Falta registrada",
+                            title: occTitle,
                             description: `Importada automaticamente das batidas do Secullum Ponto Web. Obs: ${b.Observacoes || 'Nenhuma'}`
                         }
                     });
