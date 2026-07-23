@@ -25,33 +25,37 @@ export async function GET() {
             { name: "JOANA DARK SANTOS DA CRUZ", cpf: "85910527576", sic: null, cq: "65586998200920325" }
         ];
 
+        const allEmployees = await prisma.employee.findMany();
         const results = [];
         
         for (const item of data) {
             let employee = null;
             
+            // 1. Try matching by CPF (comparing digits only)
             if (item.cpf) {
-                const cleanCpf = item.cpf.replace(/\D/g, "");
-                employee = await prisma.employee.findFirst({
-                    where: {
-                        cpf: {
-                            contains: cleanCpf
-                        }
-                    }
-                });
+                const cleanInputCpf = item.cpf.replace(/\D/g, "");
+                employee = allEmployees.find(e => e.cpf.replace(/\D/g, "") === cleanInputCpf);
             }
             
+            // 2. Try matching by name (comparing normalized strings)
             if (!employee) {
-                // Try searching by name match (case insensitive)
-                const firstName = item.name.split(" ")[0];
-                employee = await prisma.employee.findFirst({
-                    where: {
-                        name: {
-                            contains: firstName,
-                            mode: "insensitive"
-                        }
+                const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                const itemNormalized = normalize(item.name);
+                
+                // Try exact match first
+                employee = allEmployees.find(e => normalize(e.name) === itemNormalized);
+                
+                // Try first name + last name or partial match
+                if (!employee) {
+                    const itemParts = itemNormalized.split(" ");
+                    if (itemParts.length >= 2) {
+                        const firstAndLast = `${itemParts[0]} ${itemParts[itemParts.length - 1]}`;
+                        employee = allEmployees.find(e => {
+                            const dbNorm = normalize(e.name);
+                            return dbNorm.includes(itemParts[0]) && dbNorm.includes(itemParts[itemParts.length - 1]);
+                        });
                     }
-                });
+                }
             }
             
             if (employee) {
@@ -63,7 +67,7 @@ export async function GET() {
                         vtPaymentMethod: "Urbs"
                     }
                 });
-                results.push({ name: item.name, status: "updated", sic: item.sic, cq: item.cq });
+                results.push({ name: item.name, matchedName: employee.name, status: "updated", sic: item.sic, cq: item.cq });
             } else {
                 results.push({ name: item.name, status: "not_found" });
             }
