@@ -512,7 +512,7 @@ export default function PayrollPreviewPage() {
                 ) : groupedView === "colaborador" ? (
                     /* LISTAGEM POR COLABORADOR */
                     <div className="overflow-x-auto relative">
-                        <table className="text-left border-collapse" style={{ minWidth: "2100px", tableLayout: "fixed" }}>
+                        <table className="text-left border-collapse" style={{ minWidth: "2900px", tableLayout: "fixed" }}>
                             <colgroup>
                                 <col style={{ width: "280px" }} /> {/* Colaborador */}
                                 <col style={{ width: "220px" }} /> {/* Empresa / Posto */}
@@ -520,12 +520,18 @@ export default function PayrollPreviewPage() {
                                 <col style={{ width: "130px" }} /> {/* Insalubridade */}
                                 <col style={{ width: "130px" }} /> {/* Periculosidade */}
                                 <col style={{ width: "140px" }} /> {/* Outros Adicionais */}
+                                <col style={{ width: "140px" }} /> {/* H. Extras */}
+                                <col style={{ width: "140px" }} /> {/* Adic. Noturno */}
+                                <col style={{ width: "140px" }} /> {/* Salário-Família */}
+                                <col style={{ width: "150px" }} /> {/* Prêmio Absenteísmo */}
+                                <col style={{ width: "140px" }} /> {/* Ajuda Custo */}
                                 <col style={{ width: "150px" }} /> {/* Proventos Brutos */}
                                 <col style={{ width: "100px" }} /> {/* Faltas */}
                                 <col style={{ width: "100px" }} /> {/* Atestados */}
                                 <col style={{ width: "100px" }} /> {/* DSR */}
                                 <col style={{ width: "140px" }} /> {/* Desc. Faltas */}
                                 <col style={{ width: "140px" }} /> {/* Desc. DSR */}
+                                <col style={{ width: "140px" }} /> {/* Desc. Atrasos */}
                                 <col style={{ width: "130px" }} /> {/* Desc. VT */}
                                 <col style={{ width: "130px" }} /> {/* Desc. VA */}
                                 <col style={{ width: "130px" }} /> {/* INSS */}
@@ -540,12 +546,18 @@ export default function PayrollPreviewPage() {
                                     <th className="py-3 px-4 text-right" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Insalubridade</th>
                                     <th className="py-3 px-4 text-right" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Periculosidade</th>
                                     <th className="py-3 px-4 text-right" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Outros Adicionais</th>
+                                    <th className="py-3 px-4 text-right bg-sky-50/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>H. Extras</th>
+                                    <th className="py-3 px-4 text-right bg-sky-50/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Adic. Noturno</th>
+                                    <th className="py-3 px-4 text-right bg-sky-50/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Salário-Família</th>
+                                    <th className="py-3 px-4 text-right bg-sky-50/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Prêmio Absenteísmo</th>
+                                    <th className="py-3 px-4 text-right bg-sky-50/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Ajuda Custo</th>
                                     <th className="py-3 px-4 text-right bg-slate-100/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Proventos Brutos</th>
                                     <th className="py-3 px-4 text-center" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Faltas</th>
                                     <th className="py-3 px-4 text-center" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Atestados</th>
                                     <th className="py-3 px-4 text-center" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>DSR</th>
                                     <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. Faltas</th>
                                     <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. DSR</th>
+                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. Atrasos</th>
                                     <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. VT</th>
                                     <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. VA</th>
                                     <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>INSS</th>
@@ -585,6 +597,86 @@ export default function PayrollPreviewPage() {
                                         {/* Outros Adicionais */}
                                         <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
                                             {item.gratificacao + item.outrosAdicionais > 0 ? formatCurrency(item.gratificacao + item.outrosAdicionais) : "-"}
+                                        </td>
+                                        {/* H. Extras */}
+                                        <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
+                                            {item.horasExtras50Value + item.horasExtras100Value > 0 ? (
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <button className="underline decoration-dashed cursor-pointer text-slate-700 hover:text-slate-900">
+                                                            {formatCurrency(item.horasExtras50Value + item.horasExtras100Value)}
+                                                        </button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-56 p-3 text-xs space-y-1.5">
+                                                        <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Horas Extras (Secullum)</div>
+                                                        <div className="space-y-1 text-[10px] text-slate-655 font-medium">
+                                                            <div className="flex justify-between"><span>Extras 50%:</span><span>{item.extras50Hours}h ({formatCurrency(item.horasExtras50Value)})</span></div>
+                                                            <div className="flex justify-between"><span>Extras 100%:</span><span>{item.extras100Hours}h ({formatCurrency(item.horasExtras100Value)})</span></div>
+                                                        </div>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            ) : "-"}
+                                        </td>
+                                        {/* Adic. Noturno */}
+                                        <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
+                                            {item.adicionalNoturnoValue > 0 ? (
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <button className="underline decoration-dashed cursor-pointer text-slate-700 hover:text-slate-900">
+                                                            {formatCurrency(item.adicionalNoturnoValue)}
+                                                        </button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-52 p-3 text-xs space-y-1">
+                                                        <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Adicional Noturno (Ponto)</div>
+                                                        <div className="flex justify-between text-[10px] text-slate-655 font-medium">
+                                                            <span>Horas Sincronizadas:</span>
+                                                            <span>{item.adicionalNoturnoHours}h</span>
+                                                        </div>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            ) : "-"}
+                                        </td>
+                                        {/* Salário-Família */}
+                                        <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
+                                            {item.salarioFamilia > 0 ? (
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <button className="underline decoration-dashed cursor-pointer text-slate-700 hover:text-slate-900">
+                                                            {formatCurrency(item.salarioFamilia)}
+                                                        </button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-56 p-3 text-xs space-y-1">
+                                                        <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Salário-Família</div>
+                                                        <div className="flex justify-between text-[10px] text-slate-655 font-medium">
+                                                            <span>Qtd Dependentes:</span>
+                                                            <span>{item.dependentsCount}</span>
+                                                        </div>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            ) : "-"}
+                                        </td>
+                                        {/* Prêmio Absenteísmo */}
+                                        <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
+                                            {item.absenteismoAward > 0 ? formatCurrency(item.absenteismoAward) : "-"}
+                                        </td>
+                                        {/* Ajuda Custo */}
+                                        <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
+                                            {item.ajudaCusto + item.adicionalViagem > 0 ? (
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <button className="underline decoration-dashed cursor-pointer text-slate-700 hover:text-slate-900">
+                                                            {formatCurrency(item.ajudaCusto + item.adicionalViagem)}
+                                                        </button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-56 p-3 text-xs space-y-1.5">
+                                                        <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Ajuda de Custo / Viagem</div>
+                                                        <div className="space-y-1 text-[10px] text-slate-655 font-medium">
+                                                            <div className="flex justify-between"><span>Ajuda de Custo:</span><span>{formatCurrency(item.ajudaCusto)}</span></div>
+                                                            <div className="flex justify-between"><span>Adic. Viagem:</span><span>{formatCurrency(item.adicionalViagem)}</span></div>
+                                                        </div>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            ) : "-"}
                                         </td>
                                         {/* Provento Bruto */}
                                         <td className="py-3 px-4 text-right bg-slate-100/30 whitespace-nowrap">
@@ -729,6 +821,25 @@ export default function PayrollPreviewPage() {
                                         <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/10 whitespace-nowrap">
                                             {item.dsrDeduction > 0 ? `-${formatCurrency(item.dsrDeduction)}` : "-"}
                                         </td>
+                                         {/* Desconto Atrasos */}
+                                         <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/10 whitespace-nowrap">
+                                             {item.atrasosDeduction > 0 ? (
+                                                 <Popover>
+                                                     <PopoverTrigger asChild>
+                                                         <button className="underline decoration-dashed cursor-pointer font-bold text-red-500">
+                                                             -{formatCurrency(item.atrasosDeduction)}
+                                                         </button>
+                                                     </PopoverTrigger>
+                                                     <PopoverContent className="w-52 p-3 text-xs space-y-1">
+                                                         <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Atrasos (Secullum)</div>
+                                                         <div className="flex justify-between text-[10px] text-slate-655 font-medium">
+                                                             <span>Horas de Atraso:</span>
+                                                             <span>{item.atrasosHours}h</span>
+                                                         </div>
+                                                     </PopoverContent>
+                                                 </Popover>
+                                             ) : "-"}
+                                         </td>
                                         {/* Desconto VT */}
                                         <td className="py-3 px-4 text-right text-orange-600 bg-orange-50/5 whitespace-nowrap">
                                             {item.vtPayrollDiscount > 0 ? (
@@ -946,19 +1057,25 @@ export default function PayrollPreviewPage() {
                                                         <div className="overflow-hidden border-t border-b border-slate-100 pl-12 pr-4 py-3">
                                                             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">Detalhamento dos Colaboradores</span>
                                                             <div className="overflow-x-auto">
-                                                                <table className="text-left border-collapse bg-white rounded-2xl border border-slate-200/60 overflow-hidden text-[11px]" style={{ minWidth: "1900px", tableLayout: "fixed" }}>
+                                                                <table className="text-left border-collapse bg-white rounded-2xl border border-slate-200/60 overflow-hidden text-[11px]" style={{ minWidth: "2600px", tableLayout: "fixed" }}>
                                                                     <colgroup>
                                                                         <col style={{ width: "260px" }} /> {/* Colaborador */}
                                                                         <col style={{ width: "120px" }} /> {/* Salário Base */}
                                                                         <col style={{ width: "120px" }} /> {/* Insalubridade */}
                                                                         <col style={{ width: "120px" }} /> {/* Periculosidade */}
                                                                         <col style={{ width: "130px" }} /> {/* Outros Adicionais */}
-                                                                        <col style={{ width: "140px" }} /> {/* Provento Bruto */}
+                                                                                                                                                 <col style={{ width: "130px" }} /> {/* H. Extras */}
+                                                                         <col style={{ width: "130px" }} /> {/* Adic. Noturno */}
+                                                                         <col style={{ width: "130px" }} /> {/* Salário-Família */}
+                                                                         <col style={{ width: "140px" }} /> {/* Prêmio Absenteísmo */}
+                                                                         <col style={{ width: "130px" }} /> {/* Ajuda Custo */}
+<col style={{ width: "140px" }} /> {/* Provento Bruto */}
                                                                         <col style={{ width: "90px" }} /> {/* Faltas */}
                                                                         <col style={{ width: "90px" }} /> {/* Atestados */}
                                                                         <col style={{ width: "90px" }} /> {/* DSR */}
                                                                         <col style={{ width: "130px" }} /> {/* Desc. Faltas */}
                                                                         <col style={{ width: "130px" }} /> {/* Desc. DSR */}
+                                                                         <col style={{ width: "130px" }} /> {/* Desc. Atrasos */}
                                                                         <col style={{ width: "120px" }} /> {/* Desc. VT */}
                                                                         <col style={{ width: "120px" }} /> {/* Desc. VA */}
                                                                         <col style={{ width: "120px" }} /> {/* INSS */}
@@ -972,12 +1089,18 @@ export default function PayrollPreviewPage() {
                                                                             <th className="py-2.5 px-3 text-right">Insalubridade</th>
                                                                             <th className="py-2.5 px-3 text-right">Periculosidade</th>
                                                                             <th className="py-2.5 px-3 text-right">Outros Adicionais</th>
-                                                                            <th className="py-2.5 px-3 text-right bg-slate-100/50">Provento Bruto</th>
+                                                                                                                                                         <th className="py-2.5 px-3 text-right bg-sky-50/50">H. Extras</th>
+                                                                             <th className="py-2.5 px-3 text-right bg-sky-50/50">Adic. Noturno</th>
+                                                                             <th className="py-2.5 px-3 text-right bg-sky-50/50">Salário-Família</th>
+                                                                             <th className="py-2.5 px-3 text-right bg-sky-50/50">Prêmio Absenteísmo</th>
+                                                                             <th className="py-2.5 px-3 text-right bg-sky-50/50">Ajuda Custo</th>
+<th className="py-2.5 px-3 text-right bg-slate-100/50">Provento Bruto</th>
                                                                             <th className="py-2.5 px-3 text-center">Faltas</th>
                                                                             <th className="py-2.5 px-3 text-center">Atestados</th>
                                                                             <th className="py-2.5 px-3 text-center">DSR</th>
                                                                             <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">Desc. Faltas</th>
                                                                             <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">Desc. DSR</th>
+                                                                             <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">Desc. Atrasos</th>
                                                                             <th className="py-2.5 px-3 text-right text-orange-650 bg-orange-50/5">Desc. VT</th>
                                                                             <th className="py-2.5 px-3 text-right text-orange-655 bg-orange-50/5">Desc. VA</th>
                                                                             <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">INSS</th>
@@ -1006,6 +1129,86 @@ export default function PayrollPreviewPage() {
                                                                                 <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
                                                                                     {sub.gratificacao + sub.outrosAdicionais > 0 ? formatCurrency(sub.gratificacao + sub.outrosAdicionais) : "-"}
                                                                                 </td>
+                                                                                 {/* H. Extras */}
+                                                                                 <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
+                                                                                     {sub.horasExtras50Value + sub.horasExtras100Value > 0 ? (
+                                                                                         <Popover>
+                                                                                             <PopoverTrigger asChild>
+                                                                                                 <button className="underline decoration-dashed cursor-pointer text-slate-700 hover:text-slate-900">
+                                                                                                     {formatCurrency(sub.horasExtras50Value + sub.horasExtras100Value)}
+                                                                                                 </button>
+                                                                                             </PopoverTrigger>
+                                                                                             <PopoverContent className="w-56 p-3 text-xs space-y-1.5">
+                                                                                                 <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Horas Extras (Secullum)</div>
+                                                                                                 <div className="space-y-1 text-[10px] text-slate-655 font-medium">
+                                                                                                     <div className="flex justify-between"><span>Extras 50%:</span><span>{sub.extras50Hours}h ({formatCurrency(sub.horasExtras50Value)})</span></div>
+                                                                                                     <div className="flex justify-between"><span>Extras 100%:</span><span>{sub.extras100Hours}h ({formatCurrency(sub.horasExtras100Value)})</span></div>
+                                                                                                 </div>
+                                                                                             </PopoverContent>
+                                                                                         </Popover>
+                                                                                     ) : "-"}
+                                                                                 </td>
+                                                                                 {/* Adic. Noturno */}
+                                                                                 <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
+                                                                                     {sub.adicionalNoturnoValue > 0 ? (
+                                                                                         <Popover>
+                                                                                             <PopoverTrigger asChild>
+                                                                                                 <button className="underline decoration-dashed cursor-pointer text-slate-700 hover:text-slate-900">
+                                                                                                     {formatCurrency(sub.adicionalNoturnoValue)}
+                                                                                                 </button>
+                                                                                             </PopoverTrigger>
+                                                                                             <PopoverContent className="w-52 p-3 text-xs space-y-1">
+                                                                                                 <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Adicional Noturno (Ponto)</div>
+                                                                                                 <div className="flex justify-between text-[10px] text-slate-655 font-medium">
+                                                                                                     <span>Horas Sincronizadas:</span>
+                                                                                                     <span>{sub.adicionalNoturnoHours}h</span>
+                                                                                                 </div>
+                                                                                             </PopoverContent>
+                                                                                         </Popover>
+                                                                                     ) : "-"}
+                                                                                 </td>
+                                                                                 {/* Salário-Família */}
+                                                                                 <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
+                                                                                     {sub.salarioFamilia > 0 ? (
+                                                                                         <Popover>
+                                                                                             <PopoverTrigger asChild>
+                                                                                                 <button className="underline decoration-dashed cursor-pointer text-slate-700 hover:text-slate-900">
+                                                                                                     {formatCurrency(sub.salarioFamilia)}
+                                                                                                 </button>
+                                                                                             </PopoverTrigger>
+                                                                                             <PopoverContent className="w-56 p-3 text-xs space-y-1">
+                                                                                                 <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Salário-Família</div>
+                                                                                                 <div className="flex justify-between text-[10px] text-slate-655 font-medium">
+                                                                                                     <span>Qtd Dependentes:</span>
+                                                                                                     <span>{sub.dependentsCount}</span>
+                                                                                                 </div>
+                                                                                             </PopoverContent>
+                                                                                         </Popover>
+                                                                                     ) : "-"}
+                                                                                 </td>
+                                                                                 {/* Prêmio Absenteísmo */}
+                                                                                 <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
+                                                                                     {sub.absenteismoAward > 0 ? formatCurrency(sub.absenteismoAward) : "-"}
+                                                                                 </td>
+                                                                                 {/* Ajuda Custo */}
+                                                                                 <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
+                                                                                     {sub.ajudaCusto + sub.adicionalViagem > 0 ? (
+                                                                                         <Popover>
+                                                                                             <PopoverTrigger asChild>
+                                                                                                 <button className="underline decoration-dashed cursor-pointer text-slate-700 hover:text-slate-900">
+                                                                                                     {formatCurrency(sub.ajudaCusto + sub.adicionalViagem)}
+                                                                                                 </button>
+                                                                                             </PopoverTrigger>
+                                                                                             <PopoverContent className="w-56 p-3 text-xs space-y-1.5">
+                                                                                                 <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Ajuda de Custo / Viagem</div>
+                                                                                                 <div className="space-y-1 text-[10px] text-slate-655 font-medium">
+                                                                                                     <div className="flex justify-between"><span>Ajuda de Custo:</span><span>{formatCurrency(sub.ajudaCusto)}</span></div>
+                                                                                                     <div className="flex justify-between"><span>Adic. Viagem:</span><span>{formatCurrency(sub.adicionalViagem)}</span></div>
+                                                                                                 </div>
+                                                                                             </PopoverContent>
+                                                                                         </Popover>
+                                                                                     ) : "-"}
+                                                                                 </td>
                                                                                 <td className="py-2.5 px-3 text-right bg-slate-100/30 whitespace-nowrap">
                                                                                     <Popover>
                                                                                         <PopoverTrigger asChild>
@@ -1129,6 +1332,25 @@ export default function PayrollPreviewPage() {
                                                                                 <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
                                                                                     {sub.dsrDeduction > 0 ? `-${formatCurrency(sub.dsrDeduction)}` : "-"}
                                                                                 </td>
+                                                                                 {/* Desconto Atrasos */}
+                                                                                 <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
+                                                                                     {sub.atrasosDeduction > 0 ? (
+                                                                                         <Popover>
+                                                                                             <PopoverTrigger asChild>
+                                                                                                 <button className="underline decoration-dashed cursor-pointer font-bold text-red-500 text-xs">
+                                                                                                     -{formatCurrency(sub.atrasosDeduction)}
+                                                                                                 </button>
+                                                                                             </PopoverTrigger>
+                                                                                             <PopoverContent className="w-52 p-3 text-xs space-y-1">
+                                                                                                 <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Atrasos (Secullum)</div>
+                                                                                                 <div className="flex justify-between text-[10px] text-slate-655 font-medium">
+                                                                                                     <span>Horas de Atraso:</span>
+                                                                                                     <span>{sub.atrasosHours}h</span>
+                                                                                                 </div>
+                                                                                             </PopoverContent>
+                                                                                         </Popover>
+                                                                                     ) : "-"}
+                                                                                 </td>
                                                                                 <td className="py-2.5 px-3 text-right text-orange-600 whitespace-nowrap">
                                                                                     {sub.vtPayrollDiscount > 0 ? `-${formatCurrency(sub.vtPayrollDiscount)}` : "-"}
                                                                                 </td>
