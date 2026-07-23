@@ -9,6 +9,7 @@ export interface PayrollOccurrenceDetail {
     date: string;
     type: string;
     notes?: string;
+    rawType?: string;
 }
 
 export interface PayrollPreviewItem {
@@ -26,9 +27,12 @@ export interface PayrollPreviewItem {
     totalGrossSalary: number;
     
     // Occurrences
-    occurrencesCount: number;
+    faltasCount: number;
+    atestadosCount: number;
     occurrencesList: PayrollOccurrenceDetail[];
     faltaDeduction: number;
+    dsrDeductionsCount: number;
+    dsrDeduction: number;
     
     // Benefits Discounts
     vtPayrollDiscount: number;
@@ -46,6 +50,19 @@ export interface PayrollPreviewItem {
     daysWorked: number;
     totalDaysInMonth: number;
     originalSalary: number;
+}
+
+function getUniqueWeeksCount(dates: Date[]): number {
+    const uniqueWeeks = new Set<string>();
+    for (const date of dates) {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day;
+        const sunday = new Date(d.setDate(diff));
+        const weekKey = `${sunday.getFullYear()}-${sunday.getMonth() + 1}-${sunday.getDate()}`;
+        uniqueWeeks.add(weekKey);
+    }
+    return uniqueWeeks.size;
 }
 
 export async function getPayrollPreview(year: number, month: number) {
@@ -90,7 +107,7 @@ export async function getPayrollPreview(year: number, month: number) {
                         gte: windowStart,
                         lte: windowEnd
                     },
-                    type: { in: ["FALTA", "FALTA_INJUSTIFICADA"] }
+                    type: { in: ["FALTA", "FALTA_INJUSTIFICADA", "ATESTADO"] }
                 },
                 orderBy: { date: "asc" }
             }
@@ -140,15 +157,24 @@ export async function getPayrollPreview(year: number, month: number) {
         const occurrencesList = (emp.occurrences || []).map(occ => ({
             id: occ.id,
             date: new Date(occ.date).toLocaleDateString('pt-BR'),
-            type: occ.type === "FALTA_INJUSTIFICADA" ? "Falta Injustificada" : "Falta",
-            notes: occ.description || occ.title || undefined
+            type: occ.type === "ATESTADO" ? "Atestado Médico" : (occ.type === "FALTA_INJUSTIFICADA" ? "Falta Injustificada" : "Falta"),
+            notes: occ.description || occ.title || undefined,
+            rawType: occ.type
         }));
-        const occurrencesCount = occurrencesList.length;
+        const faltasCount = occurrencesList.filter(o => o.rawType === "FALTA" || o.rawType === "FALTA_INJUSTIFICADA").length;
+        const atestadosCount = occurrencesList.filter(o => o.rawType === "ATESTADO").length;
 
-        // Absence deduction based on full fixed salary / 30
-        const fullFixedSalary = emp.salary + emp.insalubridade + emp.periculosidade + emp.gratificacao;
+        // DSR Deduction: count of unique weeks with at least one FALTA / FALTA_INJUSTIFICADA
+        const faltaDates = emp.occurrences
+            .filter(occ => occ.type === "FALTA" || occ.type === "FALTA_INJUSTIFICADA")
+            .map(occ => new Date(occ.date));
+        const dsrDeductionsCount = getUniqueWeeksCount(faltaDates);
+
+        // Absence and DSR deductions based on full fixed salary + additionals / 30
+        const fullFixedSalary = emp.salary + emp.insalubridade + emp.periculosidade + emp.gratificacao + emp.outrosAdicionais;
         const dailyRate = fullFixedSalary / 30;
-        const faltaDeduction = Math.round((dailyRate * occurrencesCount) * 100) / 100;
+        const faltaDeduction = Math.round((dailyRate * faltasCount) * 100) / 100;
+        const dsrDeduction = Math.round((dailyRate * dsrDeductionsCount) * 100) / 100;
 
         const benefitInfo = benefitsMap.get(emp.id);
 
@@ -180,7 +206,7 @@ export async function getPayrollPreview(year: number, month: number) {
             vaPayrollDiscount = Math.round((baseVaValue * (vaDiscountPercentage / 100)) * 100) / 100;
         }
 
-        const totalDeductions = faltaDeduction + vtPayrollDiscount + vaPayrollDiscount;
+        const totalDeductions = faltaDeduction + dsrDeduction + vtPayrollDiscount + vaPayrollDiscount;
         const netSalary = Math.max(0, Math.round((totalGrossSalary - totalDeductions) * 100) / 100);
 
         return {
@@ -196,9 +222,12 @@ export async function getPayrollPreview(year: number, month: number) {
             gratificacao,
             outrosAdicionais,
             totalGrossSalary,
-            occurrencesCount,
+            faltasCount,
+            atestadosCount,
             occurrencesList,
             faltaDeduction,
+            dsrDeductionsCount,
+            dsrDeduction,
             vtPayrollDiscount,
             vtDiscountPercentage,
             vaPayrollDiscount,

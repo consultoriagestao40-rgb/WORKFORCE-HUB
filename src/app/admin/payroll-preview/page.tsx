@@ -110,7 +110,11 @@ export default function PayrollPreviewPage() {
                 gratificacao: 0,
                 outrosAdicionais: 0,
                 totalGrossSalary: 0,
+                faltasCount: 0,
+                atestadosCount: 0,
+                dsrDeductionsCount: 0,
                 faltaDeduction: 0,
+                dsrDeduction: 0,
                 vtPayrollDiscount: 0,
                 vaPayrollDiscount: 0,
                 totalDeductions: 0,
@@ -125,7 +129,11 @@ export default function PayrollPreviewPage() {
         acc[group].gratificacao += item.gratificacao;
         acc[group].outrosAdicionais += item.outrosAdicionais;
         acc[group].totalGrossSalary += item.totalGrossSalary;
+        acc[group].faltasCount += item.faltasCount;
+        acc[group].atestadosCount += item.atestadosCount;
+        acc[group].dsrDeductionsCount += item.dsrDeductionsCount;
         acc[group].faltaDeduction += item.faltaDeduction;
+        acc[group].dsrDeduction += item.dsrDeduction;
         acc[group].vtPayrollDiscount += item.vtPayrollDiscount;
         acc[group].vaPayrollDiscount += item.vaPayrollDiscount;
         acc[group].totalDeductions += item.totalDeductions;
@@ -146,7 +154,11 @@ export default function PayrollPreviewPage() {
                 gratificacao: 0,
                 outrosAdicionais: 0,
                 totalGrossSalary: 0,
+                faltasCount: 0,
+                atestadosCount: 0,
+                dsrDeductionsCount: 0,
                 faltaDeduction: 0,
+                dsrDeduction: 0,
                 vtPayrollDiscount: 0,
                 vaPayrollDiscount: 0,
                 totalDeductions: 0,
@@ -161,7 +173,11 @@ export default function PayrollPreviewPage() {
         acc[group].gratificacao += item.gratificacao;
         acc[group].outrosAdicionais += item.outrosAdicionais;
         acc[group].totalGrossSalary += item.totalGrossSalary;
+        acc[group].faltasCount += item.faltasCount;
+        acc[group].atestadosCount += item.atestadosCount;
+        acc[group].dsrDeductionsCount += item.dsrDeductionsCount;
         acc[group].faltaDeduction += item.faltaDeduction;
+        acc[group].dsrDeduction += item.dsrDeduction;
         acc[group].vtPayrollDiscount += item.vtPayrollDiscount;
         acc[group].vaPayrollDiscount += item.vaPayrollDiscount;
         acc[group].totalDeductions += item.totalDeductions;
@@ -283,7 +299,7 @@ export default function PayrollPreviewPage() {
                         <h3 className="text-2xl font-black text-red-600">{formatCurrency(totalDeductionsSum)}</h3>
                         <div className="flex items-center gap-0.5 text-[9px] font-bold text-red-500 mt-1">
                             <TrendingDown className="w-3 h-3" />
-                            <span>Faltas + VT + VA CCT</span>
+                            <span>Faltas + DSR + VT + VA</span>
                         </div>
                     </div>
                     <div className="bg-red-50 border border-red-100 p-3 rounded-2xl text-red-500">
@@ -398,24 +414,31 @@ export default function PayrollPreviewPage() {
                 ) : groupedView === "colaborador" ? (
                     /* LISTAGEM POR COLABORADOR */
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full text-left border-collapse min-w-[1500px]">
                             <thead>
                                 <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                                    <th className="py-3 px-4">Colaborador / CPF / Função</th>
-                                    <th className="py-3 px-4">Empresa / Posto</th>
-                                    <th className="py-3 px-4 text-right">Proventos Brutos</th>
+                                    <th className="py-3 px-4 sticky left-0 bg-slate-50 z-10 w-[240px]">Colaborador / CPF / Função</th>
+                                    <th className="py-3 px-4 w-[180px]">Empresa / Posto</th>
+                                    <th className="py-3 px-4 text-right">Salário Base</th>
+                                    <th className="py-3 px-4 text-right">Insalubridade</th>
+                                    <th className="py-3 px-4 text-right">Periculosidade</th>
+                                    <th className="py-3 px-4 text-right">Outros Adicionais</th>
+                                    <th className="py-3 px-4 text-right bg-slate-100/50">Proventos Brutos</th>
                                     <th className="py-3 px-4 text-center">Faltas</th>
-                                    <th className="py-3 px-4 text-right">Desconto Faltas</th>
-                                    <th className="py-3 px-4 text-right">Desconto VT (CCT)</th>
-                                    <th className="py-3 px-4 text-right">Desconto VA (CCT)</th>
-                                    <th className="py-3 px-4 text-right font-bold text-slate-800">Líquido Final</th>
+                                    <th className="py-3 px-4 text-center">Atestados</th>
+                                    <th className="py-3 px-4 text-center">DSR</th>
+                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20">Desc. Faltas</th>
+                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20">Desc. DSR</th>
+                                    <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20">Desc. VT</th>
+                                    <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20">Desc. VA</th>
+                                    <th className="py-3 px-4 text-right font-bold text-sky-800 bg-sky-50/20 sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.08)]">Líquido Final</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-650">
                                 {filteredItems.map(item => (
                                     <tr key={item.employeeId} className="hover:bg-slate-50/60 transition-colors">
                                         {/* Colaborador */}
-                                        <td className="py-3 px-4">
+                                        <td className="py-3 px-4 sticky left-0 bg-white group-hover:bg-slate-50/65 z-10">
                                             <div>
                                                 <div className="font-bold text-slate-900 text-[13px]">{item.employeeName}</div>
                                                 <div className="text-[10px] text-slate-400 font-medium mt-0.5">CPF: {item.employeeCpf} | {item.postoName}</div>
@@ -428,11 +451,27 @@ export default function PayrollPreviewPage() {
                                                 <div className="text-[10px] text-slate-400 font-medium mt-0.5">{item.clientName}</div>
                                             </div>
                                         </td>
+                                        {/* Salário Base */}
+                                        <td className="py-3 px-4 text-right font-medium text-slate-800">
+                                            {formatCurrency(item.baseSalary)}
+                                        </td>
+                                        {/* Insalubridade */}
+                                        <td className="py-3 px-4 text-right font-medium text-slate-850">
+                                            {item.insalubridade > 0 ? formatCurrency(item.insalubridade) : "-"}
+                                        </td>
+                                        {/* Periculosidade */}
+                                        <td className="py-3 px-4 text-right font-medium text-slate-850">
+                                            {item.periculosidade > 0 ? formatCurrency(item.periculosidade) : "-"}
+                                        </td>
+                                        {/* Outros Adicionais */}
+                                        <td className="py-3 px-4 text-right font-medium text-slate-850">
+                                            {item.gratificacao + item.outrosAdicionais > 0 ? formatCurrency(item.gratificacao + item.outrosAdicionais) : "-"}
+                                        </td>
                                         {/* Provento Bruto */}
-                                        <td className="py-3 px-4 text-right">
+                                        <td className="py-3 px-4 text-right bg-slate-100/30">
                                             <Popover>
                                                 <PopoverTrigger asChild>
-                                                    <button className="font-bold text-slate-800 hover:text-slate-900 underline decoration-dashed cursor-pointer">
+                                                    <button className="font-bold text-slate-800 hover:text-slate-950 underline decoration-dashed cursor-pointer">
                                                         {formatCurrency(item.totalGrossSalary)}
                                                     </button>
                                                 </PopoverTrigger>
@@ -464,11 +503,11 @@ export default function PayrollPreviewPage() {
                                         </td>
                                         {/* Faltas */}
                                         <td className="py-3 px-4 text-center">
-                                            {item.occurrencesCount > 0 ? (
+                                            {item.faltasCount > 0 ? (
                                                 <Popover>
                                                     <PopoverTrigger asChild>
-                                                        <button className="bg-red-50 hover:bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-lg border border-red-200/50 cursor-pointer text-xs">
-                                                            {item.occurrencesCount} {item.occurrencesCount === 1 ? 'falta' : 'faltas'}
+                                                        <button className="bg-red-50 hover:bg-red-100 text-red-650 font-bold px-2 py-0.5 rounded-lg border border-red-200/50 cursor-pointer text-xs">
+                                                            {item.faltasCount} {item.faltasCount === 1 ? 'falta' : 'faltas'}
                                                         </button>
                                                     </PopoverTrigger>
                                                     <PopoverContent className="w-72 p-3 text-xs space-y-2">
@@ -477,7 +516,7 @@ export default function PayrollPreviewPage() {
                                                             <span className="text-red-600">-{formatCurrency(item.faltaDeduction)}</span>
                                                         </div>
                                                         <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                                                            {item.occurrencesList.map(occ => (
+                                                            {item.occurrencesList.filter(occ => occ.rawType === "FALTA" || occ.rawType === "FALTA_INJUSTIFICADA").map(occ => (
                                                                 <div key={occ.id} className="p-1.5 rounded-lg border border-slate-100 bg-slate-50 text-[10px] space-y-0.5">
                                                                     <div className="flex justify-between font-bold text-slate-800">
                                                                         <span>{occ.date}</span>
@@ -488,7 +527,7 @@ export default function PayrollPreviewPage() {
                                                             ))}
                                                         </div>
                                                         <div className="text-[9px] text-slate-500 italic pt-1 border-t leading-normal">
-                                                            Fórmula CCT: (Salário Base + Adicionais Fixos) / 30 por falta injustificada.
+                                                            Fórmula CLT: (Salário Base + Adicionais Fixos) / 30 por falta injustificada.
                                                         </div>
                                                     </PopoverContent>
                                                 </Popover>
@@ -496,12 +535,76 @@ export default function PayrollPreviewPage() {
                                                 <span className="text-slate-350 text-xs">-</span>
                                             )}
                                         </td>
-                                        {/* Valor Desconto Faltas */}
-                                        <td className="py-3 px-4 text-right text-red-500 font-bold">
+                                        {/* Atestados */}
+                                        <td className="py-3 px-4 text-center">
+                                            {item.atestadosCount > 0 ? (
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <button className="bg-emerald-50 hover:bg-emerald-100 text-emerald-650 font-bold px-2 py-0.5 rounded-lg border border-emerald-200/50 cursor-pointer text-xs">
+                                                            {item.atestadosCount} {item.atestadosCount === 1 ? 'atestado' : 'atestados'}
+                                                        </button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-72 p-3 text-xs space-y-2">
+                                                        <div className="font-bold text-slate-900 border-b pb-1 text-[11px] flex justify-between">
+                                                            <span>Atestados Médicos (Abonados)</span>
+                                                            <span className="text-emerald-600">Abonado</span>
+                                                        </div>
+                                                        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                                                            {item.occurrencesList.filter(occ => occ.rawType === "ATESTADO").map(occ => (
+                                                                <div key={occ.id} className="p-1.5 rounded-lg border border-slate-100 bg-slate-50 text-[10px] space-y-0.5">
+                                                                    <div className="flex justify-between font-bold text-slate-800">
+                                                                        <span>{occ.date}</span>
+                                                                        <span className="text-emerald-500">{occ.type}</span>
+                                                                    </div>
+                                                                    {occ.notes && <p className="text-slate-400 italic text-[9px] leading-tight">Nota: {occ.notes}</p>}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <div className="text-[9px] text-slate-500 italic pt-1 border-t leading-normal">
+                                                            Atestados médicos justificam e abonam a falta, mantendo a remuneração integral do dia.
+                                                        </div>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            ) : (
+                                                <span className="text-slate-350 text-xs">-</span>
+                                            )}
+                                        </td>
+                                        {/* DSR */}
+                                        <td className="py-3 px-4 text-center">
+                                            {item.dsrDeductionsCount > 0 ? (
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <button className="bg-red-50 hover:bg-red-100 text-red-650 font-bold px-2 py-0.5 rounded-lg border border-red-200/50 cursor-pointer text-xs">
+                                                            {item.dsrDeductionsCount} {item.dsrDeductionsCount === 1 ? 'dia' : 'dias'}
+                                                        </button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-72 p-3 text-xs space-y-2">
+                                                        <div className="font-bold text-slate-900 border-b pb-1 text-[11px] flex justify-between">
+                                                            <span>Perda de DSR (CLT)</span>
+                                                            <span className="text-red-600">-{formatCurrency(item.dsrDeduction)}</span>
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-650 leading-normal font-medium">
+                                                            Pela Lei nº 605/49, a falta injustificada na semana retira do colaborador o direito de receber pelo descanso semanal remunerado daquela semana.
+                                                        </p>
+                                                        <div className="text-[9px] text-slate-500 italic pt-1 border-t leading-normal">
+                                                            Fórmula CLT: (Salário Base + Adicionais Fixos) / 30 por semana com falta.
+                                                        </div>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            ) : (
+                                                <span className="text-slate-350 text-xs">-</span>
+                                            )}
+                                        </td>
+                                        {/* Desconto Faltas */}
+                                        <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/10">
                                             {item.faltaDeduction > 0 ? `-${formatCurrency(item.faltaDeduction)}` : "-"}
                                         </td>
+                                        {/* Desconto DSR */}
+                                        <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/10">
+                                            {item.dsrDeduction > 0 ? `-${formatCurrency(item.dsrDeduction)}` : "-"}
+                                        </td>
                                         {/* Desconto VT */}
-                                        <td className="py-3 px-4 text-right text-orange-600">
+                                        <td className="py-3 px-4 text-right text-orange-600 bg-orange-50/5">
                                             {item.vtPayrollDiscount > 0 ? (
                                                 <Popover>
                                                     <PopoverTrigger asChild>
@@ -529,7 +632,7 @@ export default function PayrollPreviewPage() {
                                             )}
                                         </td>
                                         {/* Desconto VA */}
-                                        <td className="py-3 px-4 text-right text-orange-600">
+                                        <td className="py-3 px-4 text-right text-orange-600 bg-orange-50/5">
                                             {item.vaPayrollDiscount > 0 ? (
                                                 <Popover>
                                                     <PopoverTrigger asChild>
@@ -556,7 +659,7 @@ export default function PayrollPreviewPage() {
                                             )}
                                         </td>
                                         {/* Salário Líquido */}
-                                        <td className="py-3 px-4 text-right font-black text-[13px] text-sky-700">
+                                        <td className="py-3 px-4 text-right font-black text-[13px] text-sky-700 bg-sky-50/10 sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.08)]">
                                             {formatCurrency(item.netSalary)}
                                         </td>
                                     </tr>
@@ -567,16 +670,17 @@ export default function PayrollPreviewPage() {
                 ) : (
                     /* VISÕES AGRUPADAS (EMPRESA OU CONTRATO) */
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full text-left border-collapse min-w-[1200px]">
                             <thead>
                                 <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-wider">
                                     <th className="py-3 px-4 w-6"></th>
                                     <th className="py-3 px-4">{groupedView === "empresa" ? "Empresa" : "Contrato / Cliente"}</th>
                                     <th className="py-3 px-4 text-center">Qtd Ativos</th>
                                     <th className="py-3 px-4 text-right">Proventos Brutos</th>
-                                    <th className="py-3 px-4 text-right">Total Desconto Faltas</th>
-                                    <th className="py-3 px-4 text-right">Total Desconto VT</th>
-                                    <th className="py-3 px-4 text-right">Total Desconto VA</th>
+                                    <th className="py-3 px-4 text-right">Total Desc. Faltas</th>
+                                    <th className="py-3 px-4 text-right">Total Desc. DSR</th>
+                                    <th className="py-3 px-4 text-right">Total Desc. VT</th>
+                                    <th className="py-3 px-4 text-right">Total Desc. VA</th>
                                     <th className="py-3 px-4 text-right font-bold text-slate-800">Líquido Consolidado</th>
                                 </tr>
                             </thead>
@@ -613,6 +717,10 @@ export default function PayrollPreviewPage() {
                                                 <td className="py-3 px-4 text-right text-red-500 font-bold">
                                                     {group.faltaDeduction > 0 ? `-${formatCurrency(group.faltaDeduction)}` : "-"}
                                                 </td>
+                                                {/* Desconto DSR */}
+                                                <td className="py-3 px-4 text-right text-red-500 font-bold">
+                                                    {group.dsrDeduction > 0 ? `-${formatCurrency(group.dsrDeduction)}` : "-"}
+                                                </td>
                                                 {/* Desconto VT */}
                                                 <td className="py-3 px-4 text-right text-orange-600 font-bold">
                                                     {group.vtPayrollDiscount > 0 ? `-${formatCurrency(group.vtPayrollDiscount)}` : "-"}
@@ -630,88 +738,180 @@ export default function PayrollPreviewPage() {
                                             {/* Expandível individual do grupo */}
                                             {isExpanded && (
                                                 <tr>
-                                                    <td colSpan={8} className="p-0 bg-slate-50/30">
-                                                        <div className="overflow-hidden border-t border-b border-slate-100 pl-14 pr-4 py-3">
+                                                    <td colSpan={9} className="p-0 bg-slate-50/30">
+                                                        <div className="overflow-hidden border-t border-b border-slate-100 pl-12 pr-4 py-3">
                                                             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">Detalhamento dos Colaboradores</span>
-                                                            <table className="w-full text-left border-collapse bg-white rounded-2xl border border-slate-200/60 overflow-hidden text-[11px]">
-                                                                <thead>
-                                                                    <tr className="border-b border-slate-100 bg-slate-50 text-[9px] font-black uppercase text-slate-400 tracking-wider">
-                                                                        <th className="py-2.5 px-3">Colaborador / CPF / Função</th>
-                                                                        <th className="py-2.5 px-3 text-right">Provento Bruto</th>
-                                                                        <th className="py-2.5 px-3 text-center">Faltas</th>
-                                                                        <th className="py-2.5 px-3 text-right">Desc. Faltas</th>
-                                                                        <th className="py-2.5 px-3 text-right">Desc. VT</th>
-                                                                        <th className="py-2.5 px-3 text-right">Desc. VA</th>
-                                                                        <th className="py-2.5 px-3 text-right font-bold text-slate-800">Líquido Final</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody className="divide-y divide-slate-100 font-semibold text-slate-650">
-                                                                    {group.items.map((sub: PayrollPreviewItem) => (
-                                                                        <tr key={sub.employeeId} className="hover:bg-slate-50/80 transition-colors">
-                                                                            <td className="py-2.5 px-3">
-                                                                                <div>
-                                                                                    <div className="font-bold text-slate-800">{sub.employeeName}</div>
-                                                                                    <div className="text-[9px] text-slate-400 font-medium">CPF: {sub.employeeCpf} | {sub.postoName}</div>
-                                                                                </div>
-                                                                            </td>
-                                                                             <td className="py-2.5 px-3 text-right">
-                                                                                 <Popover>
-                                                                                     <PopoverTrigger asChild>
-                                                                                         <button className="font-bold text-slate-700 hover:text-slate-800 underline decoration-dashed cursor-pointer">
-                                                                                             {formatCurrency(sub.totalGrossSalary)}
-                                                                                         </button>
-                                                                                     </PopoverTrigger>
-                                                                                     <PopoverContent className="w-64 p-3 text-xs space-y-2.5">
-                                                                                         <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Composição do Salário Bruto</div>
-                                                                                         
-                                                                                         {sub.isAdmittedThisMonth && (
-                                                                                             <div className="bg-sky-50 p-2.5 rounded-xl border border-sky-100 text-[10px] space-y-1 text-sky-850 font-medium">
-                                                                                                 <div className="font-black text-sky-950 flex items-center gap-1">
-                                                                                                     <Info className="w-3.5 h-3.5 text-sky-500" />
-                                                                                                     <span>Admissão Proporcional (Pró-rata)</span>
-                                                                                                 </div>
-                                                                                                 <div className="flex justify-between"><span>Data de Admissão:</span><span className="font-bold">{sub.admissionDate}</span></div>
-                                                                                                 <div className="flex justify-between"><span>Dias Proporcionais:</span><span className="font-bold">{sub.daysWorked} de {sub.totalDaysInMonth} dias</span></div>
-                                                                                                 <div className="flex justify-between"><span>Salário Base Cheio:</span><span className="font-bold">{formatCurrency(sub.originalSalary)}</span></div>
-                                                                                                 <div className="flex justify-between"><span>Valor Diário:</span><span className="font-bold">{formatCurrency(Math.round((sub.originalSalary / sub.totalDaysInMonth) * 100) / 100)}/dia</span></div>
-                                                                                             </div>
-                                                                                         )}
-
-                                                                                         <div className="space-y-1 text-[10px] text-slate-650 font-medium">
-                                                                                             <div className="flex justify-between"><span>Salário Base Pago:</span><span className="font-bold text-slate-800">{formatCurrency(sub.baseSalary)}</span></div>
-                                                                                             {sub.insalubridade > 0 && <div className="flex justify-between"><span>Insalubridade:</span><span className="font-bold text-slate-800">{formatCurrency(sub.insalubridade)}</span></div>}
-                                                                                             {sub.periculosidade > 0 && <div className="flex justify-between"><span>Periculosidade:</span><span className="font-bold text-slate-800">{formatCurrency(sub.periculosidade)}</span></div>}
-                                                                                             {sub.gratificacao > 0 && <div className="flex justify-between"><span>Gratificação CCT:</span><span className="font-bold text-slate-800">{formatCurrency(sub.gratificacao)}</span></div>}
-                                                                                             {sub.outrosAdicionais > 0 && <div className="flex justify-between"><span>Outros Adicionais:</span><span className="font-bold text-slate-800">{formatCurrency(sub.outrosAdicionais)}</span></div>}
-                                                                                         </div>
-                                                                                     </PopoverContent>
-                                                                                 </Popover>
-                                                                             </td>
-                                                                            <td className="py-2.5 px-3 text-center">
-                                                                                {sub.occurrencesCount > 0 ? (
-                                                                                    <span className="bg-red-50 text-red-600 font-bold px-1.5 py-0.5 rounded text-[10px] border border-red-200/50">
-                                                                                        {sub.occurrencesCount} {sub.occurrencesCount === 1 ? 'falta' : 'faltas'}
-                                                                                    </span>
-                                                                                ) : (
-                                                                                    <span className="text-slate-350">-</span>
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="py-2.5 px-3 text-right text-red-500">
-                                                                                {sub.faltaDeduction > 0 ? `-${formatCurrency(sub.faltaDeduction)}` : "-"}
-                                                                            </td>
-                                                                            <td className="py-2.5 px-3 text-right text-orange-600">
-                                                                                {sub.vtPayrollDiscount > 0 ? `-${formatCurrency(sub.vtPayrollDiscount)}` : "-"}
-                                                                            </td>
-                                                                            <td className="py-2.5 px-3 text-right text-orange-600">
-                                                                                {sub.vaPayrollDiscount > 0 ? `-${formatCurrency(sub.vaPayrollDiscount)}` : "-"}
-                                                                            </td>
-                                                                            <td className="py-2.5 px-3 text-right font-bold text-sky-700">
-                                                                                {formatCurrency(sub.netSalary)}
-                                                                            </td>
+                                                            <div className="overflow-x-auto">
+                                                                <table className="w-full text-left border-collapse bg-white rounded-2xl border border-slate-200/60 overflow-hidden text-[11px] min-w-[1350px]">
+                                                                    <thead>
+                                                                        <tr className="border-b border-slate-100 bg-slate-50 text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                                                                            <th className="py-2.5 px-3">Colaborador / CPF / Função</th>
+                                                                            <th className="py-2.5 px-3 text-right">Salário Base</th>
+                                                                            <th className="py-2.5 px-3 text-right">Insalubridade</th>
+                                                                            <th className="py-2.5 px-3 text-right">Periculosidade</th>
+                                                                            <th className="py-2.5 px-3 text-right">Outros Adicionais</th>
+                                                                            <th className="py-2.5 px-3 text-right bg-slate-100/50">Provento Bruto</th>
+                                                                            <th className="py-2.5 px-3 text-center">Faltas</th>
+                                                                            <th className="py-2.5 px-3 text-center">Atestados</th>
+                                                                            <th className="py-2.5 px-3 text-center">DSR</th>
+                                                                            <th className="py-2.5 px-3 text-right text-red-500">Desc. Faltas</th>
+                                                                            <th className="py-2.5 px-3 text-right text-red-500">Desc. DSR</th>
+                                                                            <th className="py-2.5 px-3 text-right text-orange-600">Desc. VT</th>
+                                                                            <th className="py-2.5 px-3 text-right text-orange-600">Desc. VA</th>
+                                                                            <th className="py-2.5 px-3 text-right font-bold text-sky-850">Líquido Final</th>
                                                                         </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-slate-100 font-semibold text-slate-650">
+                                                                        {group.items.map((sub: PayrollPreviewItem) => (
+                                                                            <tr key={sub.employeeId} className="hover:bg-slate-50/80 transition-colors">
+                                                                                <td className="py-2.5 px-3">
+                                                                                    <div>
+                                                                                        <div className="font-bold text-slate-800">{sub.employeeName}</div>
+                                                                                        <div className="text-[9px] text-slate-400 font-medium">CPF: {sub.employeeCpf} | {sub.postoName}</div>
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-right font-medium text-slate-700">
+                                                                                    {formatCurrency(sub.baseSalary)}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-right font-medium text-slate-700">
+                                                                                    {sub.insalubridade > 0 ? formatCurrency(sub.insalubridade) : "-"}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-right font-medium text-slate-700">
+                                                                                    {sub.periculosidade > 0 ? formatCurrency(sub.periculosidade) : "-"}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-right font-medium text-slate-700">
+                                                                                    {sub.gratificacao + sub.outrosAdicionais > 0 ? formatCurrency(sub.gratificacao + sub.outrosAdicionais) : "-"}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-right bg-slate-100/30">
+                                                                                    <Popover>
+                                                                                        <PopoverTrigger asChild>
+                                                                                            <button className="font-bold text-slate-700 hover:text-slate-850 underline decoration-dashed cursor-pointer">
+                                                                                                {formatCurrency(sub.totalGrossSalary)}
+                                                                                            </button>
+                                                                                        </PopoverTrigger>
+                                                                                        <PopoverContent className="w-64 p-3 text-xs space-y-2.5">
+                                                                                            <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Composição do Salário Bruto</div>
+                                                                                            
+                                                                                            {sub.isAdmittedThisMonth && (
+                                                                                                <div className="bg-sky-50 p-2.5 rounded-xl border border-sky-100 text-[10px] space-y-1 text-sky-850 font-medium">
+                                                                                                    <div className="font-black text-sky-950 flex items-center gap-1">
+                                                                                                        <Info className="w-3.5 h-3.5 text-sky-500" />
+                                                                                                        <span>Admissão Proporcional (Pró-rata)</span>
+                                                                                                    </div>
+                                                                                                    <div className="flex justify-between"><span>Data de Admissão:</span><span className="font-bold">{sub.admissionDate}</span></div>
+                                                                                                    <div className="flex justify-between"><span>Dias Proporcionais:</span><span className="font-bold">{sub.daysWorked} de {sub.totalDaysInMonth} dias</span></div>
+                                                                                                    <div className="flex justify-between"><span>Salário Base Cheio:</span><span className="font-bold">{formatCurrency(sub.originalSalary)}</span></div>
+                                                                                                    <div className="flex justify-between"><span>Valor Diário:</span><span className="font-bold">{formatCurrency(Math.round((sub.originalSalary / sub.totalDaysInMonth) * 100) / 100)}/dia</span></div>
+                                                                                                </div>
+                                                                                            )}
+
+                                                                                            <div className="space-y-1 text-[10px] text-slate-655 font-medium">
+                                                                                                <div className="flex justify-between"><span>Salário Base Pago:</span><span className="font-bold text-slate-800">{formatCurrency(sub.baseSalary)}</span></div>
+                                                                                                {sub.insalubridade > 0 && <div className="flex justify-between"><span>Insalubridade:</span><span className="font-bold text-slate-800">{formatCurrency(sub.insalubridade)}</span></div>}
+                                                                                                {sub.periculosidade > 0 && <div className="flex justify-between"><span>Periculosidade:</span><span className="font-bold text-slate-800">{formatCurrency(sub.periculosidade)}</span></div>}
+                                                                                                {sub.gratificacao > 0 && <div className="flex justify-between"><span>Gratificação CCT:</span><span className="font-bold text-slate-800">{formatCurrency(sub.gratificacao)}</span></div>}
+                                                                                                {sub.outrosAdicionais > 0 && <div className="flex justify-between"><span>Outros Adicionais:</span><span className="font-bold text-slate-800">{formatCurrency(sub.outrosAdicionais)}</span></div>}
+                                                                                            </div>
+                                                                                        </PopoverContent>
+                                                                                    </Popover>
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-center">
+                                                                                    {sub.faltasCount > 0 ? (
+                                                                                        <Popover>
+                                                                                            <PopoverTrigger asChild>
+                                                                                                <button className="bg-red-50 hover:bg-red-100 text-red-650 font-bold px-1.5 py-0.5 rounded text-[10px] border border-red-200/50 cursor-pointer">
+                                                                                                    {sub.faltasCount} {sub.faltasCount === 1 ? 'falta' : 'faltas'}
+                                                                                                </button>
+                                                                                            </PopoverTrigger>
+                                                                                            <PopoverContent className="w-72 p-3 text-xs space-y-2">
+                                                                                                <div className="font-bold text-slate-900 border-b pb-1 text-[11px] flex justify-between">
+                                                                                                    <span>Desconto Faltas</span>
+                                                                                                    <span className="text-red-500">-{formatCurrency(sub.faltaDeduction)}</span>
+                                                                                                </div>
+                                                                                                <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                                                                                                    {sub.occurrencesList.filter(o => o.rawType === "FALTA" || o.rawType === "FALTA_INJUSTIFICADA").map(occ => (
+                                                                                                        <div key={occ.id} className="p-1 rounded bg-slate-50 border border-slate-100 text-[10px]">
+                                                                                                            <div className="flex justify-between font-bold text-slate-800">
+                                                                                                                <span>{occ.date}</span>
+                                                                                                                <span className="text-red-500">{occ.type}</span>
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                    ))}
+                                                                                                </div>
+                                                                                            </PopoverContent>
+                                                                                        </Popover>
+                                                                                    ) : (
+                                                                                        <span className="text-slate-355">-</span>
+                                                                                    )}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-center">
+                                                                                    {sub.atestadosCount > 0 ? (
+                                                                                        <Popover>
+                                                                                            <PopoverTrigger asChild>
+                                                                                                <button className="bg-emerald-50 hover:bg-emerald-100 text-emerald-650 font-bold px-1.5 py-0.5 rounded text-[10px] border border-emerald-200/50 cursor-pointer">
+                                                                                                    {sub.atestadosCount} {sub.atestadosCount === 1 ? 'atestado' : 'atestados'}
+                                                                                                </button>
+                                                                                            </PopoverTrigger>
+                                                                                            <PopoverContent className="w-72 p-3 text-xs space-y-2">
+                                                                                                <div className="font-bold text-slate-900 border-b pb-1 text-[11px] flex justify-between">
+                                                                                                    <span>Atestados Médicos (Abonados)</span>
+                                                                                                    <span className="text-emerald-500">Abonado</span>
+                                                                                                </div>
+                                                                                                <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                                                                                                    {sub.occurrencesList.filter(o => o.rawType === "ATESTADO").map(occ => (
+                                                                                                        <div key={occ.id} className="p-1 rounded bg-slate-50 border border-slate-100 text-[10px]">
+                                                                                                            <div className="flex justify-between font-bold text-slate-800">
+                                                                                                                <span>{occ.date}</span>
+                                                                                                                <span className="text-emerald-500">{occ.type}</span>
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                    ))}
+                                                                                                </div>
+                                                                                            </PopoverContent>
+                                                                                        </Popover>
+                                                                                    ) : (
+                                                                                        <span className="text-slate-355">-</span>
+                                                                                    )}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-center">
+                                                                                    {sub.dsrDeductionsCount > 0 ? (
+                                                                                        <Popover>
+                                                                                            <PopoverTrigger asChild>
+                                                                                                <button className="bg-red-50 hover:bg-red-100 text-red-650 font-bold px-1.5 py-0.5 rounded text-[10px] border border-red-200/50 cursor-pointer">
+                                                                                                    {sub.dsrDeductionsCount} {sub.dsrDeductionsCount === 1 ? 'dia' : 'dias'}
+                                                                                                </button>
+                                                                                            </PopoverTrigger>
+                                                                                            <PopoverContent className="w-72 p-3 text-xs space-y-2">
+                                                                                                <div className="font-bold text-slate-900 border-b pb-1 text-[11px] flex justify-between">
+                                                                                                    <span>Dedução de DSR</span>
+                                                                                                    <span className="text-red-500">-{formatCurrency(sub.dsrDeduction)}</span>
+                                                                                                </div>
+                                                                                            </PopoverContent>
+                                                                                        </Popover>
+                                                                                    ) : (
+                                                                                        <span className="text-slate-355">-</span>
+                                                                                    )}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-right text-red-500">
+                                                                                    {sub.faltaDeduction > 0 ? `-${formatCurrency(sub.faltaDeduction)}` : "-"}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-right text-red-500">
+                                                                                    {sub.dsrDeduction > 0 ? `-${formatCurrency(sub.dsrDeduction)}` : "-"}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-right text-orange-600">
+                                                                                    {sub.vtPayrollDiscount > 0 ? `-${formatCurrency(sub.vtPayrollDiscount)}` : "-"}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-right text-orange-600">
+                                                                                    {sub.vaPayrollDiscount > 0 ? `-${formatCurrency(sub.vaPayrollDiscount)}` : "-"}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-right font-bold text-sky-700">
+                                                                                    {formatCurrency(sub.netSalary)}
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
                                                         </div>
                                                     </td>
                                                 </tr>
