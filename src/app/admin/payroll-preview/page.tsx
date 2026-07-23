@@ -413,7 +413,7 @@ export default function PayrollPreviewPage() {
                     </div>
                 ) : groupedView === "colaborador" ? (
                     /* LISTAGEM POR COLABORADOR */
-                    <div className="overflow-x-auto">
+                    <div className="overflow-auto max-h-[calc(100vh-280px)] border border-slate-200/60 rounded-3xl relative">
                         <table className="text-left border-collapse" style={{ minWidth: "2100px", tableLayout: "fixed" }}>
                             <colgroup>
                                 <col style={{ width: "280px" }} /> {/* Colaborador */}
@@ -434,21 +434,21 @@ export default function PayrollPreviewPage() {
                             </colgroup>
                             <thead>
                                 <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                                    <th className="py-3 px-4 sticky left-0 z-20" style={{ position: "sticky", left: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Colaborador / CPF / Função</th>
-                                    <th className="py-3 px-4">Empresa / Posto</th>
-                                    <th className="py-3 px-4 text-right">Salário Base</th>
-                                    <th className="py-3 px-4 text-right">Insalubridade</th>
-                                    <th className="py-3 px-4 text-right">Periculosidade</th>
-                                    <th className="py-3 px-4 text-right">Outros Adicionais</th>
-                                    <th className="py-3 px-4 text-right bg-slate-100/50">Proventos Brutos</th>
-                                    <th className="py-3 px-4 text-center">Faltas</th>
-                                    <th className="py-3 px-4 text-center">Atestados</th>
-                                    <th className="py-3 px-4 text-center">DSR</th>
-                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20">Desc. Faltas</th>
-                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20">Desc. DSR</th>
-                                    <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20">Desc. VT</th>
-                                    <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20">Desc. VA</th>
-                                    <th className="py-3 px-4 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]" style={{ position: "sticky", right: 0, backgroundColor: "#f1f5f9", zIndex: 20 }}>Líquido Final</th>
+                                    <th className="py-3 px-4 sticky left-0 z-20" style={{ position: "sticky", top: 0, left: 0, backgroundColor: "#f8fafc", zIndex: 30 }}>Colaborador / CPF / Função</th>
+                                    <th className="py-3 px-4" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Empresa / Posto</th>
+                                    <th className="py-3 px-4 text-right" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Salário Base</th>
+                                    <th className="py-3 px-4 text-right" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Insalubridade</th>
+                                    <th className="py-3 px-4 text-right" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Periculosidade</th>
+                                    <th className="py-3 px-4 text-right" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Outros Adicionais</th>
+                                    <th className="py-3 px-4 text-right bg-slate-100/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Proventos Brutos</th>
+                                    <th className="py-3 px-4 text-center" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Faltas</th>
+                                    <th className="py-3 px-4 text-center" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Atestados</th>
+                                    <th className="py-3 px-4 text-center" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>DSR</th>
+                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. Faltas</th>
+                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. DSR</th>
+                                    <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. VT</th>
+                                    <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. VA</th>
+                                    <th className="py-3 px-4 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]" style={{ position: "sticky", top: 0, right: 0, backgroundColor: "#f1f5f9", zIndex: 30 }}>Líquido Final</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-650">
@@ -686,7 +686,7 @@ export default function PayrollPreviewPage() {
                     </div>
                 ) : (
                     /* VISÕES AGRUPADAS (EMPRESA OU CONTRATO) */
-                    <div className="overflow-x-auto">
+                    <div className="overflow-auto max-h-[calc(100vh-280px)] border border-slate-200/60 rounded-3xl relative">
                         <table className="text-left border-collapse" style={{ minWidth: "1400px", tableLayout: "fixed" }}>
                             <colgroup>
                                 <col style={{ width: "60px" }} /> {/* Toggle button */}
@@ -701,15 +701,15 @@ export default function PayrollPreviewPage() {
                             </colgroup>
                             <thead>
                                 <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                                    <th className="py-3 px-4 w-6"></th>
-                                    <th className="py-3 px-4">{groupedView === "empresa" ? "Empresa" : "Contrato / Cliente"}</th>
-                                    <th className="py-3 px-4 text-center">Qtd Ativos</th>
-                                    <th className="py-3 px-4 text-right">Proventos Brutos</th>
-                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20">Total Desc. Faltas</th>
-                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20">Total Desc. DSR</th>
-                                    <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20">Total Desc. VT</th>
-                                    <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20">Total Desc. VA</th>
-                                    <th className="py-3 px-4 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]" style={{ position: "sticky", right: 0, backgroundColor: "#f1f5f9", zIndex: 20 }}>Líquido Consolidado</th>
+                                    <th className="py-3 px-4 w-6" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}></th>
+                                    <th className="py-3 px-4" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>{groupedView === "empresa" ? "Empresa" : "Contrato / Cliente"}</th>
+                                    <th className="py-3 px-4 text-center" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Qtd Ativos</th>
+                                    <th className="py-3 px-4 text-right" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Proventos Brutos</th>
+                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total Desc. Faltas</th>
+                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total Desc. DSR</th>
+                                    <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total Desc. VT</th>
+                                    <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total Desc. VA</th>
+                                    <th className="py-3 px-4 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]" style={{ position: "sticky", top: 0, right: 0, backgroundColor: "#f1f5f9", zIndex: 30 }}>Líquido Consolidado</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-650">
