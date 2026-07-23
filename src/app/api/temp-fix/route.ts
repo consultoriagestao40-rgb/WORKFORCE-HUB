@@ -1,49 +1,47 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { syncSecullumOccurrences } from "@/actions/secullum";
 
 export async function GET() {
     try {
-        const targetNames = [
-            "ANDREIA FAUSTIN DE SOUZA",
-            "ELISANGELA SANTOS DE PAULA",
-            "ELIZABETE BRUM ANTONIO",
-            "FERNANDA STIIRMER DE MATTOS YAMAGUCHI",
-            "GABRIELY BRASQUE ALVES PEREIRA",
-            "GENESIS GABRIELA MARTINEZ GONZALEZ",
-            "JOSINEIDE MARTINS VIDAL",
-            "LUZIA CORDEIRO DE OLIVEIRA",
-            "MARLY DALVA DE AZEVEDO",
-            "NIZIA TASSIA DA SILVA",
-            "SANDRA PEREIRA MOREIRA",
-            "ZURIMA ROXANA LEON GARCIA"
-        ];
+        console.log("Triggering production sync from API route for Month 5, 6, 7...");
+        const res5 = await syncSecullumOccurrences(2026, 5);
+        const res6 = await syncSecullumOccurrences(2026, 6);
+        const res7 = await syncSecullumOccurrences(2026, 7);
 
-        const allEmployees = await prisma.employee.findMany();
-
-        const matches = targetNames.map(targetName => {
-            const emp = allEmployees.find(e => 
-                e.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(
-                    targetName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                )
-            );
-
-            return {
-                targetName,
-                found: emp ? {
-                    name: emp.name,
-                    cpf: emp.cpf,
-                    salary: emp.salary,
-                    valeAlimentacao: emp.valeAlimentacao,
-                    valeTransporte: emp.valeTransporte
-                } : null
-            };
+        const occurrencesCount = await prisma.occurrence.groupBy({
+            by: ['type'],
+            _count: { id: true }
         });
 
+        // Get Luzia's occurrences
+        const luzia = await prisma.employee.findFirst({
+            where: { name: { contains: "LUZIA CORDEIRO", mode: "insensitive" } }
+        });
+        let luziaOccurrences: any[] = [];
+        if (luzia) {
+            luziaOccurrences = await prisma.occurrence.findMany({
+                where: { employeeId: luzia.id }
+            });
+        }
+
         return NextResponse.json({
-            explicacao: "Este endpoint mostra os dados reais salvos no banco de dados de produção para as 12 pessoas.",
-            matches
+            success: true,
+            syncResults: {
+                month5: res5,
+                month6: res6,
+                month7: res7
+            },
+            databaseOccurrences: occurrencesCount,
+            luziaDetails: luzia ? {
+                id: luzia.id,
+                name: luzia.name,
+                salary: luzia.salary,
+                occurrences: luziaOccurrences
+            } : null
         });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }
+
