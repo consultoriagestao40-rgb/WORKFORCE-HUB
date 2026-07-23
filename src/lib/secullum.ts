@@ -32,6 +32,7 @@ export interface SecullumBatida {
     Folga?: boolean;
     Observacoes?: string;
     Ajuste?: string;
+    Compensado?: boolean;
     Funcionario?: {
         NumeroPis?: string;
         NumeroFolha?: string;

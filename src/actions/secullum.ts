@@ -185,12 +185,13 @@ export async function syncSecullumOccurrences(year: number, month: number) {
             const rawObs = (b.Observacoes || "").toLowerCase();
             const rawEntrada = (b.Entrada1 || "").toLowerCase();
             
-            const isFalta = rawEntrada.includes("falta") || rawObs.includes("falta");
-            const isAtestado = rawEntrada.includes("atestado") || rawEntrada.includes("medico") || rawEntrada.includes("médico") ||
+            const isAtestado = /at\.?\s*med/i.test(rawEntrada) || /at\.?\s*med/i.test(rawObs) ||
+                               rawEntrada.includes("atestado") || rawEntrada.includes("medico") || rawEntrada.includes("médico") || rawEntrada.includes("atest") ||
                                rawObs.includes("atestado") || rawObs.includes("medico") || rawObs.includes("médico") || rawObs.includes("atest");
             
-            if (!isFalta && !isAtestado) continue;
-
+            // Only count as Lack (Falta) if NOT compensated
+            const isFalta = (rawEntrada.includes("falta") || rawObs.includes("falta")) && !b.Compensado;
+            
             const folha = b.Funcionario?.NumeroFolha?.trim();
             if (!folha) continue;
 
@@ -220,34 +221,53 @@ export async function syncSecullumOccurrences(year: number, month: number) {
                 : "Secullum (Falta): Falta registrada";
 
             if (existing) {
-                // If it is now an atestado but was previously saved as a falta, update it!
-                if (existing.type !== "ATESTADO" && isAtestado) {
-                    await prisma.occurrence.update({
-                        where: { id: existing.id },
-                        data: {
-                            type: "ATESTADO",
-                            title: occTitle,
-                            description: `Atualizado automaticamente da API Secullum Ponto Web (Falta justificada).`
-                        }
+                if (isAtestado) {
+                    if (existing.type !== "ATESTADO") {
+                        await prisma.occurrence.update({
+                            where: { id: existing.id },
+                            data: {
+                                type: "ATESTADO",
+                                title: occTitle,
+                                description: `Atualizado automaticamente da API Secullum Ponto Web (Falta justificada).`
+                            }
+                        });
+                    }
+                } else if (isFalta) {
+                    if (existing.type !== "FALTA") {
+                        await prisma.occurrence.update({
+                            where: { id: existing.id },
+                            data: {
+                                type: "FALTA",
+                                title: occTitle,
+                                description: `Importada automaticamente das batidas do Secullum Ponto Web.`
+                            }
+                        });
+                    }
+                } else {
+                    // If it is now compensated or not a lack/certificate anymore, remove it!
+                    await prisma.occurrence.delete({
+                        where: { id: existing.id }
                     });
                 }
             } else {
-                const assignment = await prisma.assignment.findFirst({
-                    where: { employeeId, endDate: null }
-                });
-                const postoId = assignment?.postoId || (await prisma.posto.findFirst())?.id;
-                if (postoId) {
-                    await prisma.occurrence.create({
-                        data: {
-                            employeeId,
-                            postoId,
-                            type: occType,
-                            date: occDate,
-                            title: occTitle,
-                            description: `Importada automaticamente das batidas do Secullum Ponto Web. Obs: ${b.Observacoes || 'Nenhuma'}`
-                        }
+                if (isAtestado || isFalta) {
+                    const assignment = await prisma.assignment.findFirst({
+                        where: { employeeId, endDate: null }
                     });
-                    totalImported++;
+                    const postoId = assignment?.postoId || (await prisma.posto.findFirst())?.id;
+                    if (postoId) {
+                        await prisma.occurrence.create({
+                            data: {
+                                employeeId,
+                                postoId,
+                                type: occType,
+                                date: occDate,
+                                title: occTitle,
+                                description: `Importada automaticamente das batidas do Secullum Ponto Web. Obs: ${b.Observacoes || 'Nenhuma'}`
+                            }
+                        });
+                        totalImported++;
+                    }
                 }
             }
         }
