@@ -414,11 +414,28 @@ export default function PayrollPreviewPage() {
                 ) : groupedView === "colaborador" ? (
                     /* LISTAGEM POR COLABORADOR */
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse min-w-[1500px]">
+                        <table className="text-left border-collapse" style={{ minWidth: "2100px", tableLayout: "fixed" }}>
+                            <colgroup>
+                                <col style={{ width: "280px" }} /> {/* Colaborador */}
+                                <col style={{ width: "220px" }} /> {/* Empresa / Posto */}
+                                <col style={{ width: "130px" }} /> {/* Salário Base */}
+                                <col style={{ width: "130px" }} /> {/* Insalubridade */}
+                                <col style={{ width: "130px" }} /> {/* Periculosidade */}
+                                <col style={{ width: "140px" }} /> {/* Outros Adicionais */}
+                                <col style={{ width: "150px" }} /> {/* Proventos Brutos */}
+                                <col style={{ width: "100px" }} /> {/* Faltas */}
+                                <col style={{ width: "100px" }} /> {/* Atestados */}
+                                <col style={{ width: "100px" }} /> {/* DSR */}
+                                <col style={{ width: "140px" }} /> {/* Desc. Faltas */}
+                                <col style={{ width: "140px" }} /> {/* Desc. DSR */}
+                                <col style={{ width: "130px" }} /> {/* Desc. VT */}
+                                <col style={{ width: "130px" }} /> {/* Desc. VA */}
+                                <col style={{ width: "160px" }} /> {/* Líquido Final */}
+                            </colgroup>
                             <thead>
                                 <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                                    <th className="py-3 px-4 sticky left-0 bg-slate-50 z-10 w-[240px]">Colaborador / CPF / Função</th>
-                                    <th className="py-3 px-4 w-[180px]">Empresa / Posto</th>
+                                    <th className="py-3 px-4 sticky left-0 bg-slate-50 z-20">Colaborador / CPF / Função</th>
+                                    <th className="py-3 px-4">Empresa / Posto</th>
                                     <th className="py-3 px-4 text-right">Salário Base</th>
                                     <th className="py-3 px-4 text-right">Insalubridade</th>
                                     <th className="py-3 px-4 text-right">Periculosidade</th>
@@ -431,44 +448,44 @@ export default function PayrollPreviewPage() {
                                     <th className="py-3 px-4 text-right text-red-500 bg-red-50/20">Desc. DSR</th>
                                     <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20">Desc. VT</th>
                                     <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20">Desc. VA</th>
-                                    <th className="py-3 px-4 text-right font-bold text-sky-800 bg-sky-50/20 sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.08)]">Líquido Final</th>
+                                    <th className="py-3 px-4 text-right font-bold text-sky-900 bg-sky-100 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]">Líquido Final</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-650">
                                 {filteredItems.map(item => (
-                                    <tr key={item.employeeId} className="hover:bg-slate-50/60 transition-colors">
+                                    <tr key={item.employeeId} className="hover:bg-slate-50/60 transition-colors group">
                                         {/* Colaborador */}
-                                        <td className="py-3 px-4 sticky left-0 bg-white group-hover:bg-slate-50/65 z-10">
+                                        <td className="py-3 px-4 sticky left-0 bg-white group-hover:bg-slate-50/65 z-10 whitespace-nowrap">
                                             <div>
                                                 <div className="font-bold text-slate-900 text-[13px]">{item.employeeName}</div>
                                                 <div className="text-[10px] text-slate-400 font-medium mt-0.5">CPF: {item.employeeCpf} | {item.postoName}</div>
                                             </div>
                                         </td>
                                         {/* Empresa */}
-                                        <td className="py-3 px-4">
+                                        <td className="py-3 px-4 whitespace-nowrap">
                                             <div>
                                                 <div className="text-slate-800 text-[11px] font-bold">{item.companyName}</div>
                                                 <div className="text-[10px] text-slate-400 font-medium mt-0.5">{item.clientName}</div>
                                             </div>
                                         </td>
                                         {/* Salário Base */}
-                                        <td className="py-3 px-4 text-right font-medium text-slate-800">
+                                        <td className="py-3 px-4 text-right font-medium text-slate-800 whitespace-nowrap">
                                             {formatCurrency(item.baseSalary)}
                                         </td>
                                         {/* Insalubridade */}
-                                        <td className="py-3 px-4 text-right font-medium text-slate-850">
+                                        <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
                                             {item.insalubridade > 0 ? formatCurrency(item.insalubridade) : "-"}
                                         </td>
                                         {/* Periculosidade */}
-                                        <td className="py-3 px-4 text-right font-medium text-slate-850">
+                                        <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
                                             {item.periculosidade > 0 ? formatCurrency(item.periculosidade) : "-"}
                                         </td>
                                         {/* Outros Adicionais */}
-                                        <td className="py-3 px-4 text-right font-medium text-slate-850">
+                                        <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
                                             {item.gratificacao + item.outrosAdicionais > 0 ? formatCurrency(item.gratificacao + item.outrosAdicionais) : "-"}
                                         </td>
                                         {/* Provento Bruto */}
-                                        <td className="py-3 px-4 text-right bg-slate-100/30">
+                                        <td className="py-3 px-4 text-right bg-slate-100/30 whitespace-nowrap">
                                             <Popover>
                                                 <PopoverTrigger asChild>
                                                     <button className="font-bold text-slate-800 hover:text-slate-950 underline decoration-dashed cursor-pointer">
@@ -502,7 +519,7 @@ export default function PayrollPreviewPage() {
                                             </Popover>
                                         </td>
                                         {/* Faltas */}
-                                        <td className="py-3 px-4 text-center">
+                                        <td className="py-3 px-4 text-center whitespace-nowrap">
                                             {item.faltasCount > 0 ? (
                                                 <Popover>
                                                     <PopoverTrigger asChild>
@@ -536,7 +553,7 @@ export default function PayrollPreviewPage() {
                                             )}
                                         </td>
                                         {/* Atestados */}
-                                        <td className="py-3 px-4 text-center">
+                                        <td className="py-3 px-4 text-center whitespace-nowrap">
                                             {item.atestadosCount > 0 ? (
                                                 <Popover>
                                                     <PopoverTrigger asChild>
@@ -570,7 +587,7 @@ export default function PayrollPreviewPage() {
                                             )}
                                         </td>
                                         {/* DSR */}
-                                        <td className="py-3 px-4 text-center">
+                                        <td className="py-3 px-4 text-center whitespace-nowrap">
                                             {item.dsrDeductionsCount > 0 ? (
                                                 <Popover>
                                                     <PopoverTrigger asChild>
@@ -596,15 +613,15 @@ export default function PayrollPreviewPage() {
                                             )}
                                         </td>
                                         {/* Desconto Faltas */}
-                                        <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/10">
+                                        <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/10 whitespace-nowrap">
                                             {item.faltaDeduction > 0 ? `-${formatCurrency(item.faltaDeduction)}` : "-"}
                                         </td>
                                         {/* Desconto DSR */}
-                                        <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/10">
+                                        <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/10 whitespace-nowrap">
                                             {item.dsrDeduction > 0 ? `-${formatCurrency(item.dsrDeduction)}` : "-"}
                                         </td>
                                         {/* Desconto VT */}
-                                        <td className="py-3 px-4 text-right text-orange-600 bg-orange-50/5">
+                                        <td className="py-3 px-4 text-right text-orange-600 bg-orange-50/5 whitespace-nowrap">
                                             {item.vtPayrollDiscount > 0 ? (
                                                 <Popover>
                                                     <PopoverTrigger asChild>
@@ -632,7 +649,7 @@ export default function PayrollPreviewPage() {
                                             )}
                                         </td>
                                         {/* Desconto VA */}
-                                        <td className="py-3 px-4 text-right text-orange-600 bg-orange-50/5">
+                                        <td className="py-3 px-4 text-right text-orange-600 bg-orange-50/5 whitespace-nowrap">
                                             {item.vaPayrollDiscount > 0 ? (
                                                 <Popover>
                                                     <PopoverTrigger asChild>
@@ -659,7 +676,7 @@ export default function PayrollPreviewPage() {
                                             )}
                                         </td>
                                         {/* Salário Líquido */}
-                                        <td className="py-3 px-4 text-right font-black text-[13px] text-sky-700 bg-sky-50/10 sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.08)]">
+                                        <td className="py-3 px-4 text-right font-black text-[13px] text-sky-700 bg-sky-100 sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)] whitespace-nowrap">
                                             {formatCurrency(item.netSalary)}
                                         </td>
                                     </tr>
@@ -670,18 +687,29 @@ export default function PayrollPreviewPage() {
                 ) : (
                     /* VISÕES AGRUPADAS (EMPRESA OU CONTRATO) */
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse min-w-[1200px]">
+                        <table className="text-left border-collapse" style={{ minWidth: "1400px", tableLayout: "fixed" }}>
+                            <colgroup>
+                                <col style={{ width: "60px" }} /> {/* Toggle button */}
+                                <col style={{ width: "350px" }} /> {/* Group Name */}
+                                <col style={{ width: "120px" }} /> {/* Qtd Ativos */}
+                                <col style={{ width: "160px" }} /> {/* Proventos Brutos */}
+                                <col style={{ width: "160px" }} /> {/* Total Desc. Faltas */}
+                                <col style={{ width: "160px" }} /> {/* Total Desc. DSR */}
+                                <col style={{ width: "130px" }} /> {/* Total Desc. VT */}
+                                <col style={{ width: "130px" }} /> {/* Total Desc. VA */}
+                                <col style={{ width: "170px" }} /> {/* Líquido Consolidado */}
+                            </colgroup>
                             <thead>
                                 <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-wider">
                                     <th className="py-3 px-4 w-6"></th>
                                     <th className="py-3 px-4">{groupedView === "empresa" ? "Empresa" : "Contrato / Cliente"}</th>
                                     <th className="py-3 px-4 text-center">Qtd Ativos</th>
                                     <th className="py-3 px-4 text-right">Proventos Brutos</th>
-                                    <th className="py-3 px-4 text-right">Total Desc. Faltas</th>
-                                    <th className="py-3 px-4 text-right">Total Desc. DSR</th>
-                                    <th className="py-3 px-4 text-right">Total Desc. VT</th>
-                                    <th className="py-3 px-4 text-right">Total Desc. VA</th>
-                                    <th className="py-3 px-4 text-right font-bold text-slate-800">Líquido Consolidado</th>
+                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20">Total Desc. Faltas</th>
+                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20">Total Desc. DSR</th>
+                                    <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20">Total Desc. VT</th>
+                                    <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20">Total Desc. VA</th>
+                                    <th className="py-3 px-4 text-right font-bold text-sky-900 bg-sky-100 sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]">Líquido Consolidado</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-650">
@@ -689,7 +717,7 @@ export default function PayrollPreviewPage() {
                                     const isExpanded = expandedGroups.includes(group.name);
                                     return (
                                         <>
-                                            <tr key={group.name} className="hover:bg-slate-55 bg-slate-50/20 font-bold text-slate-800">
+                                            <tr key={group.name} className="hover:bg-slate-50 bg-slate-50/10 font-bold text-slate-800">
                                                 {/* Botão de expansão */}
                                                 <td className="py-3 px-4 text-center">
                                                     <button 
@@ -700,37 +728,37 @@ export default function PayrollPreviewPage() {
                                                     </button>
                                                 </td>
                                                 {/* Nome do grupo */}
-                                                <td className="py-3 px-4 font-black text-[13px] text-slate-900">
+                                                <td className="py-3 px-4 font-black text-[13px] text-slate-900 whitespace-nowrap">
                                                     {group.name}
                                                 </td>
                                                 {/* Quantidade */}
-                                                <td className="py-3 px-4 text-center">
-                                                    <span className="bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200/50">
+                                                <td className="py-3 px-4 text-center whitespace-nowrap">
+                                                    <span className="bg-slate-150 px-2 py-0.5 rounded-lg border border-slate-200/50">
                                                         {group.count}
                                                     </span>
                                                 </td>
                                                 {/* Proventos Brutos */}
-                                                <td className="py-3 px-4 text-right font-black">
+                                                <td className="py-3 px-4 text-right font-black whitespace-nowrap">
                                                     {formatCurrency(group.totalGrossSalary)}
                                                 </td>
                                                 {/* Desconto Faltas */}
-                                                <td className="py-3 px-4 text-right text-red-500 font-bold">
+                                                <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/10 whitespace-nowrap">
                                                     {group.faltaDeduction > 0 ? `-${formatCurrency(group.faltaDeduction)}` : "-"}
                                                 </td>
                                                 {/* Desconto DSR */}
-                                                <td className="py-3 px-4 text-right text-red-500 font-bold">
+                                                <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/10 whitespace-nowrap">
                                                     {group.dsrDeduction > 0 ? `-${formatCurrency(group.dsrDeduction)}` : "-"}
                                                 </td>
                                                 {/* Desconto VT */}
-                                                <td className="py-3 px-4 text-right text-orange-600 font-bold">
+                                                <td className="py-3 px-4 text-right text-orange-600 font-bold bg-orange-50/5 whitespace-nowrap">
                                                     {group.vtPayrollDiscount > 0 ? `-${formatCurrency(group.vtPayrollDiscount)}` : "-"}
                                                 </td>
                                                 {/* Desconto VA */}
-                                                <td className="py-3 px-4 text-right text-orange-600 font-bold">
+                                                <td className="py-3 px-4 text-right text-orange-600 font-bold bg-orange-50/5 whitespace-nowrap">
                                                     {group.vaPayrollDiscount > 0 ? `-${formatCurrency(group.vaPayrollDiscount)}` : "-"}
                                                 </td>
                                                 {/* Líquido */}
-                                                <td className="py-3 px-4 text-right font-black text-sky-700 text-[13px]">
+                                                <td className="py-3 px-4 text-right font-black text-sky-700 text-[13px] bg-sky-100 sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)] whitespace-nowrap">
                                                     {formatCurrency(group.netSalary)}
                                                 </td>
                                             </tr>
@@ -742,7 +770,23 @@ export default function PayrollPreviewPage() {
                                                         <div className="overflow-hidden border-t border-b border-slate-100 pl-12 pr-4 py-3">
                                                             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">Detalhamento dos Colaboradores</span>
                                                             <div className="overflow-x-auto">
-                                                                <table className="w-full text-left border-collapse bg-white rounded-2xl border border-slate-200/60 overflow-hidden text-[11px] min-w-[1350px]">
+                                                                <table className="text-left border-collapse bg-white rounded-2xl border border-slate-200/60 overflow-hidden text-[11px]" style={{ minWidth: "1900px", tableLayout: "fixed" }}>
+                                                                    <colgroup>
+                                                                        <col style={{ width: "260px" }} /> {/* Colaborador */}
+                                                                        <col style={{ width: "120px" }} /> {/* Salário Base */}
+                                                                        <col style={{ width: "120px" }} /> {/* Insalubridade */}
+                                                                        <col style={{ width: "120px" }} /> {/* Periculosidade */}
+                                                                        <col style={{ width: "130px" }} /> {/* Outros Adicionais */}
+                                                                        <col style={{ width: "140px" }} /> {/* Provento Bruto */}
+                                                                        <col style={{ width: "90px" }} /> {/* Faltas */}
+                                                                        <col style={{ width: "90px" }} /> {/* Atestados */}
+                                                                        <col style={{ width: "90px" }} /> {/* DSR */}
+                                                                        <col style={{ width: "130px" }} /> {/* Desc. Faltas */}
+                                                                        <col style={{ width: "130px" }} /> {/* Desc. DSR */}
+                                                                        <col style={{ width: "120px" }} /> {/* Desc. VT */}
+                                                                        <col style={{ width: "120px" }} /> {/* Desc. VA */}
+                                                                        <col style={{ width: "140px" }} /> {/* Líquido Final */}
+                                                                    </colgroup>
                                                                     <thead>
                                                                         <tr className="border-b border-slate-100 bg-slate-50 text-[9px] font-black uppercase text-slate-400 tracking-wider">
                                                                             <th className="py-2.5 px-3">Colaborador / CPF / Função</th>
@@ -754,35 +798,35 @@ export default function PayrollPreviewPage() {
                                                                             <th className="py-2.5 px-3 text-center">Faltas</th>
                                                                             <th className="py-2.5 px-3 text-center">Atestados</th>
                                                                             <th className="py-2.5 px-3 text-center">DSR</th>
-                                                                            <th className="py-2.5 px-3 text-right text-red-500">Desc. Faltas</th>
-                                                                            <th className="py-2.5 px-3 text-right text-red-500">Desc. DSR</th>
-                                                                            <th className="py-2.5 px-3 text-right text-orange-600">Desc. VT</th>
-                                                                            <th className="py-2.5 px-3 text-right text-orange-600">Desc. VA</th>
-                                                                            <th className="py-2.5 px-3 text-right font-bold text-sky-850">Líquido Final</th>
+                                                                            <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">Desc. Faltas</th>
+                                                                            <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">Desc. DSR</th>
+                                                                            <th className="py-2.5 px-3 text-right text-orange-650 bg-orange-50/5">Desc. VT</th>
+                                                                            <th className="py-2.5 px-3 text-right text-orange-655 bg-orange-50/5">Desc. VA</th>
+                                                                            <th className="py-2.5 px-3 text-right font-bold text-sky-900 bg-sky-100 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]">Líquido Final</th>
                                                                         </tr>
                                                                     </thead>
                                                                     <tbody className="divide-y divide-slate-100 font-semibold text-slate-650">
                                                                         {group.items.map((sub: PayrollPreviewItem) => (
                                                                             <tr key={sub.employeeId} className="hover:bg-slate-50/80 transition-colors">
-                                                                                <td className="py-2.5 px-3">
+                                                                                <td className="py-2.5 px-3 whitespace-nowrap">
                                                                                     <div>
-                                                                                        <div className="font-bold text-slate-800">{sub.employeeName}</div>
+                                                                                        <div className="font-bold text-slate-850">{sub.employeeName}</div>
                                                                                         <div className="text-[9px] text-slate-400 font-medium">CPF: {sub.employeeCpf} | {sub.postoName}</div>
                                                                                     </div>
                                                                                 </td>
-                                                                                <td className="py-2.5 px-3 text-right font-medium text-slate-700">
+                                                                                <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
                                                                                     {formatCurrency(sub.baseSalary)}
                                                                                 </td>
-                                                                                <td className="py-2.5 px-3 text-right font-medium text-slate-700">
+                                                                                <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
                                                                                     {sub.insalubridade > 0 ? formatCurrency(sub.insalubridade) : "-"}
                                                                                 </td>
-                                                                                <td className="py-2.5 px-3 text-right font-medium text-slate-700">
+                                                                                <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
                                                                                     {sub.periculosidade > 0 ? formatCurrency(sub.periculosidade) : "-"}
                                                                                 </td>
-                                                                                <td className="py-2.5 px-3 text-right font-medium text-slate-700">
+                                                                                <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
                                                                                     {sub.gratificacao + sub.outrosAdicionais > 0 ? formatCurrency(sub.gratificacao + sub.outrosAdicionais) : "-"}
                                                                                 </td>
-                                                                                <td className="py-2.5 px-3 text-right bg-slate-100/30">
+                                                                                <td className="py-2.5 px-3 text-right bg-slate-100/30 whitespace-nowrap">
                                                                                     <Popover>
                                                                                         <PopoverTrigger asChild>
                                                                                             <button className="font-bold text-slate-700 hover:text-slate-850 underline decoration-dashed cursor-pointer">
@@ -815,11 +859,11 @@ export default function PayrollPreviewPage() {
                                                                                         </PopoverContent>
                                                                                     </Popover>
                                                                                 </td>
-                                                                                <td className="py-2.5 px-3 text-center">
+                                                                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
                                                                                     {sub.faltasCount > 0 ? (
                                                                                         <Popover>
                                                                                             <PopoverTrigger asChild>
-                                                                                                <button className="bg-red-50 hover:bg-red-100 text-red-650 font-bold px-1.5 py-0.5 rounded text-[10px] border border-red-200/50 cursor-pointer">
+                                                                                                <button className="bg-red-50 hover:bg-red-100 text-red-655 font-bold px-1.5 py-0.5 rounded text-[10px] border border-red-200/50 cursor-pointer">
                                                                                                     {sub.faltasCount} {sub.faltasCount === 1 ? 'falta' : 'faltas'}
                                                                                                 </button>
                                                                                             </PopoverTrigger>
@@ -844,11 +888,11 @@ export default function PayrollPreviewPage() {
                                                                                         <span className="text-slate-355">-</span>
                                                                                     )}
                                                                                 </td>
-                                                                                <td className="py-2.5 px-3 text-center">
+                                                                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
                                                                                     {sub.atestadosCount > 0 ? (
                                                                                         <Popover>
                                                                                             <PopoverTrigger asChild>
-                                                                                                <button className="bg-emerald-50 hover:bg-emerald-100 text-emerald-650 font-bold px-1.5 py-0.5 rounded text-[10px] border border-emerald-200/50 cursor-pointer">
+                                                                                                <button className="bg-emerald-50 hover:bg-emerald-100 text-emerald-655 font-bold px-1.5 py-0.5 rounded text-[10px] border border-emerald-200/50 cursor-pointer">
                                                                                                     {sub.atestadosCount} {sub.atestadosCount === 1 ? 'atestado' : 'atestados'}
                                                                                                 </button>
                                                                                             </PopoverTrigger>
@@ -873,11 +917,11 @@ export default function PayrollPreviewPage() {
                                                                                         <span className="text-slate-355">-</span>
                                                                                     )}
                                                                                 </td>
-                                                                                <td className="py-2.5 px-3 text-center">
+                                                                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
                                                                                     {sub.dsrDeductionsCount > 0 ? (
                                                                                         <Popover>
                                                                                             <PopoverTrigger asChild>
-                                                                                                <button className="bg-red-50 hover:bg-red-100 text-red-650 font-bold px-1.5 py-0.5 rounded text-[10px] border border-red-200/50 cursor-pointer">
+                                                                                                <button className="bg-red-50 hover:bg-red-100 text-red-655 font-bold px-1.5 py-0.5 rounded text-[10px] border border-red-200/50 cursor-pointer">
                                                                                                     {sub.dsrDeductionsCount} {sub.dsrDeductionsCount === 1 ? 'dia' : 'dias'}
                                                                                                 </button>
                                                                                             </PopoverTrigger>
@@ -892,19 +936,19 @@ export default function PayrollPreviewPage() {
                                                                                         <span className="text-slate-355">-</span>
                                                                                     )}
                                                                                 </td>
-                                                                                <td className="py-2.5 px-3 text-right text-red-500">
+                                                                                <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
                                                                                     {sub.faltaDeduction > 0 ? `-${formatCurrency(sub.faltaDeduction)}` : "-"}
                                                                                 </td>
-                                                                                <td className="py-2.5 px-3 text-right text-red-500">
+                                                                                <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
                                                                                     {sub.dsrDeduction > 0 ? `-${formatCurrency(sub.dsrDeduction)}` : "-"}
                                                                                 </td>
-                                                                                <td className="py-2.5 px-3 text-right text-orange-600">
+                                                                                <td className="py-2.5 px-3 text-right text-orange-600 whitespace-nowrap">
                                                                                     {sub.vtPayrollDiscount > 0 ? `-${formatCurrency(sub.vtPayrollDiscount)}` : "-"}
                                                                                 </td>
-                                                                                <td className="py-2.5 px-3 text-right text-orange-600">
+                                                                                <td className="py-2.5 px-3 text-right text-orange-600 whitespace-nowrap">
                                                                                     {sub.vaPayrollDiscount > 0 ? `-${formatCurrency(sub.vaPayrollDiscount)}` : "-"}
                                                                                 </td>
-                                                                                <td className="py-2.5 px-3 text-right font-bold text-sky-700">
+                                                                                <td className="py-2.5 px-3 text-right font-bold text-sky-900 bg-sky-100 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)] whitespace-nowrap">
                                                                                     {formatCurrency(sub.netSalary)}
                                                                                 </td>
                                                                             </tr>
