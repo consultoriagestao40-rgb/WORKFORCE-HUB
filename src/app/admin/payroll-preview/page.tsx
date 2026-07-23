@@ -117,6 +117,8 @@ export default function PayrollPreviewPage() {
                 dsrDeduction: 0,
                 vtPayrollDiscount: 0,
                 vaPayrollDiscount: 0,
+                inssDeduction: 0,
+                irrfDeduction: 0,
                 totalDeductions: 0,
                 netSalary: 0,
                 items: []
@@ -136,6 +138,8 @@ export default function PayrollPreviewPage() {
         acc[group].dsrDeduction += item.dsrDeduction;
         acc[group].vtPayrollDiscount += item.vtPayrollDiscount;
         acc[group].vaPayrollDiscount += item.vaPayrollDiscount;
+        acc[group].inssDeduction += item.inssDeduction;
+        acc[group].irrfDeduction += item.irrfDeduction;
         acc[group].totalDeductions += item.totalDeductions;
         acc[group].netSalary += item.netSalary;
         acc[group].items.push(item);
@@ -161,6 +165,8 @@ export default function PayrollPreviewPage() {
                 dsrDeduction: 0,
                 vtPayrollDiscount: 0,
                 vaPayrollDiscount: 0,
+                inssDeduction: 0,
+                irrfDeduction: 0,
                 totalDeductions: 0,
                 netSalary: 0,
                 items: []
@@ -180,6 +186,8 @@ export default function PayrollPreviewPage() {
         acc[group].dsrDeduction += item.dsrDeduction;
         acc[group].vtPayrollDiscount += item.vtPayrollDiscount;
         acc[group].vaPayrollDiscount += item.vaPayrollDiscount;
+        acc[group].inssDeduction += item.inssDeduction;
+        acc[group].irrfDeduction += item.irrfDeduction;
         acc[group].totalDeductions += item.totalDeductions;
         acc[group].netSalary += item.netSalary;
         acc[group].items.push(item);
@@ -299,7 +307,7 @@ export default function PayrollPreviewPage() {
                         <h3 className="text-2xl font-black text-red-600">{formatCurrency(totalDeductionsSum)}</h3>
                         <div className="flex items-center gap-0.5 text-[9px] font-bold text-red-500 mt-1">
                             <TrendingDown className="w-3 h-3" />
-                            <span>Faltas + DSR + VT + VA</span>
+                            <span>Faltas + DSR + VT + VA + INSS + IRRF</span>
                         </div>
                     </div>
                     <div className="bg-red-50 border border-red-100 p-3 rounded-2xl text-red-500">
@@ -430,6 +438,8 @@ export default function PayrollPreviewPage() {
                                 <col style={{ width: "140px" }} /> {/* Desc. DSR */}
                                 <col style={{ width: "130px" }} /> {/* Desc. VT */}
                                 <col style={{ width: "130px" }} /> {/* Desc. VA */}
+                                <col style={{ width: "130px" }} /> {/* INSS */}
+                                <col style={{ width: "130px" }} /> {/* IRRF */}
                                 <col style={{ width: "160px" }} /> {/* Líquido Final */}
                             </colgroup>
                             <thead>
@@ -448,6 +458,8 @@ export default function PayrollPreviewPage() {
                                     <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. DSR</th>
                                     <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. VT</th>
                                     <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. VA</th>
+                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>INSS</th>
+                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>IRRF</th>
                                     <th className="py-3 px-4 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]" style={{ position: "sticky", top: 0, right: 0, backgroundColor: "#f1f5f9", zIndex: 30 }}>Líquido Final</th>
                                 </tr>
                             </thead>
@@ -675,6 +687,61 @@ export default function PayrollPreviewPage() {
                                                 <span className="text-slate-350">-</span>
                                             )}
                                         </td>
+                                        {/* INSS */}
+                                        <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/5 whitespace-nowrap">
+                                            {item.inssDeduction > 0 ? (
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <button className="underline decoration-dashed cursor-pointer">
+                                                            -{formatCurrency(item.inssDeduction)}
+                                                        </button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-64 p-3 text-xs space-y-1.5">
+                                                        <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Cálculo Previdenciário (INSS)</div>
+                                                        <div className="space-y-1 text-[10px] text-slate-650 font-medium">
+                                                            <div className="flex justify-between"><span>Base de Cálculo:</span><span>{formatCurrency(Math.max(0, item.totalGrossSalary - item.faltaDeduction - item.dsrDeduction))}</span></div>
+                                                            <div className="flex justify-between"><span>Tabela Progressiva:</span><span>7,5% a 14%</span></div>
+                                                            <div className="flex justify-between text-red-600 border-t border-slate-100 pt-1 font-bold">
+                                                                <span>Total INSS Descontado:</span>
+                                                                <span>{formatCurrency(item.inssDeduction)}</span>
+                                                            </div>
+                                                        </div>
+                                                        <p className="text-[9px] text-slate-450 italic leading-normal border-t pt-1">
+                                                            Nota: Apuração progressiva CLT por faixas salariais (teto de R$ 908,86).
+                                                        </p>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            ) : (
+                                                <span className="text-slate-350">-</span>
+                                            )}
+                                        </td>
+                                        {/* IRRF */}
+                                        <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/5 whitespace-nowrap">
+                                            {item.irrfDeduction > 0 ? (
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <button className="underline decoration-dashed cursor-pointer">
+                                                            -{formatCurrency(item.irrfDeduction)}
+                                                        </button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-64 p-3 text-xs space-y-1.5">
+                                                        <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Imposto de Renda Retido (IRRF)</div>
+                                                        <div className="space-y-1 text-[10px] text-slate-650 font-medium">
+                                                            <div className="flex justify-between"><span>Base IRRF:</span><span>{formatCurrency(Math.min(Math.max(0, item.totalGrossSalary - item.faltaDeduction - item.dsrDeduction - item.inssDeduction), Math.max(0, item.totalGrossSalary - item.faltaDeduction - item.dsrDeduction - 564.80)))}</span></div>
+                                                            <div className="flex justify-between text-red-600 border-t border-slate-100 pt-1 font-bold">
+                                                                <span>Total IRRF Descontado:</span>
+                                                                <span>{formatCurrency(item.irrfDeduction)}</span>
+                                                            </div>
+                                                        </div>
+                                                        <p className="text-[9px] text-slate-450 italic leading-normal border-t pt-1">
+                                                            Nota: Desconto em folha apurado progressivamente pela tabela da Receita Federal.
+                                                        </p>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            ) : (
+                                                <span className="text-slate-350">-</span>
+                                            )}
+                                        </td>
                                         {/* Salário Líquido */}
                                         <td className="py-3 px-4 text-right font-black text-[13px] text-sky-700 sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)] whitespace-nowrap" style={{ position: "sticky", right: 0, backgroundColor: "#f0f9ff", zIndex: 10 }}>
                                             {formatCurrency(item.netSalary)}
@@ -697,6 +764,8 @@ export default function PayrollPreviewPage() {
                                 <col style={{ width: "160px" }} /> {/* Total Desc. DSR */}
                                 <col style={{ width: "130px" }} /> {/* Total Desc. VT */}
                                 <col style={{ width: "130px" }} /> {/* Total Desc. VA */}
+                                <col style={{ width: "130px" }} /> {/* Total INSS */}
+                                <col style={{ width: "130px" }} /> {/* Total IRRF */}
                                 <col style={{ width: "170px" }} /> {/* Líquido Consolidado */}
                             </colgroup>
                             <thead>
@@ -709,6 +778,8 @@ export default function PayrollPreviewPage() {
                                     <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total Desc. DSR</th>
                                     <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total Desc. VT</th>
                                     <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total Desc. VA</th>
+                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total INSS</th>
+                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total IRRF</th>
                                     <th className="py-3 px-4 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]" style={{ position: "sticky", top: 0, right: 0, backgroundColor: "#f1f5f9", zIndex: 30 }}>Líquido Consolidado</th>
                                 </tr>
                             </thead>
@@ -757,6 +828,14 @@ export default function PayrollPreviewPage() {
                                                 <td className="py-3 px-4 text-right text-orange-600 font-bold bg-orange-50/5 whitespace-nowrap">
                                                     {group.vaPayrollDiscount > 0 ? `-${formatCurrency(group.vaPayrollDiscount)}` : "-"}
                                                 </td>
+                                                {/* Total INSS */}
+                                                <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/5 whitespace-nowrap">
+                                                    {group.inssDeduction > 0 ? `-${formatCurrency(group.inssDeduction)}` : "-"}
+                                                </td>
+                                                {/* Total IRRF */}
+                                                <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/5 whitespace-nowrap">
+                                                    {group.irrfDeduction > 0 ? `-${formatCurrency(group.irrfDeduction)}` : "-"}
+                                                </td>
                                                 {/* Líquido */}
                                                 <td className="py-3 px-4 text-right font-black text-sky-700 text-[13px] sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)] whitespace-nowrap" style={{ position: "sticky", right: 0, backgroundColor: "#f0f9ff", zIndex: 10 }}>
                                                     {formatCurrency(group.netSalary)}
@@ -766,7 +845,7 @@ export default function PayrollPreviewPage() {
                                             {/* Expandível individual do grupo */}
                                             {isExpanded && (
                                                 <tr>
-                                                    <td colSpan={9} className="p-0 bg-slate-50/30">
+                                                    <td colSpan={11} className="p-0 bg-slate-50/30">
                                                         <div className="overflow-hidden border-t border-b border-slate-100 pl-12 pr-4 py-3">
                                                             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">Detalhamento dos Colaboradores</span>
                                                             <div className="overflow-x-auto">
@@ -785,6 +864,8 @@ export default function PayrollPreviewPage() {
                                                                         <col style={{ width: "130px" }} /> {/* Desc. DSR */}
                                                                         <col style={{ width: "120px" }} /> {/* Desc. VT */}
                                                                         <col style={{ width: "120px" }} /> {/* Desc. VA */}
+                                                                        <col style={{ width: "120px" }} /> {/* INSS */}
+                                                                        <col style={{ width: "120px" }} /> {/* IRRF */}
                                                                         <col style={{ width: "140px" }} /> {/* Líquido Final */}
                                                                     </colgroup>
                                                                     <thead>
@@ -802,6 +883,8 @@ export default function PayrollPreviewPage() {
                                                                             <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">Desc. DSR</th>
                                                                             <th className="py-2.5 px-3 text-right text-orange-650 bg-orange-50/5">Desc. VT</th>
                                                                             <th className="py-2.5 px-3 text-right text-orange-655 bg-orange-50/5">Desc. VA</th>
+                                                                            <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">INSS</th>
+                                                                            <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">IRRF</th>
                                                                             <th className="py-2.5 px-3 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]" style={{ position: "sticky", right: 0, backgroundColor: "#f1f5f9", zIndex: 20 }}>Líquido Final</th>
                                                                         </tr>
                                                                     </thead>
@@ -945,8 +1028,14 @@ export default function PayrollPreviewPage() {
                                                                                 <td className="py-2.5 px-3 text-right text-orange-600 whitespace-nowrap">
                                                                                     {sub.vtPayrollDiscount > 0 ? `-${formatCurrency(sub.vtPayrollDiscount)}` : "-"}
                                                                                 </td>
-                                                                                <td className="py-2.5 px-3 text-right text-orange-600 whitespace-nowrap">
+                                                                                <td className="py-2.5 px-3 text-right text-orange-655 whitespace-nowrap">
                                                                                     {sub.vaPayrollDiscount > 0 ? `-${formatCurrency(sub.vaPayrollDiscount)}` : "-"}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
+                                                                                    {sub.inssDeduction > 0 ? `-${formatCurrency(sub.inssDeduction)}` : "-"}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
+                                                                                    {sub.irrfDeduction > 0 ? `-${formatCurrency(sub.irrfDeduction)}` : "-"}
                                                                                 </td>
                                                                                 <td className="py-2.5 px-3 text-right font-bold text-sky-900 sticky right-0 z-10 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)] whitespace-nowrap" style={{ position: "sticky", right: 0, backgroundColor: "#f0f9ff", zIndex: 10 }}>
                                                                                     {formatCurrency(sub.netSalary)}

@@ -40,6 +40,10 @@ export interface PayrollPreviewItem {
     vaPayrollDiscount: number;
     vaDiscountPercentage: number;
     
+    // Taxes
+    inssDeduction: number;
+    irrfDeduction: number;
+    
     // Net
     totalDeductions: number;
     netSalary: number;
@@ -206,7 +210,17 @@ export async function getPayrollPreview(year: number, month: number) {
             vaPayrollDiscount = Math.round((baseVaValue * (vaDiscountPercentage / 100)) * 100) / 100;
         }
 
-        const totalDeductions = faltaDeduction + dsrDeduction + vtPayrollDiscount + vaPayrollDiscount;
+        // Progressive INSS calculation
+        const inssBase = Math.max(0, totalGrossSalary - faltaDeduction - dsrDeduction);
+        const inssDeduction = calculateINSS(inssBase);
+
+        // Progressive IRRF calculation
+        const irrfBaseA = Math.max(0, inssBase - inssDeduction);
+        const irrfBaseB = Math.max(0, inssBase - 564.80); // simplified deduction
+        const irrfBase = Math.min(irrfBaseA, irrfBaseB);
+        const irrfDeduction = calculateIRRF(irrfBase);
+
+        const totalDeductions = Math.round((faltaDeduction + dsrDeduction + vtPayrollDiscount + vaPayrollDiscount + inssDeduction + irrfDeduction) * 100) / 100;
         const netSalary = Math.max(0, Math.round((totalGrossSalary - totalDeductions) * 100) / 100);
 
         return {
@@ -232,6 +246,8 @@ export async function getPayrollPreview(year: number, month: number) {
             vtDiscountPercentage,
             vaPayrollDiscount,
             vaDiscountPercentage,
+            inssDeduction,
+            irrfDeduction,
             totalDeductions,
             netSalary,
             isAdmittedThisMonth,
@@ -243,4 +259,52 @@ export async function getPayrollPreview(year: number, month: number) {
     });
 
     return { items, currentUserId: user.id };
+}
+
+function calculateINSS(inssBase: number): number {
+    if (inssBase <= 0) return 0;
+    const limits = [1412.00, 2666.68, 4000.03, 7786.02];
+    const rates = [0.075, 0.09, 0.12, 0.14];
+    
+    let inss = 0;
+    let prevLimit = 0;
+    
+    for (let i = 0; i < limits.length; i++) {
+        const limit = limits[i];
+        const rate = rates[i];
+        
+        if (inssBase > limit) {
+            inss += (limit - prevLimit) * rate;
+            prevLimit = limit;
+        } else {
+            inss += (inssBase - prevLimit) * rate;
+            return Math.round(inss * 100) / 100;
+        }
+    }
+    
+    return 908.86;
+}
+
+function calculateIRRF(irrfBase: number): number {
+    if (irrfBase <= 2259.20) return 0;
+    
+    let rate = 0;
+    let deduction = 0;
+    
+    if (irrfBase <= 2826.65) {
+        rate = 0.075;
+        deduction = 169.44;
+    } else if (irrfBase <= 3751.05) {
+        rate = 0.15;
+        deduction = 381.44;
+    } else if (irrfBase <= 4664.68) {
+        rate = 0.225;
+        deduction = 662.77;
+    } else {
+        rate = 0.275;
+        deduction = 896.00;
+    }
+    
+    const irrf = (irrfBase * rate) - deduction;
+    return irrf > 0 ? Math.round(irrf * 100) / 100 : 0;
 }
