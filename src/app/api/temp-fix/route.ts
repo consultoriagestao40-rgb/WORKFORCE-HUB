@@ -1,13 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { syncSecullumOccurrences } from "@/actions/secullum";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     try {
-        console.log("Triggering production sync from API route for Month 5, 6, 7...");
-        const res5 = await syncSecullumOccurrences(2026, 5, true);
-        const res6 = await syncSecullumOccurrences(2026, 6, true);
-        const res7 = await syncSecullumOccurrences(2026, 7, true);
+        const { searchParams } = new URL(request.url);
+        const monthParam = searchParams.get("month");
+        const month = monthParam ? parseInt(monthParam) : 7;
+        const year = 2026;
+
+        console.log(`Triggering production sync from API route for Month ${month}...`);
+        const res = await syncSecullumOccurrences(year, month, true);
 
         const occurrencesCount = await prisma.occurrence.groupBy({
             by: ['type'],
@@ -27,11 +30,7 @@ export async function GET() {
 
         return NextResponse.json({
             success: true,
-            syncResults: {
-                month5: res5,
-                month6: res6,
-                month7: res7
-            },
+            syncResult: res,
             databaseOccurrences: occurrencesCount,
             luziaDetails: luzia ? {
                 id: luzia.id,
