@@ -37,10 +37,15 @@ export default function BenefitsPage() {
     const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth() + 1);
 
     const getWindowDatesLabel = () => {
-        const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
-        const prevMonthStr = String(prevMonth).padStart(2, '0');
-        const currentMonthStr = String(selectedMonth).padStart(2, '0');
-        return `26/${prevMonthStr} a 25/${currentMonthStr}`;
+        let startMonth = selectedMonth - 2;
+        if (startMonth <= 0) startMonth += 12;
+        
+        let endMonth = selectedMonth - 1;
+        if (endMonth <= 0) endMonth += 12;
+
+        const startMonthStr = String(startMonth).padStart(2, '0');
+        const endMonthStr = String(endMonth).padStart(2, '0');
+        return `26/${startMonthStr} a 25/${endMonthStr}`;
     };
 
     const [isLoading, setIsLoading] = useState(true);

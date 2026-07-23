@@ -333,12 +333,24 @@ export async function getBenefitsCalculation(year: number, month: number) {
 
     const config = await getBenefitsConfig();
 
-    // Calculate window dates: Day 26 of previous month to Day 25 of current month
-    const prevMonth = month === 1 ? 12 : month - 1;
-    const prevYear = month === 1 ? year - 1 : year;
+    // Calculate window dates: Day 26 of (month-2) to Day 25 of (month-1)
+    // E.g. for July (month 7), the occurrences window is May 26 (month 5) to June 25 (month 6)
+    let startMonth = month - 2;
+    let startYear = year;
+    if (startMonth <= 0) {
+        startMonth += 12;
+        startYear -= 1;
+    }
 
-    const windowStart = new Date(prevYear, prevMonth - 1, config.payrollCutoffStartDay, 0, 0, 0);
-    const windowEnd = new Date(year, month - 1, config.payrollCutoffEndDay, 23, 59, 59);
+    let endMonth = month - 1;
+    let endYear = year;
+    if (endMonth <= 0) {
+        endMonth += 12;
+        endYear -= 1;
+    }
+
+    const windowStart = new Date(startYear, startMonth - 1, config.payrollCutoffStartDay, 0, 0, 0);
+    const windowEnd = new Date(endYear, endMonth - 1, config.payrollCutoffEndDay, 23, 59, 59);
 
     const businessDaysInMonth = getBusinessDaysInMonth(year, month);
 
