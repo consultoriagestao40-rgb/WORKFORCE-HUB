@@ -121,6 +121,55 @@ function getVaDaysForDaily(schedule: string, pivotDate: Date, year: number, mont
     return count;
 }
 
+function getNthBusinessDay(year: number, month: number, n: number): Date {
+    const date = new Date(year, month - 1, 1);
+    let count = 0;
+    while (true) {
+        const dayOfWeek = date.getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        if (!isWeekend && !isHoliday(date)) {
+            count++;
+            if (count === n) {
+                return new Date(date);
+            }
+        }
+        date.setDate(date.getDate() + 1);
+    }
+}
+
+function getVtDaysForDaily(schedule: string, pivotDate: Date, year: number, month: number): number {
+    const startDate = getNthBusinessDay(year, month, 5);
+    
+    let nextMonth = month + 1;
+    let nextYear = year;
+    if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear++;
+    }
+    const endDate = getNthBusinessDay(nextYear, nextMonth, 4);
+
+    const days: Date[] = [];
+    const date = new Date(startDate);
+    while (date <= endDate) {
+        days.push(new Date(date));
+        date.setDate(date.getDate() + 1);
+    }
+
+    const roster = generateRoster(schedule, pivotDate, days);
+
+    let count = 0;
+    for (const item of roster) {
+        if (item.status === 'Trabalho') {
+            const dayOfWeek = item.date.getDay();
+            const isSunday = dayOfWeek === 0;
+            if (!isSunday && !isHoliday(item.date)) {
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
 // 1. Get or Create Config
 export async function getBenefitsConfig() {
     let config = await prisma.benefitsConfig.findFirst();
@@ -407,7 +456,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
             : baseVtValue2;
 
         const pivotDateForVt = activeAssignment?.startDate ? new Date(activeAssignment.startDate) : admissionDateObj;
-        const scheduledWorkDays = getVaDaysForDaily(posto?.schedule || "5x2", pivotDateForVt, year, month);
+        const scheduledWorkDays = getVtDaysForDaily(posto?.schedule || "5x2", pivotDateForVt, year, month);
 
         // VT Calculation
         let vtBaseValue = 0;
