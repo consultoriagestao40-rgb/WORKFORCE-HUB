@@ -36,6 +36,13 @@ export default function BenefitsPage() {
     const [selectedYear, setSelectedYear] = useState<number>(today.getFullYear());
     const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth() + 1);
 
+    const getWindowDatesLabel = () => {
+        const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
+        const prevMonthStr = String(prevMonth).padStart(2, '0');
+        const currentMonthStr = String(selectedMonth).padStart(2, '0');
+        return `26/${prevMonthStr} a 25/${currentMonthStr}`;
+    };
+
     const [isLoading, setIsLoading] = useState(true);
     const [isSyncingSecullum, setIsSyncingSecullum] = useState(false);
     const [isTestingSecullum, setIsTestingSecullum] = useState(false);
@@ -1115,7 +1122,7 @@ export default function BenefitsPage() {
                                                                 </PopoverTrigger>
                                                                 <PopoverContent className="w-72 p-3 text-xs space-y-2">
                                                                     <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">
-                                                                        Faltas / Atestados na Janela (26-25)
+                                                                        Faltas / Atestados na Janela ({getWindowDatesLabel()})
                                                                     </div>
                                                                     <div className="space-y-1.5 max-h-48 overflow-y-auto">
                                                                         {item.occurrencesList.map(occ => {
