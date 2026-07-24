@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
-// Force trigger Vercel build webhook
 export async function GET() {
     try {
         const data = [
@@ -25,9 +24,22 @@ export async function GET() {
             { name: "JESUS RAMON JIMENEZ IDROGO", cpf: "70634862251", sic: null, cq: "65586999003606277" },
             { name: "JOANA DARK SANTOS DA CRUZ", cpf: "85910527576", sic: null, cq: "65586998200920325" },
             { name: "MAIRA ALEJANDRA GRATEROL", cpf: "11312709243", sic: null, cq: null },
-            { name: "MARIA DO SOCORRO DA SILVA OLIVEIRA", cpf: null, sic: null, cq: null },
-            { name: "MARIA EDUARDA GUIMARAES", cpf: null, sic: null, cq: null }
+            { name: "MARIA DO SOCORRO DA SILVA OLIVEIRA", cpf: "00000000001", sic: "00265448228", cq: null },
+            { name: "MARIA EDUARDA GUIMARAES", cpf: "00000000002", sic: null, cq: null }
         ];
+
+        // Find Spot company
+        const spotCompany = await prisma.company.findFirst({
+            where: { name: { contains: "Spot", mode: "insensitive" } }
+        });
+        
+        // Find default role
+        const defaultRole = await prisma.role.findFirst({
+            where: { name: { contains: "Limpeza", mode: "insensitive" } }
+        }) || await prisma.role.findFirst();
+
+        const companyId = spotCompany?.id || null;
+        const roleId = defaultRole?.id || "";
 
         const allEmployees = await prisma.employee.findMany({
             include: {
@@ -50,6 +62,7 @@ export async function GET() {
             const words1 = n1.split(/\s+/);
             const words2 = n2.split(/\s+/);
 
+            // Require first name and at least one other word to match
             if (words1[0] === words2[0]) {
                 const intersection = words1.filter(w => words2.some(w2 => w2.startsWith(w) || w.startsWith(w2)));
                 if (intersection.length >= 2) {
@@ -59,12 +72,17 @@ export async function GET() {
             return false;
         };
 
-        // 1. First Pass: Apply correct updates
+        const formatCpf = (cpf: string) => {
+            const clean = cpf.replace(/\D/g, "");
+            if (clean.length !== 11) return cpf;
+            return `${clean.substring(0, 3)}.${clean.substring(3, 6)}.${clean.substring(6, 9)}-${clean.substring(9, 11)}`;
+        };
+
         for (const item of data) {
             let employee = null;
 
             // Find by CPF first (clean digits)
-            if (item.cpf) {
+            if (item.cpf && item.cpf !== "00000000001" && item.cpf !== "00000000002") {
                 const cleanInputCpf = item.cpf.replace(/\D/g, "");
                 employee = allEmployees.find(e => e.cpf.replace(/\D/g, "") === cleanInputCpf);
             }
@@ -86,16 +104,33 @@ export async function GET() {
                 });
                 results.push({ name: item.name, matchedDbName: employee.name, status: "updated", sic: item.sic, cq: item.cq });
             } else {
-                results.push({ name: item.name, status: "not_found" });
+                // CREATE new employee if not found
+                const newCpf = item.cpf ? formatCpf(item.cpf) : `000.000.000-${Math.floor(10 + Math.random() * 90)}`;
+                const newEmp = await prisma.employee.create({
+                    data: {
+                        name: item.name.trim(),
+                        cpf: newCpf,
+                        companyId,
+                        roleId,
+                        status: "Ativo",
+                        type: "CLT",
+                        salary: 1418,
+                        vtOptIn: true,
+                        vtPaymentMethod: "Urbs",
+                        urbsSic: item.sic,
+                        urbsCqCtNf: item.cq
+                    }
+                });
+                matchedIds.add(newEmp.id);
+                results.push({ name: item.name, status: "created", cpf: newCpf, sic: item.sic, cq: item.cq });
             }
         }
 
-        // 2. Second Pass: Clean up incorrect "Devanildo" style updates
-        // Find any Spot employee that was NOT matched above but has vtPaymentMethod === "Urbs"
+        // 2. Clean up incorrect "Devanildo" style updates or mismatches
         const spotEmployeesToReset = allEmployees.filter(e => 
             e.company?.name.toLowerCase().includes("spot") && 
             !matchedIds.has(e.id) && 
-            e.vtPaymentMethod === "Urbs"
+            (e.vtPaymentMethod === "Urbs" || e.urbsSic !== null || e.urbsCqCtNf !== null)
         );
 
         for (const emp of spotEmployeesToReset) {
