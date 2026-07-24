@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+// Force trigger Vercel build webhook
 export async function GET() {
     try {
         const data = [
