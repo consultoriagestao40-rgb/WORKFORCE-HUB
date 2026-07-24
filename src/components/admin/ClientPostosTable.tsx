@@ -154,7 +154,7 @@ export function ClientPostosTable({
                         <TableRow key={posto.id} className={statusAlert ? "bg-red-50/30" : ""}>
                             <TableCell className="font-medium">
                                 <div className="flex items-center gap-1 group">
-                                    {posto.role.name}
+                                    Posto {postos.indexOf(posto) + 1} - {posto.role.name}
                                     <EditPostoSheet posto={posto} schedules={schedules} roles={roles} />
                                 </div>
                             </TableCell>

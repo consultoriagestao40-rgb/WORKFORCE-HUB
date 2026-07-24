@@ -5002,8 +5002,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
                                         >
                                             <option value="">-- Selecione o Posto --</option>
-                                            {detailedData.postos.map((p: any) => (
-                                                <option key={p.id} value={p.id}>{p.role?.name} ({p.schedule})</option>
+                                            {detailedData.postos.map((p: any, index: number) => (
+                                                <option key={p.id} value={p.id}>Posto {index + 1} - {p.role?.name} ({p.schedule})</option>
                                             ))}
                                         </select>
                                     )}
