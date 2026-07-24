@@ -84,6 +84,21 @@ export async function GET() {
             return `${clean.substring(0, 3)}.${clean.substring(3, 6)}.${clean.substring(6, 9)}-${clean.substring(9, 11)}`;
         };
 
+        const generateUniqueCpf = () => {
+            const existingCpfs = new Set(allEmployees.map(e => e.cpf.replace(/\D/g, "")));
+            let attempts = 0;
+            while (attempts < 1000) {
+                const num = Math.floor(10000000 + Math.random() * 90000000).toString();
+                const candidate = `000${num}`;
+                if (!existingCpfs.has(candidate)) {
+                    existingCpfs.add(candidate);
+                    return `${candidate.substring(0, 3)}.${candidate.substring(3, 6)}.${candidate.substring(6, 9)}-${candidate.substring(9, 11)}`;
+                }
+                attempts++;
+            }
+            return `000.000.000-${Math.floor(10 + Math.random() * 90)}`;
+        };
+
         for (const item of data) {
             let employee = null;
 
@@ -111,7 +126,7 @@ export async function GET() {
                 results.push({ name: item.name, matchedDbName: employee.name, status: "updated", sic: item.sic, cq: item.cq });
             } else {
                 // CREATE new employee if not found
-                const newCpf = item.cpf ? formatCpf(item.cpf) : `000.000.000-${Math.floor(10 + Math.random() * 90)}`;
+                const newCpf = (item.cpf && item.cpf !== "00000000001" && item.cpf !== "00000000002") ? formatCpf(item.cpf) : generateUniqueCpf();
                 const newEmp = await prisma.employee.create({
                     data: {
                         name: item.name.trim(),
