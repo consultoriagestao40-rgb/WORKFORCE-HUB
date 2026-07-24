@@ -59,17 +59,23 @@ export async function GET() {
             const n2 = normalize(name2);
             if (n1 === n2) return true;
 
-            const words1 = n1.split(/\s+/);
-            const words2 = n2.split(/\s+/);
+            const exclude = ["de", "da", "do", "dos", "das", "e"];
+            const words1 = n1.split(/\s+/).filter(w => !exclude.includes(w));
+            const words2 = n2.split(/\s+/).filter(w => !exclude.includes(w));
 
-            // Require first name and at least one other word to match
-            if (words1[0] === words2[0]) {
-                const intersection = words1.filter(w => words2.some(w2 => w2.startsWith(w) || w.startsWith(w2)));
-                if (intersection.length >= 2) {
+            if (words1[0] !== words2[0]) return false;
+
+            const isWordSimilar = (w1: string, w2: string) => {
+                if (w1 === w2) return true;
+                if (w1.startsWith(w2.substring(0, 5)) || w2.startsWith(w1.substring(0, 5))) {
                     return true;
                 }
-            }
-            return false;
+                return false;
+            };
+
+            const matches = words1.filter(w1 => words2.some(w2 => isWordSimilar(w1, w2)));
+            const ratio = matches.length / Math.min(words1.length, words2.length);
+            return ratio >= 0.7;
         };
 
         const formatCpf = (cpf: string) => {
