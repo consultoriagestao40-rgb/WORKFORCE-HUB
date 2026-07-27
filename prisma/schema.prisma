@@ -424,6 +424,8 @@ model EmployeeMonthlyCalculus {
   extras50Hours         Float    @default(0)
   extras100Hours        Float    @default(0)
   adicionalNoturnoHours Float    @default(0)
+  diversosDescontos     Float    @default(0)
+  emprestimos           Float    @default(0)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   employee              Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)

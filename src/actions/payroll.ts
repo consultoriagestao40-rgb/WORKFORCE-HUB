@@ -59,6 +59,10 @@ export interface PayrollPreviewItem {
     adicionalNoturnoHours: number;
     adicionalNoturnoValue: number;
     
+    // Custom Deductions (Lançamento manual)
+    diversosDescontos: number;
+    emprestimos: number;
+    
     // Net
     totalDeductions: number;
     netSalary: number;
@@ -216,6 +220,8 @@ export async function getPayrollPreview(year: number, month: number) {
         const extras50Hours = calc?.extras50Hours || 0;
         const extras100Hours = calc?.extras100Hours || 0;
         const adicionalNoturnoHours = calc?.adicionalNoturnoHours || 0;
+        const diversosDescontos = calc?.diversosDescontos || 0;
+        const emprestimos = calc?.emprestimos || 0;
 
         const hourlyRate = fullFixedSalary / (emp.workload || 220);
         const atrasosDeduction = Math.round((hourlyRate * atrasosHours) * 100) / 100;
@@ -274,7 +280,7 @@ export async function getPayrollPreview(year: number, month: number) {
         const irrfBase = Math.min(irrfBaseA, irrfBaseB);
         const irrfDeduction = calculateIRRF(irrfBase);
 
-        const totalDeductions = Math.round((faltaDeduction + dsrDeduction + atrasosDeduction + vtPayrollDiscount + vaPayrollDiscount + inssDeduction + irrfDeduction) * 100) / 100;
+        const totalDeductions = Math.round((faltaDeduction + dsrDeduction + atrasosDeduction + vtPayrollDiscount + vaPayrollDiscount + inssDeduction + irrfDeduction + diversosDescontos + emprestimos) * 100) / 100;
         const netSalary = Math.max(0, Math.round((totalGrossSalary - totalDeductions) * 100) / 100);
 
         return {
@@ -315,6 +321,8 @@ export async function getPayrollPreview(year: number, month: number) {
             horasExtras100Value,
             adicionalNoturnoHours,
             adicionalNoturnoValue,
+            diversosDescontos,
+            emprestimos,
             totalDeductions,
             netSalary,
             isAdmittedThisMonth,
@@ -374,4 +382,34 @@ function calculateIRRF(irrfBase: number): number {
     
     const irrf = (irrfBase * rate) - deduction;
     return irrf > 0 ? Math.round(irrf * 100) / 100 : 0;
+}
+
+export async function updateMonthlyDeductions(
+    employeeId: string, 
+    year: number, 
+    month: number, 
+    diversosDescontos: number, 
+    emprestimos: number
+) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado");
+
+    await prisma.employeeMonthlyCalculus.upsert({
+        where: {
+            employeeId_year_month: { employeeId, year, month }
+        },
+        create: {
+            employeeId,
+            year,
+            month,
+            diversosDescontos,
+            emprestimos
+        },
+        update: {
+            diversosDescontos,
+            emprestimos
+        }
+    });
+
+    return { success: true };
 }

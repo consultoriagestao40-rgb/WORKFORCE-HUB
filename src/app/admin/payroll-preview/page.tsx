@@ -12,6 +12,7 @@ import {
     User, 
     AlertCircle, 
     ChevronDown, 
+    Edit,
     ChevronRight,
     TrendingDown,
     TrendingUp,
@@ -29,7 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { getPayrollPreview, PayrollPreviewItem } from "@/actions/payroll";
+import { getPayrollPreview, PayrollPreviewItem, updateMonthlyDeductions } from "@/actions/payroll";
 import * as XLSX from "xlsx";
 
 export default function PayrollPreviewPage() {
@@ -39,7 +40,7 @@ export default function PayrollPreviewPage() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [items, setItems] = useState<PayrollPreviewItem[]>([]);
-    const [sortField, setSortField] = useState<'none' | 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'inss' | 'irrf' | 'netSalary'>('none');
+    const [sortField, setSortField] = useState<'none' | 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'diversosDescontos' | 'emprestimos' | 'inss' | 'irrf' | 'netSalary'>('none');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
     const [searchTerm, setSearchTerm] = useState("");
@@ -47,6 +48,13 @@ export default function PayrollPreviewPage() {
     const [selectedClient, setSelectedClient] = useState<string>("all");
     const [groupedView, setGroupedView] = useState<"colaborador" | "empresa" | "contrato">("colaborador");
     const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+
+    // Edit deductions modal state
+    const [editDeductionsOpen, setEditDeductionsOpen] = useState(false);
+    const [selectedEmployeeItem, setSelectedEmployeeItem] = useState<PayrollPreviewItem | null>(null);
+    const [inputDiversos, setInputDiversos] = useState("");
+    const [inputEmprestimos, setInputEmprestimos] = useState("");
+    const [isSavingDeductions, setIsSavingDeductions] = useState(false);
 
     const [exportModalOpen, setExportModalOpen] = useState(false);
     const [exportSelectedCompany, setExportSelectedCompany] = useState<string>("all");
@@ -73,6 +81,40 @@ export default function PayrollPreviewPage() {
             toast.error("Erro ao carregar prévia de folha de pagamento.");
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleOpenEditDeductions = (item: PayrollPreviewItem) => {
+        setSelectedEmployeeItem(item);
+        setInputDiversos(item.diversosDescontos > 0 ? item.diversosDescontos.toString() : "");
+        setInputEmprestimos(item.emprestimos > 0 ? item.emprestimos.toString() : "");
+        setEditDeductionsOpen(true);
+    };
+
+    const handleSaveDeductions = async () => {
+        if (!selectedEmployeeItem) return;
+        setIsSavingDeductions(true);
+        try {
+            const diversos = parseFloat(inputDiversos) || 0;
+            const emprestimos = parseFloat(inputEmprestimos) || 0;
+
+            const res = await updateMonthlyDeductions(
+                selectedEmployeeItem.employeeId,
+                selectedYear,
+                selectedMonth,
+                diversos,
+                emprestimos
+            );
+
+            if (res.success) {
+                toast.success(`Lançamentos de ${selectedEmployeeItem.employeeName} salvos com sucesso!`);
+                setEditDeductionsOpen(false);
+                loadData();
+            }
+        } catch (error: any) {
+            toast.error(error.message || "Erro ao salvar lançamentos.");
+        } finally {
+            setIsSavingDeductions(false);
         }
     };
 
@@ -122,7 +164,7 @@ export default function PayrollPreviewPage() {
         return matchesSearch && matchesCompany && matchesClient;
     });
 
-    const handleSort = (field: 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'inss' | 'irrf' | 'netSalary') => {
+    const handleSort = (field: 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'diversosDescontos' | 'emprestimos' | 'inss' | 'irrf' | 'netSalary') => {
         if (sortField === field) {
             setSortDirection(prev => prev === 'desc' ? 'asc' : 'desc');
         } else {
@@ -216,6 +258,14 @@ export default function PayrollPreviewPage() {
                 valA = a.vaPayrollDiscount;
                 valB = b.vaPayrollDiscount;
                 break;
+            case 'diversosDescontos':
+                valA = a.diversosDescontos;
+                valB = b.diversosDescontos;
+                break;
+            case 'emprestimos':
+                valA = a.emprestimos;
+                valB = b.emprestimos;
+                break;
             case 'inss':
                 valA = a.inssDeduction;
                 valB = b.inssDeduction;
@@ -268,6 +318,8 @@ export default function PayrollPreviewPage() {
                 dsrDeduction: 0,
                 vtPayrollDiscount: 0,
                 vaPayrollDiscount: 0,
+                diversosDescontos: 0,
+                emprestimos: 0,
                 inssDeduction: 0,
                 irrfDeduction: 0,
                 totalDeductions: 0,
@@ -289,6 +341,8 @@ export default function PayrollPreviewPage() {
         acc[group].dsrDeduction += item.dsrDeduction;
         acc[group].vtPayrollDiscount += item.vtPayrollDiscount;
         acc[group].vaPayrollDiscount += item.vaPayrollDiscount;
+        acc[group].diversosDescontos += item.diversosDescontos;
+        acc[group].emprestimos += item.emprestimos;
         acc[group].inssDeduction += item.inssDeduction;
         acc[group].irrfDeduction += item.irrfDeduction;
         acc[group].totalDeductions += item.totalDeductions;
@@ -316,6 +370,8 @@ export default function PayrollPreviewPage() {
                 dsrDeduction: 0,
                 vtPayrollDiscount: 0,
                 vaPayrollDiscount: 0,
+                diversosDescontos: 0,
+                emprestimos: 0,
                 inssDeduction: 0,
                 irrfDeduction: 0,
                 totalDeductions: 0,
@@ -337,6 +393,8 @@ export default function PayrollPreviewPage() {
         acc[group].dsrDeduction += item.dsrDeduction;
         acc[group].vtPayrollDiscount += item.vtPayrollDiscount;
         acc[group].vaPayrollDiscount += item.vaPayrollDiscount;
+        acc[group].diversosDescontos += item.diversosDescontos;
+        acc[group].emprestimos += item.emprestimos;
         acc[group].inssDeduction += item.inssDeduction;
         acc[group].irrfDeduction += item.irrfDeduction;
         acc[group].totalDeductions += item.totalDeductions;
@@ -416,6 +474,8 @@ export default function PayrollPreviewPage() {
                 "Desc. DSR (R$)": item.dsrDeduction,
                 "Desc. VT (R$)": item.vtPayrollDiscount,
                 "Desc. VA (R$)": item.vaPayrollDiscount,
+                "Descontos Diversos (R$)": item.diversosDescontos,
+                "Empréstimos (R$)": item.emprestimos,
                 "Desc. INSS (R$)": item.inssDeduction,
                 "Desc. IRRF (R$)": item.irrfDeduction,
                 "Total Descontos (R$)": item.totalDeductions,
@@ -888,6 +948,26 @@ export default function PayrollPreviewPage() {
                                         </div>
                                     </th>
                                     <th 
+                                        className="py-3 px-4 text-right text-red-500 bg-red-50/10 cursor-pointer select-none hover:bg-red-100/20 transition-colors group" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('diversosDescontos')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Desc. Diversos</span>
+                                            {renderSortIcon('diversosDescontos')}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right text-red-500 bg-red-50/10 cursor-pointer select-none hover:bg-red-100/20 transition-colors group" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('emprestimos')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Empréstimos</span>
+                                            {renderSortIcon('emprestimos')}
+                                        </div>
+                                    </th>
+                                    <th 
                                         className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('inss')}
@@ -925,7 +1005,16 @@ export default function PayrollPreviewPage() {
                                         {/* Colaborador */}
                                         <td className="py-3 px-4 sticky left-0 z-10 whitespace-nowrap" style={{ position: "sticky", left: 0, backgroundColor: "#ffffff", zIndex: 10 }}>
                                             <div>
-                                                <div className="font-bold text-slate-900 text-[13px]">{item.employeeName}</div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-bold text-slate-900 text-[13px]">{item.employeeName}</span>
+                                                    <button 
+                                                        onClick={() => handleOpenEditDeductions(item)}
+                                                        className="text-slate-400 hover:text-slate-800 hover:bg-slate-100 p-0.5 rounded transition-all cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                                        title="Lançar Empréstimo / Descontos"
+                                                    >
+                                                        <Edit className="w-3 h-3" />
+                                                    </button>
+                                                </div>
                                                 <div className="text-[10px] text-slate-400 font-medium mt-0.5">CPF: {item.employeeCpf} | {item.postoName}</div>
                                             </div>
                                         </td>
@@ -1229,7 +1318,7 @@ export default function PayrollPreviewPage() {
                                                     </PopoverTrigger>
                                                     <PopoverContent className="w-60 p-3 text-xs space-y-1.5">
                                                         <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Desconto VA em Folha</div>
-                                                        <div className="space-y-1 text-[10px] text-slate-650 font-medium">
+                                                        <div className="space-y-1 text-[10px] text-slate-655 font-medium">
                                                             <div className="flex justify-between"><span>Alíquota Desconto:</span><span>{item.vaDiscountPercentage}%</span></div>
                                                             <div className="flex justify-between text-orange-600 border-t border-slate-100 pt-1 font-bold">
                                                                 <span>Desconto Calculado:</span>
@@ -1241,6 +1330,22 @@ export default function PayrollPreviewPage() {
                                                         </p>
                                                     </PopoverContent>
                                                 </Popover>
+                                            ) : (
+                                                <span className="text-slate-350">-</span>
+                                            )}
+                                        </td>
+                                        {/* Diversos Descontos */}
+                                        <td className="py-3 px-4 text-right text-red-500 bg-red-50/5 whitespace-nowrap font-medium">
+                                            {item.diversosDescontos > 0 ? (
+                                                <span className="font-bold">-{formatCurrency(item.diversosDescontos)}</span>
+                                            ) : (
+                                                <span className="text-slate-350">-</span>
+                                            )}
+                                        </td>
+                                        {/* Empréstimos */}
+                                        <td className="py-3 px-4 text-right text-red-500 bg-red-50/5 whitespace-nowrap font-medium">
+                                            {item.emprestimos > 0 ? (
+                                                <span className="font-bold">-{formatCurrency(item.emprestimos)}</span>
                                             ) : (
                                                 <span className="text-slate-350">-</span>
                                             )}
@@ -1322,6 +1427,8 @@ export default function PayrollPreviewPage() {
                                 <col style={{ width: "160px" }} /> {/* Total Desc. DSR */}
                                 <col style={{ width: "130px" }} /> {/* Total Desc. VT */}
                                 <col style={{ width: "130px" }} /> {/* Total Desc. VA */}
+                                <col style={{ width: "140px" }} /> {/* Total Desc. Diversos */}
+                                <col style={{ width: "140px" }} /> {/* Total Empréstimos */}
                                 <col style={{ width: "130px" }} /> {/* Total INSS */}
                                 <col style={{ width: "130px" }} /> {/* Total IRRF */}
                                 <col style={{ width: "170px" }} /> {/* Líquido Consolidado */}
@@ -1336,6 +1443,8 @@ export default function PayrollPreviewPage() {
                                     <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total Desc. DSR</th>
                                     <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total Desc. VT</th>
                                     <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total Desc. VA</th>
+                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total Desc. Diversos</th>
+                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total Empréstimos</th>
                                     <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total INSS</th>
                                     <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Total IRRF</th>
                                     <th className="py-3 px-4 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]" style={{ position: "sticky", top: 0, right: 0, backgroundColor: "#f1f5f9", zIndex: 30 }}>Líquido Consolidado</th>
@@ -1386,6 +1495,14 @@ export default function PayrollPreviewPage() {
                                                 <td className="py-3 px-4 text-right text-orange-600 font-bold bg-orange-50/5 whitespace-nowrap">
                                                     {group.vaPayrollDiscount > 0 ? `-${formatCurrency(group.vaPayrollDiscount)}` : "-"}
                                                 </td>
+                                                {/* Diversos Descontos */}
+                                                <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/5 whitespace-nowrap">
+                                                    {group.diversosDescontos > 0 ? `-${formatCurrency(group.diversosDescontos)}` : "-"}
+                                                </td>
+                                                {/* Empréstimos */}
+                                                <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/5 whitespace-nowrap">
+                                                    {group.emprestimos > 0 ? `-${formatCurrency(group.emprestimos)}` : "-"}
+                                                </td>
                                                 {/* Total INSS */}
                                                 <td className="py-3 px-4 text-right text-red-500 font-bold bg-red-50/5 whitespace-nowrap">
                                                     {group.inssDeduction > 0 ? `-${formatCurrency(group.inssDeduction)}` : "-"}
@@ -1403,7 +1520,7 @@ export default function PayrollPreviewPage() {
                                             {/* Expandível individual do grupo */}
                                             {isExpanded && (
                                                 <tr>
-                                                    <td colSpan={11} className="p-0 bg-slate-50/30">
+                                                    <td colSpan={13} className="p-0 bg-slate-50/30">
                                                         <div className="overflow-hidden border-t border-b border-slate-100 pl-12 pr-4 py-3">
                                                             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">Detalhamento dos Colaboradores</span>
                                                             <div className="overflow-x-auto">
@@ -1428,6 +1545,8 @@ export default function PayrollPreviewPage() {
                                                                          <col style={{ width: "130px" }} /> {/* Desc. Atrasos */}
                                                                         <col style={{ width: "120px" }} /> {/* Desc. VT */}
                                                                         <col style={{ width: "120px" }} /> {/* Desc. VA */}
+                                                                        <col style={{ width: "120px" }} /> {/* Desc. Diversos */}
+                                                                        <col style={{ width: "120px" }} /> {/* Empréstimos */}
                                                                         <col style={{ width: "120px" }} /> {/* INSS */}
                                                                         <col style={{ width: "120px" }} /> {/* IRRF */}
                                                                         <col style={{ width: "140px" }} /> {/* Líquido Final */}
@@ -1451,8 +1570,10 @@ export default function PayrollPreviewPage() {
                                                                             <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">Desc. Faltas</th>
                                                                             <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">Desc. DSR</th>
                                                                              <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">Desc. Atrasos</th>
-                                                                            <th className="py-2.5 px-3 text-right text-orange-650 bg-orange-50/5">Desc. VT</th>
+                                                                            <th className="py-2.5 px-3 text-right text-orange-655 bg-orange-50/5">Desc. VT</th>
                                                                             <th className="py-2.5 px-3 text-right text-orange-655 bg-orange-50/5">Desc. VA</th>
+                                                                            <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">Desc. Diversos</th>
+                                                                            <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">Empréstimos</th>
                                                                             <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">INSS</th>
                                                                             <th className="py-2.5 px-3 text-right text-red-500 bg-red-50/10">IRRF</th>
                                                                             <th className="py-2.5 px-3 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]" style={{ position: "sticky", right: 0, backgroundColor: "#f1f5f9", zIndex: 20 }}>Líquido Final</th>
@@ -1704,6 +1825,12 @@ export default function PayrollPreviewPage() {
                                                                                     {sub.vaPayrollDiscount > 0 ? `-${formatCurrency(sub.vaPayrollDiscount)}` : "-"}
                                                                                 </td>
                                                                                 <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
+                                                                                    {sub.diversosDescontos > 0 ? `-${formatCurrency(sub.diversosDescontos)}` : "-"}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
+                                                                                    {sub.emprestimos > 0 ? `-${formatCurrency(sub.emprestimos)}` : "-"}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
                                                                                     {sub.inssDeduction > 0 ? `-${formatCurrency(sub.inssDeduction)}` : "-"}
                                                                                 </td>
                                                                                 <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
@@ -1824,6 +1951,88 @@ export default function PayrollPreviewPage() {
                             className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
                         >
                             {isLoadingExport ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />} Exportar Excel
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* EDIT MANUAL DEDUCTIONS MODAL */}
+            <Dialog open={editDeductionsOpen} onOpenChange={setEditDeductionsOpen}>
+                <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-3xl">
+                    <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-red-50/50">
+                        <DialogTitle className="flex items-center gap-2 text-lg font-black text-red-700">
+                            <Edit className="w-5 h-5 text-red-650" /> Lançamentos Avulsos
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-red-800">
+                            Lançar descontos manuais e empréstimos esporádicos para a folha de pagamento deste mês.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {selectedEmployeeItem && (
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+                            {/* Employee Quick Info */}
+                            <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl space-y-1">
+                                <div className="flex justify-between font-bold text-slate-800">
+                                    <span>Colaborador:</span>
+                                    <span className="text-slate-900">{selectedEmployeeItem.employeeName}</span>
+                                </div>
+                                <div className="flex justify-between text-slate-500 font-medium">
+                                    <span>CPF:</span>
+                                    <span>{selectedEmployeeItem.employeeCpf}</span>
+                                </div>
+                                <div className="flex justify-between text-slate-500 font-medium border-t border-slate-200/60 pt-1 mt-1">
+                                    <span>Competência:</span>
+                                    <span className="font-bold text-slate-700">{selectedMonth}/{selectedYear}</span>
+                                </div>
+                            </div>
+
+                            {/* Inputs */}
+                            <div className="space-y-3.5">
+                                <div className="space-y-1.5">
+                                    <Label className="font-bold text-slate-750">Descontos Diversos (R$)</Label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-2.5 text-slate-400 text-xs font-semibold">R$</span>
+                                        <Input 
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            placeholder="0,00"
+                                            value={inputDiversos}
+                                            onChange={(e) => setInputDiversos(e.target.value)}
+                                            className="pl-8 h-10 w-full rounded-xl bg-white border-slate-200 text-xs focus:ring-red-500/20 focus:border-red-500"
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 italic">Desconto avulso pontual válido somente para este mês.</p>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="font-bold text-slate-750">Empréstimos (R$)</Label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-2.5 text-slate-400 text-xs font-semibold">R$</span>
+                                        <Input 
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            placeholder="0,00"
+                                            value={inputEmprestimos}
+                                            onChange={(e) => setInputEmprestimos(e.target.value)}
+                                            className="pl-8 h-10 w-full rounded-xl bg-white border-slate-200 text-xs focus:ring-red-500/20 focus:border-red-500"
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 italic">Desconto de empréstimos válido somente para este mês.</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={() => setEditDeductionsOpen(false)}>Cancelar</Button>
+                        <Button 
+                            onClick={handleSaveDeductions} 
+                            disabled={isSavingDeductions}
+                            className="bg-red-600 hover:bg-red-700 text-white font-bold gap-2"
+                        >
+                            {isSavingDeductions && <RefreshCw className="w-4 h-4 animate-spin" />} Salvar Lançamento
                         </Button>
                     </DialogFooter>
                 </DialogContent>
