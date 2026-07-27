@@ -37,6 +37,8 @@ export default function PayrollPreviewPage() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [items, setItems] = useState<PayrollPreviewItem[]>([]);
+    const [sortField, setSortField] = useState<'none' | 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'inss' | 'irrf' | 'netSalary'>('none');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedCompany, setSelectedCompany] = useState<string>("all");
@@ -116,6 +118,117 @@ export default function PayrollPreviewPage() {
         const matchesClient = selectedClient === "all" || item.clientName === selectedClient;
 
         return matchesSearch && matchesCompany && matchesClient;
+    });
+
+    const handleSort = (field: 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'inss' | 'irrf' | 'netSalary') => {
+        if (sortField === field) {
+            setSortDirection(prev => prev === 'desc' ? 'asc' : 'desc');
+        } else {
+            setSortField(field);
+            setSortDirection('desc');
+        }
+    };
+
+    const sortedItems = [...filteredItems].sort((a, b) => {
+        if (sortField === 'none') return 0;
+
+        let valA: any = 0;
+        let valB: any = 0;
+
+        switch (sortField) {
+            case 'name':
+                return sortDirection === 'asc'
+                    ? a.employeeName.localeCompare(b.employeeName)
+                    : b.employeeName.localeCompare(a.employeeName);
+            case 'company':
+                const compA = a.companyName || '';
+                const compB = b.companyName || '';
+                return sortDirection === 'asc'
+                    ? compA.localeCompare(compB)
+                    : compB.localeCompare(compA);
+            case 'baseSalary':
+                valA = a.baseSalary;
+                valB = b.baseSalary;
+                break;
+            case 'insalubridade':
+                valA = a.insalubridade;
+                valB = b.insalubridade;
+                break;
+            case 'periculosidade':
+                valA = a.periculosidade;
+                valB = b.periculosidade;
+                break;
+            case 'outrosAdicionais':
+                valA = a.gratificacao + a.outrosAdicionais;
+                valB = b.gratificacao + b.outrosAdicionais;
+                break;
+            case 'horasExtras':
+                valA = a.horasExtras50Value + a.horasExtras100Value;
+                valB = b.horasExtras50Value + b.horasExtras100Value;
+                break;
+            case 'adicionalNoturno':
+                valA = a.adicionalNoturnoValue;
+                valB = b.adicionalNoturnoValue;
+                break;
+            case 'salarioFamilia':
+                valA = a.salarioFamilia;
+                valB = b.salarioFamilia;
+                break;
+            case 'ajudaCusto':
+                valA = a.ajudaCusto + a.adicionalViagem;
+                valB = b.ajudaCusto + b.adicionalViagem;
+                break;
+            case 'totalGrossSalary':
+                valA = a.totalGrossSalary;
+                valB = b.totalGrossSalary;
+                break;
+            case 'faltas':
+                valA = a.faltasCount;
+                valB = b.faltasCount;
+                break;
+            case 'atestados':
+                valA = a.atestadosCount;
+                valB = b.atestadosCount;
+                break;
+            case 'dsr':
+                valA = a.dsrDeductionsCount || 0;
+                valB = b.dsrDeductionsCount || 0;
+                break;
+            case 'descFaltas':
+                valA = a.faltaDeduction;
+                valB = b.faltaDeduction;
+                break;
+            case 'descDsr':
+                valA = a.dsrDeduction;
+                valB = b.dsrDeduction;
+                break;
+            case 'descAtrasos':
+                valA = a.atrasosDeduction;
+                valB = b.atrasosDeduction;
+                break;
+            case 'descVt':
+                valA = a.vtPayrollDiscount;
+                valB = b.vtPayrollDiscount;
+                break;
+            case 'descVa':
+                valA = a.vaPayrollDiscount;
+                valB = b.vaPayrollDiscount;
+                break;
+            case 'inss':
+                valA = a.inssDeduction;
+                valB = b.inssDeduction;
+                break;
+            case 'irrf':
+                valA = a.irrfDeduction;
+                valB = b.irrfDeduction;
+                break;
+            case 'netSalary':
+                valA = a.netSalary;
+                valB = b.netSalary;
+                break;
+        }
+
+        return sortDirection === 'asc' ? valA - valB : valB - valA;
     });
 
     // Unique filter options computed dynamically
@@ -571,32 +684,318 @@ export default function PayrollPreviewPage() {
                             </colgroup>
                             <thead>
                                 <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                                    <th className="py-3 px-4 sticky left-0 z-20" style={{ position: "sticky", top: 0, left: 0, backgroundColor: "#f8fafc", zIndex: 30 }}>Colaborador / CPF / Função</th>
-                                    <th className="py-3 px-4" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Empresa / Posto</th>
-                                    <th className="py-3 px-4 text-right" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Salário Base</th>
-                                    <th className="py-3 px-4 text-right" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Insalubridade</th>
-                                    <th className="py-3 px-4 text-right" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Periculosidade</th>
-                                    <th className="py-3 px-4 text-right" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Outros Adicionais</th>
-                                    <th className="py-3 px-4 text-right bg-sky-50/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>H. Extras</th>
-                                    <th className="py-3 px-4 text-right bg-sky-50/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Adic. Noturno</th>
-                                    <th className="py-3 px-4 text-right bg-sky-50/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Salário-Família</th>
-                                    <th className="py-3 px-4 text-right bg-sky-50/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Ajuda Custo</th>
-                                    <th className="py-3 px-4 text-right bg-slate-100/50" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Proventos Brutos</th>
-                                    <th className="py-3 px-4 text-center" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Faltas</th>
-                                    <th className="py-3 px-4 text-center" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Atestados</th>
-                                    <th className="py-3 px-4 text-center" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>DSR</th>
-                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. Faltas</th>
-                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. DSR</th>
-                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. Atrasos</th>
-                                    <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. VT</th>
-                                    <th className="py-3 px-4 text-right text-orange-500 bg-orange-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>Desc. VA</th>
-                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>INSS</th>
-                                    <th className="py-3 px-4 text-right text-red-500 bg-red-50/20" style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}>IRRF</th>
-                                    <th className="py-3 px-4 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]" style={{ position: "sticky", top: 0, right: 0, backgroundColor: "#f1f5f9", zIndex: 30 }}>Líquido Final</th>
+                                    <th 
+                                        className="py-3 px-4 sticky left-0 z-20 cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        style={{ position: "sticky", top: 0, left: 0, backgroundColor: "#f8fafc", zIndex: 30 }}
+                                        onClick={() => handleSort('name')}
+                                    >
+                                        <div className="flex items-center gap-1">
+                                            <span>Colaborador / CPF / Função</span>
+                                            {sortField === 'name' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('company')}
+                                    >
+                                        <div className="flex items-center gap-1">
+                                            <span>Empresa / Posto</span>
+                                            {sortField === 'company' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('baseSalary')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Salário Base</span>
+                                            {sortField === 'baseSalary' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('insalubridade')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Insalubridade</span>
+                                            {sortField === 'insalubridade' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('periculosidade')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Periculosidade</span>
+                                            {sortField === 'periculosidade' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('outrosAdicionais')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Outros Adicionais</span>
+                                            {sortField === 'outrosAdicionais' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right bg-sky-50/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('horasExtras')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>H. Extras</span>
+                                            {sortField === 'horasExtras' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right bg-sky-50/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('adicionalNoturno')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Adic. Noturno</span>
+                                            {sortField === 'adicionalNoturno' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right bg-sky-50/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('salarioFamilia')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Salário-Família</span>
+                                            {sortField === 'salarioFamilia' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right bg-sky-50/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('ajudaCusto')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Ajuda Custo</span>
+                                            {sortField === 'ajudaCusto' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right bg-slate-100/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('totalGrossSalary')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Proventos Brutos</span>
+                                            {sortField === 'totalGrossSalary' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-center cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('faltas')}
+                                    >
+                                        <div className="flex items-center justify-center gap-0.5">
+                                            <span>Faltas</span>
+                                            {sortField === 'faltas' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-center cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('atestados')}
+                                    >
+                                        <div className="flex items-center justify-center gap-0.5">
+                                            <span>Atestados</span>
+                                            {sortField === 'atestados' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-355 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-center cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('dsr')}
+                                    >
+                                        <div className="flex items-center justify-center gap-0.5">
+                                            <span>DSR</span>
+                                            {sortField === 'dsr' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-355 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('descFaltas')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Desc. Faltas</span>
+                                            {sortField === 'descFaltas' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('descDsr')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Desc. DSR</span>
+                                            {sortField === 'descDsr' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('descAtrasos')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Desc. Atrasos</span>
+                                            {sortField === 'descAtrasos' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right text-orange-500 bg-orange-50/20 cursor-pointer select-none hover:bg-orange-100/30 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('descVt')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Desc. VT</span>
+                                            {sortField === 'descVt' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right text-orange-500 bg-orange-50/20 cursor-pointer select-none hover:bg-orange-100/30 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('descVa')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Desc. VA</span>
+                                            {sortField === 'descVa' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('inss')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>INSS</span>
+                                            {sortField === 'inss' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('irrf')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>IRRF</span>
+                                            {sortField === 'irrf' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-slate-350 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)] cursor-pointer select-none hover:bg-slate-200 transition-colors" 
+                                        style={{ position: "sticky", top: 0, right: 0, backgroundColor: "#f1f5f9", zIndex: 30 }}
+                                        onClick={() => handleSort('netSalary')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Líquido Final</span>
+                                            {sortField === 'netSalary' ? (
+                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
+                                            ) : (
+                                                <span className="text-sky-400 font-normal"> ↕</span>
+                                            )}
+                                        </div>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-650">
-                                {filteredItems.map(item => (
+                                {sortedItems.map(item => (
                                     <tr key={item.employeeId} className="hover:bg-slate-50/60 transition-colors group">
                                         {/* Colaborador */}
                                         <td className="py-3 px-4 sticky left-0 z-10 whitespace-nowrap" style={{ position: "sticky", left: 0, backgroundColor: "#ffffff", zIndex: 10 }}>
