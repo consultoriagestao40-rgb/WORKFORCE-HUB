@@ -631,7 +631,7 @@ export default function PayrollPreviewPage() {
                         <h3 className="text-2xl font-black text-red-600">{formatCurrency(totalDeductionsSum)}</h3>
                         <div className="flex items-center gap-0.5 text-[9px] font-bold text-red-500 mt-1">
                             <TrendingDown className="w-3 h-3" />
-                            <span>Faltas + DSR + VT + VA + INSS + IRRF</span>
+                            <span>Faltas + DSR + Atrasos + VT + VA + Diversos + Empréstimos + INSS + IRRF</span>
                         </div>
                     </div>
                     <div className="bg-red-50 border border-red-100 p-3 rounded-2xl text-red-500">
