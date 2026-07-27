@@ -35,6 +35,10 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
     const [schedule, setSchedule] = useState(currentSchedule || "12x36");
     const [employeeId, setEmployeeId] = useState(""); // NEW for Combobox
     const [observation, setObservation] = useState("");
+    const [noticeStartDate, setNoticeStartDate] = useState(new Date().toISOString().split('T')[0]);
+    const [noticeEndDate, setNoticeEndDate] = useState("");
+    const [terminationDate, setTerminationDate] = useState("");
+    const [abandonmentStartDate, setAbandonmentStartDate] = useState(new Date().toISOString().split('T')[0]);
 
     useEffect(() => {
         if (open && currentSchedule) {
@@ -75,6 +79,19 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
             formData.append("postoId", postoId);
             formData.append("situationId", selectedSituation);
             formData.append("observation", observation);
+
+            const selectedSituationObj = situations.find(s => s.id === selectedSituation);
+            const selectedSituationName = selectedSituationObj?.name;
+
+            if (selectedSituationName === "Aviso Prévio") {
+                formData.append("noticeStartDate", noticeStartDate);
+                formData.append("noticeEndDate", noticeEndDate);
+            } else if (selectedSituationName === "Processo de Rescisão") {
+                formData.append("terminationDate", terminationDate);
+            } else if (selectedSituationName === "Processo de abandono") {
+                formData.append("abandonmentStartDate", abandonmentStartDate);
+            }
+
             if (createVacancy) {
                 formData.append("createVacancy", "on");
             }
@@ -100,9 +117,16 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
         setSelectedSituation("");
         setObservation("");
         setEmployeeId(""); // Reset selection
+        setNoticeStartDate(new Date().toISOString().split('T')[0]);
+        setNoticeEndDate("");
+        setTerminationDate("");
+        setAbandonmentStartDate(new Date().toISOString().split('T')[0]);
         setOpen(true);
         if (currentSchedule) setSchedule(currentSchedule);
     }
+
+    const selectedSituationObj = situations.find(s => s.id === selectedSituation);
+    const selectedSituationName = selectedSituationObj?.name;
 
     return (
         <>
@@ -125,7 +149,7 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
                 </Button>
             )}
 
-            <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) { setError(null); setCreateVacancy(false); setSelectedSituation(""); setObservation(""); } }}>
+            <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) { setError(null); setCreateVacancy(false); setSelectedSituation(""); setObservation(""); setNoticeStartDate(new Date().toISOString().split('T')[0]); setNoticeEndDate(""); setTerminationDate(""); setAbandonmentStartDate(new Date().toISOString().split('T')[0]); } }}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>
@@ -230,6 +254,61 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
                                     ))}
                                 </RadioGroup>
                             </div>
+
+                            {selectedSituationName === "Aviso Prévio" && (
+                                <div className="grid grid-cols-2 gap-4 border p-3 rounded-lg bg-slate-50">
+                                    <div className="space-y-1">
+                                        <Label htmlFor="noticeStartDate" className="text-xs">Início do Aviso</Label>
+                                        <Input
+                                            type="date"
+                                            id="noticeStartDate"
+                                            value={noticeStartDate}
+                                            onChange={(e) => setNoticeStartDate(e.target.value)}
+                                            required
+                                            className="h-8 text-xs"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="noticeEndDate" className="text-xs">Término do Aviso</Label>
+                                        <Input
+                                            type="date"
+                                            id="noticeEndDate"
+                                            value={noticeEndDate}
+                                            onChange={(e) => setNoticeEndDate(e.target.value)}
+                                            required
+                                            className="h-8 text-xs"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {selectedSituationName === "Processo de Rescisão" && (
+                                <div className="space-y-1 border p-3 rounded-lg bg-slate-50">
+                                    <Label htmlFor="terminationDate" className="text-xs">Data Prevista de Desligamento</Label>
+                                    <Input
+                                        type="date"
+                                        id="terminationDate"
+                                        value={terminationDate}
+                                        onChange={(e) => setTerminationDate(e.target.value)}
+                                        required
+                                        className="h-8 text-xs"
+                                    />
+                                </div>
+                            )}
+
+                            {selectedSituationName === "Processo de abandono" && (
+                                <div className="space-y-1 border p-3 rounded-lg bg-slate-50">
+                                    <Label htmlFor="abandonmentStartDate" className="text-xs">Início do Abandono de Posto</Label>
+                                    <Input
+                                        type="date"
+                                        id="abandonmentStartDate"
+                                        value={abandonmentStartDate}
+                                        onChange={(e) => setAbandonmentStartDate(e.target.value)}
+                                        required
+                                        className="h-8 text-xs"
+                                    />
+                                </div>
+                            )}
 
                             <div className="space-y-2">
                                 <Label htmlFor="unassignObservation">Observações / Anotações</Label>

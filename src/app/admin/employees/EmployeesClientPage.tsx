@@ -142,7 +142,9 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                 "Situação": emp.situation?.name || emp.status || "N/A",
                 "Alocação": (emp.situation?.name?.toLowerCase() === "desligado" || emp.status?.toLowerCase() === "desligado")
                     ? "Desligado"
-                    : (activeAssignment ? "Alocado" : "Reserva"),
+                    : (["processo de abandono", "aviso prévio", "processo de rescisão"].includes(emp.situation?.name?.toLowerCase() || ""))
+                        ? emp.situation?.name
+                        : (activeAssignment ? "Alocado" : "Reserva"),
                 "Posto Atual": activeAssignment ? activeAssignment.posto?.client?.name : "-",
 
                 "Data Admissão": emp.admissionDate ? format(new Date(emp.admissionDate), 'dd/MM/yyyy') : "-",
@@ -386,6 +388,18 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                                                     {emp.situation?.name?.toLowerCase() === "desligado" || emp.status?.toLowerCase() === "desligado" ? (
                                                         <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wider border border-slate-200">
                                                             Desligado
+                                                        </span>
+                                                    ) : emp.situation?.name === "Processo de abandono" ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-red-50 text-red-700 text-[10px] font-bold uppercase tracking-wider border border-red-100">
+                                                            Abandono
+                                                        </span>
+                                                    ) : emp.situation?.name === "Aviso Prévio" ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-amber-50 text-amber-700 text-[10px] font-bold uppercase tracking-wider border border-amber-100">
+                                                            Aviso Prévio
+                                                        </span>
+                                                    ) : emp.situation?.name === "Processo de Rescisão" ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-purple-50 text-purple-700 text-[10px] font-bold uppercase tracking-wider border border-purple-100">
+                                                            Rescisão
                                                         </span>
                                                     ) : activeAssignment ? (
                                                         <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wider border border-emerald-100">

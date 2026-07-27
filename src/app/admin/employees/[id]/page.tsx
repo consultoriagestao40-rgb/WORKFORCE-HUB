@@ -32,6 +32,7 @@ import { calculateMonthlyPayroll } from "@/lib/payroll";
 import { getEmployeeTimeline } from "@/app/actions";
 import { EmployeeTimeline } from "@/components/admin/EmployeeTimeline";
 import { VacationHistory } from "@/components/admin/VacationHistory";
+import { MoveToRotativoButton } from "@/components/admin/MoveToRotativoButton";
 
 async function getEmployeeDetails(id: string) {
     const [employee, situations, roles, companies, postos] = await Promise.all([
@@ -376,6 +377,10 @@ export default async function EmployeeProfilePage(props: {
                             vacations={employee.vacations}
                             hasActivePosto={employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name !== "ROTATIVO")}
                         />
+
+                        {!employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name?.toUpperCase() === "ROTATIVO") && (
+                            <MoveToRotativoButton employeeId={employee.id} />
+                        )}
 
                         <Button variant="outline" className="w-full border-slate-200 text-slate-900 rounded-2xl h-14 font-black justify-between group">
                             Generate Report <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />

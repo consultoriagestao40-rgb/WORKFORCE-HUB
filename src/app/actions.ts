@@ -813,6 +813,11 @@ export async function unassignEmployee(formData: FormData) {
         const endDate = new Date();
         const currentUser = await getCurrentUser();
 
+        const noticeStartDate = formData.get("noticeStartDate") as string;
+        const noticeEndDate = formData.get("noticeEndDate") as string;
+        const terminationDate = formData.get("terminationDate") as string;
+        const abandonmentStartDate = formData.get("abandonmentStartDate") as string;
+
         if (!situationId) {
             return { error: "Situação é obrigatória ao desvincular colaborador" };
         }
@@ -838,10 +843,42 @@ export async function unassignEmployee(formData: FormData) {
                 data: { endDate }
             });
 
-            // 2. Update employee situation
+            // 2. Update employee situation with dismissal dates in extraFields
+            let dismissalProcess: any = null;
+            if (situation.name === "Aviso Prévio") {
+                dismissalProcess = {
+                    type: "Aviso Prévio",
+                    startDate: noticeStartDate ? new Date(noticeStartDate + "T12:00:00Z") : new Date(),
+                    endDate: noticeEndDate ? new Date(noticeEndDate + "T12:00:00Z") : null
+                };
+            } else if (situation.name === "Processo de Rescisão") {
+                dismissalProcess = {
+                    type: "Processo de Rescisão",
+                    endDate: terminationDate ? new Date(terminationDate + "T12:00:00Z") : null
+                };
+            } else if (situation.name === "Processo de abandono") {
+                dismissalProcess = {
+                    type: "Processo de abandono",
+                    startDate: abandonmentStartDate ? new Date(abandonmentStartDate + "T12:00:00Z") : new Date()
+                };
+            }
+
+            const existingExtraFields = (currentAssignment.employee.extraFields as any) || {};
+            const updatedExtraFields = {
+                ...existingExtraFields
+            };
+            if (dismissalProcess) {
+                updatedExtraFields.dismissalProcess = dismissalProcess;
+            } else {
+                delete updatedExtraFields.dismissalProcess;
+            }
+
             await tx.employee.update({
                 where: { id: currentAssignment.employeeId },
-                data: { situationId }
+                data: { 
+                    situationId,
+                    extraFields: updatedExtraFields
+                }
             });
 
             // Save observation note if present
@@ -857,7 +894,7 @@ export async function unassignEmployee(formData: FormData) {
             }
 
             // 3. Check if should allocate to Rotativo
-            const activeStatuses = ['Ativo', 'Férias', 'Afastamento', 'Licença INSS', 'AFASTADO INSS', 'LICENÇA MATERNIDADE'];
+            const activeStatuses = ['Ativo', 'Férias', 'Afastamento', 'Licença INSS', 'AFASTADO INSS', 'LICENÇA MATERNIDADE', 'Aviso Prévio', 'Processo de Rescisão', 'Processo de abandono'];
             const shouldAllocateToRotativo = activeStatuses.includes(situation.name);
 
             if (shouldAllocateToRotativo) {
@@ -2464,4 +2501,191 @@ export async function addJobFunction(name: string) {
     const existing = await prisma.jobFunction.findUnique({ where: { name } });
     if (existing) return existing;
     return await prisma.jobFunction.create({ data: { name } });
+}
+
+export async function moveEmployeeToRotativo(employeeId: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
+
+        await prisma.$transaction(async (tx) => {
+            // 1. End any active assignments
+            const activeAssignments = await tx.assignment.findMany({
+                where: { employeeId, endDate: null },
+                include: { posto: true }
+            });
+
+            for (const asg of activeAssignments) {
+                await tx.assignment.update({
+                    where: { id: asg.id },
+                    data: { endDate: new Date() }
+                });
+            }
+
+            // 2. Find or create ROTATIVO client
+            let rotativoClient = await tx.client.findFirst({ where: { name: { equals: 'ROTATIVO', mode: 'insensitive' } } });
+            if (!rotativoClient) {
+                rotativoClient = await tx.client.create({
+                    data: {
+                        name: 'ROTATIVO',
+                        address: 'Centro de Custo Virtual',
+                        companyId: null
+                    }
+                });
+            }
+
+            // 3. Find or create a Posto under ROTATIVO for this employee's role
+            const emp = await tx.employee.findUnique({ where: { id: employeeId }, include: { role: true } });
+            if (!emp) throw new Error("Employee not found");
+
+            const rotativoPosto = await tx.posto.create({
+                data: {
+                    clientId: rotativoClient.id,
+                    roleId: emp.roleId,
+                    schedule: 'Variável',
+                    startTime: '00:00',
+                    endTime: '23:59',
+                    billingValue: 0,
+                    requiredWorkload: emp.workload || 220,
+                    isNightShift: false,
+                    baseSalary: emp.salary || 0
+                }
+            });
+
+            // 4. Create assignment
+            await tx.assignment.create({
+                data: {
+                    employeeId,
+                    postoId: rotativoPosto.id,
+                    startDate: new Date()
+                }
+            });
+
+            // 5. Create log
+            await tx.log.create({
+                data: {
+                    action: "ALOCACAO_ROTATIVO_MANUAL",
+                    details: `Colaborador ${emp.name} movido manualmente para o Rotativo`,
+                    employeeId,
+                    userId: user.id
+                }
+            });
+
+            // Cleanup vacant rotativo postos
+            await cleanupVacantRotativoPostos(tx);
+        });
+
+        revalidatePath("/admin/employees");
+        revalidatePath("/admin/clients");
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error moving to rotativo:", error);
+        return { error: error.message || "Erro ao mover colaborador para o Rotativo." };
+    }
+}
+
+export async function cancelDismissalProcess(employeeId: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
+
+        const emp = await prisma.employee.findUnique({ where: { id: employeeId } });
+        if (!emp) throw new Error("Employee not found");
+
+        let activeSit = await prisma.situation.findFirst({ where: { name: 'Ativo' } });
+        if (!activeSit) {
+            activeSit = await prisma.situation.create({
+                data: { name: 'Ativo', color: '#10b981' }
+            });
+        }
+
+        const extraFields = (emp.extraFields as any) || {};
+        delete extraFields.dismissalProcess;
+
+        await prisma.employee.update({
+            where: { id: employeeId },
+            data: {
+                situationId: activeSit.id,
+                extraFields
+            }
+        });
+
+        await prisma.log.create({
+            data: {
+                action: "DESVINCULACAO_CANCELADA",
+                details: `Processo de desligamento de ${emp.name} cancelado. Retornado para situação Ativo.`,
+                employeeId,
+                userId: user.id
+            }
+        });
+
+        revalidatePath("/admin/employees");
+        revalidatePath("/admin/dismissal-monitor");
+        return { success: true };
+    } catch (e: any) {
+        console.error(e);
+        return { error: e.message || "Erro ao cancelar processo." };
+    }
+}
+
+export async function finalizeDismissal(employeeId: string, notes?: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
+
+        await prisma.$transaction(async (tx) => {
+            const emp = await tx.employee.findUnique({
+                where: { id: employeeId },
+                include: { assignments: { where: { endDate: null } } }
+            });
+            if (!emp) throw new Error("Employee not found");
+
+            // End active assignments
+            for (const asg of emp.assignments) {
+                await tx.assignment.update({
+                    where: { id: asg.id },
+                    data: { endDate: new Date() }
+                });
+            }
+
+            // Find situation 'Desligado'
+            let desligadoSit = await tx.situation.findFirst({ where: { name: 'Desligado' } });
+            if (!desligadoSit) {
+                desligadoSit = await tx.situation.create({
+                    data: { name: 'Desligado', color: '#64748b' }
+                });
+            }
+
+            // Update status and situation
+            await tx.employee.update({
+                where: { id: employeeId },
+                data: {
+                    status: 'Inativo',
+                    situationId: desligadoSit.id,
+                    dismissalReason: emp.extraFields && (emp.extraFields as any).dismissalProcess?.type || "Rescisão",
+                    dismissalNotes: notes || ""
+                }
+            });
+
+            // Log it
+            await tx.log.create({
+                data: {
+                    action: "DESLIGAMENTO_FINAL",
+                    details: `Colaborador ${emp.name} desligado definitivamente do quadro da empresa.`,
+                    employeeId,
+                    userId: user.id
+                }
+            });
+
+            // Cleanup vacant rotativos
+            await cleanupVacantRotativoPostos(tx);
+        });
+
+        revalidatePath("/admin/employees");
+        revalidatePath("/admin/dismissal-monitor");
+        return { success: true };
+    } catch (e: any) {
+        console.error(e);
+        return { error: e.message || "Erro ao finalizar desligamento." };
+    }
 }
