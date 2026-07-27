@@ -433,6 +433,10 @@ export default function PayrollPreviewPage() {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
     };
 
+    const formatHours = (val: number) => {
+        return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(val);
+    };
+
     const handleExportToExcel = async () => {
         setIsLoadingExport(true);
         try {
@@ -1076,8 +1080,8 @@ export default function PayrollPreviewPage() {
                                                     <PopoverContent className="w-56 p-3 text-xs space-y-1.5">
                                                         <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Horas Extras (Secullum)</div>
                                                         <div className="space-y-1 text-[10px] text-slate-655 font-medium">
-                                                            <div className="flex justify-between"><span>Extras 50%:</span><span>{item.extras50Hours}h ({formatCurrency(item.horasExtras50Value)})</span></div>
-                                                            <div className="flex justify-between"><span>Extras 100%:</span><span>{item.extras100Hours}h ({formatCurrency(item.horasExtras100Value)})</span></div>
+                                                            <div className="flex justify-between"><span>Extras 50%:</span><span>{formatHours(item.extras50Hours)}h ({formatCurrency(item.horasExtras50Value)})</span></div>
+                                                            <div className="flex justify-between"><span>Extras 100%:</span><span>{formatHours(item.extras100Hours)}h ({formatCurrency(item.horasExtras100Value)})</span></div>
                                                         </div>
                                                     </PopoverContent>
                                                 </Popover>
@@ -1089,14 +1093,14 @@ export default function PayrollPreviewPage() {
                                                 <Popover>
                                                     <PopoverTrigger asChild>
                                                         <button className="underline decoration-dashed cursor-pointer text-slate-700 hover:text-slate-900">
-                                                            {formatCurrency(item.adicionalNoturnoValue)} <span className="text-[10px] text-slate-400 font-normal">({item.adicionalNoturnoHours}h)</span>
+                                                            {formatCurrency(item.adicionalNoturnoValue)} <span className="text-[10px] text-slate-400 font-normal">({formatHours(item.adicionalNoturnoHours)}h)</span>
                                                         </button>
                                                     </PopoverTrigger>
                                                     <PopoverContent className="w-52 p-3 text-xs space-y-1">
                                                         <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Adicional Noturno (Ponto)</div>
                                                         <div className="flex justify-between text-[10px] text-slate-655 font-medium">
                                                             <span>Horas Sincronizadas:</span>
-                                                            <span>{item.adicionalNoturnoHours}h</span>
+                                                            <span>{formatHours(item.adicionalNoturnoHours)}h</span>
                                                         </div>
                                                     </PopoverContent>
                                                 </Popover>
@@ -1174,9 +1178,9 @@ export default function PayrollPreviewPage() {
                                                          {item.periculosidade > 0 && <div className="flex justify-between"><span>Periculosidade:</span><span className="font-bold text-slate-800">{formatCurrency(item.periculosidade)}</span></div>}
                                                          {item.gratificacao > 0 && <div className="flex justify-between"><span>Gratificação CCT:</span><span className="font-bold text-slate-800">{formatCurrency(item.gratificacao)}</span></div>}
                                                          {item.outrosAdicionais > 0 && <div className="flex justify-between"><span>Outros Adicionais:</span><span className="font-bold text-slate-800">{formatCurrency(item.outrosAdicionais)}</span></div>}
-                                                         {item.horasExtras50Value > 0 && <div className="flex justify-between"><span>H. Extras 50% ({item.extras50Hours}h):</span><span className="font-bold text-slate-800">{formatCurrency(item.horasExtras50Value)}</span></div>}
-                                                         {item.horasExtras100Value > 0 && <div className="flex justify-between"><span>H. Extras 100% ({item.extras100Hours}h):</span><span className="font-bold text-slate-800">{formatCurrency(item.horasExtras100Value)}</span></div>}
-                                                         {item.adicionalNoturnoValue > 0 && <div className="flex justify-between"><span>Adic. Noturno ({item.adicionalNoturnoHours}h):</span><span className="font-bold text-slate-800">{formatCurrency(item.adicionalNoturnoValue)}</span></div>}
+                                                         {item.horasExtras50Value > 0 && <div className="flex justify-between"><span>H. Extras 50% ({formatHours(item.extras50Hours)}h):</span><span className="font-bold text-slate-800">{formatCurrency(item.horasExtras50Value)}</span></div>}
+                                                         {item.horasExtras100Value > 0 && <div className="flex justify-between"><span>H. Extras 100% ({formatHours(item.extras100Hours)}h):</span><span className="font-bold text-slate-800">{formatCurrency(item.horasExtras100Value)}</span></div>}
+                                                         {item.adicionalNoturnoValue > 0 && <div className="flex justify-between"><span>Adic. Noturno ({formatHours(item.adicionalNoturnoHours)}h):</span><span className="font-bold text-slate-800">{formatCurrency(item.adicionalNoturnoValue)}</span></div>}
                                                          {item.salarioFamilia > 0 && <div className="flex justify-between"><span>Salário-Família:</span><span className="font-bold text-slate-800">{formatCurrency(item.salarioFamilia)}</span></div>}
                                                          {item.absenteismoAward > 0 && <div className="flex justify-between"><span>Prêmio Absenteísmo:</span><span className="font-bold text-slate-800">{formatCurrency(item.absenteismoAward)}</span></div>}
                                                          {item.ajudaCusto > 0 && <div className="flex justify-between"><span>Ajuda de Custo:</span><span className="font-bold text-slate-800">{formatCurrency(item.ajudaCusto)}</span></div>}
@@ -1300,7 +1304,7 @@ export default function PayrollPreviewPage() {
                                                          <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Atrasos (Secullum)</div>
                                                          <div className="flex justify-between text-[10px] text-slate-655 font-medium">
                                                              <span>Horas de Atraso:</span>
-                                                             <span>{item.atrasosHours}h</span>
+                                                             <span>{formatHours(item.atrasosHours)}h</span>
                                                          </div>
                                                      </PopoverContent>
                                                  </Popover>
@@ -1641,8 +1645,8 @@ export default function PayrollPreviewPage() {
                                                                                              <PopoverContent className="w-56 p-3 text-xs space-y-1.5">
                                                                                                  <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Horas Extras (Secullum)</div>
                                                                                                  <div className="space-y-1 text-[10px] text-slate-655 font-medium">
-                                                                                                     <div className="flex justify-between"><span>Extras 50%:</span><span>{sub.extras50Hours}h ({formatCurrency(sub.horasExtras50Value)})</span></div>
-                                                                                                     <div className="flex justify-between"><span>Extras 100%:</span><span>{sub.extras100Hours}h ({formatCurrency(sub.horasExtras100Value)})</span></div>
+                                                                                                     <div className="flex justify-between"><span>Extras 50%:</span><span>{formatHours(sub.extras50Hours)}h ({formatCurrency(sub.horasExtras50Value)})</span></div>
+                                                                                                     <div className="flex justify-between"><span>Extras 100%:</span><span>{formatHours(sub.extras100Hours)}h ({formatCurrency(sub.horasExtras100Value)})</span></div>
                                                                                                  </div>
                                                                                              </PopoverContent>
                                                                                          </Popover>
@@ -1654,14 +1658,14 @@ export default function PayrollPreviewPage() {
                                                                                          <Popover>
                                                                                              <PopoverTrigger asChild>
                                                                                                  <button className="underline decoration-dashed cursor-pointer text-slate-700 hover:text-slate-900">
-                                                                                                     {formatCurrency(sub.adicionalNoturnoValue)} <span className="text-[10px] text-slate-400 font-normal">({sub.adicionalNoturnoHours}h)</span>
+                                                                                                     {formatCurrency(sub.adicionalNoturnoValue)} <span className="text-[10px] text-slate-400 font-normal">({formatHours(sub.adicionalNoturnoHours)}h)</span>
                                                                                                  </button>
                                                                                              </PopoverTrigger>
                                                                                              <PopoverContent className="w-52 p-3 text-xs space-y-1">
                                                                                                  <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Adicional Noturno (Ponto)</div>
                                                                                                  <div className="flex justify-between text-[10px] text-slate-655 font-medium">
                                                                                                      <span>Horas Sincronizadas:</span>
-                                                                                                     <span>{sub.adicionalNoturnoHours}h</span>
+                                                                                                     <span>{formatHours(sub.adicionalNoturnoHours)}h</span>
                                                                                                  </div>
                                                                                              </PopoverContent>
                                                                                          </Popover>
@@ -1738,9 +1742,9 @@ export default function PayrollPreviewPage() {
                                                                                                 {sub.periculosidade > 0 && <div className="flex justify-between"><span>Periculosidade:</span><span className="font-bold text-slate-800">{formatCurrency(sub.periculosidade)}</span></div>}
                                                                                                 {sub.gratificacao > 0 && <div className="flex justify-between"><span>Gratificação CCT:</span><span className="font-bold text-slate-800">{formatCurrency(sub.gratificacao)}</span></div>}
                                                                                                 {sub.outrosAdicionais > 0 && <div className="flex justify-between"><span>Outros Adicionais:</span><span className="font-bold text-slate-800">{formatCurrency(sub.outrosAdicionais)}</span></div>}
-                                                                                                {sub.horasExtras50Value > 0 && <div className="flex justify-between"><span>H. Extras 50% ({sub.extras50Hours}h):</span><span className="font-bold text-slate-800">{formatCurrency(sub.horasExtras50Value)}</span></div>}
-                                                                                                {sub.horasExtras100Value > 0 && <div className="flex justify-between"><span>H. Extras 100% ({sub.extras100Hours}h):</span><span className="font-bold text-slate-800">{formatCurrency(sub.horasExtras100Value)}</span></div>}
-                                                                                                {sub.adicionalNoturnoValue > 0 && <div className="flex justify-between"><span>Adic. Noturno ({sub.adicionalNoturnoHours}h):</span><span className="font-bold text-slate-800">{formatCurrency(sub.adicionalNoturnoValue)}</span></div>}
+                                                                                                {sub.horasExtras50Value > 0 && <div className="flex justify-between"><span>H. Extras 50% ({formatHours(sub.extras50Hours)}h):</span><span className="font-bold text-slate-800">{formatCurrency(sub.horasExtras50Value)}</span></div>}
+                                                                                                {sub.horasExtras100Value > 0 && <div className="flex justify-between"><span>H. Extras 100% ({formatHours(sub.extras100Hours)}h):</span><span className="font-bold text-slate-800">{formatCurrency(sub.horasExtras100Value)}</span></div>}
+                                                                                                {sub.adicionalNoturnoValue > 0 && <div className="flex justify-between"><span>Adic. Noturno ({formatHours(sub.adicionalNoturnoHours)}h):</span><span className="font-bold text-slate-800">{formatCurrency(sub.adicionalNoturnoValue)}</span></div>}
                                                                                                 {sub.salarioFamilia > 0 && <div className="flex justify-between"><span>Salário-Família:</span><span className="font-bold text-slate-800">{formatCurrency(sub.salarioFamilia)}</span></div>}
                                                                                                 {sub.absenteismoAward > 0 && <div className="flex justify-between"><span>Prêmio Absenteísmo:</span><span className="font-bold text-slate-800">{formatCurrency(sub.absenteismoAward)}</span></div>}
                                                                                                 {sub.ajudaCusto > 0 && <div className="flex justify-between"><span>Ajuda de Custo:</span><span className="font-bold text-slate-800">{formatCurrency(sub.ajudaCusto)}</span></div>}
@@ -1845,7 +1849,7 @@ export default function PayrollPreviewPage() {
                                                                                                  <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Atrasos (Secullum)</div>
                                                                                                  <div className="flex justify-between text-[10px] text-slate-655 font-medium">
                                                                                                      <span>Horas de Atraso:</span>
-                                                                                                     <span>{sub.atrasosHours}h</span>
+                                                                                                     <span>{formatHours(sub.atrasosHours)}h</span>
                                                                                                  </div>
                                                                                              </PopoverContent>
                                                                                          </Popover>
