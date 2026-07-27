@@ -8,7 +8,13 @@ import { addBusinessDays } from "@/lib/business-days";
 import { createNotification } from "./notifications";
 
 // --- Helper: Create Vacancy from Posto ---
-export async function createVacancyFromPosto(postoId: string) {
+export async function createVacancyFromPosto(
+    postoId: string,
+    unassignedEmployeeName?: string,
+    reason?: string,
+    notes?: string,
+    userId?: string
+) {
     const posto = await prisma.posto.findUnique({
         where: { id: postoId },
         include: {
@@ -53,6 +59,21 @@ export async function createVacancyFromPosto(postoId: string) {
             reqAgeMin: latestVacancy?.reqAgeMin || null,
             reqAgeMax: latestVacancy?.reqAgeMax || null,
             customRequirements: (latestVacancy?.customRequirements as any) || undefined
+        }
+    });
+
+    // Create a recruitment timeline record
+    let details = `Vaga aberta automaticamente após desvinculação de colaborador do posto.`;
+    if (unassignedEmployeeName) {
+        details = `Vaga aberta automaticamente após desvinculação de ${unassignedEmployeeName}.${reason ? ` Motivo: ${reason}.` : ''}${notes ? ` Observações: ${notes}` : ''}`;
+    }
+
+    await prisma.recruitmentTimeline.create({
+        data: {
+            vacancyId: vacancy.id,
+            action: "CREATED",
+            details,
+            userId: userId || null
         }
     });
 
@@ -153,7 +174,7 @@ export async function createVacancy(data: {
         });
     }
 
-    await prisma.vacancy.create({
+    const vacancy = await prisma.vacancy.create({
         data: {
             title: data.title,
             description: data.description,
@@ -170,6 +191,15 @@ export async function createVacancy(data: {
             reqAgeMax: data.reqAgeMax || inheritData?.reqAgeMax || null,
             plannedStartDate: data.plannedStartDate ? new Date(data.plannedStartDate) : (inheritData?.plannedStartDate ? new Date(inheritData.plannedStartDate) : null),
             customRequirements: (data.customRequirements || inheritData?.customRequirements) as any || undefined
+        }
+    });
+
+    await prisma.recruitmentTimeline.create({
+        data: {
+            vacancyId: vacancy.id,
+            action: "CREATED",
+            details: `Vaga criada por ${user.name || user.username}.`,
+            userId: user.id
         }
     });
 

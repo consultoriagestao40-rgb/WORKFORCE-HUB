@@ -76,7 +76,7 @@ export function EmployeeTimeline({ events }: { events: TimelineEvent[] }) {
 
                         {event.details && (
                             <div className="pt-2">
-                                {event.type === 'OBSERVATION' ? (
+                                {event.type === 'OBSERVATION' || (event.type === 'UNASSIGNMENT' && event.details !== "Fim da alocação") ? (
                                     <p className="text-xs text-slate-300 bg-white/5 p-3 rounded-xl border border-white/10 leading-relaxed whitespace-pre-wrap">
                                         {event.details}
                                     </p>

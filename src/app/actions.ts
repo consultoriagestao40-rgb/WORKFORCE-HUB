@@ -811,6 +811,7 @@ export async function unassignEmployee(formData: FormData) {
         const observation = formData.get("observation") as string;
         const createVacancy = formData.get("createVacancy") === "on";
         const endDate = new Date();
+        const currentUser = await getCurrentUser();
 
         if (!situationId) {
             return { error: "Situação é obrigatória ao desvincular colaborador" };
@@ -845,7 +846,6 @@ export async function unassignEmployee(formData: FormData) {
 
             // Save observation note if present
             if (observation && observation.trim().length > 0) {
-                const currentUser = await getCurrentUser();
                 await tx.log.create({
                     data: {
                         action: "DESVINCULACAO_NOTAS",
@@ -857,7 +857,7 @@ export async function unassignEmployee(formData: FormData) {
             }
 
             // 3. Check if should allocate to Rotativo
-            const activeStatuses = ['Ativo', 'Férias', 'Afastamento', 'Licença INSS'];
+            const activeStatuses = ['Ativo', 'Férias', 'Afastamento', 'Licença INSS', 'AFASTADO INSS', 'LICENÇA MATERNIDADE'];
             const shouldAllocateToRotativo = activeStatuses.includes(situation.name);
 
             if (shouldAllocateToRotativo) {
@@ -907,7 +907,6 @@ export async function unassignEmployee(formData: FormData) {
                     }
                 });
 
-                const currentUser = await getCurrentUser();
                 await tx.log.create({
                     data: {
                         action: isVacation ? "ALOCACAO_ROTATIVO_FERIAS" : "ALOCACAO_ROTATIVO",
@@ -918,7 +917,6 @@ export async function unassignEmployee(formData: FormData) {
                 });
             } else {
                 // Just log desvinculação for inactive statuses (Desligado, etc)
-                const currentUser = await getCurrentUser();
                 await tx.log.create({
                     data: {
                         action: "DESVINCULACAO",
@@ -936,7 +934,13 @@ export async function unassignEmployee(formData: FormData) {
         // 4. Create vacancy if requested (outside transaction)
         if (createVacancy) {
             try {
-                await createVacancyFromPosto(postoId);
+                await createVacancyFromPosto(
+                    postoId,
+                    currentAssignment.employee.name,
+                    situation.name,
+                    observation || undefined,
+                    currentUser?.id
+                );
             } catch (error) {
                 console.error("Error creating vacancy:", error);
             }
@@ -2068,13 +2072,30 @@ export async function getEmployeeTimeline(employeeId: string) {
         });
 
         if (a.endDate) {
+            // Find desvinculação logs close to the endDate
+            const desvLog = logs.find(l => 
+                l.action === "DESVINCULACAO" &&
+                Math.abs(new Date(l.timestamp).getTime() - new Date(a.endDate!).getTime()) < 10000
+            );
+            let reason = "";
+            if (desvLog) {
+                const match = desvLog.details.match(/\(([^)]+)\)$/);
+                if (match) reason = match[1];
+            }
+
+            const noteLog = logs.find(l => 
+                l.action === "DESVINCULACAO_NOTAS" &&
+                Math.abs(new Date(l.timestamp).getTime() - new Date(a.endDate!).getTime()) < 10000
+            );
+            const notes = noteLog ? noteLog.details : "";
+
             events.push({
                 id: a.id + '_end',
                 type: 'UNASSIGNMENT',
                 date: a.endDate,
                 title: `Desvinculado de ${a.posto.client.name}`,
-                subtitle: a.posto.role.name,
-                details: "Fim da alocação"
+                subtitle: `${a.posto.role.name}${reason ? ` (${reason})` : ''}`,
+                details: notes || "Fim da alocação"
             });
         }
     });
@@ -2092,8 +2113,8 @@ export async function getEmployeeTimeline(employeeId: string) {
     });
 
     logs.forEach(l => {
-        // Avoid duplicates if log is about allocation/vacation which we already have specific events for
-        if (l.action === 'LOTACAO' || l.action === 'DESVINCULACAO') return;
+        // Avoid duplicates if log is about allocation/vacation or notes which we already have specific events for
+        if (l.action === 'LOTACAO' || l.action === 'DESVINCULACAO' || l.action === 'DESVINCULACAO_NOTAS') return;
 
         let type = 'LOG';
         let title = 'Registro';
