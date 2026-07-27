@@ -8,6 +8,7 @@ import { format, differenceInDays } from "date-fns";
 import { AlertCircle, Calendar, Clock, ArrowLeft, ArrowUpRight, CheckCircle2, UserX } from "lucide-react";
 import Link from "next/link";
 import { DismissalMonitorActions } from "@/components/admin/DismissalMonitorActions";
+import { BackButton } from "@/components/admin/BackButton";
 
 async function getDismissalProcessData(companyId?: string, search?: string) {
     const where: any = {
@@ -126,11 +127,7 @@ export default async function DismissalMonitorPage({
     return (
         <div className="space-y-6">
             <div className="flex items-center gap-3">
-                <Link href="/admin/employees">
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-slate-200">
-                        <ArrowLeft className="w-4 h-4" />
-                    </Button>
-                </Link>
+                <BackButton fallbackUrl="/admin/employees" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-slate-200" />
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Monitor de Desligamento</h1>
                     <p className="text-slate-500">Gestão de prazos de Aviso Prévio, Abandono de Posto e Processos de Rescisão</p>

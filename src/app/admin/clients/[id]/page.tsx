@@ -18,6 +18,7 @@ import { getCurrentUserRole } from "@/lib/auth";
 import { ClientPostosTable } from "@/components/admin/ClientPostosTable";
 import { ClientVacantPostosDialog } from "@/components/admin/ClientVacantPostosDialog";
 import { ClientConfigTabs } from "@/components/admin/ClientConfigTabs";
+import { BackButton } from "@/components/admin/BackButton";
 
 async function getClientDetails(id: string) {
     return await prisma.client.findUnique({
@@ -103,11 +104,7 @@ export default async function ClientPostosPage(props: { params: Promise<{ id: st
     return (
         <div className="space-y-6">
             <div className="flex items-center gap-4">
-                <Link href="/admin/clients">
-                    <Button variant="outline" size="icon">
-                        <ArrowLeft className="w-4 h-4" />
-                    </Button>
-                </Link>
+                <BackButton fallbackUrl="/admin/clients" variant="outline" size="icon" />
                 <div className="flex-1">
                     <h1 className="text-2xl font-bold text-slate-800">{client.name}</h1>
                     <p className="text-slate-500 text-sm">Gerenciamento de Vagas e Postos do Contrato</p>

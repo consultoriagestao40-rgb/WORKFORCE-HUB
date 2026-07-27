@@ -33,6 +33,7 @@ import { getEmployeeTimeline } from "@/app/actions";
 import { EmployeeTimeline } from "@/components/admin/EmployeeTimeline";
 import { VacationHistory } from "@/components/admin/VacationHistory";
 import { MoveToRotativoButton } from "@/components/admin/MoveToRotativoButton";
+import { BackButton } from "@/components/admin/BackButton";
 
 async function getEmployeeDetails(id: string) {
     const [employee, situations, roles, companies, postos] = await Promise.all([
@@ -120,11 +121,10 @@ export default async function EmployeeProfilePage(props: {
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
             {/* Action Bar */}
             <div className="flex items-center justify-between">
-                <Link href={backTo}>
-                    <Button variant="ghost" className="gap-2 text-slate-500 font-black text-xs uppercase tracking-widest hover:text-primary transition-colors">
-                        <ArrowLeft className="w-4 h-4" /> {backTo.includes('financial-costs') ? 'Voltar para Custos' : 'Voltar para Equipe'}
-                    </Button>
-                </Link>
+                <BackButton 
+                    fallbackUrl={backTo} 
+                    label={backTo.includes('financial-costs') ? 'Voltar para Custos' : 'Voltar para Equipe'} 
+                />
                 <div className="flex gap-3">
                     <Link href={`/admin/employees/${employee.id}/print`} target="_blank">
                         <Button className="gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold border-none h-9 px-4 rounded-xl shadow-sm text-xs uppercase tracking-wider">
