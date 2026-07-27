@@ -40,7 +40,7 @@ export default function PayrollPreviewPage() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [items, setItems] = useState<PayrollPreviewItem[]>([]);
-    const [sortField, setSortField] = useState<'none' | 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'diversosDescontos' | 'emprestimos' | 'inss' | 'irrf' | 'netSalary'>('none');
+    const [sortField, setSortField] = useState<'none' | 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'absenteismoAward' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'diversosDescontos' | 'emprestimos' | 'inss' | 'irrf' | 'netSalary'>('none');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
     const [searchTerm, setSearchTerm] = useState("");
@@ -54,6 +54,8 @@ export default function PayrollPreviewPage() {
     const [selectedEmployeeItem, setSelectedEmployeeItem] = useState<PayrollPreviewItem | null>(null);
     const [inputDiversos, setInputDiversos] = useState("");
     const [inputEmprestimos, setInputEmprestimos] = useState("");
+    const [inputExtras50, setInputExtras50] = useState("");
+    const [inputExtras100, setInputExtras100] = useState("");
     const [isSavingDeductions, setIsSavingDeductions] = useState(false);
 
     const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -88,6 +90,8 @@ export default function PayrollPreviewPage() {
         setSelectedEmployeeItem(item);
         setInputDiversos(item.diversosDescontos > 0 ? item.diversosDescontos.toString() : "");
         setInputEmprestimos(item.emprestimos > 0 ? item.emprestimos.toString() : "");
+        setInputExtras50(item.extras50Hours > 0 ? item.extras50Hours.toString() : "");
+        setInputExtras100(item.extras100Hours > 0 ? item.extras100Hours.toString() : "");
         setEditDeductionsOpen(true);
     };
 
@@ -97,13 +101,17 @@ export default function PayrollPreviewPage() {
         try {
             const diversos = parseFloat(inputDiversos) || 0;
             const emprestimos = parseFloat(inputEmprestimos) || 0;
+            const extras50 = parseFloat(inputExtras50) || 0;
+            const extras100 = parseFloat(inputExtras100) || 0;
 
             const res = await updateMonthlyDeductions(
                 selectedEmployeeItem.employeeId,
                 selectedYear,
                 selectedMonth,
                 diversos,
-                emprestimos
+                emprestimos,
+                extras50,
+                extras100
             );
 
             if (res.success) {
@@ -164,7 +172,7 @@ export default function PayrollPreviewPage() {
         return matchesSearch && matchesCompany && matchesClient;
     });
 
-    const handleSort = (field: 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'diversosDescontos' | 'emprestimos' | 'inss' | 'irrf' | 'netSalary') => {
+    const handleSort = (field: 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'absenteismoAward' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'diversosDescontos' | 'emprestimos' | 'inss' | 'irrf' | 'netSalary') => {
         if (sortField === field) {
             setSortDirection(prev => prev === 'desc' ? 'asc' : 'desc');
         } else {
@@ -217,6 +225,10 @@ export default function PayrollPreviewPage() {
             case 'salarioFamilia':
                 valA = a.salarioFamilia;
                 valB = b.salarioFamilia;
+                break;
+            case 'absenteismoAward':
+                valA = a.absenteismoAward;
+                valB = b.absenteismoAward;
                 break;
             case 'ajudaCusto':
                 valA = a.ajudaCusto + a.adicionalViagem;
@@ -742,6 +754,7 @@ export default function PayrollPreviewPage() {
                                 <col style={{ width: "140px" }} /> {/* Adic. Noturno */}
                                 <col style={{ width: "140px" }} /> {/* Salário-Família */}
                                 <col style={{ width: "140px" }} /> {/* Ajuda Custo */}
+                                <col style={{ width: "150px" }} /> {/* Prêmio Assiduidade */}
                                 <col style={{ width: "150px" }} /> {/* Proventos Brutos */}
                                 <col style={{ width: "100px" }} /> {/* Faltas */}
                                 <col style={{ width: "100px" }} /> {/* Atestados */}
@@ -855,6 +868,16 @@ export default function PayrollPreviewPage() {
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Ajuda Custo</span>
                                             {renderSortIcon('ajudaCusto')}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right bg-sky-50/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('absenteismoAward')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Prêmio Assiduidade</span>
+                                            {renderSortIcon('absenteismoAward')}
                                         </div>
                                     </th>
                                     <th 
@@ -1116,6 +1139,10 @@ export default function PayrollPreviewPage() {
                                                     </PopoverContent>
                                                 </Popover>
                                             ) : "-"}
+                                        </td>
+                                        {/* Prêmio Assiduidade */}
+                                        <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
+                                            {item.absenteismoAward > 0 ? formatCurrency(item.absenteismoAward) : "-"}
                                         </td>
                                         {/* Provento Bruto */}
                                         <td className="py-3 px-4 text-right bg-slate-100/30 whitespace-nowrap">
@@ -1536,6 +1563,7 @@ export default function PayrollPreviewPage() {
                                                                          <col style={{ width: "130px" }} /> {/* Salário-Família */}
                                                                          
                                                                          <col style={{ width: "130px" }} /> {/* Ajuda Custo */}
+                                                                         <col style={{ width: "145px" }} /> {/* Prêmio Assiduidade */}
 <col style={{ width: "140px" }} /> {/* Provento Bruto */}
                                                                         <col style={{ width: "90px" }} /> {/* Faltas */}
                                                                         <col style={{ width: "90px" }} /> {/* Atestados */}
@@ -1563,6 +1591,7 @@ export default function PayrollPreviewPage() {
                                                                              <th className="py-2.5 px-3 text-right bg-sky-50/50">Salário-Família</th>
                                                                              
                                                                              <th className="py-2.5 px-3 text-right bg-sky-50/50">Ajuda Custo</th>
+                                                                             <th className="py-2.5 px-3 text-right bg-sky-50/50">Prêmio Assiduidade</th>
 <th className="py-2.5 px-3 text-right bg-slate-100/50">Provento Bruto</th>
                                                                             <th className="py-2.5 px-3 text-center">Faltas</th>
                                                                             <th className="py-2.5 px-3 text-center">Atestados</th>
@@ -1675,6 +1704,10 @@ export default function PayrollPreviewPage() {
                                                                                              </PopoverContent>
                                                                                          </Popover>
                                                                                      ) : "-"}
+                                                                                 </td>
+                                                                                 {/* Prêmio Assiduidade */}
+                                                                                 <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
+                                                                                     {sub.absenteismoAward > 0 ? formatCurrency(sub.absenteismoAward) : "-"}
                                                                                  </td>
                                                                                 <td className="py-2.5 px-3 text-right bg-slate-100/30 whitespace-nowrap">
                                                                                     <Popover>
@@ -1988,6 +2021,43 @@ export default function PayrollPreviewPage() {
 
                             {/* Inputs */}
                             <div className="space-y-3.5">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <div className="flex justify-between items-center">
+                                            <Label className="font-bold text-slate-750">H. Extras 50% (Horas)</Label>
+                                            <span className="text-[10px] font-bold text-emerald-600">
+                                                {inputExtras50 ? (parseFloat(inputExtras50) > 0 ? formatCurrency(selectedEmployeeItem.hourlyRate * 1.5 * parseFloat(inputExtras50)) : 'R$ 0,00') : 'R$ 0,00'}
+                                            </span>
+                                        </div>
+                                        <Input 
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            placeholder="0.00"
+                                            value={inputExtras50}
+                                            onChange={(e) => setInputExtras50(e.target.value)}
+                                            className="h-10 w-full rounded-xl bg-white border-slate-200 text-xs focus:ring-red-500/20 focus:border-red-500"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <div className="flex justify-between items-center">
+                                            <Label className="font-bold text-slate-750">H. Extras 100% (Horas)</Label>
+                                            <span className="text-[10px] font-bold text-emerald-600">
+                                                {inputExtras100 ? (parseFloat(inputExtras100) > 0 ? formatCurrency(selectedEmployeeItem.hourlyRate * 2.0 * parseFloat(inputExtras100)) : 'R$ 0,00') : 'R$ 0,00'}
+                                            </span>
+                                        </div>
+                                        <Input 
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            placeholder="0.00"
+                                            value={inputExtras100}
+                                            onChange={(e) => setInputExtras100(e.target.value)}
+                                            className="h-10 w-full rounded-xl bg-white border-slate-200 text-xs focus:ring-red-500/20 focus:border-red-500"
+                                        />
+                                    </div>
+                                </div>
+
                                 <div className="space-y-1.5">
                                     <Label className="font-bold text-slate-750">Descontos Diversos (R$)</Label>
                                     <div className="relative">

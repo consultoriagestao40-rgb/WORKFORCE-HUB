@@ -62,6 +62,7 @@ export interface PayrollPreviewItem {
     // Custom Deductions (Lançamento manual)
     diversosDescontos: number;
     emprestimos: number;
+    hourlyRate: number;
     
     // Net
     totalDeductions: number;
@@ -235,10 +236,42 @@ export async function getPayrollPreview(year: number, month: number) {
         const dependentsCount = emp.dependentsCount || 0;
         const salarioFamilia = (totalGrossSalaryBase <= 1819.26 && dependentsCount > 0) ? Math.round((62.15 * dependentsCount) * 100) / 100 : 0;
 
-        // Prêmio de Absenteísmo (Pago via Caju - não entra em folha)
-        const absenteismoAward = 0;
+        // Prêmio de Absenteísmo (Assiduidade)
+        let absenteismoAward = 0;
+        const absenteismoPeriod = posto?.absenteismoAwardPeriod || "mensal";
+        if (posto && posto.absenteismoAwardValue > 0) {
+            const minDays = posto.absenteismoMinDays || 0;
+            const daysSinceAdmission = Math.floor((windowEnd.getTime() - admissionDateObj.getTime()) / (1000 * 60 * 60 * 24));
+            
+            // Check experience period (probation limit)
+            const meetsExperience = minDays === 0 || daysSinceAdmission >= minDays;
 
-        const totalGrossSalary = Math.round((totalGrossSalaryBase + horasExtras50Value + horasExtras100Value + adicionalNoturnoValue + salarioFamilia + ajudaCusto + adicionalViagem) * 100) / 100;
+            // Check full month worked
+            const isFullMonth = !isAdmittedThisMonth || posto.absenteismoAwardType === "prorrata";
+
+            if (meetsExperience && isFullMonth) {
+                let baseValue = posto.absenteismoAwardValue;
+                
+                // Pro-rata calculation
+                if (isAdmittedThisMonth && posto.absenteismoAwardType === "prorrata") {
+                    const totalDaysInMonth = new Date(year, month, 0).getDate();
+                    const daysWorkedThisMonth = totalDaysInMonth - admissionDateObj.getDate() + 1;
+                    baseValue = Math.round(((posto.absenteismoAwardValue / totalDaysInMonth) * daysWorkedThisMonth) * 100) / 100;
+                }
+
+                if (absenteismoPeriod === "mensal") {
+                    if (faltasCount === 0 && atestadosCount === 0) {
+                        absenteismoAward = baseValue;
+                    }
+                } else if (absenteismoPeriod === "trimestral") {
+                    if (!quarterlyFailsSet.has(emp.id)) {
+                        absenteismoAward = baseValue;
+                    }
+                }
+            }
+        }
+
+        const totalGrossSalary = Math.round((totalGrossSalaryBase + horasExtras50Value + horasExtras100Value + adicionalNoturnoValue + salarioFamilia + ajudaCusto + adicionalViagem + absenteismoAward) * 100) / 100;
 
         const benefitInfo = benefitsMap.get(emp.id);
 
@@ -323,6 +356,7 @@ export async function getPayrollPreview(year: number, month: number) {
             adicionalNoturnoValue,
             diversosDescontos,
             emprestimos,
+            hourlyRate: Math.round(hourlyRate * 100) / 100,
             totalDeductions,
             netSalary,
             isAdmittedThisMonth,
@@ -389,7 +423,9 @@ export async function updateMonthlyDeductions(
     year: number, 
     month: number, 
     diversosDescontos: number, 
-    emprestimos: number
+    emprestimos: number,
+    extras50Hours: number,
+    extras100Hours: number
 ) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Não autorizado");
@@ -403,11 +439,15 @@ export async function updateMonthlyDeductions(
             year,
             month,
             diversosDescontos,
-            emprestimos
+            emprestimos,
+            extras50Hours,
+            extras100Hours
         },
         update: {
             diversosDescontos,
-            emprestimos
+            emprestimos,
+            extras50Hours,
+            extras100Hours
         }
     });
 
