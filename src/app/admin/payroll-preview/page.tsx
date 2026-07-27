@@ -977,7 +977,7 @@ export default function PayrollPreviewPage() {
                                                 <Popover>
                                                     <PopoverTrigger asChild>
                                                         <button className="underline decoration-dashed cursor-pointer text-slate-700 hover:text-slate-900">
-                                                            {formatCurrency(item.adicionalNoturnoValue)}
+                                                            {formatCurrency(item.adicionalNoturnoValue)} <span className="text-[10px] text-slate-400 font-normal">({item.adicionalNoturnoHours}h)</span>
                                                         </button>
                                                     </PopoverTrigger>
                                                     <PopoverContent className="w-52 p-3 text-xs space-y-1">
@@ -1504,7 +1504,7 @@ export default function PayrollPreviewPage() {
                                                                                          <Popover>
                                                                                              <PopoverTrigger asChild>
                                                                                                  <button className="underline decoration-dashed cursor-pointer text-slate-700 hover:text-slate-900">
-                                                                                                     {formatCurrency(sub.adicionalNoturnoValue)}
+                                                                                                     {formatCurrency(sub.adicionalNoturnoValue)} <span className="text-[10px] text-slate-400 font-normal">({sub.adicionalNoturnoHours}h)</span>
                                                                                                  </button>
                                                                                              </PopoverTrigger>
                                                                                              <PopoverContent className="w-52 p-3 text-xs space-y-1">
