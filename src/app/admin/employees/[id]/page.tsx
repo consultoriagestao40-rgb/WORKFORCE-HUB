@@ -34,6 +34,7 @@ import { EmployeeTimeline } from "@/components/admin/EmployeeTimeline";
 import { VacationHistory } from "@/components/admin/VacationHistory";
 import { MoveToRotativoButton } from "@/components/admin/MoveToRotativoButton";
 import { BackButton } from "@/components/admin/BackButton";
+import { InitiateDismissalDialog } from "@/components/admin/InitiateDismissalDialog";
 
 async function getEmployeeDetails(id: string) {
     const [employee, situations, roles, companies, postos] = await Promise.all([
@@ -380,6 +381,14 @@ export default async function EmployeeProfilePage(props: {
 
                         {!employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name?.toUpperCase() === "ROTATIVO") && (
                             <MoveToRotativoButton employeeId={employee.id} />
+                        )}
+
+                        {employee.situation?.name !== "Desligado" && (
+                            <InitiateDismissalDialog 
+                                employeeId={employee.id} 
+                                employeeName={employee.name} 
+                                hasActivePosto={employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name?.toUpperCase() !== "ROTATIVO")}
+                            />
                         )}
 
                         <Button variant="outline" className="w-full border-slate-200 text-slate-900 rounded-2xl h-14 font-black justify-between group">

@@ -95,8 +95,8 @@ export async function getPayrollPreview(year: number, month: number) {
         startMonth += 12;
         startYear -= 1;
     }
-    const windowStart = new Date(startYear, startMonth - 1, 26);
-    const windowEnd = new Date(year, month - 1, 25);
+    const windowStart = new Date(startYear, startMonth - 1, 26, 0, 0, 0, 0);
+    const windowEnd = new Date(year, month - 1, 25, 23, 59, 59, 999);
 
     // Fetch active employees
     const employees = await prisma.employee.findMany({
@@ -138,8 +138,8 @@ export async function getPayrollPreview(year: number, month: number) {
     });
 
     // Fetch quarterly occurrences for absenteismo evaluation (last 3 months)
-    const quarterlyStart = new Date(year, month - 3, 26);
-    const quarterlyEnd = new Date(year, month - 1, 25);
+    const quarterlyStart = new Date(year, month - 3, 26, 0, 0, 0, 0);
+    const quarterlyEnd = new Date(year, month - 1, 25, 23, 59, 59, 999);
     const quarterlyOccurrences = await prisma.occurrence.findMany({
         where: {
             date: { gte: quarterlyStart, lte: quarterlyEnd },

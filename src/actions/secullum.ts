@@ -191,8 +191,8 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
                                rawEntrada.includes("atestado") || rawEntrada.includes("medico") || rawEntrada.includes("médico") || rawEntrada.includes("atest") ||
                                rawObs.includes("atestado") || rawObs.includes("medico") || rawObs.includes("médico") || rawObs.includes("atest");
             
-            // Only count as Lack (Falta) if NOT compensated
-            const isFalta = (rawEntrada.includes("falta") || rawObs.includes("falta")) && !b.Compensado;
+            // Only count as Lack (Falta)
+            const isFalta = rawEntrada.includes("falta") || rawObs.includes("falta");
             
             const folha = b.Funcionario?.NumeroFolha?.trim();
             if (!folha) continue;
@@ -374,7 +374,11 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
             data: { secullumLastSyncAt: new Date() }
         });
 
-        revalidatePath("/admin/benefits");
+        try {
+            revalidatePath("/admin/benefits");
+            revalidatePath("/admin/employees");
+            revalidatePath("/admin/payroll-preview");
+        } catch (e) {}
 
         return {
             success: true,

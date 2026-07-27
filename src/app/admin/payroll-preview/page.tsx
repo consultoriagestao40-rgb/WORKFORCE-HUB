@@ -104,9 +104,13 @@ export default function PayrollPreviewPage() {
 
     // Filters logic
     const filteredItems = items.filter(item => {
-        const matchesSearch = 
-            item.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.employeeCpf.replace(/\D/g, '').includes(searchTerm.replace(/\D/g, ''));
+        const cleanSearch = searchTerm.trim().toLowerCase();
+        const searchDigits = searchTerm.replace(/\D/g, '');
+        const cleanCpf = (item.employeeCpf || "").replace(/\D/g, '');
+
+        const matchesSearch = !cleanSearch ||
+            item.employeeName.toLowerCase().includes(cleanSearch) ||
+            (searchDigits.length > 0 && cleanCpf.includes(searchDigits));
         
         const matchesCompany = selectedCompany === "all" || item.companyName === selectedCompany;
         const matchesClient = selectedClient === "all" || item.clientName === selectedClient;
