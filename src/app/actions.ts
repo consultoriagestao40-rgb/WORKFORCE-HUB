@@ -808,6 +808,7 @@ export async function unassignEmployee(formData: FormData) {
     try {
         const postoId = formData.get("postoId") as string;
         const situationId = formData.get("situationId") as string;
+        const observation = formData.get("observation") as string;
         const createVacancy = formData.get("createVacancy") === "on";
         const endDate = new Date();
 
@@ -841,6 +842,19 @@ export async function unassignEmployee(formData: FormData) {
                 where: { id: currentAssignment.employeeId },
                 data: { situationId }
             });
+
+            // Save observation note if present
+            if (observation && observation.trim().length > 0) {
+                const currentUser = await getCurrentUser();
+                await tx.log.create({
+                    data: {
+                        action: "DESVINCULACAO_NOTAS",
+                        details: observation.trim(),
+                        employeeId: currentAssignment.employeeId,
+                        userId: currentUser?.id
+                    }
+                });
+            }
 
             // 3. Check if should allocate to Rotativo
             const activeStatuses = ['Ativo', 'Férias', 'Afastamento', 'Licença INSS'];
@@ -2093,6 +2107,9 @@ export async function getEmployeeTimeline(employeeId: string) {
         } else if (l.action === 'MUDANCA_SITUACAO') {
             type = 'SITUATION';
             title = 'Mudança de Situação';
+        } else if (l.action === 'DESVINCULACAO_NOTAS') {
+            type = 'UNASSIGNMENT';
+            title = 'Observação de Desvinculação';
         }
 
         events.push({

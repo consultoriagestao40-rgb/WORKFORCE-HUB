@@ -12,6 +12,7 @@ import { UserPlus, UserMinus, AlertCircle } from "lucide-react";
 import { assignEmployee, unassignEmployee } from "@/app/actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Combobox } from "@/components/ui/combobox"; // NEW
+import { Textarea } from "@/components/ui/textarea";
 
 interface AssignmentDialogProps {
     postoId: string;
@@ -33,6 +34,7 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
     // const [employeeSearch, setEmployeeSearch] = useState(""); // REMOVED
     const [schedule, setSchedule] = useState(currentSchedule || "12x36");
     const [employeeId, setEmployeeId] = useState(""); // NEW for Combobox
+    const [observation, setObservation] = useState("");
 
     useEffect(() => {
         if (open && currentSchedule) {
@@ -72,6 +74,7 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
             const formData = new FormData();
             formData.append("postoId", postoId);
             formData.append("situationId", selectedSituation);
+            formData.append("observation", observation);
             if (createVacancy) {
                 formData.append("createVacancy", "on");
             }
@@ -95,6 +98,7 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
         setError(null);
         setCreateVacancy(false);
         setSelectedSituation("");
+        setObservation("");
         setEmployeeId(""); // Reset selection
         setOpen(true);
         if (currentSchedule) setSchedule(currentSchedule);
@@ -121,7 +125,7 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
                 </Button>
             )}
 
-            <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) { setError(null); setCreateVacancy(false); setSelectedSituation(""); } }}>
+            <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) { setError(null); setCreateVacancy(false); setSelectedSituation(""); setObservation(""); } }}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>
@@ -225,6 +229,17 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
                                         </div>
                                     ))}
                                 </RadioGroup>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="unassignObservation">Observações / Anotações</Label>
+                                <Textarea
+                                    id="unassignObservation"
+                                    value={observation}
+                                    onChange={(e) => setObservation(e.target.value)}
+                                    placeholder="Escreva aqui anotações ou observações sobre a desvinculação (ex: motivos, detalhes do abandono, etc)..."
+                                    className="min-h-[80px]"
+                                />
                             </div>
 
                             <div className="flex items-center space-x-2 p-3 bg-blue-50 border border-blue-200 rounded-md">

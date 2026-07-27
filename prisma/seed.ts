@@ -29,6 +29,10 @@ async function main() {
         data: { name: 'Férias', color: '#f59e0b' }
     })
 
+    const abandonoStatus = await prisma.situation.create({
+        data: { name: 'Processo de abandono', color: '#ef4444' }
+    })
+
     console.log('✅ Situações criadas')
 
     // Create Company
