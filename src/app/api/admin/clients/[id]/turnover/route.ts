@@ -93,7 +93,16 @@ export async function GET(
                 posto: { clientId }
             },
             include: {
-                employee: true,
+                employee: {
+                    include: {
+                        logs: {
+                            where: {
+                                action: { in: ["DESVINCULACAO", "DESVINCULACAO_NOTAS"] }
+                            },
+                            orderBy: { timestamp: 'desc' }
+                        }
+                    }
+                },
                 posto: {
                     include: { role: true }
                 }
@@ -101,16 +110,43 @@ export async function GET(
             orderBy: { startDate: 'desc' }
         });
 
-        const historyList = historicalAssignments.map(asg => ({
-            id: asg.id,
-            employeeName: asg.employee.name,
-            employeeCpf: asg.employee.cpf,
-            roleName: asg.posto.role.name,
-            schedule: asg.posto.schedule,
-            startDate: asg.startDate,
-            endDate: asg.endDate,
-            status: asg.endDate ? "Inativo no Posto" : "Ativo no Posto"
-        }));
+        const historyList = historicalAssignments.map(asg => {
+            let reason = "";
+            let notes = "";
+
+            if (asg.endDate) {
+                // Match logs within 10s of assignment end date
+                const desvLog = asg.employee.logs.find(l => 
+                    l.action === "DESVINCULACAO" &&
+                    Math.abs(new Date(l.timestamp).getTime() - new Date(asg.endDate!).getTime()) < 10000
+                );
+                if (desvLog) {
+                    const match = desvLog.details.match(/\(([^)]+)\)$/);
+                    if (match) reason = match[1];
+                }
+
+                const noteLog = asg.employee.logs.find(l => 
+                    l.action === "DESVINCULACAO_NOTAS" &&
+                    Math.abs(new Date(l.timestamp).getTime() - new Date(asg.endDate!).getTime()) < 10000
+                );
+                if (noteLog) {
+                    notes = noteLog.details;
+                }
+            }
+
+            return {
+                id: asg.id,
+                employeeName: asg.employee.name,
+                employeeCpf: asg.employee.cpf,
+                roleName: asg.posto.role.name,
+                schedule: asg.posto.schedule,
+                startDate: asg.startDate,
+                endDate: asg.endDate,
+                status: asg.endDate ? "Inativo no Posto" : "Ativo no Posto",
+                reason,
+                notes
+            };
+        });
 
         return NextResponse.json({
             success: true,

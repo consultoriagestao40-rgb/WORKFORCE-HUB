@@ -117,13 +117,15 @@ export function ClientConfigTabs({
             // 3. Aba de Histórico Geral (todos que já passaram no posto)
             const historyExport = turnoverData.historyList.map((h: any, idx: number) => ({
                 "Nº": idx + 1,
-                "Nome Colaborador": h.employeeName,
+                "Nome": h.employeeName,
                 "CPF": h.employeeCpf,
-                "Cargo/Função": h.roleName,
+                "Cargo": h.roleName,
                 "Escala": h.schedule,
-                "Data de Entrada": new Date(h.startDate).toLocaleDateString('pt-BR'),
-                "Data de Saída": h.endDate ? new Date(h.endDate).toLocaleDateString('pt-BR') : "Ativo no Posto",
-                "Status": h.status
+                "Data Entrada": new Date(h.startDate).toLocaleDateString('pt-BR'),
+                "Data Saída": h.endDate ? new Date(h.endDate).toLocaleDateString('pt-BR') : "-",
+                "Situação": h.endDate ? "Ex-colaborador" : "Ativo",
+                "Motivo Saída": h.reason || "-",
+                "Observações": h.notes || "-"
             }));
             const wsHistory = XLSX.utils.json_to_sheet(historyExport);
             XLSX.utils.book_append_sheet(wb, wsHistory, "Histórico Geral do Posto");
@@ -576,6 +578,8 @@ export function ClientConfigTabs({
                                                     <TableHead className="text-[10px] font-bold uppercase tracking-wider">Data Entrada</TableHead>
                                                     <TableHead className="text-[10px] font-bold uppercase tracking-wider">Data Saída</TableHead>
                                                     <TableHead className="text-[10px] font-bold uppercase tracking-wider">Situação no Posto</TableHead>
+                                                    <TableHead className="text-[10px] font-bold uppercase tracking-wider">Motivo Saída</TableHead>
+                                                    <TableHead className="text-[10px] font-bold uppercase tracking-wider">Observações</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
@@ -596,6 +600,8 @@ export function ClientConfigTabs({
                                                                 {h.endDate ? "Ex-colaborador" : "Ativo"}
                                                             </span>
                                                         </TableCell>
+                                                        <TableCell className="text-[11px] text-slate-600">{h.reason || "-"}</TableCell>
+                                                        <TableCell className="text-[11px] text-slate-600 max-w-[200px] truncate" title={h.notes}>{h.notes || "-"}</TableCell>
                                                     </TableRow>
                                                 ))}
                                             </TableBody>

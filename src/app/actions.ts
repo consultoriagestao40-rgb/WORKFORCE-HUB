@@ -2108,7 +2108,7 @@ export async function getEmployeeTimeline(employeeId: string) {
             type = 'SITUATION';
             title = 'Mudança de Situação';
         } else if (l.action === 'DESVINCULACAO_NOTAS') {
-            type = 'UNASSIGNMENT';
+            type = 'OBSERVATION';
             title = 'Observação de Desvinculação';
         }
 

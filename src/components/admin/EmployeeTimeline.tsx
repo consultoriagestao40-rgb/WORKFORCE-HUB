@@ -18,7 +18,7 @@ import {
 
 interface TimelineEvent {
     id: string;
-    type: 'ASSIGNMENT' | 'UNASSIGNMENT' | 'VACATION' | 'SALARY' | 'ROLE' | 'SITUATION' | 'LOG';
+    type: 'ASSIGNMENT' | 'UNASSIGNMENT' | 'VACATION' | 'SALARY' | 'ROLE' | 'SITUATION' | 'LOG' | 'OBSERVATION';
     date: Date;
     title: string;
     subtitle?: string;
@@ -76,9 +76,15 @@ export function EmployeeTimeline({ events }: { events: TimelineEvent[] }) {
 
                         {event.details && (
                             <div className="pt-2">
-                                <Badge variant="outline" className="text-[9px] border-white/10 text-slate-400 font-bold px-2 py-0.5 max-w-full whitespace-normal text-left inline-block">
-                                    {event.details}
-                                </Badge>
+                                {event.type === 'OBSERVATION' ? (
+                                    <p className="text-xs text-slate-300 bg-white/5 p-3 rounded-xl border border-white/10 leading-relaxed whitespace-pre-wrap">
+                                        {event.details}
+                                    </p>
+                                ) : (
+                                    <Badge variant="outline" className="text-[9px] border-white/10 text-slate-400 font-bold px-2 py-0.5 max-w-full whitespace-normal text-left inline-block">
+                                        {event.details}
+                                    </Badge>
+                                )}
                             </div>
                         )}
 
@@ -102,6 +108,7 @@ function getDotColor(type: string) {
         case 'SALARY': return 'bg-emerald-500 ring-emerald-500/20';
         case 'ROLE': return 'bg-purple-500 ring-purple-500/20';
         case 'SITUATION': return 'bg-rose-500 ring-rose-500/20';
+        case 'OBSERVATION': return 'bg-cyan-500 ring-cyan-500/20';
         default: return 'bg-slate-500 ring-slate-500/20';
     }
 }
@@ -113,6 +120,7 @@ function getTextColor(type: string) {
         case 'VACATION': return 'text-amber-200';
         case 'SALARY': return 'text-emerald-400';
         case 'ROLE': return 'text-purple-400';
+        case 'OBSERVATION': return 'text-cyan-400 font-bold';
         default: return 'text-white/90';
     }
 }
@@ -124,6 +132,7 @@ function getIconColor(type: string) {
         case 'VACATION': return 'text-amber-500';
         case 'SALARY': return 'text-emerald-500';
         case 'ROLE': return 'text-purple-500';
+        case 'OBSERVATION': return 'text-cyan-400';
         default: return 'text-slate-500';
     }
 }
@@ -136,6 +145,7 @@ function getIcon(type: string) {
         case 'SALARY': return <Banknote className="w-4 h-4" />;
         case 'ROLE': return <Briefcase className="w-4 h-4" />;
         case 'SITUATION': return <TrendingUp className="w-4 h-4" />;
+        case 'OBSERVATION': return <FileText className="w-4 h-4" />;
         default: return <FileText className="w-4 h-4" />;
     }
 }
