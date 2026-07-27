@@ -18,7 +18,9 @@ import {
     Percent,
     FileSpreadsheet,
     Download,
-    RefreshCw
+    RefreshCw,
+    ArrowUpDown,
+    ChevronUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -230,6 +232,17 @@ export default function PayrollPreviewPage() {
 
         return sortDirection === 'asc' ? valA - valB : valB - valA;
     });
+
+    const renderSortIcon = (field: typeof sortField) => {
+        if (sortField !== field) {
+            return <ArrowUpDown className="w-2.5 h-2.5 text-slate-300 group-hover:text-slate-400 transition-colors ml-1 inline-block shrink-0" />;
+        }
+        return sortDirection === 'desc' ? (
+            <ChevronDown className="w-3 h-3 text-sky-600 ml-1 inline-block shrink-0" />
+        ) : (
+            <ChevronUp className="w-3 h-3 text-sky-600 ml-1 inline-block shrink-0" />
+        );
+    };
 
     // Unique filter options computed dynamically
     const uniqueCompanies = Array.from(new Set(items.map(item => item.companyName || "Sem Empresa"))).sort();
@@ -685,311 +698,223 @@ export default function PayrollPreviewPage() {
                             <thead>
                                 <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-wider">
                                     <th 
-                                        className="py-3 px-4 sticky left-0 z-20 cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        className="py-3 px-4 sticky left-0 z-20 cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
                                         style={{ position: "sticky", top: 0, left: 0, backgroundColor: "#f8fafc", zIndex: 30 }}
                                         onClick={() => handleSort('name')}
                                     >
                                         <div className="flex items-center gap-1">
                                             <span>Colaborador / CPF / Função</span>
-                                            {sortField === 'name' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('name')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        className="py-3 px-4 cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('company')}
                                     >
                                         <div className="flex items-center gap-1">
                                             <span>Empresa / Posto</span>
-                                            {sortField === 'company' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('company')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        className="py-3 px-4 text-right cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('baseSalary')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Salário Base</span>
-                                            {sortField === 'baseSalary' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('baseSalary')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        className="py-3 px-4 text-right cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('insalubridade')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Insalubridade</span>
-                                            {sortField === 'insalubridade' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('insalubridade')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        className="py-3 px-4 text-right cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('periculosidade')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Periculosidade</span>
-                                            {sortField === 'periculosidade' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('periculosidade')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        className="py-3 px-4 text-right cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('outrosAdicionais')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Outros Adicionais</span>
-                                            {sortField === 'outrosAdicionais' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('outrosAdicionais')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right bg-sky-50/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        className="py-3 px-4 text-right bg-sky-50/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('horasExtras')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>H. Extras</span>
-                                            {sortField === 'horasExtras' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('horasExtras')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right bg-sky-50/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        className="py-3 px-4 text-right bg-sky-50/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('adicionalNoturno')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Adic. Noturno</span>
-                                            {sortField === 'adicionalNoturno' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('adicionalNoturno')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right bg-sky-50/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        className="py-3 px-4 text-right bg-sky-50/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('salarioFamilia')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Salário-Família</span>
-                                            {sortField === 'salarioFamilia' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('salarioFamilia')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right bg-sky-50/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        className="py-3 px-4 text-right bg-sky-50/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('ajudaCusto')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Ajuda Custo</span>
-                                            {sortField === 'ajudaCusto' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('ajudaCusto')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right bg-slate-100/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        className="py-3 px-4 text-right bg-slate-100/50 cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('totalGrossSalary')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Proventos Brutos</span>
-                                            {sortField === 'totalGrossSalary' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('totalGrossSalary')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-center cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        className="py-3 px-4 text-center cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('faltas')}
                                     >
                                         <div className="flex items-center justify-center gap-0.5">
                                             <span>Faltas</span>
-                                            {sortField === 'faltas' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('faltas')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-center cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        className="py-3 px-4 text-center cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('atestados')}
                                     >
                                         <div className="flex items-center justify-center gap-0.5">
                                             <span>Atestados</span>
-                                            {sortField === 'atestados' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-355 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('atestados')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-center cursor-pointer select-none hover:bg-slate-100/80 transition-colors" 
+                                        className="py-3 px-4 text-center cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('dsr')}
                                     >
                                         <div className="flex items-center justify-center gap-0.5">
                                             <span>DSR</span>
-                                            {sortField === 'dsr' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-355 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('dsr')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors" 
+                                        className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('descFaltas')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Desc. Faltas</span>
-                                            {sortField === 'descFaltas' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('descFaltas')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors" 
+                                        className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('descDsr')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Desc. DSR</span>
-                                            {sortField === 'descDsr' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('descDsr')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors" 
+                                        className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('descAtrasos')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Desc. Atrasos</span>
-                                            {sortField === 'descAtrasos' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('descAtrasos')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right text-orange-500 bg-orange-50/20 cursor-pointer select-none hover:bg-orange-100/30 transition-colors" 
+                                        className="py-3 px-4 text-right text-orange-500 bg-orange-50/20 cursor-pointer select-none hover:bg-orange-100/30 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('descVt')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Desc. VT</span>
-                                            {sortField === 'descVt' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('descVt')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right text-orange-500 bg-orange-50/20 cursor-pointer select-none hover:bg-orange-100/30 transition-colors" 
+                                        className="py-3 px-4 text-right text-orange-500 bg-orange-50/20 cursor-pointer select-none hover:bg-orange-100/30 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('descVa')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Desc. VA</span>
-                                            {sortField === 'descVa' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('descVa')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors" 
+                                        className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('inss')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>INSS</span>
-                                            {sortField === 'inss' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('inss')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors" 
+                                        className="py-3 px-4 text-right text-red-500 bg-red-50/20 cursor-pointer select-none hover:bg-red-100/30 transition-colors group" 
                                         style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
                                         onClick={() => handleSort('irrf')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>IRRF</span>
-                                            {sortField === 'irrf' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-slate-350 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('irrf')}
                                         </div>
                                     </th>
                                     <th 
-                                        className="py-3 px-4 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)] cursor-pointer select-none hover:bg-slate-200 transition-colors" 
+                                        className="py-3 px-4 text-right font-bold text-sky-900 sticky right-0 z-20 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)] cursor-pointer select-none hover:bg-slate-200 transition-colors group" 
                                         style={{ position: "sticky", top: 0, right: 0, backgroundColor: "#f1f5f9", zIndex: 30 }}
                                         onClick={() => handleSort('netSalary')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Líquido Final</span>
-                                            {sortField === 'netSalary' ? (
-                                                sortDirection === 'desc' ? ' ▼' : ' ▲'
-                                            ) : (
-                                                <span className="text-sky-400 font-normal"> ↕</span>
-                                            )}
+                                            {renderSortIcon('netSalary')}
                                         </div>
                                     </th>
                                 </tr>
