@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { 
     Edit, Plus, Trash2, Download, UploadCloud, FileText, CheckCircle2, 
     User, Briefcase, CreditCard, ShieldAlert, Users, Paperclip, ChevronDown,
-    Pencil, X, Check
+    Pencil, X, Check, Loader2
 } from "lucide-react";
 import { updateEmployee } from "@/app/actions";
 import { VacationHistory } from "./VacationHistory";
@@ -77,6 +77,7 @@ const compressImageIfNeeded = (file: File): Promise<File> => {
 
 export function EditEmployeeSheet({ employee, situations, roles, companies = [] }: EditEmployeeSheetProps) {
     const [open, setOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [status, setStatus] = useState(employee.status);
     const [situationId, setSituationId] = useState(employee.situationId || "");
 
@@ -271,10 +272,13 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
     };
 
     async function handleSubmit(formData: FormData) {
+        if (isSubmitting) return;
+        setIsSubmitting(true);
         try {
             const result = await updateEmployee(formData);
             if (result?.error) {
                 toast.error(result.error);
+                setIsSubmitting(false);
                 return;
             }
             setOpen(false);
@@ -282,6 +286,7 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
             window.location.reload();
         } catch (error: any) {
             toast.error(error.message);
+            setIsSubmitting(false);
         }
     }
 
@@ -1596,7 +1601,16 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
 
                     {/* Actions Block */}
                     <div className="p-6 border-t border-slate-100 bg-white flex gap-2 shrink-0 shadow-[0_-8px_20px_-8px_rgba(0,0,0,0.08)]">
-                        <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold h-10 rounded-xl">Salvar Alterações</Button>
+                        <Button type="submit" disabled={isSubmitting} className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold h-10 rounded-xl flex items-center justify-center gap-2">
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Salvando Alterações...</span>
+                                </>
+                            ) : (
+                                <span>Salvar Alterações</span>
+                            )}
+                        </Button>
                     </div>
                 </form>
             </SheetContent>

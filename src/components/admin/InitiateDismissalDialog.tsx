@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { UserMinus, Upload, X, FileText, AlertTriangle } from "lucide-react";
+import { UserMinus, Upload, X, FileText, AlertTriangle, Loader2 } from "lucide-react";
 import { initiateEmployeeDismissalProcess } from "@/app/actions";
 
 export function InitiateDismissalDialog({ 
@@ -494,12 +494,19 @@ export function InitiateDismissalDialog({
                         >
                             Cancelar
                         </Button>
-                        <Button 
+                         <Button 
                             type="submit" 
                             disabled={loading}
-                            className="bg-primary hover:bg-primary/95 text-white font-bold rounded-xl"
+                            className="bg-primary hover:bg-primary/95 text-white font-bold rounded-xl flex items-center justify-center gap-1.5"
                         >
-                            {loading ? "Processando..." : "Confirmar Início"}
+                            {loading ? (
+                                <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Processando...</span>
+                                </>
+                            ) : (
+                                <span>Confirmar Início</span>
+                            )}
                         </Button>
                     </DialogFooter>
                 </form>

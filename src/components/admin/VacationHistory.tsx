@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { addDays } from "date-fns";
-import { Trash2, Plus, Pencil } from "lucide-react";
+import { Trash2, Plus, Pencil, Loader2 } from "lucide-react";
 import { addVacation, deleteVacation, updateVacation } from "@/app/actions";
 import { toast } from "sonner";
 
@@ -42,6 +42,7 @@ interface VacationHistoryProps {
 
 export function VacationHistory({ employeeId, vacations, hasActivePosto }: VacationHistoryProps) {
     const [open, setOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
@@ -90,6 +91,7 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
     };
 
     async function handleAddOrUpdate(formData: FormData) {
+        if (isSubmitting) return;
         if (hasActivePosto && !editingId) {
             const proceed = confirm(
                 "Aviso: Este colaborador está atualmente alocado em um posto de trabalho ativo. Ao confirmar o lançamento destas férias, o colaborador será desvinculado automaticamente do posto de trabalho na data de início programada das férias.\n\nDeseja prosseguir com o agendamento?"
@@ -97,6 +99,7 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
             if (!proceed) return;
         }
 
+        setIsSubmitting(true);
         try {
             let result;
             if (editingId) {
@@ -108,12 +111,15 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
 
             if (result?.error) {
                 toast.error(result.error);
+                setIsSubmitting(false);
                 return;
             }
             handleCancel();
             toast.success(editingId ? "Férias atualizadas com sucesso!" : "Férias registradas com sucesso!");
         } catch (error: any) {
             toast.error(error.message);
+        } finally {
+            setIsSubmitting(false);
         }
     }
 
@@ -205,10 +211,11 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
 
                         <div className="grid grid-cols-2 gap-2">
                             <Button type="button" variant="ghost" size="sm" className="w-full h-8 text-xs bg-white border" onClick={handleCancel}>Cancelar</Button>
-                            <Button
+                             <Button
                                 type="button"
                                 size="sm"
-                                className="w-full h-8 text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+                                disabled={isSubmitting}
+                                className="w-full h-8 text-xs bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center gap-1.5"
                                 onClick={() => {
                                     const formData = new FormData();
                                     formData.append("employeeId", employeeId);
@@ -219,7 +226,14 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
                                     handleAddOrUpdate(formData);
                                 }}
                             >
-                                Salvar
+                                {isSubmitting ? (
+                                    <>
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        <span>Salvando...</span>
+                                    </>
+                                ) : (
+                                    <span>Salvar</span>
+                                )}
                             </Button>
                         </div>
                     </div>

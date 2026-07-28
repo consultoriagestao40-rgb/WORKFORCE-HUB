@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { createEmployee, getWizardDropdowns } from "@/app/actions";
 import { toast } from "sonner";
 import { EmployeeOnvioWizard } from "./EmployeeOnvioWizard";
@@ -320,8 +320,15 @@ export function NewEmployeeSheet({
                         >
                             ⚡ Preencher na Thomson Reuters
                         </Button>
-                        <Button type="submit" disabled={isSubmitting} className="flex-1 h-10 rounded-xl">
-                            {isSubmitting ? "Salvando..." : "Salvar"}
+                        <Button type="submit" disabled={isSubmitting} className="flex-1 h-10 rounded-xl flex items-center justify-center gap-2">
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Salvando...</span>
+                                </>
+                            ) : (
+                                <span>Salvar</span>
+                            )}
                         </Button>
                     </div>
                 </form>

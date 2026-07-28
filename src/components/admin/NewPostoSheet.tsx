@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { createPosto } from "@/app/actions";
 
 interface NewPostoSheetProps {
@@ -17,10 +17,19 @@ interface NewPostoSheetProps {
 
 export function NewPostoSheet({ clientId, schedules, roles }: NewPostoSheetProps) {
     const [open, setOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     async function handleSubmit(formData: FormData) {
-        await createPosto(formData);
-        setOpen(false);
+        if (isSubmitting) return;
+        setIsSubmitting(true);
+        try {
+            await createPosto(formData);
+            setOpen(false);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsSubmitting(false);
+        }
     }
 
     return (
@@ -230,7 +239,16 @@ export function NewPostoSheet({ clientId, schedules, roles }: NewPostoSheetProps
                         </Label>
                     </div>
 
-                    <Button type="submit" className="w-full">Salvar Posto</Button>
+                    <Button type="submit" disabled={isSubmitting} className="w-full flex items-center justify-center gap-2">
+                        {isSubmitting ? (
+                            <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Salvando Posto...</span>
+                            </>
+                        ) : (
+                            <span>Salvar Posto</span>
+                        )}
+                    </Button>
                 </form>
             </SheetContent>
         </Sheet>
