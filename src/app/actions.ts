@@ -792,7 +792,13 @@ export async function assignEmployee(formData: FormData) {
                 where: { name: { equals: "ROTATIVO", mode: "insensitive" } }
             });
             if (!rotativoClient) {
-                rotativoClient = await tx.client.create({ data: { name: "ROTATIVO" } });
+                rotativoClient = await tx.client.create({
+                    data: {
+                        name: "ROTATIVO",
+                        address: "Centro de Custo Virtual",
+                        companyId: null
+                    }
+                });
             }
 
             let rotativoPosto = await tx.posto.findFirst({

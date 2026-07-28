@@ -62,6 +62,8 @@ export interface PayrollPreviewItem {
     // Custom Deductions (Lançamento manual)
     diversosDescontos: number;
     emprestimos: number;
+    convenios: number;
+    sindicato: number;
     hourlyRate: number;
     
     // Net
@@ -224,6 +226,15 @@ export async function getPayrollPreview(year: number, month: number) {
         const diversosDescontos = calc?.diversosDescontos || 0;
         const emprestimos = calc?.emprestimos || 0;
 
+        // Load custom adjustments from extraFields.monthlyAdjustments for this year-month
+        const extraFields = (emp.extraFields as any) || {};
+        const monthlyAdj = extraFields.monthlyAdjustments?.[`${year}-${month}`] || {};
+        const convenios = monthlyAdj.convenios || 0;
+        const sindicato = monthlyAdj.sindicato || 0;
+        const customAjudaCusto = monthlyAdj.ajudaCusto !== undefined && monthlyAdj.ajudaCusto !== null 
+            ? parseFloat(monthlyAdj.ajudaCusto) 
+            : null;
+
         const hourlyRate = fullFixedSalary / (emp.workload || 220);
         const atrasosDeduction = Math.round((hourlyRate * atrasosHours) * 100) / 100;
         const horasExtras50Value = Math.round((hourlyRate * 1.5 * extras50Hours) * 100) / 100;
@@ -231,7 +242,7 @@ export async function getPayrollPreview(year: number, month: number) {
         const adicionalNoturnoValue = Math.round((hourlyRate * 0.2 * adicionalNoturnoHours) * 100) / 100;
 
         // Proventos avulsos
-        const ajudaCusto = emp.ajudaCusto || 0;
+        const ajudaCusto = customAjudaCusto !== null ? customAjudaCusto : (emp.ajudaCusto || 0);
         const adicionalViagem = emp.adicionalViagem || 0;
         const dependentsCount = emp.dependentsCount || 0;
         const salarioFamilia = (totalGrossSalaryBase <= 1819.26 && dependentsCount > 0) ? Math.round((62.15 * dependentsCount) * 100) / 100 : 0;
@@ -313,7 +324,7 @@ export async function getPayrollPreview(year: number, month: number) {
         const irrfBase = Math.min(irrfBaseA, irrfBaseB);
         const irrfDeduction = calculateIRRF(irrfBase);
 
-        const totalDeductions = Math.round((faltaDeduction + dsrDeduction + atrasosDeduction + vtPayrollDiscount + vaPayrollDiscount + inssDeduction + irrfDeduction + diversosDescontos + emprestimos) * 100) / 100;
+        const totalDeductions = Math.round((faltaDeduction + dsrDeduction + atrasosDeduction + vtPayrollDiscount + vaPayrollDiscount + inssDeduction + irrfDeduction + diversosDescontos + emprestimos + convenios + sindicato) * 100) / 100;
         const netSalary = Math.max(0, Math.round((totalGrossSalary - totalDeductions) * 100) / 100);
 
         return {
@@ -356,6 +367,8 @@ export async function getPayrollPreview(year: number, month: number) {
             adicionalNoturnoValue,
             diversosDescontos,
             emprestimos,
+            convenios,
+            sindicato,
             hourlyRate: Math.round(hourlyRate * 100) / 100,
             totalDeductions,
             netSalary,
@@ -425,11 +438,16 @@ export async function updateMonthlyDeductions(
     diversosDescontos: number, 
     emprestimos: number,
     extras50Hours: number,
-    extras100Hours: number
+    extras100Hours: number,
+    adicionalNoturnoHours: number,
+    convenios: number,
+    sindicato: number,
+    ajudaCusto: number
 ) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Não autorizado");
 
+    // 1. Save standard hours fields into EmployeeMonthlyCalculus
     await prisma.employeeMonthlyCalculus.upsert({
         where: {
             employeeId_year_month: { employeeId, year, month }
@@ -441,15 +459,38 @@ export async function updateMonthlyDeductions(
             diversosDescontos,
             emprestimos,
             extras50Hours,
-            extras100Hours
+            extras100Hours,
+            adicionalNoturnoHours
         },
         update: {
             diversosDescontos,
             emprestimos,
             extras50Hours,
-            extras100Hours
+            extras100Hours,
+            adicionalNoturnoHours
         }
     });
+
+    // 2. Save convenios, sindicato and custom ajudaCusto into Employee.extraFields.monthlyAdjustments
+    const emp = await prisma.employee.findUnique({ where: { id: employeeId } });
+    if (emp) {
+        const extra = (emp.extraFields as any) || {};
+        const monthlyAdjustments = extra.monthlyAdjustments || {};
+        monthlyAdjustments[`${year}-${month}`] = {
+            convenios,
+            sindicato,
+            ajudaCusto
+        };
+        await prisma.employee.update({
+            where: { id: employeeId },
+            data: {
+                extraFields: {
+                    ...extra,
+                    monthlyAdjustments
+                }
+            }
+        });
+    }
 
     return { success: true };
 }
