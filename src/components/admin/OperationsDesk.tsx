@@ -985,14 +985,15 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
                                                                 toast.error("Colaborador sem número de telefone cadastrado.");
                                                             }
                                                         }}
-                                                        className={`inline-flex items-center justify-center p-1.5 rounded-full transition-all ${
+                                                        className={`inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-semibold transition-all ${
                                                             item.employee.phone 
-                                                                ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-600 hover:text-emerald-700 active:scale-95" 
-                                                                : "bg-slate-50 text-slate-350 cursor-not-allowed"
+                                                                ? "bg-[#e2f5e9] hover:bg-[#d0eed9] active:scale-95 shadow-sm" 
+                                                                : "bg-slate-100 cursor-not-allowed"
                                                         }`}
                                                         title={item.employee.phone ? `Falar com ${item.employee.name} no WhatsApp` : "Nenhum telefone cadastrado"}
                                                     >
-                                                        <WhatsAppIcon className="w-4 h-4" />
+                                                        <WhatsAppIcon className={`w-4 h-4 shrink-0 ${item.employee.phone ? "text-[#25d366]" : "text-slate-400"}`} />
+                                                        <span className={item.employee.phone ? "text-slate-800" : "text-slate-400"}>WhatsApp</span>
                                                     </a>
                                                 ) : (
                                                     <span className="text-slate-300">-</span>
