@@ -2796,7 +2796,7 @@ export async function finalizeDismissal(employeeId: string, notes?: string) {
 export async function initiateEmployeeDismissalProcess(data: {
     employeeId: string;
     processType: 'Aviso Prévio' | 'Processo de Rescisão' | 'Processo de abandono';
-    dismissalSubType: 'PEDIDO_SEM_AVISO' | 'PEDIDO_COM_AVISO' | 'DISPENSA_SEM_AVISO' | 'DISPENSA_COM_AVISO' | 'ABANDONO';
+    dismissalSubType: 'PEDIDO_SEM_AVISO' | 'PEDIDO_COM_AVISO' | 'DISPENSA_SEM_AVISO' | 'DISPENSA_COM_AVISO' | 'ABANDONO' | 'TERMINO_EXP_ANTECIPADO_EMPRESA' | 'TERMINO_EXP_PRAZO_EMPRESA' | 'TERMINO_EXP_ANTECIPADO_COLABORADOR' | 'TERMINO_EXP_PRAZO_COLABORADOR';
     initiative: 'EMPRESA' | 'COLABORADOR' | 'ABANDONO';
     noticeType: 'TRABALHADO' | 'INDENIZADO';
     startDate?: string;
@@ -2866,7 +2866,11 @@ export async function initiateEmployeeDismissalProcess(data: {
                     }
                     dismissalProcess.lastWorkingDay = lastWork;
                 }
-            } else if (data.dismissalSubType === 'DISPENSA_SEM_AVISO' || data.dismissalSubType === 'PEDIDO_SEM_AVISO') {
+            } else if (
+                data.dismissalSubType === 'DISPENSA_SEM_AVISO' || 
+                data.dismissalSubType === 'PEDIDO_SEM_AVISO' ||
+                data.dismissalSubType.startsWith('TERMINO_EXP_')
+            ) {
                 const start = new Date(dismissalProcess.startDate);
                 const payLimit = new Date(start);
                 payLimit.setDate(payLimit.getDate() + 10);

@@ -21,13 +21,24 @@ import { useRouter } from "next/navigation";
 import { UserMinus, Upload, X, FileText, AlertTriangle } from "lucide-react";
 import { initiateEmployeeDismissalProcess } from "@/app/actions";
 
-export function InitiateDismissalDialog({ employeeId, employeeName, hasActivePosto }: { employeeId: string, employeeName: string, hasActivePosto: boolean }) {
+export function InitiateDismissalDialog({ 
+    employeeId, 
+    employeeName, 
+    hasActivePosto, 
+    triggerVariant = 'default' 
+}: { 
+    employeeId: string; 
+    employeeName: string; 
+    hasActivePosto: boolean; 
+    triggerVariant?: 'default' | 'table'; 
+}) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     
     // Process parameters
     const [initiative, setInitiative] = useState<'EMPRESA' | 'COLABORADOR' | 'ABANDONO'>('EMPRESA');
     const [noticeType, setNoticeType] = useState<'TRABALHADO' | 'INDENIZADO'>('TRABALHADO');
+    const [dismissalCategory, setDismissalCategory] = useState<'AVISO' | 'EXP_ANTECIPADO' | 'EXP_PRAZO'>('AVISO');
     
     // Dates
     const [noticeStartDate, setNoticeStartDate] = useState(new Date().toISOString().split('T')[0]);
@@ -52,12 +63,14 @@ export function InitiateDismissalDialog({ employeeId, employeeName, hasActivePos
     useEffect(() => {
         if (initiative === 'ABANDONO') {
             setUnassignImmediately(true);
+        } else if (dismissalCategory !== 'AVISO') {
+            setUnassignImmediately(true);
         } else if (noticeType === 'INDENIZADO') {
             setUnassignImmediately(true);
         } else {
             setUnassignImmediately(false);
         }
-    }, [initiative, noticeType]);
+    }, [initiative, noticeType, dismissalCategory]);
 
     const getLastWorkingDayLabel = () => {
         if (!noticeEndDate) return "-";
@@ -98,30 +111,50 @@ export function InitiateDismissalDialog({ employeeId, employeeName, hasActivePos
         setLoading(true);
 
         let processType: 'Aviso Prévio' | 'Processo de Rescisão' | 'Processo de abandono' = 'Aviso Prévio';
-        let dismissalSubType: 'PEDIDO_SEM_AVISO' | 'PEDIDO_COM_AVISO' | 'DISPENSA_SEM_AVISO' | 'DISPENSA_COM_AVISO' | 'ABANDONO' = 'DISPENSA_COM_AVISO';
+        let dismissalSubType: 'PEDIDO_SEM_AVISO' | 'PEDIDO_COM_AVISO' | 'DISPENSA_SEM_AVISO' | 'DISPENSA_COM_AVISO' | 'ABANDONO' | 'TERMINO_EXP_ANTECIPADO_EMPRESA' | 'TERMINO_EXP_PRAZO_EMPRESA' | 'TERMINO_EXP_ANTECIPADO_COLABORADOR' | 'TERMINO_EXP_PRAZO_COLABORADOR' = 'DISPENSA_COM_AVISO';
         let startDate = undefined;
         let endDate = undefined;
 
         if (initiative === 'EMPRESA') {
-            if (noticeType === 'TRABALHADO') {
-                processType = 'Aviso Prévio';
-                dismissalSubType = 'DISPENSA_COM_AVISO';
-                startDate = noticeStartDate;
-                endDate = noticeEndDate;
+            if (dismissalCategory === 'AVISO') {
+                if (noticeType === 'TRABALHADO') {
+                    processType = 'Aviso Prévio';
+                    dismissalSubType = 'DISPENSA_COM_AVISO';
+                    startDate = noticeStartDate;
+                    endDate = noticeEndDate;
+                } else {
+                    processType = 'Processo de Rescisão';
+                    dismissalSubType = 'DISPENSA_SEM_AVISO';
+                    startDate = terminationDate;
+                }
+            } else if (dismissalCategory === 'EXP_ANTECIPADO') {
+                processType = 'Processo de Rescisão';
+                dismissalSubType = 'TERMINO_EXP_ANTECIPADO_EMPRESA';
+                startDate = terminationDate;
             } else {
                 processType = 'Processo de Rescisão';
-                dismissalSubType = 'DISPENSA_SEM_AVISO';
+                dismissalSubType = 'TERMINO_EXP_PRAZO_EMPRESA';
                 startDate = terminationDate;
             }
         } else if (initiative === 'COLABORADOR') {
-            if (noticeType === 'TRABALHADO') {
-                processType = 'Aviso Prévio';
-                dismissalSubType = 'PEDIDO_COM_AVISO';
-                startDate = noticeStartDate;
-                endDate = noticeEndDate;
+            if (dismissalCategory === 'AVISO') {
+                if (noticeType === 'TRABALHADO') {
+                    processType = 'Aviso Prévio';
+                    dismissalSubType = 'PEDIDO_COM_AVISO';
+                    startDate = noticeStartDate;
+                    endDate = noticeEndDate;
+                } else {
+                    processType = 'Processo de Rescisão';
+                    dismissalSubType = 'PEDIDO_SEM_AVISO';
+                    startDate = terminationDate;
+                }
+            } else if (dismissalCategory === 'EXP_ANTECIPADO') {
+                processType = 'Processo de Rescisão';
+                dismissalSubType = 'TERMINO_EXP_ANTECIPADO_COLABORADOR';
+                startDate = terminationDate;
             } else {
                 processType = 'Processo de Rescisão';
-                dismissalSubType = 'PEDIDO_SEM_AVISO';
+                dismissalSubType = 'TERMINO_EXP_PRAZO_COLABORADOR';
                 startDate = terminationDate;
             }
         } else if (initiative === 'ABANDONO') {
@@ -163,13 +196,22 @@ export function InitiateDismissalDialog({ employeeId, employeeName, hasActivePos
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button 
-                    variant="outline" 
-                    className="gap-1.5 border-slate-200 text-red-650 hover:text-red-700 font-bold h-9 px-3.5 rounded-xl shadow-sm text-[11px] uppercase tracking-wider hover:bg-red-50 transition-colors bg-white shrink-0"
-                >
-                    <UserMinus className="w-3.5 h-3.5 text-red-500" />
-                    <span>Iniciar Desligamento</span>
-                </Button>
+                {triggerVariant === 'table' ? (
+                    <Button 
+                        variant="ghost" 
+                        className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 font-bold text-xs rounded-lg uppercase tracking-wider"
+                    >
+                        Iniciar
+                    </Button>
+                ) : (
+                    <Button 
+                        variant="outline" 
+                        className="gap-1.5 border-slate-200 text-red-650 hover:text-red-700 font-bold h-9 px-3.5 rounded-xl shadow-sm text-[11px] uppercase tracking-wider hover:bg-red-50 transition-colors bg-white shrink-0"
+                    >
+                        <UserMinus className="w-3.5 h-3.5 text-red-500" />
+                        <span>Iniciar Desligamento</span>
+                    </Button>
+                )}
             </DialogTrigger>
             <DialogContent className="max-w-md max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white border border-slate-200 rounded-3xl shadow-2xl">
                 <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-slate-50/50">
@@ -207,8 +249,39 @@ export function InitiateDismissalDialog({ employeeId, employeeName, hasActivePos
                             </RadioGroup>
                         </div>
 
-                        {/* 2. Cumprimento do Aviso (Conditional) */}
+                        {/* 2. Categoria / Tipo de Desligamento */}
                         {initiative !== 'ABANDONO' && (
+                            <div className="space-y-2">
+                                <Label className="font-bold text-slate-700">Categoria do Desligamento</Label>
+                                <RadioGroup 
+                                    value={dismissalCategory} 
+                                    onValueChange={(val: any) => setDismissalCategory(val)}
+                                    className="grid grid-cols-1 gap-2"
+                                >
+                                    <div className="flex items-center space-x-1.5 border p-2.5 rounded-xl bg-slate-50 cursor-pointer hover:bg-slate-100/60 transition-colors">
+                                        <RadioGroupItem value="AVISO" id="cat_aviso" />
+                                        <Label htmlFor="cat_aviso" className="text-xs cursor-pointer font-bold">
+                                            {initiative === 'EMPRESA' ? 'Demissão sem justa causa (Aviso)' : 'Pedido de Demissão'}
+                                        </Label>
+                                    </div>
+                                    <div className="flex items-center space-x-1.5 border p-2.5 rounded-xl bg-slate-50 cursor-pointer hover:bg-slate-100/60 transition-colors">
+                                        <RadioGroupItem value="EXP_ANTECIPADO" id="cat_exp_ant" />
+                                        <Label htmlFor="cat_exp_ant" className="text-xs cursor-pointer font-bold">
+                                            Término de Experiência (Antecipado)
+                                        </Label>
+                                    </div>
+                                    <div className="flex items-center space-x-1.5 border p-2.5 rounded-xl bg-slate-50 cursor-pointer hover:bg-slate-100/60 transition-colors">
+                                        <RadioGroupItem value="EXP_PRAZO" id="cat_exp_prazo" />
+                                        <Label htmlFor="cat_exp_prazo" className="text-xs cursor-pointer font-bold">
+                                            Término de Experiência (No Prazo)
+                                        </Label>
+                                    </div>
+                                </RadioGroup>
+                            </div>
+                        )}
+
+                        {/* 3. Cumprimento do Aviso (Conditional) */}
+                        {initiative !== 'ABANDONO' && dismissalCategory === 'AVISO' && (
                             <div className="space-y-2">
                                 <Label className="font-bold text-slate-700">Cumprimento de Aviso</Label>
                                 <RadioGroup 
@@ -232,8 +305,8 @@ export function InitiateDismissalDialog({ employeeId, employeeName, hasActivePos
                             </div>
                         )}
 
-                        {/* 3. Datas */}
-                        {initiative !== 'ABANDONO' && noticeType === 'TRABALHADO' && (
+                        {/* 4. Datas */}
+                        {initiative !== 'ABANDONO' && dismissalCategory === 'AVISO' && noticeType === 'TRABALHADO' && (
                             <div className="space-y-3.5 border border-slate-150 p-4 rounded-2xl bg-slate-50/50">
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1.5">
@@ -287,7 +360,7 @@ export function InitiateDismissalDialog({ employeeId, employeeName, hasActivePos
                             </div>
                         )}
 
-                        {initiative !== 'ABANDONO' && noticeType === 'INDENIZADO' && (
+                        {initiative !== 'ABANDONO' && (noticeType === 'INDENIZADO' || dismissalCategory !== 'AVISO') && (
                             <div className="space-y-2 border border-slate-150 p-4 rounded-2xl bg-slate-50/50">
                                 <Label htmlFor="proc_terminationDate" className="text-xs font-semibold">Data do Desligamento</Label>
                                 <Input

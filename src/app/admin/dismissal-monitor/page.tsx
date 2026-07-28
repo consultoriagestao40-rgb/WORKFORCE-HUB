@@ -11,6 +11,7 @@ import { DismissalMonitorActions } from "@/components/admin/DismissalMonitorActi
 import { TelegramRegisterButton } from "@/components/admin/TelegramRegisterButton";
 import { BackButton } from "@/components/admin/BackButton";
 import { ResignationLetterDownloadButton } from "@/components/admin/ResignationLetterDownloadButton";
+import { InitiateDismissalDialog } from "@/components/admin/InitiateDismissalDialog";
 
 async function getDismissalProcessData(companyId?: string, search?: string) {
     const where: any = {
@@ -43,6 +44,7 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
             id: true,
             name: true,
             admissionDate: true,
+            probationStatus: true,
             company: { select: { name: true } },
             role: { select: { name: true } },
             situation: { select: { name: true, color: true } },
@@ -73,6 +75,14 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
                 type = "Pedido (Dispensa de Aviso)";
             } else if (proc.dismissalSubType === 'ABANDONO') {
                 type = "Abandono de Emprego";
+            } else if (proc.dismissalSubType === 'TERMINO_EXP_ANTECIPADO_EMPRESA') {
+                type = "Experiência Antecipada (Empresa)";
+            } else if (proc.dismissalSubType === 'TERMINO_EXP_PRAZO_EMPRESA') {
+                type = "Experiência no Prazo (Empresa)";
+            } else if (proc.dismissalSubType === 'TERMINO_EXP_ANTECIPADO_COLABORADOR') {
+                type = "Experiência Antecipada (Colaborador)";
+            } else if (proc.dismissalSubType === 'TERMINO_EXP_PRAZO_COLABORADOR') {
+                type = "Experiência no Prazo (Colaborador)";
             }
         } else if (emp.probationStatus === "DISMISSED" && !proc.type) {
             type = "Término de Experiência";
@@ -111,9 +121,15 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
                     paymentDeadline.setDate(paymentDeadline.getDate() + 10);
                 }
             }
-        } else if (type === "Processo de Rescisão") {
+        } else if (
+            type === "Processo de Rescisão" || 
+            type.includes("Experiência") || 
+            type.includes("Experiencia") || 
+            type.includes("Aviso Indenizado") || 
+            type.includes("Dispensa de Aviso")
+        ) {
             if (endDate) {
-                dateLabel = `Previsto: ${format(endDate, 'dd/MM/yyyy')}`;
+                dateLabel = `Término: ${format(endDate, 'dd/MM/yyyy')}`;
                 daysCount = differenceInDays(endDate, today);
                 counterLabel = daysCount >= 0 ? "Restantes" : "Atrasados";
                 if (daysCount <= 5 && daysCount >= 0) statusBadge = "A_VENCER";
@@ -220,6 +236,23 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
             dismissalProcess: proc
         };
     });
+}
+
+function getProcessBadgeStyle(type: string) {
+    const t = type.toLowerCase();
+    if (t.includes("experiência") || t.includes("experiencia")) {
+        return { bg: "#faf5ff", color: "#a855f7" }; // Purple
+    }
+    if (t.includes("aviso") || t.includes("dispensa") || t.includes("pedido")) {
+        return { bg: "#fffbeb", color: "#d97706" }; // Amber/Orange
+    }
+    if (t.includes("abandono")) {
+        return { bg: "#fef2f2", color: "#ef4444" }; // Red
+    }
+    if (t.includes("ativo")) {
+        return { bg: "#ecfdf5", color: "#10b981" }; // Emerald/Green
+    }
+    return { bg: "#f8fafc", color: "#64748b" }; // Slate/Grey
 }
 
 export default async function DismissalMonitorPage({ 
@@ -353,19 +386,25 @@ export default async function DismissalMonitorPage({
                                     </td>
                                     <td className="px-5 py-4">
                                         <div className="flex flex-col gap-1">
-                                            <span 
-                                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold w-fit"
-                                                style={{ 
-                                                    backgroundColor: emp.situation?.color ? `${emp.situation.color}15` : '#f43f5e15',
-                                                    color: emp.situation?.color || '#f43f5e'
-                                                }}
-                                            >
-                                                <span 
-                                                    className="w-1.5 h-1.5 rounded-full" 
-                                                    style={{ backgroundColor: emp.situation?.color || '#f43f5e' }}
-                                                />
-                                                {emp.type}
-                                            </span>
+                                            {(() => {
+                                                const style = getProcessBadgeStyle(emp.type);
+                                                return (
+                                                    <span 
+                                                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold w-fit border"
+                                                        style={{ 
+                                                            backgroundColor: style.bg,
+                                                            color: style.color,
+                                                            borderColor: `${style.color}25`
+                                                        }}
+                                                    >
+                                                        <span 
+                                                            className="w-1.5 h-1.5 rounded-full" 
+                                                            style={{ backgroundColor: style.color }}
+                                                        />
+                                                        {emp.type}
+                                                    </span>
+                                                );
+                                            })()}
                                             {emp.type === "Aviso Prévio" && (
                                                 <span className="text-[9px] text-slate-400 font-medium">
                                                     Redução: {
@@ -447,11 +486,20 @@ export default async function DismissalMonitorPage({
                                                     Perfil
                                                 </Button>
                                             </Link>
-                                            <DismissalMonitorActions 
-                                                employeeId={emp.id}
-                                                employeeName={emp.name}
-                                                situationName={emp.type}
-                                            />
+                                            {!emp.dismissalProcess?.type ? (
+                                                <InitiateDismissalDialog 
+                                                    employeeId={emp.id}
+                                                    employeeName={emp.name}
+                                                    hasActivePosto={emp.assignments && emp.assignments.length > 0}
+                                                    triggerVariant="table"
+                                                />
+                                            ) : (
+                                                <DismissalMonitorActions 
+                                                    employeeId={emp.id}
+                                                    employeeName={emp.name}
+                                                    situationName={emp.type}
+                                                />
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
