@@ -8,6 +8,23 @@ import { webcrypto } from "crypto";
 import { getCurrentUserRole, getCurrentUser } from "@/lib/auth";
 import { createVacancyFromPosto } from "@/actions/recruitment";
 
+function parseDateString(str: string | null | undefined): Date | null {
+    if (!str) return null;
+    // YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        const d = new Date(str + 'T12:00:00');
+        return isNaN(d.getTime()) ? null : d;
+    }
+    // DD/MM/YYYY
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+        const parts = str.split('/');
+        const d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]), 12, 0, 0);
+        return isNaN(d.getTime()) ? null : d;
+    }
+    const parsed = new Date(str);
+    return isNaN(parsed.getTime()) ? null : parsed;
+}
+
 export async function cleanupVacantRotativoPostos(tx?: any) {
     const db = tx || prisma;
     const rotativoClient = await db.client.findFirst({
@@ -445,7 +462,7 @@ export async function createEmployee(formData: FormData) {
             }
         }
 
-        const admissionDate = admissionDateStr ? new Date(admissionDateStr) : new Date();
+        const admissionDate = parseDateString(admissionDateStr) || new Date();
 
         const extraFieldsStr = formData.get("extraFields") as string;
         let extraFields = null;
@@ -509,7 +526,7 @@ export async function createEmployee(formData: FormData) {
                         address: (formData.get("address") as string) || existingCpf.address,
                         phone: (formData.get("phone") as string) || existingCpf.phone,
                         email: (formData.get("email") as string) || existingCpf.email,
-                        birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : existingCpf.birthDate,
+                        birthDate: parseDateString(formData.get("birthDate") as string) || existingCpf.birthDate,
                         gender: (formData.get("gender") as string) || existingCpf.gender,
                         dismissalReason: null,
                         dismissalNotes: null,
@@ -550,7 +567,7 @@ export async function createEmployee(formData: FormData) {
                         address: (formData.get("address") as string) || null,
                         phone: (formData.get("phone") as string) || null,
                         email: (formData.get("email") as string) || null,
-                        birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : null,
+                        birthDate: parseDateString(formData.get("birthDate") as string),
                         gender: (formData.get("gender") as string) || null,
                         extraFields: extraFields || undefined
                     }
@@ -1413,9 +1430,9 @@ export async function updateEmployee(formData: FormData) {
                     type,
                     status,
                     situationId: situationId || undefined,
-                    admissionDate: admissionDateStr ? new Date(admissionDateStr) : undefined,
-                    lastVacationStart: lastVacationStartStr ? new Date(lastVacationStartStr) : null,
-                    lastVacationEnd: lastVacationEndStr ? new Date(lastVacationEndStr) : null,
+                    admissionDate: parseDateString(admissionDateStr) || undefined,
+                    lastVacationStart: parseDateString(lastVacationStartStr),
+                    lastVacationEnd: parseDateString(lastVacationEndStr),
                     totalVacationDaysTaken,
                     salary,
                     insalubridade,
@@ -1438,7 +1455,7 @@ export async function updateEmployee(formData: FormData) {
                     vaCustomPaymentDetails,
                     vtDiscountPercentage,
                     vaDiscountPercentage,
-                    birthDate: (formData.get("birthDate") as string) ? new Date(formData.get("birthDate") as string) : null,
+                    birthDate: parseDateString(formData.get("birthDate") as string),
                     gender: (formData.get("gender") as string) || null,
                     address: (formData.get("address") as string) || null,
                     phone: (formData.get("phone") as string) || null,
