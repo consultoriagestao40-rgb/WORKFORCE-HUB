@@ -10,7 +10,17 @@ import {
     DialogTrigger
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Bell, CreditCard, Send, ShieldAlert, AlertTriangle, Calendar, CheckCircle2, Info } from "lucide-react";
+import { 
+    Select, 
+    SelectContent, 
+    SelectItem, 
+    SelectTrigger, 
+    SelectValue 
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Bell, CreditCard, Send, ShieldAlert, AlertTriangle, Calendar, CheckCircle2, Info, Settings } from "lucide-react";
+import { updateAlertUserId } from "@/actions/globalAlerts";
+import { toast } from "sonner";
 
 export interface DismissalAlert {
     id: string;
@@ -21,8 +31,17 @@ export interface DismissalAlert {
     message: string;
 }
 
-export function DismissalAlertsDialog({ alerts }: { alerts: DismissalAlert[] }) {
+interface DismissalAlertsDialogProps {
+    alerts: DismissalAlert[];
+    alertUserId: string | null;
+    systemUsers: { id: string; name: string; email: string | null }[];
+    isAdmin: boolean;
+}
+
+export function DismissalAlertsDialog({ alerts, alertUserId, systemUsers, isAdmin }: DismissalAlertsDialogProps) {
     const [open, setOpen] = useState(false);
+    const [selectedManager, setSelectedManager] = useState<string>(alertUserId || "none");
+    const [updating, setUpdating] = useState(false);
 
     const criticalCount = alerts.filter(a => a.type === 'CRITICAL').length;
     const warningCount = alerts.filter(a => a.type === 'WARNING').length;
@@ -33,6 +52,22 @@ export function DismissalAlertsDialog({ alerts }: { alerts: DismissalAlert[] }) 
             setOpen(true);
         }
     }, [criticalCount]);
+
+    const handleManagerChange = async (val: string) => {
+        try {
+            setUpdating(true);
+            setSelectedManager(val);
+            const res = await updateAlertUserId(val);
+            if (res.success) {
+                toast.success("Gestor responsável atualizado com sucesso!");
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error("Falha ao atualizar gestor responsável.");
+        } finally {
+            setUpdating(false);
+        }
+    };
 
     const getIcon = (category: string) => {
         switch (category) {
@@ -77,7 +112,7 @@ export function DismissalAlertsDialog({ alerts }: { alerts: DismissalAlert[] }) 
                     )}
                 </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-xl max-h-[85vh] flex flex-col p-0 overflow-hidden bg-white border border-slate-200 rounded-3xl shadow-2xl">
+            <DialogContent className="max-w-xl max-h-[85vh] flex flex-col p-0 overflow-hidden bg-white border border-slate-200 rounded-3xl shadow-2xl z-[100]">
                 <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-slate-50/50">
                     <DialogTitle className="text-lg font-black text-slate-800 flex items-center gap-2">
                         <Bell className="w-5 h-5 text-red-500" /> Prazos e Notificações Críticas de DP
@@ -151,6 +186,42 @@ export function DismissalAlertsDialog({ alerts }: { alerts: DismissalAlert[] }) 
                             )}
                         </div>
                     )}
+                </div>
+
+                {/* Responsible Manager Selector Footer */}
+                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6">
+                    {isAdmin ? (
+                        <div className="flex flex-col gap-1 w-full max-w-sm">
+                            <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                <Settings className="w-3 h-3" /> Gestor da Área (Responsável Alertas)
+                            </Label>
+                            <Select
+                                value={selectedManager}
+                                onValueChange={handleManagerChange}
+                                disabled={updating}
+                            >
+                                <SelectTrigger className="h-8 rounded-lg border-slate-200 text-xs bg-white">
+                                    <SelectValue placeholder="Selecione o gestor..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">Todos (Nenhum gestor específico)</SelectItem>
+                                    {systemUsers.map(u => (
+                                        <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    ) : (
+                        <div className="text-[10px] text-slate-400 font-medium italic">
+                            Apenas Administradores podem alterar o Gestor Responsável.
+                        </div>
+                    )}
+                    <Button 
+                        onClick={() => setOpen(false)} 
+                        className="bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs h-9 px-6 self-end"
+                    >
+                        Fechar
+                    </Button>
                 </div>
             </DialogContent>
         </Dialog>

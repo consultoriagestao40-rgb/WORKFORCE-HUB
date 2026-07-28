@@ -13,6 +13,8 @@ import { BackButton } from "@/components/admin/BackButton";
 import { ResignationLetterDownloadButton } from "@/components/admin/ResignationLetterDownloadButton";
 import { InitiateDismissalDialog } from "@/components/admin/InitiateDismissalDialog";
 import { DismissalAlertsDialog } from "@/components/admin/DismissalAlertsDialog";
+import { getCurrentUser } from "@/lib/auth";
+import { getGlobalAlerts } from "@/actions/globalAlerts";
 
 async function getDismissalProcessData(companyId?: string, search?: string) {
     const where: any = {
@@ -321,8 +323,22 @@ export default async function DismissalMonitorPage({
 
     const employees = await getDismissalProcessData(companyId, search);
 
-    // Aggregate all alerts
-    const allAlerts = employees.flatMap(emp => emp.alerts);
+    const { dismissalAlerts, experienceAlerts, alertUserId, systemUsers } = await getGlobalAlerts();
+    
+    const allAlerts = [
+        ...dismissalAlerts,
+        ...experienceAlerts
+    ].map(a => ({
+        id: a.id,
+        employeeId: a.employeeId,
+        employeeName: a.employeeName,
+        type: a.severity,
+        category: a.category || 'EXPERIENCIA',
+        message: a.message
+    }));
+
+    const user = await getCurrentUser();
+    const isAdmin = user?.role === 'ADMIN';
 
     return (
         <div className="space-y-6">
@@ -332,7 +348,12 @@ export default async function DismissalMonitorPage({
                     <h1 className="text-2xl font-bold text-slate-800">Monitor de Desligamento</h1>
                     <p className="text-slate-500">Gestão de prazos de Aviso Prévio, Abandono de Posto, Términos de Experiência e Prazos CLT de DP</p>
                 </div>
-                <DismissalAlertsDialog alerts={allAlerts} />
+                <DismissalAlertsDialog 
+                    alerts={allAlerts} 
+                    alertUserId={alertUserId}
+                    systemUsers={systemUsers}
+                    isAdmin={isAdmin}
+                />
             </div>
 
             {/* Panel de Alertas Críticos de Departamento Pessoal */}
