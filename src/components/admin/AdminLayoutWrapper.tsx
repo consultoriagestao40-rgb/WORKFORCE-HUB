@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { SidebarNav } from "@/components/admin/SidebarNav";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { GlobalAlertsDialog } from "@/components/admin/GlobalAlertsDialog";
 
 interface AdminLayoutWrapperProps {
     children: React.ReactNode;
@@ -85,6 +86,9 @@ export function AdminLayoutWrapper({ children, user }: AdminLayoutWrapperProps) 
             )}>
                 {children}
             </main>
+
+            {/* Global Alerts Modal */}
+            <GlobalAlertsDialog user={user} />
         </div>
     );
 }
