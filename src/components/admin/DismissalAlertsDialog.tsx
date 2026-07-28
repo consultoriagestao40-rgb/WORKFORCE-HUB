@@ -18,7 +18,17 @@ import {
     SelectValue 
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Bell, CreditCard, Send, ShieldAlert, AlertTriangle, Calendar, CheckCircle2, Info, Settings } from "lucide-react";
+import { 
+    AlertTriangle, 
+    CreditCard, 
+    Send, 
+    ShieldAlert, 
+    Calendar, 
+    CheckCircle2, 
+    Info, 
+    Settings,
+    Bell
+} from "lucide-react";
 import { updateAlertUserId } from "@/actions/globalAlerts";
 import { toast } from "sonner";
 
@@ -44,7 +54,6 @@ export function DismissalAlertsDialog({ alerts, alertUserId, systemUsers, isAdmi
     const [updating, setUpdating] = useState(false);
 
     const criticalCount = alerts.filter(a => a.type === 'CRITICAL').length;
-    const warningCount = alerts.filter(a => a.type === 'WARNING').length;
 
     // Automatically open the dialog if there are critical alerts
     useEffect(() => {
@@ -72,24 +81,24 @@ export function DismissalAlertsDialog({ alerts, alertUserId, systemUsers, isAdmi
     const getIcon = (category: string) => {
         switch (category) {
             case 'PAGAMENTO':
-                return <CreditCard className="w-4 h-4 text-emerald-500" />;
+                return <CreditCard className="w-3.5 h-3.5 text-emerald-500 inline mr-1" />;
             case 'TELEGRAMA':
-                return <Send className="w-4 h-4 text-sky-500" />;
+                return <Send className="w-3.5 h-3.5 text-sky-500 inline mr-1" />;
             case 'EXPERIENCIA':
-                return <Calendar className="w-4 h-4 text-purple-500" />;
+                return <Calendar className="w-3.5 h-3.5 text-purple-500 inline mr-1" />;
             case 'ABANDONO':
-                return <ShieldAlert className="w-4 h-4 text-rose-500" />;
+                return <ShieldAlert className="w-3.5 h-3.5 text-rose-500 inline mr-1" />;
             default:
-                return <Info className="w-4 h-4 text-slate-500" />;
+                return <Info className="w-3.5 h-3.5 text-slate-500 inline mr-1" />;
         }
     };
 
     const getCategoryLabel = (category: string) => {
         switch (category) {
-            case 'PAGAMENTO': return 'Prazo de Pagamento';
-            case 'TELEGRAMA': return 'Envio de Telegrama';
-            case 'EXPERIENCIA': return 'Término de Experiência';
-            case 'ABANDONO': return 'Abandono de Posto';
+            case 'PAGAMENTO': return 'Rescisão';
+            case 'TELEGRAMA': return 'Telegrama';
+            case 'EXPERIENCIA': return 'Experiência';
+            case 'ABANDONO': return 'Abandono';
             default: return 'Geral';
         }
     };
@@ -112,16 +121,18 @@ export function DismissalAlertsDialog({ alerts, alertUserId, systemUsers, isAdmi
                     )}
                 </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-xl max-h-[85vh] flex flex-col p-0 overflow-hidden bg-white border border-slate-200 rounded-3xl shadow-2xl z-[100]">
-                <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-slate-50/50">
-                    <DialogTitle className="text-lg font-black text-slate-800 flex items-center gap-2">
-                        <Bell className="w-5 h-5 text-red-500" /> Prazos e Notificações Críticas de DP
+            <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-3xl bg-white border border-slate-200 shadow-2xl">
+                {/* Header */}
+                <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-amber-50/50">
+                    <DialogTitle className="flex items-center gap-2 text-lg font-black text-amber-700">
+                        <AlertTriangle className="w-5 h-5 text-amber-600 animate-pulse" /> Prazos e Notificações Críticas de DP
                     </DialogTitle>
-                    <DialogDescription className="text-xs text-slate-500">
-                        Acompanhe abaixo os prazos legais de pagamentos, envios de telegramas e vencimentos de contratos.
+                    <DialogDescription className="text-xs text-amber-850">
+                        Prezado responsável, acompanhe abaixo os prazos legais de pagamentos, envios de telegramas e vencimentos de contratos.
                     </DialogDescription>
                 </DialogHeader>
 
+                {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
                     {alerts.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-10 text-center space-y-3">
@@ -134,73 +145,54 @@ export function DismissalAlertsDialog({ alerts, alertUserId, systemUsers, isAdmi
                             </div>
                         </div>
                     ) : (
-                        <div className="space-y-3">
-                            {/* Critical Alerts */}
-                            {criticalCount > 0 && (
-                                <div className="space-y-2">
-                                    <h4 className="text-[10px] font-black uppercase tracking-wider text-red-600 flex items-center gap-1.5 px-1">
-                                        <AlertTriangle className="w-3.5 h-3.5 text-red-500" /> Atrasados / Críticos ({criticalCount})
-                                    </h4>
-                                    <div className="space-y-2">
-                                        {alerts.filter(a => a.type === 'CRITICAL').map(alert => (
-                                            <div key={alert.id} className="p-3.5 bg-red-50/50 border border-red-150 rounded-2xl flex gap-3 text-xs">
-                                                <div className="mt-0.5 shrink-0 w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center">
+                        <div className="border border-slate-200/60 rounded-2xl overflow-hidden bg-white shadow-sm">
+                            <table className="w-full text-left text-xs border-collapse">
+                                <thead className="bg-slate-50 border-b border-slate-200">
+                                    <tr className="font-bold text-slate-500">
+                                        <th className="py-2.5 px-3">Colaborador</th>
+                                        <th className="py-2.5 px-3">Tipo/Categoria</th>
+                                        <th className="py-2.5 px-3">Status/Alerta</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {alerts.map((alert) => {
+                                        const isCritical = alert.type === 'CRITICAL';
+                                        return (
+                                            <tr key={alert.id} className="hover:bg-slate-50/50 font-semibold text-slate-700">
+                                                <td className="py-3 px-3 font-bold text-slate-800">
+                                                    {alert.employeeName}
+                                                </td>
+                                                <td className="py-3 px-3 text-slate-650 font-medium">
                                                     {getIcon(alert.category)}
-                                                </div>
-                                                <div className="space-y-0.5">
-                                                    <div className="font-extrabold text-red-800">{alert.employeeName}</div>
-                                                    <div className="text-[10px] font-bold text-red-650/80 uppercase tracking-wide">
-                                                        {getCategoryLabel(alert.category)}
-                                                    </div>
-                                                    <p className="text-red-700 font-semibold text-[11px] leading-relaxed mt-1">{alert.message}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Warning Alerts */}
-                            {warningCount > 0 && (
-                                <div className="space-y-2 pt-2">
-                                    <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-600 flex items-center gap-1.5 px-1">
-                                        <Info className="w-3.5 h-3.5 text-amber-500" /> Lembretes / Próximos Vencimentos ({warningCount})
-                                    </h4>
-                                    <div className="space-y-2">
-                                        {alerts.filter(a => a.type === 'WARNING').map(alert => (
-                                            <div key={alert.id} className="p-3.5 bg-amber-50/40 border border-amber-150 rounded-2xl flex gap-3 text-xs">
-                                                <div className="mt-0.5 shrink-0 w-7 h-7 rounded-lg bg-amber-100/60 flex items-center justify-center">
-                                                    {getIcon(alert.category)}
-                                                </div>
-                                                <div className="space-y-0.5">
-                                                    <div className="font-extrabold text-amber-800">{alert.employeeName}</div>
-                                                    <div className="text-[10px] font-bold text-amber-650 uppercase tracking-wide">
-                                                        {getCategoryLabel(alert.category)}
-                                                    </div>
-                                                    <p className="text-amber-700 font-semibold text-[11px] leading-relaxed mt-1">{alert.message}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                                                    {getCategoryLabel(alert.category)}
+                                                </td>
+                                                <td className={`py-3 px-3 text-[11px] font-semibold ${
+                                                    isCritical ? 'text-red-750' : 'text-amber-750'
+                                                }`}>
+                                                    {alert.message}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>
 
                 {/* Responsible Manager Selector Footer */}
-                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6">
+                <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     {isAdmin ? (
                         <div className="flex flex-col gap-1 w-full max-w-sm">
                             <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                                <Settings className="w-3 h-3" /> Gestor da Área (Responsável Alertas)
+                                <Settings className="w-3.5 h-3.5 text-slate-500" /> Gestor Responsável (Alertas Globais)
                             </Label>
                             <Select
                                 value={selectedManager}
                                 onValueChange={handleManagerChange}
                                 disabled={updating}
                             >
-                                <SelectTrigger className="h-8 rounded-lg border-slate-200 text-xs bg-white">
+                                <SelectTrigger className="h-9 rounded-xl border-slate-250 text-xs bg-white font-semibold shadow-sm">
                                     <SelectValue placeholder="Selecione o gestor..." />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -213,7 +205,7 @@ export function DismissalAlertsDialog({ alerts, alertUserId, systemUsers, isAdmi
                         </div>
                     ) : (
                         <div className="text-[10px] text-slate-400 font-medium italic">
-                            Apenas Administradores podem alterar o Gestor Responsável.
+                            Apenas Administradores podem configurar o Gestor Responsável.
                         </div>
                     )}
                     <Button 

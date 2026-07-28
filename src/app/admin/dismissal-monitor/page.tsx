@@ -13,6 +13,7 @@ import { BackButton } from "@/components/admin/BackButton";
 import { ResignationLetterDownloadButton } from "@/components/admin/ResignationLetterDownloadButton";
 import { InitiateDismissalDialog } from "@/components/admin/InitiateDismissalDialog";
 import { DismissalAlertsDialog } from "@/components/admin/DismissalAlertsDialog";
+import { DPAlertSettingsDialog } from "@/components/admin/DPAlertSettingsDialog";
 import { getCurrentUser } from "@/lib/auth";
 import { getGlobalAlerts } from "@/actions/globalAlerts";
 
@@ -325,10 +326,9 @@ export default async function DismissalMonitorPage({
 
     const { dismissalAlerts, experienceAlerts, alertUserId, systemUsers } = await getGlobalAlerts();
     
-    const allAlerts = [
-        ...dismissalAlerts,
-        ...experienceAlerts
-    ].map(a => ({
+    const dismissalMonitorAlerts = employees.flatMap((emp: any) => emp.alerts || []);
+
+    const allAlerts = dismissalAlerts.map(a => ({
         id: a.id,
         employeeId: a.employeeId,
         employeeName: a.employeeName,
@@ -348,23 +348,30 @@ export default async function DismissalMonitorPage({
                     <h1 className="text-2xl font-bold text-slate-800">Monitor de Desligamento</h1>
                     <p className="text-slate-500">Gestão de prazos de Aviso Prévio, Abandono de Posto, Términos de Experiência e Prazos CLT de DP</p>
                 </div>
-                <DismissalAlertsDialog 
-                    alerts={allAlerts} 
-                    alertUserId={alertUserId}
-                    systemUsers={systemUsers}
-                    isAdmin={isAdmin}
-                />
+                <div className="flex items-center gap-2">
+                    <DismissalAlertsDialog 
+                        alerts={allAlerts} 
+                        alertUserId={alertUserId}
+                        systemUsers={systemUsers}
+                        isAdmin={isAdmin}
+                    />
+                    <DPAlertSettingsDialog 
+                        alertUserId={alertUserId}
+                        systemUsers={systemUsers}
+                        isAdmin={isAdmin}
+                    />
+                </div>
             </div>
 
             {/* Panel de Alertas Críticos de Departamento Pessoal */}
-            {allAlerts.length > 0 && (
+            {dismissalMonitorAlerts.length > 0 && (
                 <div className="bg-red-50/50 border border-red-200/60 rounded-2xl p-5 space-y-3">
                     <div className="flex items-center gap-2 text-red-700 font-extrabold text-sm uppercase tracking-wider">
                         <ShieldAlert className="w-5 h-5 text-red-500" />
                         Prazos Críticos de Departamento Pessoal
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs font-semibold leading-relaxed">
-                        {allAlerts.map((alert, idx) => (
+                        {dismissalMonitorAlerts.map((alert, idx) => (
                             <div 
                                 key={idx} 
                                 className={`flex items-start gap-1.5 p-2 rounded-lg border ${

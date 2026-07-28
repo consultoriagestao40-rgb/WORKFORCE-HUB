@@ -18,16 +18,13 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { 
-    Bell, 
     AlertTriangle, 
     CreditCard, 
     Calendar, 
-    ArrowRight, 
-    CheckCircle2, 
     Send, 
     ShieldAlert, 
     Settings,
-    Info 
+    Info
 } from "lucide-react";
 import { getGlobalAlerts, updateAlertUserId, GlobalAlertItem } from "@/actions/globalAlerts";
 import { useRouter } from "next/navigation";
@@ -45,7 +42,6 @@ export function GlobalAlertsDialog({ user }: GlobalAlertsDialogProps) {
     
     const [alertUserId, setAlertUserId] = useState<string | null>(null);
     const [systemUsers, setSystemUsers] = useState<{ id: string; name: string; email: string | null }[]>([]);
-    const [activeTab, setActiveTab] = useState<'dp' | 'experience' | 'benefits'>('dp');
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(false);
     const router = useRouter();
@@ -76,15 +72,6 @@ export function GlobalAlertsDialog({ user }: GlobalAlertsDialogProps) {
 
                 if (totalAlerts > 0 && isDesignatedUser) {
                     setOpen(true);
-                    
-                    // Choose first tab that has alerts
-                    if (dAlerts.length > 0) {
-                        setActiveTab('dp');
-                    } else if (eAlerts.length > 0) {
-                        setActiveTab('experience');
-                    } else {
-                        setActiveTab('benefits');
-                    }
                 }
             } catch (error) {
                 console.error("Failed to load global DP alerts", error);
@@ -101,11 +88,6 @@ export function GlobalAlertsDialog({ user }: GlobalAlertsDialogProps) {
     if (totalCount === 0 || loading) {
         return null;
     }
-
-    const handleNavigate = (path: string) => {
-        setOpen(false);
-        router.push(path);
-    };
 
     const handleManagerChange = async (val: string) => {
         try {
@@ -126,268 +108,174 @@ export function GlobalAlertsDialog({ user }: GlobalAlertsDialogProps) {
     const getIcon = (category?: string) => {
         switch (category) {
             case 'PAGAMENTO':
-                return <CreditCard className="w-4 h-4 text-emerald-500" />;
+                return <CreditCard className="w-3.5 h-3.5 text-emerald-500 inline mr-1" />;
             case 'TELEGRAMA':
-                return <Send className="w-4 h-4 text-sky-500" />;
+                return <Send className="w-3.5 h-3.5 text-sky-500 inline mr-1" />;
             case 'EXPERIENCIA':
-                return <Calendar className="w-4 h-4 text-purple-500" />;
+                return <Calendar className="w-3.5 h-3.5 text-purple-500 inline mr-1" />;
             case 'ABANDONO':
-                return <ShieldAlert className="w-4 h-4 text-rose-500" />;
+                return <ShieldAlert className="w-3.5 h-3.5 text-rose-500 inline mr-1" />;
             default:
-                return <Info className="w-4 h-4 text-slate-500" />;
+                return <Info className="w-3.5 h-3.5 text-slate-500 inline mr-1" />;
         }
     };
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden bg-white border border-slate-200 rounded-3xl shadow-2xl z-[100]">
+            <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-3xl bg-white border border-slate-200 shadow-2xl">
                 {/* Header */}
-                <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-gradient-to-r from-red-50/20 to-amber-50/20">
-                    <DialogTitle className="text-xl font-black text-slate-800 flex items-center gap-2">
-                        <Bell className="w-5 h-5 text-red-500 animate-bounce" /> 
-                        Prazos Críticos de DP e Benefícios
+                <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-amber-50/50">
+                    <DialogTitle className="flex items-center gap-2 text-lg font-black text-amber-700">
+                        <AlertTriangle className="w-5 h-5 text-amber-600 animate-pulse" /> Prazos e Vencimentos Críticos de DP
                     </DialogTitle>
-                    <DialogDescription className="text-xs text-slate-500">
-                        Prezado gestor, existem prazos de rescisões, telegramas, vencimentos de experiência e compras de benefícios em atraso ou vencendo hoje.
+                    <DialogDescription className="text-xs text-amber-850">
+                        Prezado responsável, há prazos legais e vencimentos para o dia de hoje ou datas anteriores que necessitam de atenção.
                     </DialogDescription>
                 </DialogHeader>
 
-                {/* Tab Selectors */}
-                <div className="flex border-b border-slate-100 bg-slate-50/50 px-6 py-2 gap-2 overflow-x-auto">
-                    <button
-                        onClick={() => setActiveTab('dp')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                            activeTab === 'dp'
-                                ? 'bg-white text-rose-700 shadow-sm border border-slate-200/50 font-black'
-                                : 'text-slate-500 hover:text-slate-850 hover:bg-slate-100/60'
-                        }`}
-                    >
-                        <ShieldAlert className="w-4 h-4" />
-                        Prazos de DP (Rescisão/Telegrams)
-                        {dismissalAlerts.length > 0 && (
-                            <span className="bg-rose-100 text-rose-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
-                                {dismissalAlerts.length}
-                            </span>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('experience')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                            activeTab === 'experience'
-                                ? 'bg-white text-purple-700 shadow-sm border border-slate-200/50 font-black'
-                                : 'text-slate-500 hover:text-slate-850 hover:bg-slate-100/60'
-                        }`}
-                    >
-                        <Calendar className="w-4 h-4" />
-                        Fim de Experiência
-                        {experienceAlerts.length > 0 && (
-                            <span className="bg-purple-100 text-purple-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
-                                {experienceAlerts.length}
-                            </span>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('benefits')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                            activeTab === 'benefits'
-                                ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50 font-black'
-                                : 'text-slate-500 hover:text-slate-850 hover:bg-slate-100/60'
-                        }`}
-                    >
-                        <CreditCard className="w-4 h-4" />
-                        Compra de Benefícios
-                        {benefitsAlerts.length > 0 && (
-                            <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
-                                {benefitsAlerts.length}
-                            </span>
-                        )}
-                    </button>
-                </div>
-
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                    {activeTab === 'dp' && (
-                        dismissalAlerts.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-10 text-center space-y-2">
-                                <CheckCircle2 className="w-8 h-8 text-emerald-500" />
-                                <p className="text-xs font-bold text-slate-700">Tudo em dia com as rescisões e prazos de DP!</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                <div className="border border-slate-250/60 rounded-2xl overflow-hidden bg-white shadow-sm">
-                                    <table className="w-full text-left text-xs border-collapse">
-                                        <thead className="bg-slate-50/70 border-b border-slate-200">
-                                            <tr className="font-bold text-slate-500">
-                                                <th className="py-2.5 px-4">Colaborador</th>
-                                                <th className="py-2.5 px-4 text-center">Vencimento</th>
-                                                <th className="py-2.5 px-4">Alerta</th>
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Benefits Alerts Table */}
+                    {benefitsAlerts.length > 0 && (
+                        <div className="space-y-2">
+                            <h4 className="text-xs font-bold text-amber-700 flex items-center gap-1.5 uppercase tracking-wider">
+                                <CreditCard className="w-4 h-4 text-amber-650" /> Pagamentos de VT/VA Fracionados
+                            </h4>
+                            <div className="border border-slate-200/60 rounded-2xl overflow-hidden bg-white">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-slate-50 border-b border-slate-200">
+                                        <tr className="font-bold text-slate-500">
+                                            <th className="py-2.5 px-3">Colaborador</th>
+                                            <th className="py-2.5 px-3 text-center">Vencimento</th>
+                                            <th className="py-2.5 px-3 text-right">Mensagem</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {benefitsAlerts.map(alert => (
+                                            <tr key={alert.id} className="hover:bg-slate-50/50 font-semibold text-slate-700">
+                                                <td className="py-3 px-3 font-bold text-slate-800">
+                                                    {alert.employeeName}
+                                                </td>
+                                                <td className="py-3 px-3 text-center">
+                                                    <span className="px-2 py-0.5 rounded bg-red-50 text-red-700 font-bold text-[10px] border border-red-200">
+                                                        {alert.dueDate}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-3 text-right text-red-650 text-[11px]">
+                                                    {alert.message}
+                                                </td>
                                             </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {dismissalAlerts.map(alert => (
-                                                <tr key={alert.id} className="hover:bg-slate-50/40 font-medium">
-                                                    <td className="py-3 px-4 font-bold text-slate-850 flex items-center gap-2">
-                                                        {getIcon(alert.category)}
-                                                        {alert.employeeName}
-                                                    </td>
-                                                    <td className="py-3 px-4 text-center">
-                                                        <span className="px-2 py-0.5 rounded bg-red-50 text-red-700 font-bold text-[10px] border border-red-200">
-                                                            {alert.dueDate}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-3 px-4 text-[11px] text-red-650 font-semibold">
-                                                        {alert.message}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div className="flex justify-end pt-2">
-                                    <Button 
-                                        onClick={() => handleNavigate("/admin/dismissal-monitor")}
-                                        className="bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs gap-1.5 h-9"
-                                    >
-                                        Acessar Monitor de Desligamento <ArrowRight className="w-4 h-4" />
-                                    </Button>
-                                </div>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-                        )
+                        </div>
                     )}
 
-                    {activeTab === 'experience' && (
-                        experienceAlerts.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-10 text-center space-y-2">
-                                <CheckCircle2 className="w-8 h-8 text-emerald-500" />
-                                <p className="text-xs font-bold text-slate-700">Tudo em ordem com a experiência!</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                <div className="border border-slate-250/60 rounded-2xl overflow-hidden bg-white shadow-sm">
-                                    <table className="w-full text-left text-xs border-collapse">
-                                        <thead className="bg-slate-50/70 border-b border-slate-200">
-                                            <tr className="font-bold text-slate-500">
-                                                <th className="py-2.5 px-4">Colaborador</th>
-                                                <th className="py-2.5 px-4 text-center">Término</th>
-                                                <th className="py-2.5 px-4 text-center">Status / Dias</th>
-                                                <th className="py-2.5 px-4">Alerta</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {experienceAlerts.map(alert => {
-                                                const isOverdue = alert.daysLeft < 0;
-                                                return (
-                                                    <tr key={alert.id} className="hover:bg-slate-50/40 font-medium">
-                                                        <td className="py-3 px-4 font-bold text-slate-850 flex items-center gap-2">
-                                                            <Calendar className="w-4 h-4 text-purple-500" />
-                                                            {alert.employeeName}
-                                                        </td>
-                                                        <td className="py-3 px-4 text-center">
-                                                            <span className={`px-2 py-0.5 rounded font-bold text-[10px] border ${
-                                                                isOverdue 
-                                                                    ? 'bg-red-50 text-red-700 border-red-200' 
-                                                                    : 'bg-amber-50 text-amber-700 border-amber-200'
-                                                            }`}>
-                                                                {alert.dueDate}
-                                                            </span>
-                                                        </td>
-                                                        <td className="py-3 px-4 text-center">
-                                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                                                                isOverdue 
-                                                                    ? 'bg-red-100 text-red-700' 
-                                                                    : 'bg-amber-100 text-amber-700'
-                                                            }`}>
-                                                                {isOverdue 
-                                                                    ? `${Math.abs(alert.daysLeft)}d atrasado` 
-                                                                    : `${alert.daysLeft}d restantes`}
-                                                            </span>
-                                                        </td>
-                                                        <td className={`py-3 px-4 text-[11px] font-semibold ${
-                                                            isOverdue ? 'text-red-650' : 'text-amber-650'
+                    {/* Experience Alerts Table */}
+                    {experienceAlerts.length > 0 && (
+                        <div className="space-y-2">
+                            <h4 className="text-xs font-bold text-purple-750 flex items-center gap-1.5 uppercase tracking-wider">
+                                <Calendar className="w-4 h-4 text-purple-650" /> Contratos de Experiência Próximos do Fim
+                            </h4>
+                            <div className="border border-slate-200/60 rounded-2xl overflow-hidden bg-white">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-slate-50 border-b border-slate-200">
+                                        <tr className="font-bold text-slate-500">
+                                            <th className="py-2.5 px-3">Colaborador</th>
+                                            <th className="py-2.5 px-3 text-center">Término</th>
+                                            <th className="py-2.5 px-3 text-center">Status / Dias</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {experienceAlerts.map(alert => {
+                                            const isOverdue = alert.daysLeft < 0;
+                                            return (
+                                                <tr key={alert.id} className="hover:bg-slate-50/50 font-semibold text-slate-700">
+                                                    <td className="py-3 px-3 font-bold text-slate-800">
+                                                        {alert.employeeName}
+                                                    </td>
+                                                    <td className="py-3 px-3 text-center">
+                                                        <span className={`px-2 py-0.5 rounded font-bold text-[10px] border ${
+                                                            isOverdue 
+                                                                ? 'bg-red-50 text-red-700 border-red-200' 
+                                                                : 'bg-amber-50 text-amber-700 border-amber-200'
                                                         }`}>
-                                                            {alert.message}
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div className="flex justify-end pt-2">
-                                    <Button 
-                                        onClick={() => handleNavigate("/admin/probation-monitor")}
-                                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs gap-1.5 h-9"
-                                    >
-                                        Acessar Monitor de Experiência <ArrowRight className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                            </div>
-                        )
-                    )}
-
-                    {activeTab === 'benefits' && (
-                        benefitsAlerts.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-10 text-center space-y-2">
-                                <CheckCircle2 className="w-8 h-8 text-emerald-500" />
-                                <p className="text-xs font-bold text-slate-700">Tudo em dia com os benefícios!</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                <div className="border border-slate-250/60 rounded-2xl overflow-hidden bg-white shadow-sm">
-                                    <table className="w-full text-left text-xs border-collapse">
-                                        <thead className="bg-slate-50/70 border-b border-slate-200">
-                                            <tr className="font-bold text-slate-500">
-                                                <th className="py-2.5 px-4">Colaborador</th>
-                                                <th className="py-2.5 px-4 text-center">Vencimento</th>
-                                                <th className="py-2.5 px-4">Alerta</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {benefitsAlerts.map(alert => (
-                                                <tr key={alert.id} className="hover:bg-slate-50/40 font-medium">
-                                                    <td className="py-3 px-4 font-bold text-slate-850 flex items-center gap-2">
-                                                        <CreditCard className="w-4 h-4 text-indigo-550" />
-                                                        {alert.employeeName}
-                                                    </td>
-                                                    <td className="py-3 px-4 text-center">
-                                                        <span className="px-2 py-0.5 rounded bg-red-50 text-red-700 font-bold text-[10px] border border-red-200">
                                                             {alert.dueDate}
                                                         </span>
                                                     </td>
-                                                    <td className="py-3 px-4 text-[11px] text-red-650 font-semibold">
-                                                        {alert.message}
+                                                    <td className="py-3 px-3 text-center">
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                                            isOverdue 
+                                                                ? 'bg-red-100 text-red-700' 
+                                                                : 'bg-amber-100 text-amber-700'
+                                                        }`}>
+                                                            {isOverdue 
+                                                                ? `${Math.abs(alert.daysLeft)}d atrasado` 
+                                                                : `${alert.daysLeft}d restantes`}
+                                                        </span>
                                                     </td>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div className="flex justify-end pt-2">
-                                    <Button 
-                                        onClick={() => handleNavigate("/admin/benefits")}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs gap-1.5 h-9"
-                                    >
-                                        Acessar Compra de Benefícios <ArrowRight className="w-4 h-4" />
-                                    </Button>
-                                </div>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
-                        )
+                        </div>
+                    )}
+
+                    {/* DP / Dismissal Alerts Table */}
+                    {dismissalAlerts.length > 0 && (
+                        <div className="space-y-2">
+                            <h4 className="text-xs font-bold text-rose-750 flex items-center gap-1.5 uppercase tracking-wider">
+                                <ShieldAlert className="w-4 h-4 text-rose-650" /> Prazos Legais de Rescisões e Telegramas
+                            </h4>
+                            <div className="border border-slate-200/60 rounded-2xl overflow-hidden bg-white">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-slate-50 border-b border-slate-200">
+                                        <tr className="font-bold text-slate-500">
+                                            <th className="py-2.5 px-3">Colaborador</th>
+                                            <th className="py-2.5 px-3 text-center">Vencimento</th>
+                                            <th className="py-2.5 px-3">Alerta</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {dismissalAlerts.map(alert => (
+                                            <tr key={alert.id} className="hover:bg-slate-50/50 font-semibold text-slate-700">
+                                                <td className="py-3 px-3 font-bold text-slate-800">
+                                                    {getIcon(alert.category)}
+                                                    {alert.employeeName}
+                                                </td>
+                                                <td className="py-3 px-3 text-center">
+                                                    <span className="px-2 py-0.5 rounded bg-red-50 text-red-700 font-bold text-[10px] border border-red-200">
+                                                        {alert.dueDate}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-3 text-red-650 text-[11px] font-semibold">
+                                                    {alert.message}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     )}
                 </div>
 
                 {/* Responsible Manager Selector Footer */}
-                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6">
+                <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     {user?.role === 'ADMIN' ? (
                         <div className="flex flex-col gap-1 w-full max-w-sm">
                             <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                                <Settings className="w-3 h-3" /> Gestor Responsável (Alertas Globais)
+                                <Settings className="w-3.5 h-3.5 text-slate-500" /> Gestor Responsável (Alertas Globais)
                             </Label>
                             <Select
                                 value={alertUserId || "none"}
                                 onValueChange={handleManagerChange}
                                 disabled={updating}
                             >
-                                <SelectTrigger className="h-8 rounded-lg border-slate-200 text-xs bg-white">
+                                <SelectTrigger className="h-9 rounded-xl border-slate-250 text-xs bg-white font-semibold shadow-sm">
                                     <SelectValue placeholder="Selecione o gestor..." />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -407,7 +295,7 @@ export function GlobalAlertsDialog({ user }: GlobalAlertsDialogProps) {
                         onClick={() => setOpen(false)} 
                         className="bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs h-9 px-6 self-end"
                     >
-                        Entendido
+                        Fechar
                     </Button>
                 </div>
             </DialogContent>

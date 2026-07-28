@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { format, addDays, differenceInDays } from "date-fns";
 import { CheckCircle2, XCircle, ArrowUpRight } from "lucide-react";
 import { DismissalAlertsDialog } from "@/components/admin/DismissalAlertsDialog";
+import { DPAlertSettingsDialog } from "@/components/admin/DPAlertSettingsDialog";
 import { getGlobalAlerts } from "@/actions/globalAlerts";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -102,11 +103,8 @@ export default async function ProbationMonitorPage({ searchParams }: { searchPar
 
     const employees = await getProbationData(companyId, search);
 
-    const { dismissalAlerts, experienceAlerts, alertUserId, systemUsers } = await getGlobalAlerts();
-    const allAlerts = [
-        ...dismissalAlerts,
-        ...experienceAlerts
-    ].map(a => ({
+    const { experienceAlerts, alertUserId, systemUsers } = await getGlobalAlerts();
+    const allAlerts = experienceAlerts.map(a => ({
         id: a.id,
         employeeId: a.employeeId,
         employeeName: a.employeeName,
@@ -125,12 +123,19 @@ export default async function ProbationMonitorPage({ searchParams }: { searchPar
                     <h1 className="text-2xl font-bold text-slate-800">Colaboradores em Experiência</h1>
                     <p className="text-slate-500">Total: {employees.length} exibidos</p>
                 </div>
-                <DismissalAlertsDialog 
-                    alerts={allAlerts} 
-                    alertUserId={alertUserId}
-                    systemUsers={systemUsers}
-                    isAdmin={isAdmin}
-                />
+                <div className="flex items-center gap-2">
+                    <DismissalAlertsDialog 
+                        alerts={allAlerts} 
+                        alertUserId={alertUserId}
+                        systemUsers={systemUsers}
+                        isAdmin={isAdmin}
+                    />
+                    <DPAlertSettingsDialog 
+                        alertUserId={alertUserId}
+                        systemUsers={systemUsers}
+                        isAdmin={isAdmin}
+                    />
+                </div>
             </div>
 
             <DashboardFilters companies={companies} clients={[]} />
