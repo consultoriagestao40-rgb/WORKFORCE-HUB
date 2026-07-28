@@ -802,7 +802,7 @@ export async function assignEmployee(formData: FormData) {
             }
 
             let rotativoPosto = await tx.posto.findFirst({
-                where: { clientId: rotativoClient.id, roleId: targetPostoHasAssignment.posto.roleId, endDate: null }
+                where: { clientId: rotativoClient.id, roleId: targetPostoHasAssignment.posto.roleId }
             });
             if (!rotativoPosto) {
                 rotativoPosto = await tx.posto.create({
