@@ -19,7 +19,8 @@ import {
     FileSpreadsheet,
     Info,
     Check,
-    AlertTriangle
+    AlertTriangle,
+    Copy
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,6 +86,7 @@ export default function BenefitsPage() {
     const [selectedItemForPayment, setSelectedItemForPayment] = useState<BenefitsCalculationItem | null>(null);
     const [paymentNotes, setPaymentNotes] = useState("");
     const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+    const [customDays, setCustomDays] = useState<number>(5);
 
     // Occurrences List Modal State
     const [occurrencesModalOpen, setOccurrencesModalOpen] = useState(false);
@@ -118,6 +120,12 @@ export default function BenefitsPage() {
     useEffect(() => {
         setSelectedEmployeeIds([]);
     }, [activeTab, filterOption, searchTerm, selectedMonth, selectedYear]);
+
+    useEffect(() => {
+        if (selectedItemForPayment) {
+            setCustomDays(config?.vtFractionDays || 5);
+        }
+    }, [selectedItemForPayment, config]);
 
     const loadData = async () => {
         setIsLoading(true);
@@ -351,14 +359,27 @@ export default function BenefitsPage() {
         if (!selectedItemForPayment) return;
         setIsSubmittingPayment(true);
         try {
+            const isFractionedPayment = selectedItemForPayment.isNewHire || activeTab === "ALERTS";
+            const currentVtTotal = isFractionedPayment 
+                ? (selectedItemForPayment.vtOptIn ? (selectedItemForPayment.vtDailyValue * customDays) : 0) 
+                : selectedItemForPayment.vtTotalValue;
+            const currentVtTotal2 = isFractionedPayment 
+                ? (selectedItemForPayment.vtOptIn ? (selectedItemForPayment.vtDailyValue2 * customDays) : 0) 
+                : (selectedItemForPayment.vtTotalValue2 || 0);
+            const currentVaTotal = isFractionedPayment 
+                ? (selectedItemForPayment.vaDailyValue * customDays) + (selectedItemForPayment.absenteismoAward || 0)
+                : selectedItemForPayment.vaTotalValue + (selectedItemForPayment.absenteismoAward || 0);
+
             await markBenefitAsPaid({
                 employeeId: selectedItemForPayment.employeeId,
                 month: selectedMonth,
                 year: selectedYear,
                 benefitType: "AMBOS",
-                vtAmount: selectedItemForPayment.vtOptIn ? selectedItemForPayment.vtTotalValue : 0,
-                vaAmount: selectedItemForPayment.vaTotalValue + (selectedItemForPayment.absenteismoAward || 0),
-                notes: paymentNotes
+                vtAmount: currentVtTotal,
+                vtAmount2: currentVtTotal2,
+                vaAmount: currentVaTotal,
+                notes: paymentNotes,
+                customDays: isFractionedPayment ? customDays : undefined
             });
             toast.success(`Benefício de ${selectedItemForPayment.employeeName} marcado como PAGO!`);
             setPaymentModalOpen(false);
@@ -1849,7 +1870,21 @@ export default function BenefitsPage() {
                                                 </td>
                                                 <td className="py-3 px-4">
                                                     <div className="font-bold text-slate-800">{item.employeeName}</div>
-                                                    <div className="text-[10px] text-slate-400 font-bold">{item.employeeCpf}</div>
+                                                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                        <span className="text-[10px] text-slate-400 font-bold">{item.employeeCpf}</span>
+                                                        {item.chavePix && (
+                                                            <button 
+                                                                onClick={() => {
+                                                                    navigator.clipboard.writeText(item.chavePix);
+                                                                    toast.success("Chave Pix copiada!");
+                                                                }}
+                                                                className="inline-flex items-center gap-1 text-[9px] font-black bg-indigo-50 text-indigo-650 px-1.5 py-0.5 rounded border border-indigo-200 hover:bg-indigo-100 transition-colors"
+                                                                title="Copiar Chave PIX"
+                                                            >
+                                                                <Copy className="w-2.5 h-2.5" /> Pix: {item.chavePix}
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="py-3 px-4">
                                                     <div className="text-slate-600 font-bold">{item.postoName}</div>
@@ -1927,73 +1962,113 @@ export default function BenefitsPage() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    {selectedItemForPayment && (
-                        <div className="space-y-4 py-2 text-xs">
-                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
-                                <div className="font-bold text-slate-900">{selectedItemForPayment.employeeName}</div>
-                                <div className="text-[11px] text-slate-500">{selectedItemForPayment.postoName} ({selectedItemForPayment.clientName})</div>
-                            </div>
+                    {selectedItemForPayment && (() => {
+                        const isFractionedPayment = selectedItemForPayment.isNewHire || activeTab === "ALERTS";
+                        const currentVtTotal = isFractionedPayment 
+                            ? (selectedItemForPayment.vtOptIn ? (selectedItemForPayment.vtDailyValue * customDays) : 0) 
+                            : selectedItemForPayment.vtTotalValue;
+                        const currentVtTotal2 = isFractionedPayment 
+                            ? (selectedItemForPayment.vtOptIn ? (selectedItemForPayment.vtDailyValue2 * customDays) : 0) 
+                            : (selectedItemForPayment.vtTotalValue2 || 0);
+                        const currentVaTotal = isFractionedPayment 
+                            ? (selectedItemForPayment.vaDailyValue * customDays) 
+                            : selectedItemForPayment.vaTotalValue;
 
-                            <div className="space-y-2">
-                                <div className="p-3 bg-indigo-50/70 border border-indigo-100/80 rounded-2xl space-y-1 text-indigo-950">
-                                    <div className="flex justify-between font-black text-indigo-900">
-                                        <span>Vale Transporte (VT) Líquido:</span>
-                                        <span>R$ {selectedItemForPayment.vtOptIn ? selectedItemForPayment.vtTotalValue.toFixed(2) : "0,00"}</span>
+                        return (
+                            <div className="space-y-4 py-2 text-xs">
+                                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
+                                    <div className="font-bold text-slate-900">{selectedItemForPayment.employeeName}</div>
+                                    <div className="text-[11px] text-slate-500">{selectedItemForPayment.postoName} ({selectedItemForPayment.clientName})</div>
+                                </div>
+
+                                {isFractionedPayment && (
+                                    <div className="space-y-1.5 bg-amber-50/50 border border-amber-200/80 p-3 rounded-2xl">
+                                        <Label className="font-bold text-slate-700">Quantidade de Dias a Comprar</Label>
+                                        <Input
+                                            type="number"
+                                            min={1}
+                                            max={31}
+                                            value={customDays}
+                                            onChange={e => setCustomDays(parseInt(e.target.value) || 1)}
+                                            className="h-8 text-xs font-bold rounded-lg border-amber-300 bg-white"
+                                        />
+                                        <div className="text-[10px] text-amber-700 font-medium">
+                                            Valor diário: VT R$ {selectedItemForPayment.vtDailyValue.toFixed(2)} {selectedItemForPayment.vtDailyValue2 > 0 && `| VT 2 R$ ${selectedItemForPayment.vtDailyValue2.toFixed(2)}`} | VA R$ {selectedItemForPayment.vaDailyValue.toFixed(2)}
+                                        </div>
                                     </div>
-                                    {selectedItemForPayment.vtOptIn && (
-                                        <div className="flex justify-between text-[10px] text-indigo-700/90 font-medium">
-                                            <span>Base: R$ {selectedItemForPayment.vtBaseValue.toFixed(2)} | Faltas: -R$ {selectedItemForPayment.vtDeductionValue.toFixed(2)} ({selectedItemForPayment.vtOccurrencesDeducted}d)</span>
-                                            <span>Destino: {selectedItemForPayment.vtDestination}</span>
+                                )}
+
+                                <div className="space-y-2">
+                                    <div className="p-3 bg-indigo-50/70 border border-indigo-100/80 rounded-2xl space-y-1 text-indigo-950">
+                                        <div className="flex justify-between font-black text-indigo-900">
+                                            <span>Vale Transporte (VT) Líquido:</span>
+                                            <span>R$ {(currentVtTotal + currentVtTotal2).toFixed(2)}</span>
+                                        </div>
+                                        {selectedItemForPayment.vtOptIn && (
+                                            <div className="flex justify-between text-[10px] text-indigo-700/90 font-medium">
+                                                <span>
+                                                    {isFractionedPayment 
+                                                        ? `${customDays} dias de compra`
+                                                        : `Base: R$ {selectedItemForPayment.vtBaseValue.toFixed(2)} | Faltas: -R$ {selectedItemForPayment.vtDeductionValue.toFixed(2)} (${selectedItemForPayment.vtOccurrencesDeducted}d)`
+                                                    }
+                                                </span>
+                                                <span>Destino: {selectedItemForPayment.vtDestination}</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="p-3 bg-orange-50/70 border border-orange-100/80 rounded-2xl space-y-1 text-orange-950">
+                                        <div className="flex justify-between font-black text-orange-900">
+                                            <span>Vale Alimentação (VA) Líquido:</span>
+                                            <span>R$ {currentVaTotal.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-[10px] text-orange-700/90 font-medium">
+                                            <span>
+                                                {isFractionedPayment 
+                                                    ? `${customDays} dias de compra`
+                                                    : `Base: R$ {selectedItemForPayment.vaBaseValue.toFixed(2)} | Faltas: -R$ {selectedItemForPayment.vaDeductionValue.toFixed(2)} (${selectedItemForPayment.vaOccurrencesDeducted}d)`
+                                                }
+                                            </span>
+                                            <span>Destino: {selectedItemForPayment.vaDestination}</span>
+                                        </div>
+                                    </div>
+
+                                    {selectedItemForPayment.absenteismoAward > 0 && (
+                                        <div className="p-3 bg-rose-50/70 border border-rose-100/80 rounded-2xl space-y-1 text-rose-950">
+                                            <div className="flex justify-between font-black text-rose-900">
+                                                <span>Prêmio Assiduidade (Pago via Caju):</span>
+                                                <span>R$ {selectedItemForPayment.absenteismoAward.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[10px] text-rose-700/90 font-medium">
+                                                <span>Apuração: <span className="capitalize">{selectedItemForPayment.absenteismoPeriod}</span></span>
+                                                <span>Destino: Cartão Caju</span>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="p-3 bg-orange-50/70 border border-orange-100/80 rounded-2xl space-y-1 text-orange-950">
-                                    <div className="flex justify-between font-black text-orange-900">
-                                        <span>Vale Alimentação (VA) Líquido:</span>
-                                        <span>R$ {selectedItemForPayment.vaTotalValue.toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-[10px] text-orange-700/90 font-medium">
-                                        <span>Base: R$ {selectedItemForPayment.vaBaseValue.toFixed(2)} | Faltas: -R$ {selectedItemForPayment.vaDeductionValue.toFixed(2)} ({selectedItemForPayment.vaOccurrencesDeducted}d)</span>
-                                        <span>Destino: {selectedItemForPayment.vaDestination}</span>
-                                    </div>
+                                <div className="space-y-1">
+                                    <Label className="font-bold text-slate-700">Observação / Comprovante (Opcional)</Label>
+                                    <Input
+                                        placeholder="Ex: Pago via Pix pelo lote 1..."
+                                        value={paymentNotes}
+                                        onChange={e => setPaymentNotes(e.target.value)}
+                                    />
                                 </div>
 
-                                {selectedItemForPayment.absenteismoAward > 0 && (
-                                    <div className="p-3 bg-rose-50/70 border border-rose-100/80 rounded-2xl space-y-1 text-rose-950">
-                                        <div className="flex justify-between font-black text-rose-900">
-                                            <span>Prêmio Assiduidade (Pago via Caju):</span>
-                                            <span>R$ {selectedItemForPayment.absenteismoAward.toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-[10px] text-rose-700/90 font-medium">
-                                            <span>Apuração: <span className="capitalize">{selectedItemForPayment.absenteismoPeriod}</span></span>
-                                            <span>Destino: Cartão Caju</span>
-                                        </div>
-                                    </div>
-                                )}
+                                <DialogFooter className="pt-4 border-t border-slate-100">
+                                    <Button type="button" variant="outline" onClick={() => setPaymentModalOpen(false)}>Cancelar</Button>
+                                    <Button 
+                                        onClick={handleMarkAsPaid} 
+                                        disabled={isSubmittingPayment}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
+                                    >
+                                        {isSubmittingPayment ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Confirmar Pagamento
+                                    </Button>
+                                </DialogFooter>
                             </div>
-
-                            <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">Observação / Comprovante (Opcional)</Label>
-                                <Input
-                                    placeholder="Ex: Pago via Pix pelo lote 1..."
-                                    value={paymentNotes}
-                                    onChange={e => setPaymentNotes(e.target.value)}
-                                />
-                            </div>
-
-                            <DialogFooter className="pt-4 border-t border-slate-100">
-                                <Button type="button" variant="outline" onClick={() => setPaymentModalOpen(false)}>Cancelar</Button>
-                                <Button 
-                                    onClick={handleMarkAsPaid} 
-                                    disabled={isSubmittingPayment}
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
-                                >
-                                    {isSubmittingPayment ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Confirmar Pagamento
-                                </Button>
-                            </DialogFooter>
-                        </div>
-                    )}
+                        );
+                    })()}
                 </DialogContent>
             </Dialog>
 

@@ -77,6 +77,7 @@ export interface BenefitsCalculationItem {
     // Prêmio Absenteísmo (Assiduidade)
     absenteismoAward: number;
     absenteismoPeriod?: string;
+    chavePix?: string;
 }
 
 // Helper: Calculate business days in a month (excluding weekends)
@@ -281,6 +282,7 @@ export async function markBenefitAsPaid(data: {
     vtAmount2?: number;
     vaAmount: number;
     notes?: string;
+    customDays?: number;
 }) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Não autorizado.");
@@ -288,8 +290,8 @@ export async function markBenefitAsPaid(data: {
     const config = await getBenefitsConfig();
     const paidAt = new Date();
 
-    // Calculate next payment due date (+5 days for VT, +10 days for VA)
-    const daysToAdd = data.benefitType === "VT" ? config.vtFractionDays : config.vaFractionDays;
+    // Calculate next payment due date (+5 days for VT, +10 days for VA, or custom days)
+    const daysToAdd = data.customDays !== undefined ? data.customDays : (data.benefitType === "VT" ? config.vtFractionDays : config.vaFractionDays);
     const nextPaymentDue = new Date(paidAt);
     nextPaymentDue.setDate(nextPaymentDue.getDate() + daysToAdd);
 
@@ -759,6 +761,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
             employeeId: emp.id,
             employeeName: emp.name,
             employeeCpf: emp.cpf,
+            chavePix: (emp.extraFields as any)?.chavePix || "",
             postoName,
             clientName,
             companyName: emp.company?.name || "Sem Empresa",

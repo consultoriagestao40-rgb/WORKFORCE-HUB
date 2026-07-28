@@ -210,6 +210,7 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
     // Reservista
     const [reservistaNumero, setReservistaNumero] = useState(extra.reservistaNumero || "");
     const [reservistaCategoria, setReservistaCategoria] = useState(extra.reservistaCategoria || "");
+    const [chavePix, setChavePix] = useState(extra.chavePix || "");
 
     // File attachments handlers
     const handleUploadAttachment = async (rawFile: File, label: string) => {
@@ -331,6 +332,7 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
         tituloEleitorUf,
         reservistaNumero,
         reservistaCategoria,
+        chavePix,
         dependentes: dependents,
         attachments
     };
@@ -1253,6 +1255,14 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                             <div className="space-y-1">
                                 <Label className="font-bold text-slate-700">FGTS Banco Depositário</Label>
                                 <Input value={fgtsBanco} onChange={e => setFgtsBanco(e.target.value)} className="h-9 rounded-xl border-slate-200" />
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-100 font-bold text-slate-800 text-[11px] uppercase tracking-wider">
+                                Dados de Pagamento (PIX)
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="font-bold text-slate-700">Chave PIX (Para benefícios fracionados)</Label>
+                                <Input value={chavePix} onChange={e => setChavePix(e.target.value)} placeholder="Ex: CPF, Telefone, E-mail, ou Chave Aleatória" className="h-9 rounded-xl border-slate-200" />
                             </div>
 
                             <div className="pt-2 border-t border-slate-100 font-bold text-slate-800 text-[11px] uppercase tracking-wider">

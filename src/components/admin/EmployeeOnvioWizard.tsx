@@ -253,6 +253,7 @@ export function EmployeeOnvioWizard({
     const [conselhoNumero, setConselhoNumero] = useState("");
     const [conselhoUf, setConselhoUf] = useState("");
     const [conselhoValidade, setConselhoValidade] = useState("");
+    const [chavePix, setChavePix] = useState("");
 
     const [estadoCivil, setEstadoCivil] = useState("");
     const [grauInstrucao, setGrauInstrucao] = useState("");
@@ -515,6 +516,7 @@ export function EmployeeOnvioWizard({
 
             setReservistaNumero(extra.reservistaNumero || "");
             setReservistaCategoria(extra.reservistaCategoria || "");
+            setChavePix(extra.chavePix || "");
 
             setDependentes(extra.dependentes || []);
             setObservacoes(extra.observacoes || "");
@@ -649,6 +651,7 @@ export function EmployeeOnvioWizard({
         tituloEleitorUf,
         reservistaNumero,
         reservistaCategoria,
+        chavePix,
         dependentes,
         observacoes,
         attachments
@@ -2019,6 +2022,10 @@ export function EmployeeOnvioWizard({
                                 <div className="space-y-1 col-span-2">
                                     <Label htmlFor="fgtsBanco">Banco Depositário</Label>
                                     <Input id="fgtsBanco" value={fgtsBanco} onChange={e => setFgtsBanco(e.target.value)} placeholder="Ex: Caixa Econômica Federal" />
+                                </div>
+                                <div className="space-y-1 col-span-2">
+                                    <Label htmlFor="chavePix">Chave PIX (Para pagamento de benefícios fracionados)</Label>
+                                    <Input id="chavePix" value={chavePix} onChange={e => setChavePix(e.target.value)} placeholder="Ex: CPF, Telefone, E-mail ou Chave Aleatória" />
                                 </div>
                             </div>
                         )}
