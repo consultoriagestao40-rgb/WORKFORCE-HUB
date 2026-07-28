@@ -232,8 +232,10 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
                                rawEntrada.includes("atestado") || rawEntrada.includes("medico") || rawEntrada.includes("médico") || rawEntrada.includes("atest") ||
                                rawObs.includes("atestado") || rawObs.includes("medico") || rawObs.includes("médico") || rawObs.includes("atest");
             
-            // Only count as Lack (Falta)
-            const isFalta = rawEntrada.includes("falta") || rawObs.includes("falta");
+            // Only count as Lack (Falta) if explicitly marked OR if it's a scheduled workday with no punches
+            const hasNoPunches = !b.Entrada1 && !b.Saida1 && !b.Entrada2 && !b.Saida2 && !b.Entrada3 && !b.Saida3 && !b.Entrada4 && !b.Saida4 && !b.Entrada5 && !b.Saida5;
+            const isWorkday = b.Folga === false;
+            const isFalta = rawEntrada.includes("falta") || rawObs.includes("falta") || (hasNoPunches && isWorkday && !isAtestado);
             
             const folha = b.Funcionario?.NumeroFolha?.trim();
             if (!folha) continue;
