@@ -16,11 +16,13 @@ interface EditClientSheetProps {
         address: string;
         companyId: string | null;
         monitorInOperations?: boolean;
+        accountManagerId?: string | null;
     };
     companies: { id: string; name: string }[];
+    systemUsers?: { id: string; name: string }[];
 }
 
-export function EditClientSheet({ client, companies }: EditClientSheetProps) {
+export function EditClientSheet({ client, companies, systemUsers = [] }: EditClientSheetProps) {
     const [open, setOpen] = useState(false);
 
     async function handleSubmit(formData: FormData) {
@@ -62,6 +64,20 @@ export function EditClientSheet({ client, companies }: EditClientSheetProps) {
                     <div className="space-y-2">
                         <Label htmlFor="address">Endereço</Label>
                         <Input id="address" name="address" defaultValue={client.address} required />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="accountManagerId">Gerente de Conta</Label>
+                        <Select name="accountManagerId" defaultValue={client.accountManagerId || "none"}>
+                            <SelectTrigger id="accountManagerId">
+                                <SelectValue placeholder="Selecione o Gerente..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">Sem Gerente</SelectItem>
+                                {systemUsers.map(u => (
+                                    <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                     <div className="flex items-center gap-2 py-2">
                         <input 

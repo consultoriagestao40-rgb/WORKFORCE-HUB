@@ -34,11 +34,13 @@ interface Client {
     id: string;
     name: string;
     companyId: string | null;
+    accountManagerId: string | null;
 }
 
 interface OperationsDeskProps {
     companies: Company[];
     clients: Client[];
+    systemUsers: { id: string; name: string }[];
 }
 
 interface AttendanceItem {
@@ -71,10 +73,11 @@ interface ReservaEmployee {
     name: string;
 }
 
-export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
+export function OperationsDesk({ companies, clients, systemUsers }: OperationsDeskProps) {
     const [date, setDate] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
     const [companyFilter, setCompanyFilter] = useState<string>("all");
     const [clientFilter, setClientFilter] = useState<string>("all");
+    const [accountManagerFilter, setAccountManagerFilter] = useState<string>("all");
     const [search, setSearch] = useState<string>("");
     
     const [items, setItems] = useState<AttendanceItem[]>([]);
@@ -197,6 +200,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                 date,
                 companyId: companyFilter,
                 clientId: clientFilter,
+                accountManagerId: accountManagerFilter,
                 search
             });
             const res = await fetch(`/api/admin/operations/attendance?${queryParams.toString()}`);
@@ -213,7 +217,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
         } finally {
             setLoading(false);
         }
-    }, [date, companyFilter, clientFilter, search]);
+    }, [date, companyFilter, clientFilter, accountManagerFilter, search]);
 
     useEffect(() => {
         fetchData();
@@ -773,7 +777,7 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
 
             {/* Filter Section */}
             <Card className="border-none shadow-premium bg-white p-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <Input
@@ -807,6 +811,20 @@ export function OperationsDesk({ companies, clients }: OperationsDeskProps) {
                         searchPlaceholder="Buscar cliente..."
                         emptyMessage="Nenhum cliente encontrado."
                     />
+
+                    <select
+                        value={accountManagerFilter}
+                        onChange={(e) => {
+                            setAccountManagerFilter(e.target.value);
+                        }}
+                        className="h-10 rounded-md border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer"
+                    >
+                        <option value="all">Todos os Gerentes</option>
+                        {systemUsers.map(u => (
+                            <option key={u.id} value={u.id}>{u.name}</option>
+                        ))}
+                        <option value="unassigned">Sem Gerente</option>
+                    </select>
 
                     <div className="flex items-center justify-end text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                         Atualizado às: {format(new Date(), "HH:mm:ss")}

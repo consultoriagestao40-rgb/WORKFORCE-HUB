@@ -11,9 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 interface NewClientSheetProps {
     companies: { id: string; name: string }[];
+    systemUsers?: { id: string; name: string }[];
 }
 
-export function NewClientSheet({ companies }: NewClientSheetProps) {
+export function NewClientSheet({ companies, systemUsers = [] }: NewClientSheetProps) {
     const [open, setOpen] = useState(false);
 
     async function handleSubmit(formData: FormData) {
@@ -52,6 +53,20 @@ export function NewClientSheet({ companies }: NewClientSheetProps) {
                     <div className="space-y-2">
                         <Label htmlFor="address">Endereço</Label>
                         <Input id="address" name="address" placeholder="Rua..." required />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="accountManagerId">Gerente de Conta</Label>
+                        <Select name="accountManagerId" defaultValue="none">
+                            <SelectTrigger id="accountManagerId">
+                                <SelectValue placeholder="Selecione o Gerente..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">Sem Gerente</SelectItem>
+                                {systemUsers.map(u => (
+                                    <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                     <div className="flex items-center gap-2 py-2">
                         <input 

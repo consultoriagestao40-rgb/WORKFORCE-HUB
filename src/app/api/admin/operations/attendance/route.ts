@@ -11,6 +11,7 @@ export async function GET(request: Request) {
         const dateStr = searchParams.get("date");
         const companyId = searchParams.get("companyId");
         const clientId = searchParams.get("clientId");
+        const accountManagerId = searchParams.get("accountManagerId");
         const search = searchParams.get("search");
 
         // Data atual convertida para o dia local do Brasil (UTC-3)
@@ -26,7 +27,10 @@ export async function GET(request: Request) {
                 client: {
                     monitorInOperations: true,
                     companyId: companyId && companyId !== "all" ? companyId : undefined,
-                    id: clientId && clientId !== "all" ? clientId : undefined
+                    id: clientId && clientId !== "all" ? clientId : undefined,
+                    accountManagerId: accountManagerId && accountManagerId !== "all"
+                        ? (accountManagerId === "unassigned" ? null : accountManagerId)
+                        : undefined
                 },
                 OR: search ? [
                     { client: { name: { contains: search, mode: "insensitive" } } },

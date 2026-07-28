@@ -8,8 +8,17 @@ async function getClients() {
         orderBy: { name: 'asc' },
         include: {
             company: { select: { id: true, name: true } },
+            accountManager: { select: { id: true, name: true } },
             _count: { select: { postos: true } }
         }
+    });
+}
+
+async function getSystemUsers() {
+    return await prisma.user.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' }
     });
 }
 
@@ -131,11 +140,12 @@ async function getVacantStats() {
 }
 
 export default async function ClientsPage() {
-    const [clients, companies, vacantStats, userRole] = await Promise.all([
+    const [clients, companies, vacantStats, userRole, systemUsers] = await Promise.all([
         getClients(),
         getCompanies(),
         getVacantStats(),
-        getCurrentUserRole()
+        getCurrentUserRole(),
+        getSystemUsers()
     ]);
 
     return (
@@ -146,6 +156,7 @@ export default async function ClientsPage() {
             vagoDaysCount={vacantStats.vagoDaysCount}
             glosaProjetada={vacantStats.glosaProjetada}
             vacantPostos={vacantStats.vacantPostos}
+            systemUsers={systemUsers}
         />
     );
 }

@@ -19,6 +19,7 @@ interface ClientsListProps {
     vagoDaysCount: number;
     glosaProjetada: number;
     vacantPostos: any[];
+    systemUsers: any[];
 }
 
 export function ClientsList({
@@ -27,11 +28,13 @@ export function ClientsList({
     userRole,
     vagoDaysCount,
     glosaProjetada,
-    vacantPostos
+    vacantPostos,
+    systemUsers
 }: ClientsListProps) {
     const [searchTerm, setSearchTerm] = useState("");
     const [companyFilter, setCompanyFilter] = useState("all");
     const [clientFilter, setClientFilter] = useState("all");
+    const [accountManagerFilter, setAccountManagerFilter] = useState("all");
 
     const filteredClients = initialClients.filter(client => {
         const matchesSearch = client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -51,14 +54,23 @@ export function ClientsList({
             matchesClient = client.id === clientFilter;
         }
 
-        return matchesSearch && matchesCompany && matchesClient;
+        let matchesManager = true;
+        if (accountManagerFilter !== "all") {
+            if (accountManagerFilter === "unassigned") {
+                matchesManager = !client.accountManagerId;
+            } else {
+                matchesManager = client.accountManagerId === accountManagerFilter;
+            }
+        }
+
+        return matchesSearch && matchesCompany && matchesClient && matchesManager;
     });
 
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold text-slate-800">Clientes / Sites</h1>
-                <NewClientSheet companies={companies} />
+                <NewClientSheet companies={companies} systemUsers={systemUsers} />
             </div>
 
             {/* TOTALIZERS */}
@@ -120,6 +132,22 @@ export function ClientsList({
                             </select>
                         </div>
 
+                        {/* Account Manager Filter */}
+                        <div className="relative">
+                            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <select
+                                className="h-10 pl-9 pr-4 rounded-md border border-slate-200 bg-white text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none cursor-pointer"
+                                value={accountManagerFilter}
+                                onChange={(e) => setAccountManagerFilter(e.target.value)}
+                            >
+                                <option value="all">Todos os Gerentes</option>
+                                {systemUsers.map(u => (
+                                    <option key={u.id} value={u.id}>{u.name}</option>
+                                ))}
+                                <option value="unassigned">Sem Gerente</option>
+                            </select>
+                        </div>
+
                         {/* Client Filter (Dropdown) */}
                         <div className="relative">
                             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -154,6 +182,7 @@ export function ClientsList({
                                 <TableHead>Empresa (Contratada)</TableHead>
                                 <TableHead>Nome do Site (Cliente)</TableHead>
                                 <TableHead>Endereço</TableHead>
+                                <TableHead>Gerente de Conta</TableHead>
                                 <TableHead>Postos</TableHead>
                                 <TableHead>Monitoramento</TableHead>
                                 <TableHead className="text-right">Ação</TableHead>
@@ -171,11 +200,16 @@ export function ClientsList({
                                         <div className="flex items-center gap-2 group">
                                             <Building className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
                                             <span className="font-semibold">{client.name}</span>
-                                            <EditClientSheet client={client} companies={companies} />
+                                            <EditClientSheet client={client} companies={companies} systemUsers={systemUsers} />
                                         </div>
                                     </TableCell>
                                     <TableCell className="max-w-[450px] whitespace-normal break-words text-sm leading-relaxed text-muted-foreground">
                                         {client.address}
+                                    </TableCell>
+                                    <TableCell className="font-bold text-slate-700">
+                                        {client.accountManager?.name || (
+                                            <span className="text-slate-400 italic font-medium">Sem gerente</span>
+                                        )}
                                     </TableCell>
                                     <TableCell>{client._count.postos} Postos</TableCell>
                                     <TableCell>

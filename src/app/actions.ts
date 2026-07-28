@@ -176,13 +176,15 @@ export async function createClient(formData: FormData) {
     const address = formData.get("address") as string;
     const companyId = formData.get("companyId") as string;
     const monitorInOperations = formData.get("monitorInOperations") === "true" || formData.get("monitorInOperations") === "on";
+    const accountManagerId = formData.get("accountManagerId") as string;
 
     await prisma.client.create({
         data: {
             name,
             address,
             companyId: companyId || undefined,
-            monitorInOperations
+            monitorInOperations,
+            accountManagerId: (accountManagerId === "none" || !accountManagerId) ? null : accountManagerId
         }
     });
 
@@ -1179,6 +1181,7 @@ export async function updateClient(formData: FormData) {
     const address = formData.get("address") as string;
     const companyId = formData.get("companyId") as string;
     const monitorInOperations = formData.get("monitorInOperations") === "true" || formData.get("monitorInOperations") === "on";
+    const accountManagerId = formData.get("accountManagerId") as string;
 
     await prisma.client.update({
         where: { id },
@@ -1186,7 +1189,8 @@ export async function updateClient(formData: FormData) {
             name,
             address,
             companyId: companyId || undefined,
-            monitorInOperations
+            monitorInOperations,
+            accountManagerId: (accountManagerId === "none" || !accountManagerId) ? null : accountManagerId
         }
     });
 

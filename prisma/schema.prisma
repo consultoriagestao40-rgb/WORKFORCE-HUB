@@ -33,6 +33,7 @@ model User {
   createdPops                PopDocument[]         @relation("PopAuthor")
   approvedPops               PopDocument[]         @relation("PopApprover")
   popRevisions                PopRevision[]        @relation("PopRevisionAuthor")
+  managedClients             Client[]              @relation("AccountManager")
   approvedPopRevisions        PopRevision[]        @relation("PopRevisionApprover")
 }
 
@@ -74,6 +75,8 @@ model Client {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   company             Company? @relation(fields: [companyId], references: [id])
+  accountManagerId    String?
+  accountManager      User?    @relation("AccountManager", fields: [accountManagerId], references: [id])
   postos              Posto[]
   npsResponses        NpsResponse[]
   npsQuestions        NpsQuestion[]
@@ -250,6 +253,8 @@ model BenefitsConfig {
   secullumCompanyId          String?
   secullumLastSyncAt         DateTime?
   alertUserId                String?
+  dismissalAlertUserId       String?
+  probationAlertUserId       String?
   updatedAt                  DateTime  @updatedAt
 }
 
