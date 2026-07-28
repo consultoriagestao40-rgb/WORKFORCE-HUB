@@ -723,6 +723,10 @@ export default function BenefitsPage() {
         if (filterOption === "PENDING") return !item.isPaid;
 
         return true;
+    }).sort((a, b) => {
+        if (a.isPaid && !b.isPaid) return 1;
+        if (!a.isPaid && b.isPaid) return -1;
+        return a.employeeName.localeCompare(b.employeeName);
     });
 
     const getGroupedByCompany = () => {
@@ -1979,6 +1983,23 @@ export default function BenefitsPage() {
                                 <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
                                     <div className="font-bold text-slate-900">{selectedItemForPayment.employeeName}</div>
                                     <div className="text-[11px] text-slate-500">{selectedItemForPayment.postoName} ({selectedItemForPayment.clientName})</div>
+                                    <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-slate-200/60 text-[11.5px]">
+                                        <span className="font-bold text-slate-650">Chave PIX:</span>
+                                        {selectedItemForPayment.chavePix ? (
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(selectedItemForPayment.chavePix || "");
+                                                    toast.success("Chave Pix copiada!");
+                                                }}
+                                                className="inline-flex items-center gap-1 font-black bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200 hover:bg-indigo-100 transition-colors"
+                                                title="Copiar Chave PIX"
+                                            >
+                                                <Copy className="w-3 h-3" /> {selectedItemForPayment.chavePix}
+                                            </button>
+                                        ) : (
+                                            <span className="text-slate-400 italic">Não cadastrada no perfil (CPF: {selectedItemForPayment.employeeCpf})</span>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {isFractionedPayment && (
