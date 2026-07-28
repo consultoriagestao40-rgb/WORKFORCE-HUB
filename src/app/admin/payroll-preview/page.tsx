@@ -40,7 +40,7 @@ export default function PayrollPreviewPage() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [items, setItems] = useState<PayrollPreviewItem[]>([]);
-    const [sortField, setSortField] = useState<'none' | 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'absenteismoAward' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'diversosDescontos' | 'emprestimos' | 'inss' | 'irrf' | 'netSalary'>('none');
+    const [sortField, setSortField] = useState<'none' | 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'absenteismoAward' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'diversosDescontos' | 'emprestimos' | 'convenios' | 'sindicato' | 'inss' | 'irrf' | 'netSalary'>('none');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
     const [searchTerm, setSearchTerm] = useState("");
