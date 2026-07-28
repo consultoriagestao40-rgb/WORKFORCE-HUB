@@ -865,6 +865,7 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
                                     <TableHead className="font-bold text-slate-800">Cargo / Cliente</TableHead>
                                     <TableHead className="font-bold text-slate-800 text-center">Horário</TableHead>
                                     <TableHead className="font-bold text-slate-800">Titular do Posto</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-center">Contato</TableHead>
                                     <TableHead className="font-bold text-slate-800 text-right">Faturamento Diário</TableHead>
                                     <TableHead className="font-bold text-slate-800 text-center">Status de Presença</TableHead>
                                     <TableHead className="font-bold text-slate-800 text-right pr-6">Ações de Tratativa</TableHead>
@@ -950,28 +951,7 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
                                             <TableCell className="text-slate-800 text-xs font-medium">
                                                 <div className="flex flex-col">
                                                     {item.employee ? (
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="text-slate-800 font-bold">{item.employee.name}</span>
-                                                            <a
-                                                                href={item.employee.phone ? getWhatsAppLink(item.employee.phone) : "#"}
-                                                                target={item.employee.phone ? "_blank" : undefined}
-                                                                rel="noopener noreferrer"
-                                                                onClick={(e) => {
-                                                                    if (!item.employee?.phone) {
-                                                                        e.preventDefault();
-                                                                        toast.error("Colaborador sem número de telefone cadastrado.");
-                                                                    }
-                                                                }}
-                                                                className={`p-1 rounded-full transition-all ${
-                                                                    item.employee.phone 
-                                                                        ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-600 hover:text-emerald-700 active:scale-95" 
-                                                                        : "bg-slate-50 text-slate-350 cursor-not-allowed"
-                                                                }`}
-                                                                title={item.employee.phone ? `Falar com ${item.employee.name} no WhatsApp` : "Nenhum telefone cadastrado"}
-                                                            >
-                                                                <WhatsAppIcon className="w-3.5 h-3.5" />
-                                                            </a>
-                                                        </div>
+                                                        <span className="text-slate-800 font-bold">{item.employee.name}</span>
                                                     ) : (
                                                         <span className="text-red-500 italic font-bold">Vaga Sem Titular</span>
                                                     )}
@@ -992,6 +972,31 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
                                                         </span>
                                                     )}
                                                 </div>
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                {item.employee ? (
+                                                    <a
+                                                        href={item.employee.phone ? getWhatsAppLink(item.employee.phone) : "#"}
+                                                        target={item.employee.phone ? "_blank" : undefined}
+                                                        rel="noopener noreferrer"
+                                                        onClick={(e) => {
+                                                            if (!item.employee?.phone) {
+                                                                e.preventDefault();
+                                                                toast.error("Colaborador sem número de telefone cadastrado.");
+                                                            }
+                                                        }}
+                                                        className={`inline-flex items-center justify-center p-1.5 rounded-full transition-all ${
+                                                            item.employee.phone 
+                                                                ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-600 hover:text-emerald-700 active:scale-95" 
+                                                                : "bg-slate-50 text-slate-350 cursor-not-allowed"
+                                                        }`}
+                                                        title={item.employee.phone ? `Falar com ${item.employee.name} no WhatsApp` : "Nenhum telefone cadastrado"}
+                                                    >
+                                                        <WhatsAppIcon className="w-4 h-4" />
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-slate-300">-</span>
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-right text-xs font-mono font-bold text-slate-700">
                                                 {(item.billingValue / 30).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
