@@ -188,7 +188,7 @@ export default function PayrollPreviewPage() {
         return matchesSearch && matchesCompany && matchesClient;
     });
 
-    const handleSort = (field: 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'absenteismoAward' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'diversosDescontos' | 'emprestimos' | 'inss' | 'irrf' | 'netSalary') => {
+    const handleSort = (field: 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'absenteismoAward' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'diversosDescontos' | 'emprestimos' | 'convenios' | 'sindicato' | 'inss' | 'irrf' | 'netSalary') => {
         if (sortField === field) {
             setSortDirection(prev => prev === 'desc' ? 'asc' : 'desc');
         } else {
@@ -293,6 +293,14 @@ export default function PayrollPreviewPage() {
             case 'emprestimos':
                 valA = a.emprestimos;
                 valB = b.emprestimos;
+                break;
+            case 'convenios':
+                valA = a.convenios;
+                valB = b.convenios;
+                break;
+            case 'sindicato':
+                valA = a.sindicato;
+                valB = b.sindicato;
                 break;
             case 'inss':
                 valA = a.inssDeduction;
