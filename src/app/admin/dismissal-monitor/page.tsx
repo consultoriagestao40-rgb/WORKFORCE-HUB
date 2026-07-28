@@ -67,7 +67,7 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
             } else if (proc.dismissalSubType === 'PEDIDO_SEM_AVISO') {
                 type = "Pedido (Dispensa de Aviso)";
             } else if (proc.dismissalSubType === 'ABANDONO') {
-                type = "Abandono de Emprego";
+                type = "Processo de abandono";
             } else if (proc.dismissalSubType === 'TERMINO_EXP_ANTECIPADO_EMPRESA') {
                 type = "Experiência Antecipada (Empresa)";
             } else if (proc.dismissalSubType === 'TERMINO_EXP_PRAZO_EMPRESA') {
