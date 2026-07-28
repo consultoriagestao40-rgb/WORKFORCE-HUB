@@ -57,6 +57,7 @@ interface AttendanceItem {
     employee: {
         id: string;
         name: string;
+        phone: string | null;
     } | null;
     attendance: {
         status: string; // 'PRESENTE_PONTO' | 'PRESENTE_MANUAL' | 'AGUARDANDO' | 'FALTA'
@@ -72,6 +73,23 @@ interface ReservaEmployee {
     id: string;
     name: string;
 }
+
+function getWhatsAppLink(phone: string) {
+    if (!phone) return "";
+    const cleanNumber = phone.replace(/\D/g, "");
+    const finalNumber = cleanNumber.startsWith("55") ? cleanNumber : `55${cleanNumber}`;
+    return `https://wa.me/${finalNumber}`;
+}
+
+const WhatsAppIcon = ({ className }: { className?: string }) => (
+    <svg 
+        viewBox="0 0 24 24" 
+        className={className} 
+        fill="currentColor"
+    >
+        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.625 1.451 5.403.002 9.803-4.392 9.806-9.8.001-2.617-1.01-5.079-2.859-6.93C16.37 1.97 13.91 1.948 11.3 1.948C5.9 1.95 1.5 6.347 1.496 11.75c-.001 1.547.411 3.055 1.196 4.398l-1.05 3.834 3.93-1.03c1.286.7 2.684 1.07 4.12 1.07zM17.18 14.77c-.28-.14-1.65-.81-1.91-.91-.25-.09-.44-.14-.63.14-.18.27-.72.91-.88 1.1-.16.18-.32.2-.6.06-2.58-1.28-4.22-2.73-5.26-4.52-.28-.47.28-.44.79-1.46.09-.18.04-.34-.02-.48-.06-.14-.62-1.5-.85-2.05-.23-.55-.46-.47-.63-.48-.16-.01-.35-.01-.54-.01-.19 0-.5.07-.76.36-.26.28-1 .98-1 2.4s1.02 2.78 1.16 2.97c.14.19 2 3.05 4.85 4.28.68.29 1.21.47 1.62.6.68.22 1.3.19 1.79.12.54-.08 1.65-.67 1.88-1.32.23-.65.23-1.21.16-1.32-.07-.11-.26-.2-.54-.34z"/>
+    </svg>
+);
 
 export function OperationsDesk({ companies, clients, systemUsers }: OperationsDeskProps) {
     const [date, setDate] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
@@ -931,8 +949,29 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
                                             </TableCell>
                                             <TableCell className="text-slate-800 text-xs font-medium">
                                                 <div className="flex flex-col">
-                                                    {item.employee?.name ? (
-                                                        <span className="text-slate-800">{item.employee.name}</span>
+                                                    {item.employee ? (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-slate-800 font-bold">{item.employee.name}</span>
+                                                            <a
+                                                                href={item.employee.phone ? getWhatsAppLink(item.employee.phone) : "#"}
+                                                                target={item.employee.phone ? "_blank" : undefined}
+                                                                rel="noopener noreferrer"
+                                                                onClick={(e) => {
+                                                                    if (!item.employee?.phone) {
+                                                                        e.preventDefault();
+                                                                        toast.error("Colaborador sem número de telefone cadastrado.");
+                                                                    }
+                                                                }}
+                                                                className={`p-1 rounded-full transition-all ${
+                                                                    item.employee.phone 
+                                                                        ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-600 hover:text-emerald-700 active:scale-95" 
+                                                                        : "bg-slate-50 text-slate-350 cursor-not-allowed"
+                                                                }`}
+                                                                title={item.employee.phone ? `Falar com ${item.employee.name} no WhatsApp` : "Nenhum telefone cadastrado"}
+                                                            >
+                                                                <WhatsAppIcon className="w-3.5 h-3.5" />
+                                                            </a>
+                                                        </div>
                                                     ) : (
                                                         <span className="text-red-500 italic font-bold">Vaga Sem Titular</span>
                                                     )}

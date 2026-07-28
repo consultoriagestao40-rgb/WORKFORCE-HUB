@@ -200,7 +200,8 @@ export async function GET(request: Request) {
                 clientId: posto.client.id,
                 employee: employee ? {
                     id: employee.id,
-                    name: employee.name
+                    name: employee.name,
+                    phone: employee.phone
                 } : null,
                 attendance: {
                     status,
