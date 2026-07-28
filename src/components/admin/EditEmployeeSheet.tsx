@@ -145,8 +145,24 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
 
     const [vaCustomPaymentDetails, setVaCustomPaymentDetails] = useState(employee.vaCustomPaymentDetails || "");
 
+    const getInitialAttachments = () => {
+        const list = [...((extra.attachments as { name: string; fileName: string; fileData: string }[]) || [])];
+        if (extra.dismissalProcess?.attachment) {
+            const da = extra.dismissalProcess.attachment;
+            const exists = list.some((a: any) => a.fileName === da.fileName);
+            if (!exists) {
+                list.push({
+                    name: "Pedido de Demissão",
+                    fileName: da.fileName,
+                    fileData: da.fileData
+                });
+            }
+        }
+        return list;
+    };
+
     // Attachments & Dependents
-    const [attachments, setAttachments] = useState<{ name: string; fileName: string; fileData: string }[]>(extra.attachments || []);
+    const [attachments, setAttachments] = useState<{ name: string; fileName: string; fileData: string }[]>(getInitialAttachments());
     const [dependents, setDependents] = useState<any[]>(extra.dependentes || []);
 
     // Extra Professional Fields

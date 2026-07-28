@@ -324,11 +324,11 @@ export default async function DismissalMonitorPage({
 
     const employees = await getDismissalProcessData(companyId, search);
 
-    const { dismissalAlerts, experienceAlerts, alertUserId, systemUsers } = await getGlobalAlerts();
+    const { dismissalAlerts, dismissalAlertUserId, systemUsers } = (await getGlobalAlerts()) as any;
     
     const dismissalMonitorAlerts = employees.flatMap((emp: any) => emp.alerts || []);
 
-    const allAlerts = dismissalAlerts.map(a => ({
+    const allAlerts = dismissalAlerts.map((a: any) => ({
         id: a.id,
         employeeId: a.employeeId,
         employeeName: a.employeeName,
@@ -351,44 +351,20 @@ export default async function DismissalMonitorPage({
                 <div className="flex items-center gap-2">
                     <DismissalAlertsDialog 
                         alerts={allAlerts} 
-                        alertUserId={alertUserId}
+                        alertUserId={dismissalAlertUserId}
                         systemUsers={systemUsers}
                         isAdmin={isAdmin}
                     />
                     <DPAlertSettingsDialog 
-                        alertUserId={alertUserId}
+                        alertUserId={dismissalAlertUserId}
                         systemUsers={systemUsers}
                         isAdmin={isAdmin}
+                        type="dismissal"
                     />
                 </div>
             </div>
 
-            {/* Panel de Alertas Críticos de Departamento Pessoal */}
-            {dismissalMonitorAlerts.length > 0 && (
-                <div className="bg-red-50/50 border border-red-200/60 rounded-2xl p-5 space-y-3">
-                    <div className="flex items-center gap-2 text-red-700 font-extrabold text-sm uppercase tracking-wider">
-                        <ShieldAlert className="w-5 h-5 text-red-500" />
-                        Prazos Críticos de Departamento Pessoal
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs font-semibold leading-relaxed">
-                        {dismissalMonitorAlerts.map((alert, idx) => (
-                            <div 
-                                key={idx} 
-                                className={`flex items-start gap-1.5 p-2 rounded-lg border ${
-                                    alert.type === 'CRITICAL' 
-                                        ? 'bg-red-50/70 border-red-100 text-red-800' 
-                                        : 'bg-amber-50/70 border-amber-100 text-amber-800'
-                                }`}
-                            >
-                                <span className="mt-0.5">{alert.type === 'CRITICAL' ? '⚠️' : '🔔'}</span>
-                                <span className="flex-1">
-                                    <strong>{alert.employeeName}</strong>: {alert.message}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
+
 
             {/* Guia de Fluxos Operacionais */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 border p-5 rounded-2xl">
