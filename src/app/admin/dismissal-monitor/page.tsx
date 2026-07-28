@@ -16,18 +16,11 @@ import { InitiateDismissalDialog } from "@/components/admin/InitiateDismissalDia
 async function getDismissalProcessData(companyId?: string, search?: string) {
     const where: any = {
         status: 'Ativo',
-        OR: [
-            {
-                situation: {
-                    name: {
-                        in: ['Aviso Prévio', 'Processo de Rescisão', 'Processo de abandono']
-                    }
-                }
-            },
-            {
-                probationStatus: 'DISMISSED'
+        situation: {
+            name: {
+                in: ['Aviso Prévio', 'Processo de Rescisão', 'Processo de abandono']
             }
-        ]
+        }
     };
 
     if (companyId && companyId !== 'all') {
