@@ -19,10 +19,12 @@ export function NewPostoSheet({ clientId, schedules, roles }: NewPostoSheetProps
     const [open, setOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    async function handleSubmit(formData: FormData) {
+    async function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
+        e.preventDefault();
         if (isSubmitting) return;
         setIsSubmitting(true);
         try {
+            const formData = new FormData(e.currentTarget);
             await createPosto(formData);
             setOpen(false);
         } catch (error) {
@@ -42,7 +44,7 @@ export function NewPostoSheet({ clientId, schedules, roles }: NewPostoSheetProps
                     <SheetTitle>Novo Posto</SheetTitle>
                     <SheetDescription>Adicione uma vaga contratada para este site.</SheetDescription>
                 </SheetHeader>
-                <form action={handleSubmit} className="space-y-4 mt-6 h-[80vh] overflow-y-auto pr-4">
+                <form onSubmit={handleFormSubmit} className="space-y-4 mt-6 h-[80vh] overflow-y-auto pr-4">
                     <input type="hidden" name="clientId" value={clientId} />
 
                     <div className="space-y-2">

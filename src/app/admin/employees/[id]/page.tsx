@@ -69,6 +69,14 @@ async function getEmployeeDetails(id: string) {
     return { employee, situations, roles, companies, postos };
 }
 
+const formatUTCDateString = (d: Date) => {
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    const month = months[d.getUTCMonth()];
+    const year = d.getUTCFullYear();
+    return `${day} ${month} ${year}`;
+};
+
 export default async function EmployeeProfilePage(props: { 
     params: Promise<{ id: string }>,
     searchParams?: Promise<{ backTo?: string }>
@@ -187,7 +195,7 @@ export default async function EmployeeProfilePage(props: {
                         <div className="flex flex-wrap justify-center md:justify-start gap-3">
                             <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 flex flex-col">
                                 <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest">Admissão</span>
-                                <span className="text-xs font-black text-slate-800">{format(admissionDate, 'dd MMM yyyy')}</span>
+                                <span className="text-xs font-black text-slate-800">{formatUTCDateString(admissionDate)}</span>
                             </div>
                             <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 flex flex-col">
                                 <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest">Document</span>

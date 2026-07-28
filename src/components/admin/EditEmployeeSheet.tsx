@@ -271,10 +271,12 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
         setDependents(prev => prev.filter((_, i) => i !== index));
     };
 
-    async function handleSubmit(formData: FormData) {
+    async function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
+        e.preventDefault();
         if (isSubmitting) return;
         setIsSubmitting(true);
         try {
+            const formData = new FormData(e.currentTarget);
             const result = await updateEmployee(formData);
             if (result?.error) {
                 toast.error(result.error);
@@ -359,7 +361,7 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                     </SheetDescription>
                 </SheetHeader>
 
-                <form action={handleSubmit} className="flex-1 flex flex-col overflow-hidden text-xs">
+                <form onSubmit={handleFormSubmit} className="flex-1 flex flex-col overflow-hidden text-xs">
                     <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {/* Hidden Inputs for action */}
                     <input type="hidden" name="id" value={employee.id} />
