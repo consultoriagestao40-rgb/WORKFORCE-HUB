@@ -2693,12 +2693,16 @@ export async function finalizeDismissal(employeeId: string, notes?: string) {
 export async function initiateEmployeeDismissalProcess(data: {
     employeeId: string;
     processType: 'Aviso Prévio' | 'Processo de Rescisão' | 'Processo de abandono';
+    dismissalSubType: 'PEDIDO_SEM_AVISO' | 'PEDIDO_COM_AVISO' | 'DISPENSA_SEM_AVISO' | 'DISPENSA_COM_AVISO' | 'ABANDONO';
+    initiative: 'EMPRESA' | 'COLABORADOR' | 'ABANDONO';
+    noticeType: 'TRABALHADO' | 'INDENIZADO';
     startDate?: string;
     endDate?: string;
     reductionType?: 'NENHUMA' | 'DUAS_HORAS' | 'SETE_DIAS';
     unassignImmediately: boolean;
     openVacancy: boolean;
     notes?: string;
+    attachment?: { fileName: string; fileData: string } | null;
 }) {
     try {
         const user = await getCurrentUser();
@@ -2732,34 +2736,41 @@ export async function initiateEmployeeDismissalProcess(data: {
             // 2. Prepare extraFields dismissalProcess payload
             let dismissalProcess: any = {
                 type: data.processType,
+                dismissalSubType: data.dismissalSubType,
+                initiative: data.initiative,
+                noticeType: data.noticeType,
                 startDate: data.startDate ? new Date(data.startDate + "T12:00:00Z") : new Date(),
                 endDate: data.endDate ? new Date(data.endDate + "T12:00:00Z") : null,
                 reductionType: data.reductionType || 'NENHUMA',
                 telegram1SentDate: null,
                 telegram2SentDate: null,
                 lastWorkingDay: null,
-                paymentDeadline: null
+                paymentDeadline: null,
+                attachment: data.attachment || null
             };
 
             // Compute dates based on CLT rules
-            if (data.processType === "Aviso Prévio" && dismissalProcess.endDate) {
-                const end = new Date(dismissalProcess.endDate);
-                const payLimit = new Date(end);
-                payLimit.setDate(payLimit.getDate() + 10);
-                dismissalProcess.paymentDeadline = payLimit;
+            if (data.dismissalSubType === 'DISPENSA_COM_AVISO' || data.dismissalSubType === 'PEDIDO_COM_AVISO') {
+                if (dismissalProcess.endDate) {
+                    const end = new Date(dismissalProcess.endDate);
+                    const payLimit = new Date(end);
+                    payLimit.setDate(payLimit.getDate() + 10);
+                    dismissalProcess.paymentDeadline = payLimit;
 
-                const lastWork = new Date(end);
-                if (data.reductionType === 'SETE_DIAS') {
-                    lastWork.setDate(lastWork.getDate() - 7);
+                    const lastWork = new Date(end);
+                    if (data.dismissalSubType === 'DISPENSA_COM_AVISO' && data.reductionType === 'SETE_DIAS') {
+                        lastWork.setDate(lastWork.getDate() - 7);
+                    }
+                    dismissalProcess.lastWorkingDay = lastWork;
                 }
-                dismissalProcess.lastWorkingDay = lastWork;
-            } else if (data.processType === "Processo de Rescisão" && dismissalProcess.endDate) {
-                const end = new Date(dismissalProcess.endDate);
-                const payLimit = new Date(end);
+            } else if (data.dismissalSubType === 'DISPENSA_SEM_AVISO' || data.dismissalSubType === 'PEDIDO_SEM_AVISO') {
+                const start = new Date(dismissalProcess.startDate);
+                const payLimit = new Date(start);
                 payLimit.setDate(payLimit.getDate() + 10);
                 dismissalProcess.paymentDeadline = payLimit;
-                dismissalProcess.lastWorkingDay = end;
-            } else if (data.processType === "Processo de abandono" && dismissalProcess.startDate) {
+                dismissalProcess.lastWorkingDay = start;
+                dismissalProcess.endDate = start;
+            } else if (data.dismissalSubType === 'ABANDONO') {
                 const start = new Date(dismissalProcess.startDate);
                 const endLimit = new Date(start);
                 endLimit.setDate(endLimit.getDate() + 30);

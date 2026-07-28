@@ -34,10 +34,10 @@ export function MoveToRotativoButton({ employeeId }: { employeeId: string }) {
             variant="outline" 
             onClick={handleMove} 
             disabled={loading}
-            className="w-full border-slate-200 text-slate-900 rounded-2xl h-14 font-black justify-between group hover:bg-slate-50 transition-colors"
+            className="gap-1.5 border-slate-200 text-slate-800 font-bold h-9 px-3.5 rounded-xl shadow-sm text-[11px] uppercase tracking-wider hover:bg-slate-50 transition-colors bg-white shrink-0"
         >
+            <RotateCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
             <span>Alocar no Rotativo</span>
-            <RotateCw className={`w-4 h-4 text-slate-500 group-hover:rotate-180 transition-transform duration-500 ${loading ? 'animate-spin' : ''}`} />
         </Button>
     );
 }

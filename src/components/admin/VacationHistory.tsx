@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +47,16 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
     const [endDate, setEndDate] = useState("");
     const [days, setDays] = useState(30);
     const [daysSold, setDaysSold] = useState(0);
+
+    useEffect(() => {
+        const handleOpen = () => {
+            setOpen(true);
+            const el = document.getElementById("vacation-history-section");
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+        };
+        window.addEventListener('open-vacation-dialog', handleOpen);
+        return () => window.removeEventListener('open-vacation-dialog', handleOpen);
+    }, []);
 
     const handleStartDateChange = (val: string) => {
         setStartDate(val);
@@ -119,7 +129,7 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
     }
 
     return (
-        <div className="space-y-4">
+        <div id="vacation-history-section" className="space-y-4">
             <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold text-slate-700">Histórico de Férias</div>
                 {!open && (

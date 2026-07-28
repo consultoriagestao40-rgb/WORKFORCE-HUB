@@ -35,6 +35,7 @@ import { VacationHistory } from "@/components/admin/VacationHistory";
 import { MoveToRotativoButton } from "@/components/admin/MoveToRotativoButton";
 import { BackButton } from "@/components/admin/BackButton";
 import { InitiateDismissalDialog } from "@/components/admin/InitiateDismissalDialog";
+import { LaunchVacationButton } from "@/components/admin/LaunchVacationButton";
 
 async function getEmployeeDetails(id: string) {
     const [employee, situations, roles, companies, postos] = await Promise.all([
@@ -126,13 +127,24 @@ export default async function EmployeeProfilePage(props: {
                     fallbackUrl={backTo} 
                     label={backTo.includes('financial-costs') ? 'Voltar para Custos' : 'Voltar para Equipe'} 
                 />
-                <div className="flex gap-3">
+                <div className="flex gap-2.5 items-center">
                     <Link href={`/admin/employees/${employee.id}/print`} target="_blank">
                         <Button className="gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold border-none h-9 px-4 rounded-xl shadow-sm text-xs uppercase tracking-wider">
                             <FileText className="w-4 h-4" /> Exportar Ficha
                         </Button>
                     </Link>
                     <EditEmployeeSheet employee={employee} situations={situations} roles={roles} companies={companies} postos={postos} />
+                    <LaunchVacationButton />
+                    {!employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name?.toUpperCase() === "ROTATIVO") && (
+                        <MoveToRotativoButton employeeId={employee.id} />
+                    )}
+                    {employee.situation?.name !== "Desligado" && (
+                        <InitiateDismissalDialog 
+                            employeeId={employee.id} 
+                            employeeName={employee.name} 
+                            hasActivePosto={employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name?.toUpperCase() !== "ROTATIVO")}
+                        />
+                    )}
                 </div>
             </div>
 
@@ -378,18 +390,6 @@ export default async function EmployeeProfilePage(props: {
                             vacations={employee.vacations}
                             hasActivePosto={employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name !== "ROTATIVO")}
                         />
-
-                        {!employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name?.toUpperCase() === "ROTATIVO") && (
-                            <MoveToRotativoButton employeeId={employee.id} />
-                        )}
-
-                        {employee.situation?.name !== "Desligado" && (
-                            <InitiateDismissalDialog 
-                                employeeId={employee.id} 
-                                employeeName={employee.name} 
-                                hasActivePosto={employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name?.toUpperCase() !== "ROTATIVO")}
-                            />
-                        )}
 
                         <Button variant="outline" className="w-full border-slate-200 text-slate-900 rounded-2xl h-14 font-black justify-between group">
                             Generate Report <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />

@@ -10,6 +10,7 @@ import Link from "next/link";
 import { DismissalMonitorActions } from "@/components/admin/DismissalMonitorActions";
 import { TelegramRegisterButton } from "@/components/admin/TelegramRegisterButton";
 import { BackButton } from "@/components/admin/BackButton";
+import { ResignationLetterDownloadButton } from "@/components/admin/ResignationLetterDownloadButton";
 
 async function getDismissalProcessData(companyId?: string, search?: string) {
     const where: any = {
@@ -61,7 +62,19 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
         const proc = extra.dismissalProcess || {};
 
         let type = proc.type || emp.situation?.name || "Desconhecido";
-        if (emp.probationStatus === "DISMISSED" && !proc.type) {
+        if (proc.dismissalSubType) {
+            if (proc.dismissalSubType === 'DISPENSA_COM_AVISO') {
+                type = "Dispensa (Aviso Trabalhado)";
+            } else if (proc.dismissalSubType === 'DISPENSA_SEM_AVISO') {
+                type = "Dispensa (Aviso Indenizado)";
+            } else if (proc.dismissalSubType === 'PEDIDO_COM_AVISO') {
+                type = "Pedido (Aviso Trabalhado)";
+            } else if (proc.dismissalSubType === 'PEDIDO_SEM_AVISO') {
+                type = "Pedido (Dispensa de Aviso)";
+            } else if (proc.dismissalSubType === 'ABANDONO') {
+                type = "Abandono de Emprego";
+            }
+        } else if (emp.probationStatus === "DISMISSED" && !proc.type) {
             type = "Término de Experiência";
         }
 
@@ -203,7 +216,8 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
             statusBadge,
             postoLabel,
             daysElapsed,
-            alerts
+            alerts,
+            dismissalProcess: proc
         };
     });
 }
@@ -368,9 +382,9 @@ export default async function DismissalMonitorPage({
                                                 <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                                 <span className="truncate max-w-[150px]">{emp.dateLabel}</span>
                                             </div>
-                                            {emp.lastWorkingDay && emp.reductionType === 'SETE_DIAS' && (
-                                                <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 w-fit font-bold">
-                                                    Último dia trab: {format(emp.lastWorkingDay, 'dd/MM')}
+                                            {emp.lastWorkingDay && (
+                                                <div className="text-[10px] text-sky-800 bg-sky-50 border border-sky-100 rounded px-1.5 py-0.5 w-fit font-bold mt-1">
+                                                    Último dia trab: {format(emp.lastWorkingDay, 'dd/MM/yyyy')}
                                                 </div>
                                             )}
                                         </div>
@@ -422,6 +436,12 @@ export default async function DismissalMonitorPage({
                                     </td>
                                     <td className="px-5 py-4 text-right">
                                         <div className="flex justify-end items-center gap-2">
+                                            {emp.dismissalProcess?.attachment && (
+                                                <ResignationLetterDownloadButton 
+                                                    fileName={emp.dismissalProcess.attachment.fileName} 
+                                                    fileData={emp.dismissalProcess.attachment.fileData} 
+                                                />
+                                            )}
                                             <Link href={`/admin/employees/${emp.id}`}>
                                                 <Button variant="ghost" size="sm" className="h-8 px-2 hover:bg-slate-200 font-bold text-xs">
                                                     Perfil
