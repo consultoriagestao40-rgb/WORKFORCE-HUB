@@ -68,10 +68,13 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
 
     async function handleUnassign() {
         if (!selectedSituation) {
-            setError("Selecione o motivo da desvinculação");
+            setError("Selecione a situação da desvinculação");
             return;
         }
-
+        if (!observation.trim()) {
+            setError("Por favor, digite o motivo da movimentação/desvinculação");
+            return;
+        }
         setError(null);
         setLoading(true);
         try {
@@ -216,6 +219,17 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
                                 </div>
                             </div>
 
+                            <div className="space-y-2">
+                                <Label htmlFor="assignReason">Motivo da Movimentação *</Label>
+                                <Input 
+                                    type="text" 
+                                    id="assignReason" 
+                                    name="reason" 
+                                    placeholder="Escreva aqui detalhadamente o motivo da alocação..." 
+                                    required 
+                                />
+                            </div>
+
                             {activeEmployeeName && (
                                 <div className="flex items-center space-x-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
                                     <Checkbox
@@ -310,14 +324,15 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
                                 </div>
                             )}
 
-                            <div className="space-y-2">
-                                <Label htmlFor="unassignObservation">Observações / Anotações</Label>
+                             <div className="space-y-2">
+                                <Label htmlFor="unassignObservation">Motivo da Movimentação / Observações *</Label>
                                 <Textarea
                                     id="unassignObservation"
                                     value={observation}
                                     onChange={(e) => setObservation(e.target.value)}
-                                    placeholder="Escreva aqui anotações ou observações sobre a desvinculação (ex: motivos, detalhes do abandono, etc)..."
+                                    placeholder="Escreva aqui detalhadamente o motivo do colaborador estar sendo desvinculado..."
                                     className="min-h-[80px]"
+                                    required
                                 />
                             </div>
 

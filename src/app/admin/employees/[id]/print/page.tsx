@@ -27,13 +27,19 @@ async function getEmployeePrintData(id: string) {
             role: true,
             situation: true,
             company: true,
+            vacations: {
+                orderBy: { startDate: 'desc' }
+            },
+            occurrences: {
+                orderBy: { date: 'desc' }
+            },
             assignments: {
-                where: { endDate: null },
                 include: {
                     posto: {
-                        include: { client: true }
+                        include: { client: true, role: true }
                     }
-                }
+                },
+                orderBy: { startDate: 'desc' }
             }
         }
     });
@@ -331,6 +337,140 @@ export default async function PrintEmployeeProfilePage(props: {
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* FOLHA 2: HISTÓRICO DE CARREIRA E EVENTOS (A4) */}
+            <div className="print-page print-page-break p-10 space-y-6">
+                {/* Header Page 2 */}
+                <div className="border-2 border-slate-950 p-4 flex justify-between items-center bg-slate-50">
+                    <div className="space-y-1">
+                        <h1 className="text-xl font-black tracking-tight text-slate-950">RELATÓRIO DE HISTÓRICO PROFISSIONAL</h1>
+                        <p className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Colaborador: {employee.name}</p>
+                    </div>
+                    <div className="text-right">
+                        <div className="text-[9px] font-bold text-slate-400">Página 2 de 2</div>
+                    </div>
+                </div>
+
+                {/* 1. Histórico de Movimentações */}
+                <div className="space-y-1.5">
+                    <h3 className="font-black text-[10px] uppercase tracking-wider text-slate-950 border-b-2 border-slate-950 pb-0.5">1. Histórico de Movimentações (Realocações)</h3>
+                    {(!extra.movimentacoes || extra.movimentacoes.length === 0) ? (
+                        <div className="p-3 border border-slate-300 text-center font-medium text-slate-500">Nenhuma movimentação registrada.</div>
+                    ) : (
+                        <table className="w-full border-collapse border border-slate-300 text-left text-[10px]">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-slate-300 font-bold">
+                                    <th className="p-2 border-r border-slate-300 w-1/5">Data</th>
+                                    <th className="p-2 border-r border-slate-300 w-1/4">Posto de Origem</th>
+                                    <th className="p-2 border-r border-slate-300 w-1/4">Posto de Destino</th>
+                                    <th className="p-2">Motivo Informado</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-300">
+                                {extra.movimentacoes.map((mov: any, idx: number) => (
+                                    <tr key={idx} className="font-medium">
+                                        <td className="p-2 border-r border-slate-300">{formatDate(new Date(mov.date))}</td>
+                                        <td className="p-2 border-r border-slate-300">{mov.fromPosto}</td>
+                                        <td className="p-2 border-r border-slate-300">{mov.toPosto}</td>
+                                        <td className="p-2">{mov.reason}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+
+                {/* 2. Histórico de Ocorrências (Faltas, Atestados, Afastamentos) */}
+                <div className="space-y-1.5">
+                    <h3 className="font-black text-[10px] uppercase tracking-wider text-slate-950 border-b-2 border-slate-950 pb-0.5">2. Faltas, Atestados e Afastamentos</h3>
+                    {(!employee.occurrences || employee.occurrences.length === 0) ? (
+                        <div className="p-3 border border-slate-300 text-center font-medium text-slate-500">Nenhuma ocorrência ou afastamento registrado.</div>
+                    ) : (
+                        <table className="w-full border-collapse border border-slate-300 text-left text-[10px]">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-slate-300 font-bold">
+                                    <th className="p-2 border-r border-slate-300 w-1/5">Data</th>
+                                    <th className="p-2 border-r border-slate-300 w-1/5">Tipo</th>
+                                    <th className="p-2 border-r border-slate-300 w-1/4">Título da Ocorrência</th>
+                                    <th className="p-2">Descrição / Justificativa</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-300">
+                                {employee.occurrences.map((occ: any, idx: number) => (
+                                    <tr key={idx} className="font-medium">
+                                        <td className="p-2 border-r border-slate-300">{formatDate(new Date(occ.date))}</td>
+                                        <td className="p-2 border-r border-slate-300">
+                                            <span className="font-bold">
+                                                {occ.type === "ATESTADO" ? "Atestado Médico" :
+                                                 occ.type === "FALTA_INJUSTIFICADA" ? "Falta Injustificada" :
+                                                 occ.type === "AFASTAMENTO" ? "Afastamento" : "Falta"}
+                                            </span>
+                                        </td>
+                                        <td className="p-2 border-r border-slate-300">{occ.title}</td>
+                                        <td className="p-2">{occ.description || "---"}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+
+                {/* 3. Medidas Administrativas & Advertências */}
+                <div className="space-y-1.5">
+                    <h3 className="font-black text-[10px] uppercase tracking-wider text-slate-950 border-b-2 border-slate-950 pb-0.5">3. Medidas Administrativas & Advertências</h3>
+                    {(!extra.advertencias || extra.advertencias.length === 0) ? (
+                        <div className="p-3 border border-slate-300 text-center font-medium text-slate-500">Nenhuma advertência ou suspensão registrada.</div>
+                    ) : (
+                        <table className="w-full border-collapse border border-slate-300 text-left text-[10px]">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-slate-300 font-bold">
+                                    <th className="p-2 border-r border-slate-300 w-1/5">Data</th>
+                                    <th className="p-2 border-r border-slate-300 w-1/4">Tipo de Medida</th>
+                                    <th className="p-2">Descrição / Motivo Justificado</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-300">
+                                {extra.advertencias.map((adv: any, idx: number) => (
+                                    <tr key={idx} className="font-medium">
+                                        <td className="p-2 border-r border-slate-300">{formatDate(new Date(adv.date))}</td>
+                                        <td className="p-2 border-r border-slate-300 font-bold">{adv.type}</td>
+                                        <td className="p-2">{adv.description}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+
+                {/* 4. Histórico de Férias */}
+                <div className="space-y-1.5">
+                    <h3 className="font-black text-[10px] uppercase tracking-wider text-slate-950 border-b-2 border-slate-950 pb-0.5">4. Períodos de Férias Lançados</h3>
+                    {(!employee.vacations || employee.vacations.length === 0) ? (
+                        <div className="p-3 border border-slate-300 text-center font-medium text-slate-500">Nenhum lançamento de férias.</div>
+                    ) : (
+                        <table className="w-full border-collapse border border-slate-300 text-left text-[10px]">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-slate-300 font-bold">
+                                    <th className="p-2 border-r border-slate-300 w-1/4">Data de Início</th>
+                                    <th className="p-2 border-r border-slate-300 w-1/4">Data de Fim</th>
+                                    <th className="p-2 border-r border-slate-300 text-center w-1/5">Dias Gozados</th>
+                                    <th className="p-2 text-center w-1/5">Abono (Dias Vendidos)</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-300">
+                                {employee.vacations.map((vac: any, idx: number) => (
+                                    <tr key={idx} className="font-medium">
+                                        <td className="p-2 border-r border-slate-300">{formatDate(new Date(vac.startDate))}</td>
+                                        <td className="p-2 border-r border-slate-300">{formatDate(new Date(vac.endDate))}</td>
+                                        <td className="p-2 border-r border-slate-300 text-center">{vac.daysTaken}</td>
+                                        <td className="p-2 text-center">{vac.daysSold || 0}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             </div>
 

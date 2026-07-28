@@ -653,8 +653,9 @@ export async function assignEmployee(formData: FormData) {
     const startDateStr = formData.get("startDate") as string;
     const schedule = formData.get("schedule") as string;
     const createVacancy = formData.get("createVacancy") === "on";
+    const reason = formData.get("reason") as string || "Não informado";
 
-    console.log("Assign Employee Debug:", { postoId, employeeId, startDateStr, schedule });
+    console.log("Assign Employee Debug:", { postoId, employeeId, startDateStr, schedule, reason });
 
     if (!postoId || !employeeId) return { error: "Campos obrigatórios faltando." };
 
@@ -664,7 +665,7 @@ export async function assignEmployee(formData: FormData) {
     console.log("Parsed Start Date:", startDate);
 
     const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
-    const posto = await prisma.posto.findUnique({ where: { id: postoId } });
+    const posto = await prisma.posto.findUnique({ where: { id: postoId }, include: { client: true, role: true } });
 
     if (!employee || !posto) return { error: "Dados não encontrados." };
 
@@ -709,10 +710,12 @@ export async function assignEmployee(formData: FormData) {
 
     const targetPostoHasAssignment = await prisma.assignment.findFirst({
         where: { postoId, endDate: null },
-        include: { employee: true }
+        include: { employee: true, posto: { include: { client: true, role: true } } }
     });
 
     await prisma.$transaction(async (tx) => {
+        const targetPostoName = `${posto.client.name} - ${posto.role.name}`;
+
         // 1. If currently assigned somewhere (including Rotativo), end it AND log it
         if (employeeActiveAssignment) {
             await tx.assignment.update({
@@ -724,14 +727,44 @@ export async function assignEmployee(formData: FormData) {
             await tx.log.create({
                 data: {
                     action: "REALOCACAO",
-                    details: `Colaborador movido de ${employeeActiveAssignment.posto.client.name} para novo posto.`,
+                    details: `Colaborador movido de ${employeeActiveAssignment.posto.client.name} para novo posto. Motivo: ${reason}`,
                     employeeId: employeeId,
                     userId: currentUser?.id
                 }
             });
+
+            // Log movement in extraFields of employee
+            const empObj = await tx.employee.findUnique({ where: { id: employeeId } });
+            const extra = (empObj?.extraFields as any) || {};
+            const movements = extra.movimentacoes || [];
+            movements.push({
+                date: new Date(),
+                fromPosto: `${employeeActiveAssignment.posto.client.name} - ${employeeActiveAssignment.posto.role.name}`,
+                toPosto: targetPostoName,
+                reason: reason
+            });
+            await tx.employee.update({
+                where: { id: employeeId },
+                data: { extraFields: { ...extra, movimentacoes: movements } }
+            });
+        } else {
+            // Log movement from Rotativo
+            const empObj = await tx.employee.findUnique({ where: { id: employeeId } });
+            const extra = (empObj?.extraFields as any) || {};
+            const movements = extra.movimentacoes || [];
+            movements.push({
+                date: new Date(),
+                fromPosto: "Rotativo / Sem Posto",
+                toPosto: targetPostoName,
+                reason: reason
+            });
+            await tx.employee.update({
+                where: { id: employeeId },
+                data: { extraFields: { ...extra, movimentacoes: movements } }
+            });
         }
 
-        // 2. If the TARGET POSTO has someone, remove them (swap logic)
+        // 2. If the TARGET POSTO has someone, remove them (swap logic) and move them to Rotativo
         if (targetPostoHasAssignment) {
             await tx.assignment.update({
                 where: { id: targetPostoHasAssignment.id },
@@ -748,9 +781,60 @@ export async function assignEmployee(formData: FormData) {
                     userId: currentUser?.id
                 }
             });
+
+            // Displace target employee to Rotativo virtual client
+            const displacedEmpId = targetPostoHasAssignment.employeeId;
+            const displacedEmp = await tx.employee.findUnique({ where: { id: displacedEmpId } });
+            const displacedExtra = (displacedEmp?.extraFields as any) || {};
+            const displacedMovements = displacedExtra.movimentacoes || [];
+
+            let rotativoClient = await tx.client.findFirst({
+                where: { name: { equals: "ROTATIVO", mode: "insensitive" } }
+            });
+            if (!rotativoClient) {
+                rotativoClient = await tx.client.create({ data: { name: "ROTATIVO" } });
+            }
+
+            let rotativoPosto = await tx.posto.findFirst({
+                where: { clientId: rotativoClient.id, roleId: targetPostoHasAssignment.posto.roleId, endDate: null }
+            });
+            if (!rotativoPosto) {
+                rotativoPosto = await tx.posto.create({
+                    data: {
+                        clientId: rotativoClient.id,
+                        roleId: targetPostoHasAssignment.posto.roleId,
+                        schedule: targetPostoHasAssignment.posto.schedule || 'Variável',
+                        startTime: targetPostoHasAssignment.posto.startTime || '00:00',
+                        endTime: targetPostoHasAssignment.posto.endTime || '23:59',
+                        billingValue: 0,
+                        requiredWorkload: targetPostoHasAssignment.posto.requiredWorkload || displacedEmp?.workload || 220,
+                        baseSalary: displacedEmp?.salary || targetPostoHasAssignment.posto.baseSalary || 0
+                    }
+                });
+            }
+
+            await tx.assignment.create({
+                data: {
+                    employeeId: displacedEmpId,
+                    postoId: rotativoPosto.id,
+                    startDate: new Date()
+                }
+            });
+
+            displacedMovements.push({
+                date: new Date(),
+                fromPosto: `${targetPostoHasAssignment.posto.client.name} - ${targetPostoHasAssignment.posto.role.name}`,
+                toPosto: "Rotativo / Sem Posto (Desvinculado por Realocação)",
+                reason: `Desvinculação automática devido a realocação de ${employee.name}. Motivo informado: ${reason}`
+            });
+
+            await tx.employee.update({
+                where: { id: displacedEmpId },
+                data: { extraFields: { ...displacedExtra, movimentacoes: displacedMovements } }
+            });
         }
 
-        // 2. Create new assignment
+        // 3. Create new assignment
         await tx.assignment.create({
             data: {
                 postoId,
@@ -759,16 +843,14 @@ export async function assignEmployee(formData: FormData) {
             }
         });
 
-        // 3. Log new assignment
+        // 4. Log new assignment
         const emp = await tx.employee.findUnique({ where: { id: employeeId } });
-        const posto = await tx.posto.findUnique({ where: { id: postoId }, include: { client: true, role: true } });
-
         const currentUser = await getCurrentUser();
 
         await tx.log.create({
             data: {
                 action: "LOTACAO",
-                details: `Colaborador ${emp?.name} movido para ${posto?.role.name} em ${posto?.client.name}`,
+                details: `Colaborador ${emp?.name} movido para ${posto.role.name} em ${posto.client.name}`,
                 employeeId: employeeId,
                 userId: currentUser?.id
             }
@@ -872,6 +954,21 @@ export async function unassignEmployee(formData: FormData) {
             } else {
                 delete updatedExtraFields.dismissalProcess;
             }
+
+            const prevPosto = currentAssignment.posto;
+            const movements = updatedExtraFields.movimentacoes || [];
+            const activeStatusesList = ['Ativo', 'Férias', 'Afastamento', 'Licença INSS', 'AFASTADO INSS', 'LICENÇA MATERNIDADE', 'Aviso Prévio', 'Processo de Rescisão', 'Processo de abandono'];
+            const rotativoAlloc = activeStatusesList.includes(situation.name);
+
+            movements.push({
+                date: new Date(),
+                fromPosto: `${prevPosto.client.name} - ${prevPosto.role.name}`,
+                toPosto: rotativoAlloc 
+                    ? `Rotativo / Sem Posto (${situation.name})` 
+                    : `Desvinculado (${situation.name})`,
+                reason: observation || "Não informado"
+            });
+            updatedExtraFields.movimentacoes = movements;
 
             await tx.employee.update({
                 where: { id: currentAssignment.employeeId },
@@ -2939,5 +3036,91 @@ export async function registerTelegramSentDate(employeeId: string, telegramIndex
     } catch (e: any) {
         console.error(e);
         return { error: e.message || "Erro ao registrar telegrama." };
+    }
+}
+
+export async function registerAdministrativeMeasure(
+    employeeId: string,
+    data: {
+        type: string;
+        date: string;
+        description: string;
+        attachment?: { fileName: string; fileData: string } | null;
+    }
+) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
+
+        const emp = await prisma.employee.findUnique({ where: { id: employeeId } });
+        if (!emp) throw new Error("Employee not found");
+
+        const existingExtraFields = (emp.extraFields as any) || {};
+        const advertencias = existingExtraFields.advertencias || [];
+
+        advertencias.push({
+            id: Math.random().toString(36).substring(2),
+            type: data.type,
+            date: new Date(data.date + "T12:00:00Z"),
+            description: data.description,
+            attachment: data.attachment || null,
+            createdAt: new Date()
+        });
+
+        await prisma.employee.update({
+            where: { id: employeeId },
+            data: {
+                extraFields: {
+                    ...existingExtraFields,
+                    advertencias
+                }
+            }
+        });
+
+        // Log it
+        await prisma.log.create({
+            data: {
+                action: "MEDIDA_DISCIPLINAR",
+                details: `Medida aplicada: ${data.type} em ${data.date}. Motivo: ${data.description}`,
+                employeeId,
+                userId: user.id
+            }
+        });
+
+        revalidatePath(`/admin/employees/${employeeId}`);
+        return { success: true };
+    } catch (e: any) {
+        console.error(e);
+        return { error: e.message || "Erro ao registrar medida administrativa." };
+    }
+}
+
+export async function deleteAdministrativeMeasure(employeeId: string, measureId: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
+
+        const emp = await prisma.employee.findUnique({ where: { id: employeeId } });
+        if (!emp) throw new Error("Employee not found");
+
+        const existingExtraFields = (emp.extraFields as any) || {};
+        let advertencias = existingExtraFields.advertencias || [];
+        advertencias = advertencias.filter((a: any) => a.id !== measureId);
+
+        await prisma.employee.update({
+            where: { id: employeeId },
+            data: {
+                extraFields: {
+                    ...existingExtraFields,
+                    advertencias
+                }
+            }
+        });
+
+        revalidatePath(`/admin/employees/${employeeId}`);
+        return { success: true };
+    } catch (e: any) {
+        console.error(e);
+        return { error: e.message || "Erro ao remover medida administrativa." };
     }
 }

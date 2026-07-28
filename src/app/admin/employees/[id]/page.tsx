@@ -36,6 +36,7 @@ import { MoveToRotativoButton } from "@/components/admin/MoveToRotativoButton";
 import { BackButton } from "@/components/admin/BackButton";
 import { InitiateDismissalDialog } from "@/components/admin/InitiateDismissalDialog";
 import { LaunchVacationButton } from "@/components/admin/LaunchVacationButton";
+import { AdministrativeMeasuresCard } from "@/components/admin/AdministrativeMeasuresCard";
 
 async function getEmployeeDetails(id: string) {
     const [employee, situations, roles, companies, postos] = await Promise.all([
@@ -99,6 +100,8 @@ export default async function EmployeeProfilePage(props: {
         workload: employee.workload,
         isNightShift
     });
+
+    const extra = (employee.extraFields as any) || {};
 
     // Vacation Logic
     const admissionDate = new Date(employee.admissionDate);
@@ -328,6 +331,12 @@ export default async function EmployeeProfilePage(props: {
                             ))}
                         </div>
                     </div>
+                    <div className="mt-8">
+                        <AdministrativeMeasuresCard 
+                            employeeId={employee.id} 
+                            measures={extra.advertencias || []} 
+                        />
+                    </div>
                 </div>
 
                 {/* Right Column: Timeline & Sidebars */}
@@ -348,9 +357,16 @@ export default async function EmployeeProfilePage(props: {
                             <h3 className="text-lg font-black text-slate-800">Documentos Anexados</h3>
                         </div>
                         <div className="space-y-3">
-                            {(() => {
+                             {(() => {
                                 const extra = (employee.extraFields as any) || {};
-                                const attachments = (extra.attachments as { name: string; fileName: string; fileData: string }[]) || [];
+                                const attachments = [...((extra.attachments as { name: string; fileName: string; fileData: string }[]) || [])];
+                                if (extra.dismissalProcess?.attachment) {
+                                    attachments.push({
+                                        name: `Carta de Demissão (${extra.dismissalProcess.type || 'Pedido'})`,
+                                        fileName: extra.dismissalProcess.attachment.fileName,
+                                        fileData: extra.dismissalProcess.attachment.fileData
+                                    });
+                                }
                                 if (attachments.length === 0) {
                                     return (
                                         <p className="text-xs text-slate-400 font-bold text-center py-4 bg-slate-50 border border-dashed rounded-2xl">
@@ -391,9 +407,12 @@ export default async function EmployeeProfilePage(props: {
                             hasActivePosto={employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name !== "ROTATIVO")}
                         />
 
-                        <Button variant="outline" className="w-full border-slate-200 text-slate-900 rounded-2xl h-14 font-black justify-between group">
-                            Generate Report <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                        </Button>
+                        <Link href={`/admin/employees/${employee.id}/print`} target="_blank" className="w-full">
+                            <Button variant="outline" className="w-full border-slate-200 text-slate-900 rounded-2xl h-14 font-black justify-between group hover:bg-slate-50 transition-colors">
+                                <span>Relatório da Vida do Profissional</span>
+                                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-primary" />
+                            </Button>
+                        </Link>
 
                         <div className="mt-4 p-5 bg-primary/5 rounded-3xl border border-primary/10">
                             <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Visão de RH</p>
