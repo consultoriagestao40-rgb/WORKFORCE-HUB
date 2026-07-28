@@ -1875,7 +1875,7 @@ export default function BenefitsPage() {
                                                         {item.chavePix && (
                                                             <button 
                                                                 onClick={() => {
-                                                                    navigator.clipboard.writeText(item.chavePix);
+                                                                    navigator.clipboard.writeText(item.chavePix || "");
                                                                     toast.success("Chave Pix copiada!");
                                                                 }}
                                                                 className="inline-flex items-center gap-1 text-[9px] font-black bg-indigo-50 text-indigo-650 px-1.5 py-0.5 rounded border border-indigo-200 hover:bg-indigo-100 transition-colors"
