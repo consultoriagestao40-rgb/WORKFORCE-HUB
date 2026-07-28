@@ -12,6 +12,7 @@ import { TelegramRegisterButton } from "@/components/admin/TelegramRegisterButto
 import { BackButton } from "@/components/admin/BackButton";
 import { ResignationLetterDownloadButton } from "@/components/admin/ResignationLetterDownloadButton";
 import { InitiateDismissalDialog } from "@/components/admin/InitiateDismissalDialog";
+import { DismissalAlertsDialog } from "@/components/admin/DismissalAlertsDialog";
 
 async function getDismissalProcessData(companyId?: string, search?: string) {
     const where: any = {
@@ -177,34 +178,91 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
         const postoLabel = currentAssignment?.posto?.client?.name || 'Rotativo / Sem Posto';
 
         // Generate legal warnings for DP
-        const alerts: string[] = [];
+        const alerts: {
+            id: string;
+            employeeId: string;
+            employeeName: string;
+            type: 'CRITICAL' | 'WARNING';
+            category: 'PAGAMENTO' | 'TELEGRAMA' | 'EXPERIENCIA' | 'ABANDONO';
+            message: string;
+        }[] = [];
+
         if (paymentDeadline) {
             const daysToPay = differenceInDays(paymentDeadline, today);
             if (daysToPay < 0) {
-                alerts.push(`🔴 Rescisão ATRASADA: Pagamento de ${emp.name} venceu em ${format(paymentDeadline, 'dd/MM/yyyy')} (atrasado há ${Math.abs(daysToPay)} dias)!`);
+                alerts.push({
+                    id: `${emp.id}-pay-crit`,
+                    employeeId: emp.id,
+                    employeeName: emp.name,
+                    type: 'CRITICAL',
+                    category: 'PAGAMENTO',
+                    message: `Pagamento da rescisão venceu em ${format(paymentDeadline, 'dd/MM/yyyy')} (atrasado há ${Math.abs(daysToPay)} dias)!`
+                });
             } else if (daysToPay <= 3) {
-                alerts.push(`🟡 Atenção DP: Pagamento da rescisão de ${emp.name} vence em ${format(paymentDeadline, 'dd/MM/yyyy')} (${daysToPay} dias restantes)!`);
+                alerts.push({
+                    id: `${emp.id}-pay-warn`,
+                    employeeId: emp.id,
+                    employeeName: emp.name,
+                    type: 'WARNING',
+                    category: 'PAGAMENTO',
+                    message: `Pagamento da rescisão vence em ${format(paymentDeadline, 'dd/MM/yyyy')} (${daysToPay} dias restantes).`
+                });
             }
         }
 
-        if (type === "Término de Experiência") {
-            const daysToExpiration = differenceInDays(endDate!, today);
+        if ((type === "Término de Experiência" || type.includes("Experiência") || type.includes("Experiencia")) && endDate) {
+            const daysToExpiration = differenceInDays(endDate, today);
             if (daysToExpiration < 0) {
-                alerts.push(`🔴 Experiência Vencida: Contrato de ${emp.name} expirou em ${format(endDate!, 'dd/MM/yyyy')} sem dispensa definitiva lançada!`);
-            } else if (daysToExpiration <= 3) {
-                alerts.push(`🟡 Término de Experiência: Notificar dispensa de ${emp.name} até ${format(endDate!, 'dd/MM/yyyy')} (${daysToExpiration} dias restantes)!`);
+                alerts.push({
+                    id: `${emp.id}-exp-crit`,
+                    employeeId: emp.id,
+                    employeeName: emp.name,
+                    type: 'CRITICAL',
+                    category: 'EXPERIENCIA',
+                    message: `Contrato expirou em ${format(endDate, 'dd/MM/yyyy')} sem dispensa definitiva lançada!`
+                });
+            } else if (daysToExpiration <= 5) {
+                alerts.push({
+                    id: `${emp.id}-exp-warn`,
+                    employeeId: emp.id,
+                    employeeName: emp.name,
+                    type: 'WARNING',
+                    category: 'EXPERIENCIA',
+                    message: `Notificar dispensa de experiência até ${format(endDate, 'dd/MM/yyyy')} (${daysToExpiration} dias restantes).`
+                });
             }
         }
 
         if (type === "Processo de abandono" && startDate) {
             if (daysElapsed >= 30) {
-                alerts.push(`🔴 Abandono Concluído: ${emp.name} está ausente há ${daysElapsed} dias. Liberado para rescisão por Justa Causa!`);
+                alerts.push({
+                    id: `${emp.id}-aband-crit`,
+                    employeeId: emp.id,
+                    employeeName: emp.name,
+                    type: 'CRITICAL',
+                    category: 'ABANDONO',
+                    message: `Abandono de posto concluído (ausente há ${daysElapsed} dias). Liberado para rescisão por Justa Causa!`
+                });
             } else {
                 if (daysElapsed >= 3 && !telegram1SentDate) {
-                    alerts.push(`🟡 Enviar Telegrama: Enviar 1º telegrama de convocação de retorno para ${emp.name} (ausente há ${daysElapsed} dias).`);
+                    alerts.push({
+                        id: `${emp.id}-tel1-warn`,
+                        employeeId: emp.id,
+                        employeeName: emp.name,
+                        type: 'WARNING',
+                        category: 'TELEGRAMA',
+                        message: `Enviar 1º telegrama de convocação de retorno (ausente há ${daysElapsed} dias).`
+                    });
                 }
                 if (daysElapsed >= 15 && !telegram2SentDate) {
-                    alerts.push(`🟡 Enviar Telegrama: Enviar 2º telegrama / edital oficial para ${emp.name} (ausente há ${daysElapsed} dias).`);
+                    alerts.push({
+                        id: `${emp.id}-tel2-warn`,
+                        employeeId: emp.id,
+                        employeeName: emp.name,
+                        type: 'WARNING',
+                        category: 'TELEGRAMA',
+                        message: `Enviar 2º telegrama / edital oficial (ausente há ${daysElapsed} dias).`
+                    });
                 }
             }
         }
@@ -270,10 +328,11 @@ export default async function DismissalMonitorPage({
         <div className="space-y-6">
             <div className="flex items-center gap-3">
                 <BackButton fallbackUrl="/admin/employees" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-slate-200" />
-                <div>
+                <div className="flex-1">
                     <h1 className="text-2xl font-bold text-slate-800">Monitor de Desligamento</h1>
                     <p className="text-slate-500">Gestão de prazos de Aviso Prévio, Abandono de Posto, Términos de Experiência e Prazos CLT de DP</p>
                 </div>
+                <DismissalAlertsDialog alerts={allAlerts} />
             </div>
 
             {/* Panel de Alertas Críticos de Departamento Pessoal */}
@@ -288,13 +347,15 @@ export default async function DismissalMonitorPage({
                             <div 
                                 key={idx} 
                                 className={`flex items-start gap-1.5 p-2 rounded-lg border ${
-                                    alert.startsWith('🔴') 
+                                    alert.type === 'CRITICAL' 
                                         ? 'bg-red-50/70 border-red-100 text-red-800' 
                                         : 'bg-amber-50/70 border-amber-100 text-amber-800'
                                 }`}
                             >
-                                <span className="mt-0.5">{alert.startsWith('🔴') ? '⚠️' : '🔔'}</span>
-                                <span className="flex-1">{alert.replace(/^(🔴|🟡)\s+/, '')}</span>
+                                <span className="mt-0.5">{alert.type === 'CRITICAL' ? '⚠️' : '🔔'}</span>
+                                <span className="flex-1">
+                                    <strong>{alert.employeeName}</strong>: {alert.message}
+                                </span>
                             </div>
                         ))}
                     </div>
