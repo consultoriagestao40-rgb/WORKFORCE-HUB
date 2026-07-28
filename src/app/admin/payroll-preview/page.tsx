@@ -31,6 +31,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { getPayrollPreview, PayrollPreviewItem, updateMonthlyDeductions } from "@/actions/payroll";
+import { syncSecullumOccurrences } from "@/actions/secullum";
 import * as XLSX from "xlsx";
 
 export default function PayrollPreviewPage() {
@@ -39,6 +40,7 @@ export default function PayrollPreviewPage() {
     const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth() + 1);
 
     const [isLoading, setIsLoading] = useState(true);
+    const [isSyncingSecullum, setIsSyncingSecullum] = useState(false);
     const [items, setItems] = useState<PayrollPreviewItem[]>([]);
     const [sortField, setSortField] = useState<'none' | 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'absenteismoAward' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'diversosDescontos' | 'emprestimos' | 'convenios' | 'sindicato' | 'inss' | 'irrf' | 'netSalary'>('none');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -87,6 +89,23 @@ export default function PayrollPreviewPage() {
             toast.error("Erro ao carregar prévia de folha de pagamento.");
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleSyncSecullum = async () => {
+        setIsSyncingSecullum(true);
+        try {
+            const res = await syncSecullumOccurrences(selectedYear, selectedMonth);
+            if (res.success) {
+                toast.success(res.message);
+                loadData();
+            } else {
+                toast.error(res.message);
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Erro ao sincronizar com o Secullum.");
+        } finally {
+            setIsSyncingSecullum(false);
         }
     };
 
@@ -616,6 +635,16 @@ export default function PayrollPreviewPage() {
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        {/* Sincronizar Secullum */}
+                        <button
+                            onClick={handleSyncSecullum}
+                            disabled={isSyncingSecullum}
+                            className="flex items-center gap-2 bg-sky-600 hover:bg-sky-500 disabled:bg-sky-800/50 text-white font-bold text-xs h-11 px-4 rounded-2xl border border-sky-500/30 transition-all cursor-pointer shadow-lg shadow-slate-950/20 active:scale-[0.98] disabled:cursor-not-allowed"
+                        >
+                            <RefreshCw className={`w-4 h-4 ${isSyncingSecullum ? 'animate-spin' : ''}`} />
+                            <span>{isSyncingSecullum ? 'Sincronizando...' : 'Sincronizar Secullum'}</span>
+                        </button>
 
                         {/* Exportar Excel */}
                         <button

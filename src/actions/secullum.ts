@@ -34,6 +34,40 @@ function cleanCpfStr(cpf: string | null | undefined): string {
     return cpf.replace(/\D/g, "");
 }
 
+// Helper: Parse Date as Local mid-day to avoid timezone offset shifts
+function parseLocalDate(dateStr: string | null | undefined): Date {
+    if (!dateStr) return new Date();
+    const cleanStr = dateStr.includes("T") ? dateStr.split("T")[0] : dateStr;
+    const parts = cleanStr.split("-");
+    if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        return new Date(year, month, day, 12, 0, 0, 0);
+    }
+    return new Date(dateStr);
+}
+
+// Helper: Match employee by name as a fallback for CPF mismatch
+function matchEmployeeByName(secName: string, dbEmployees: Array<{ id: string, name: string }>): string | null {
+    const cleanSec = secName.trim().toUpperCase();
+    const exact = dbEmployees.find(e => e.name.trim().toUpperCase() === cleanSec);
+    if (exact) return exact.id;
+
+    const secWords = cleanSec.split(" ").filter(w => w.length > 2);
+    if (secWords.length < 2) return null;
+
+    const firstWord = secWords[0];
+    const lastWord = secWords[secWords.length - 1];
+
+    const match = dbEmployees.find(e => {
+        const dbName = e.name.trim().toUpperCase();
+        return dbName.includes(firstWord) && dbName.includes(lastWord);
+    });
+
+    return match ? match.id : null;
+}
+
 // 1. Test Connection Server Action
 export async function testSecullumConnectionAction(apiUrl?: string, apiToken?: string, companyId?: string) {
     const user = await getCurrentUser();
@@ -104,7 +138,7 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
 
         // B. Fetch active DB employees and build a lookup map: cleanedCpf -> employeeId
         const dbEmployees = await prisma.employee.findMany({
-            select: { id: true, cpf: true }
+            select: { id: true, cpf: true, name: true }
         });
         const cpfToEmployeeIdMap = new Map<string, string>();
         dbEmployees.forEach(emp => {
@@ -119,11 +153,18 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
         const afastamentos = await client.getAfastamentos(startDateStr, endDateStr);
         for (const af of afastamentos) {
             const cleanCpf = cleanCpfStr(af.Cpf);
-            const employeeId = cpfToEmployeeIdMap.get(cleanCpf);
+            let employeeId = cpfToEmployeeIdMap.get(cleanCpf);
+            if (!employeeId) {
+                // Try matching by name
+                const secEmp = secullumEmployees.find(se => se.Cpf && cleanCpfStr(se.Cpf) === cleanCpf);
+                if (secEmp) {
+                    employeeId = matchEmployeeByName(secEmp.Nome, dbEmployees) || undefined;
+                }
+            }
             if (!employeeId) continue;
 
-            const startAfDate = af.Inicio ? new Date(af.Inicio) : null;
-            const endAfDate = af.Fim ? new Date(af.Fim) : null;
+            const startAfDate = af.Inicio ? parseLocalDate(af.Inicio) : null;
+            const endAfDate = af.Fim ? parseLocalDate(af.Fim) : null;
 
             if (!startAfDate) continue;
             // Handle single-day afastamento if Fim is null
@@ -198,12 +239,17 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
             if (!folha) continue;
 
             const cleanCpf = folhaToCpfMap.get(folha);
-            if (!cleanCpf) continue;
-
-            const employeeId = cpfToEmployeeIdMap.get(cleanCpf);
+            let employeeId = cleanCpf ? cpfToEmployeeIdMap.get(cleanCpf) : undefined;
+            if (!employeeId) {
+                // Try matching by name using folha map
+                const secEmp = secullumEmployees.find(se => se.NumeroFolha && se.NumeroFolha.trim() === folha);
+                if (secEmp) {
+                    employeeId = matchEmployeeByName(secEmp.Nome, dbEmployees) || undefined;
+                }
+            }
             if (!employeeId) continue;
 
-            const occDate = b.Data ? new Date(b.Data) : new Date();
+            const occDate = b.Data ? parseLocalDate(b.Data) : new Date();
             const startOfDay = new Date(occDate);
             startOfDay.setHours(0, 0, 0, 0);
             const endOfDay = new Date(occDate);
