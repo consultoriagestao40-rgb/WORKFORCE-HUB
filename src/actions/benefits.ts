@@ -283,6 +283,8 @@ export async function markBenefitAsPaid(data: {
     vaAmount: number;
     notes?: string;
     customDays?: number;
+    customDaysVt?: number;
+    customDaysVa?: number;
 }) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Não autorizado.");
@@ -291,7 +293,18 @@ export async function markBenefitAsPaid(data: {
     const paidAt = new Date();
 
     // Calculate next payment due date (+5 days for VT, +10 days for VA, or custom days)
-    const daysToAdd = data.customDays !== undefined ? data.customDays : (data.benefitType === "VT" ? config.vtFractionDays : config.vaFractionDays);
+    let daysToAdd = 0;
+    if (data.customDaysVt !== undefined && data.customDaysVa !== undefined) {
+        daysToAdd = Math.min(data.customDaysVt, data.customDaysVa);
+    } else if (data.customDaysVt !== undefined) {
+        daysToAdd = data.customDaysVt;
+    } else if (data.customDaysVa !== undefined) {
+        daysToAdd = data.customDaysVa;
+    } else if (data.customDays !== undefined) {
+        daysToAdd = data.customDays;
+    } else {
+        daysToAdd = data.benefitType === "VT" ? config.vtFractionDays : config.vaFractionDays;
+    }
     const nextPaymentDue = new Date(paidAt);
     nextPaymentDue.setDate(nextPaymentDue.getDate() + daysToAdd);
 

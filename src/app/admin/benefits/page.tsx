@@ -86,7 +86,8 @@ export default function BenefitsPage() {
     const [selectedItemForPayment, setSelectedItemForPayment] = useState<BenefitsCalculationItem | null>(null);
     const [paymentNotes, setPaymentNotes] = useState("");
     const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
-    const [customDays, setCustomDays] = useState<number>(5);
+    const [customDaysVt, setCustomDaysVt] = useState<number>(5);
+    const [customDaysVa, setCustomDaysVa] = useState<number>(10);
 
     // Occurrences List Modal State
     const [occurrencesModalOpen, setOccurrencesModalOpen] = useState(false);
@@ -123,7 +124,8 @@ export default function BenefitsPage() {
 
     useEffect(() => {
         if (selectedItemForPayment) {
-            setCustomDays(config?.vtFractionDays || 5);
+            setCustomDaysVt(config?.vtFractionDays || 5);
+            setCustomDaysVa(config?.vaFractionDays || 10);
         }
     }, [selectedItemForPayment, config]);
 
@@ -361,13 +363,13 @@ export default function BenefitsPage() {
         try {
             const isFractionedPayment = selectedItemForPayment.isNewHire || activeTab === "ALERTS";
             const currentVtTotal = isFractionedPayment 
-                ? (selectedItemForPayment.vtOptIn ? (selectedItemForPayment.vtDailyValue * customDays) : 0) 
+                ? (selectedItemForPayment.vtOptIn ? (selectedItemForPayment.vtDailyValue * customDaysVt) : 0) 
                 : selectedItemForPayment.vtTotalValue;
             const currentVtTotal2 = isFractionedPayment 
-                ? (selectedItemForPayment.vtOptIn ? (selectedItemForPayment.vtDailyValue2 * customDays) : 0) 
+                ? (selectedItemForPayment.vtOptIn ? (selectedItemForPayment.vtDailyValue2 * customDaysVt) : 0) 
                 : (selectedItemForPayment.vtTotalValue2 || 0);
             const currentVaTotal = isFractionedPayment 
-                ? (selectedItemForPayment.vaDailyValue * customDays) + (selectedItemForPayment.absenteismoAward || 0)
+                ? (selectedItemForPayment.vaDailyValue * customDaysVa) + (selectedItemForPayment.absenteismoAward || 0)
                 : selectedItemForPayment.vaTotalValue + (selectedItemForPayment.absenteismoAward || 0);
 
             await markBenefitAsPaid({
@@ -379,7 +381,8 @@ export default function BenefitsPage() {
                 vtAmount2: currentVtTotal2,
                 vaAmount: currentVaTotal,
                 notes: paymentNotes,
-                customDays: isFractionedPayment ? customDays : undefined
+                customDaysVt: isFractionedPayment ? customDaysVt : undefined,
+                customDaysVa: isFractionedPayment ? customDaysVa : undefined
             });
             toast.success(`Benefício de ${selectedItemForPayment.employeeName} marcado como PAGO!`);
             setPaymentModalOpen(false);
@@ -1969,13 +1972,13 @@ export default function BenefitsPage() {
                     {selectedItemForPayment && (() => {
                         const isFractionedPayment = selectedItemForPayment.isNewHire || activeTab === "ALERTS";
                         const currentVtTotal = isFractionedPayment 
-                            ? (selectedItemForPayment.vtOptIn ? (selectedItemForPayment.vtDailyValue * customDays) : 0) 
+                            ? (selectedItemForPayment.vtOptIn ? (selectedItemForPayment.vtDailyValue * customDaysVt) : 0) 
                             : selectedItemForPayment.vtTotalValue;
                         const currentVtTotal2 = isFractionedPayment 
-                            ? (selectedItemForPayment.vtOptIn ? (selectedItemForPayment.vtDailyValue2 * customDays) : 0) 
+                            ? (selectedItemForPayment.vtOptIn ? (selectedItemForPayment.vtDailyValue2 * customDaysVt) : 0) 
                             : (selectedItemForPayment.vtTotalValue2 || 0);
                         const currentVaTotal = isFractionedPayment 
-                            ? (selectedItemForPayment.vaDailyValue * customDays) 
+                            ? (selectedItemForPayment.vaDailyValue * customDaysVa) 
                             : selectedItemForPayment.vaTotalValue;
 
                         return (
@@ -2003,18 +2006,38 @@ export default function BenefitsPage() {
                                 </div>
 
                                 {isFractionedPayment && (
-                                    <div className="space-y-1.5 bg-amber-50/50 border border-amber-200/80 p-3 rounded-2xl">
-                                        <Label className="font-bold text-slate-700">Quantidade de Dias a Comprar</Label>
-                                        <Input
-                                            type="number"
-                                            min={1}
-                                            max={31}
-                                            value={customDays}
-                                            onChange={e => setCustomDays(parseInt(e.target.value) || 1)}
-                                            className="h-8 text-xs font-bold rounded-lg border-amber-300 bg-white"
-                                        />
-                                        <div className="text-[10px] text-amber-700 font-medium">
-                                            Valor diário: VT R$ {selectedItemForPayment.vtDailyValue.toFixed(2)} {selectedItemForPayment.vtDailyValue2 > 0 && `| VT 2 R$ ${selectedItemForPayment.vtDailyValue2.toFixed(2)}`} | VA R$ {selectedItemForPayment.vaDailyValue.toFixed(2)}
+                                    <div className="space-y-3 bg-amber-50/40 border border-amber-100 p-3.5 rounded-2xl">
+                                        <div className="grid grid-cols-2 gap-3.5">
+                                            {selectedItemForPayment.vtOptIn && (
+                                                <div className="space-y-1">
+                                                    <Label className="font-bold text-slate-700 text-[10px] uppercase tracking-wider">Dias VT a Comprar</Label>
+                                                    <Input
+                                                        type="number"
+                                                        min={1}
+                                                        max={31}
+                                                        value={customDaysVt}
+                                                        onChange={e => setCustomDaysVt(parseInt(e.target.value) || 1)}
+                                                        className="h-8 text-xs font-bold rounded-lg border-slate-200 bg-white"
+                                                    />
+                                                    <div className="text-[9px] text-slate-405 font-medium leading-tight">
+                                                        Diário VT: R$ {selectedItemForPayment.vtDailyValue.toFixed(2)} {selectedItemForPayment.vtDailyValue2 > 0 && `+ R$ ${selectedItemForPayment.vtDailyValue2.toFixed(2)}`}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <div className="space-y-1 col-start-2">
+                                                <Label className="font-bold text-slate-700 text-[10px] uppercase tracking-wider">Dias VA a Comprar</Label>
+                                                <Input
+                                                    type="number"
+                                                    min={1}
+                                                    max={31}
+                                                    value={customDaysVa}
+                                                    onChange={e => setCustomDaysVa(parseInt(e.target.value) || 1)}
+                                                    className="h-8 text-xs font-bold rounded-lg border-slate-200 bg-white"
+                                                />
+                                                <div className="text-[9px] text-slate-405 font-medium leading-tight">
+                                                    Diário VA: R$ {selectedItemForPayment.vaDailyValue.toFixed(2)}
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -2029,8 +2052,8 @@ export default function BenefitsPage() {
                                             <div className="flex justify-between text-[10px] text-indigo-700/90 font-medium">
                                                 <span>
                                                     {isFractionedPayment 
-                                                        ? `${customDays} dias de compra`
-                                                        : `Base: R$ {selectedItemForPayment.vtBaseValue.toFixed(2)} | Faltas: -R$ {selectedItemForPayment.vtDeductionValue.toFixed(2)} (${selectedItemForPayment.vtOccurrencesDeducted}d)`
+                                                        ? `${customDaysVt} dias de compra`
+                                                        : `Base: R$ ${selectedItemForPayment.vtBaseValue.toFixed(2)} | Faltas: -R$ ${selectedItemForPayment.vtDeductionValue.toFixed(2)} (${selectedItemForPayment.vtOccurrencesDeducted}d)`
                                                     }
                                                 </span>
                                                 <span>Destino: {selectedItemForPayment.vtDestination}</span>
@@ -2046,8 +2069,8 @@ export default function BenefitsPage() {
                                         <div className="flex justify-between text-[10px] text-orange-700/90 font-medium">
                                             <span>
                                                 {isFractionedPayment 
-                                                    ? `${customDays} dias de compra`
-                                                    : `Base: R$ {selectedItemForPayment.vaBaseValue.toFixed(2)} | Faltas: -R$ {selectedItemForPayment.vaDeductionValue.toFixed(2)} (${selectedItemForPayment.vaOccurrencesDeducted}d)`
+                                                    ? `${customDaysVa} dias de compra`
+                                                    : `Base: R$ ${selectedItemForPayment.vaBaseValue.toFixed(2)} | Faltas: -R$ ${selectedItemForPayment.vaDeductionValue.toFixed(2)} (${selectedItemForPayment.vaOccurrencesDeducted}d)`
                                                 }
                                             </span>
                                             <span>Destino: {selectedItemForPayment.vaDestination}</span>
