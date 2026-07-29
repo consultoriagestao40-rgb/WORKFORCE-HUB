@@ -474,8 +474,15 @@ export async function getBenefitsCalculation(year: number, month: number) {
 
         const isNewHire = (admissionMonth === month && admissionYear === year);
 
-        // Deductions count & list from 26-25 window
-        const occurrencesList: BenefitOccurrenceDetail[] = (emp.occurrences || []).map(occ => ({
+        // Deductions count & list from 26-25 window (only on/after admission date)
+        const filteredOccurrences = (emp.occurrences || []).filter(occ => {
+            const occurrenceDate = new Date(occ.date);
+            const occurrenceDay = new Date(occurrenceDate.getFullYear(), occurrenceDate.getMonth(), occurrenceDate.getDate());
+            const admissionDay = new Date(admissionDateObj.getFullYear(), admissionDateObj.getMonth(), admissionDateObj.getDate());
+            return occurrenceDay >= admissionDay;
+        });
+
+        const occurrencesList: BenefitOccurrenceDetail[] = filteredOccurrences.map(occ => ({
             id: occ.id,
             date: new Date(occ.date).toLocaleDateString('pt-BR'),
             type: occ.type === "FALTA_INJUSTIFICADA" ? "Falta Injustificada" : (occ.type === "ATESTADO" ? "Atestado Médico" : "Falta"),

@@ -194,8 +194,16 @@ export async function getPayrollPreview(year: number, month: number) {
 
         const totalGrossSalaryBase = baseSalary + insalubridade + periculosidade + gratificacao + outrosAdicionais;
 
+        // Filter occurrences to only include dates on or after the employee's admission date
+        const filteredOccurrences = (emp.occurrences || []).filter(occ => {
+            const occurrenceDate = new Date(occ.date);
+            const occurrenceDay = new Date(occurrenceDate.getFullYear(), occurrenceDate.getMonth(), occurrenceDate.getDate());
+            const admissionDay = new Date(admissionDateObj.getFullYear(), admissionDateObj.getMonth(), admissionDateObj.getDate());
+            return occurrenceDay >= admissionDay;
+        });
+
         // Occurrences list & count in payroll window
-        const occurrencesList = (emp.occurrences || []).map(occ => ({
+        const occurrencesList = filteredOccurrences.map(occ => ({
             id: occ.id,
             date: new Date(occ.date).toLocaleDateString('pt-BR'),
             type: occ.type === "ATESTADO" ? "Atestado Médico" : (occ.type === "FALTA_INJUSTIFICADA" ? "Falta Injustificada" : "Falta"),
@@ -206,7 +214,7 @@ export async function getPayrollPreview(year: number, month: number) {
         const atestadosCount = occurrencesList.filter(o => o.rawType === "ATESTADO").length;
 
         // DSR Deduction: count of unique weeks with at least one FALTA / FALTA_INJUSTIFICADA
-        const faltaDates = emp.occurrences
+        const faltaDates = filteredOccurrences
             .filter(occ => occ.type === "FALTA" || occ.type === "FALTA_INJUSTIFICADA")
             .map(occ => new Date(occ.date));
         const dsrDeductionsCount = getUniqueWeeksCount(faltaDates);
