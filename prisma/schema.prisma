@@ -38,6 +38,7 @@ model User {
   phone                      String?
   supervisedMeasures         DisciplinaryMeasure[] @relation("DisciplinarySupervisor")
   createdMeasures            DisciplinaryMeasure[] @relation("DisciplinaryCreator")
+  epiDeliveries              EpiDelivery[]
 }
 
 model Log {
@@ -242,6 +243,7 @@ model Employee {
   coveredAttendances     Attendance[]        @relation("AttendanceCoveredBy")
   benefitPayments        BenefitsPayment[]
   extraFields            Json?
+  epiDeliveries          EpiDelivery[]
 }
 
 model BenefitsConfig {
@@ -869,6 +871,41 @@ model DisciplinaryMeasure {
   @@index([employeeId])
   @@index([supervisorId])
   @@index([createdById])
+}
+
+model EpiItem {
+  id               String        @id @default(uuid())
+  name             String
+  type             String        // "EPI" | "UNIFORME"
+  caNumber         String?       // CA - Certificado de Aprovação (only for EPI)
+  unit             String        @default("unidade") // "par", "peça", etc.
+  stockQuantity    Int           @default(0)
+  minStockQuantity Int           @default(0)
+  size             String?       // e.g. "M", "GG", "40", etc.
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  deliveries       EpiDelivery[]
+}
+
+model EpiDelivery {
+  id                   String      @id @default(uuid())
+  employeeId           String
+  employee             Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  epiItemId            String
+  epiItem              EpiItem     @relation(fields: [epiItemId], references: [id], onDelete: Cascade)
+  quantity             Int         @default(1)
+  deliveryDate         DateTime    @default(now())
+  merCode              Int         @default(1) // 1 to 5: Motivos para Entrega
+  recipientSignature   String?     // Optional base64 or status
+  deliveredById        String?
+  deliveredBy          User?       @relation(fields: [deliveredById], references: [id])
+  notes                String?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  @@index([employeeId])
+  @@index([epiItemId])
+  @@index([deliveredById])
 }
 
 
