@@ -14,7 +14,8 @@ import {
     AlertCircle,
     UserCheck,
     CheckCircle,
-    XCircle
+    XCircle,
+    Send
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,13 +48,15 @@ import {
     deleteEpiDelivery,
     updateEmployeeSizes,
     toggleDeliverySignature,
-    getAllDeliveries
+    getAllDeliveries,
+    sendEpiFichaToAutentique
 } from "@/actions/epi";
 
 interface EmployeeItem {
     id: string;
     name: string;
     cpf: string | null;
+    phone: string | null;
     admissionDate: Date | string | null;
     extraFields: any;
     company: { name: string } | null;
@@ -132,7 +135,9 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
     const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split("T")[0]);
     const [deliveryMer, setDeliveryMer] = useState("1");
     const [deliveryNotes, setDeliveryNotes] = useState("");
+    
     const [isSavingAll, setIsSavingAll] = useState(false);
+    const [sendingAutentique, setSendingAutentique] = useState(false);
 
     // Filter stock list
     const filteredStockItems = epiItems.filter(item => 
@@ -318,11 +323,38 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
     const handleToggleSignature = async (id: string) => {
         try {
             const updated = await toggleDeliverySignature(id);
-            // Update deliveries local state
             setDeliveries(prev => prev.map(d => d.id === id ? updated : d));
             toast.success("Status de assinatura atualizado com sucesso!");
         } catch (e: any) {
             toast.error(e.message || "Erro ao alternar status da assinatura.");
+        }
+    };
+
+    // Send EPI Ficha PDF to Autentique via WhatsApp
+    const handleSendToAutentique = async (empId: string) => {
+        setSendingAutentique(true);
+        try {
+            const res = await sendEpiFichaToAutentique(empId);
+            
+            if (!res.success) {
+                toast.error(res.error || "Erro ao disparar assinatura no WhatsApp.");
+                return;
+            }
+
+            // Reload all deliveries to update status badges
+            const fresh = await getAllDeliveries();
+            setDeliveries(fresh);
+
+            if (selectedEmployeeId === empId) {
+                const list = await getEmployeeEpiDeliveries(empId);
+                setSavedDeliveries(list);
+            }
+
+            toast.success(`Ficha enviada com sucesso! Link para assinar: ${res.shortLink}`);
+        } catch (e: any) {
+            toast.error(e.message || "Erro ao disparar assinatura no WhatsApp.");
+        } finally {
+            setSendingAutentique(false);
         }
     };
 
@@ -603,6 +635,8 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                                     ) : (
                                         filteredDeliveries.map(d => {
                                             const isSigned = d.recipientSignature === "ASSINADO";
+                                            const isSentAutentique = d.recipientSignature && d.recipientSignature.startsWith("ENVIADO_AUTENTIQUE_");
+                                            
                                             return (
                                                 <TableRow key={d.id} className="hover:bg-slate-50/40 text-xs">
                                                     <TableCell className="font-semibold text-slate-600">
@@ -628,12 +662,18 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                                                             className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-black transition-all ${
                                                                 isSigned 
                                                                     ? "bg-green-100 text-green-800 hover:bg-green-200" 
-                                                                    : "bg-red-100 text-red-800 hover:bg-red-200 animate-pulse"
+                                                                    : isSentAutentique
+                                                                        ? "bg-amber-100 text-amber-800 hover:bg-amber-200 animate-pulse"
+                                                                        : "bg-red-100 text-red-800 hover:bg-red-200"
                                                             }`}
                                                         >
                                                             {isSigned ? (
                                                                 <>
                                                                     <CheckCircle className="w-3 h-3 text-green-600" /> Assinado
+                                                                </>
+                                                            ) : isSentAutentique ? (
+                                                                <>
+                                                                    <AlertCircle className="w-3 h-3 text-amber-600" /> Enviado WhatsApp
                                                                 </>
                                                             ) : (
                                                                 <>
@@ -644,6 +684,20 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                                                     </TableCell>
                                                     <TableCell className="text-right">
                                                         <div className="flex justify-end gap-1">
+                                                            {/* Send to Autentique quick button */}
+                                                            {(!isSigned) && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => handleSendToAutentique(d.employeeId)}
+                                                                    disabled={sendingAutentique}
+                                                                    className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-850 hover:bg-emerald-50 rounded-lg border-slate-200"
+                                                                    title="Enviar Ficha Completa para o WhatsApp (Assinatura Digital)"
+                                                                >
+                                                                    <Send className="w-3.5 h-3.5" />
+                                                                </Button>
+                                                            )}
                                                             <Button
                                                                 type="button"
                                                                 variant="outline"
@@ -762,12 +816,17 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                                     <div><strong>Nome do Trabalhador:</strong> <span className="text-slate-800 font-bold">{selectedEmployee?.name}</span></div>
                                     <div><strong>CPF:</strong> <span className="text-slate-800 font-bold">{selectedEmployee?.cpf}</span></div>
                                     <div><strong>Função (Cargo):</strong> <span className="text-slate-800 font-bold">{selectedEmployee?.role?.name || selectedEmployee?.assignments?.[0]?.posto?.role?.name || "Sem Cargo"}</span></div>
-                                    <div className="col-span-4 mt-1 border-t border-slate-200/50 pt-2">
-                                        <strong>Data de Admissão:</strong> <span className="text-slate-800 font-bold">{selectedEmployee?.admissionDate 
-                                            ? new Date(selectedEmployee.admissionDate).getUTCDate().toString().padStart(2, '0') + '/' + 
-                                              (new Date(selectedEmployee.admissionDate).getUTCMonth() + 1).toString().padStart(2, '0') + '/' + 
-                                              new Date(selectedEmployee.admissionDate).getUTCFullYear()
-                                            : "-"}</span>
+                                    <div className="col-span-4 mt-1 border-t border-slate-200/50 pt-2 flex justify-between items-center">
+                                        <div>
+                                            <strong>Data de Admissão:</strong> <span className="text-slate-800 font-bold">{selectedEmployee?.admissionDate 
+                                                ? new Date(selectedEmployee.admissionDate).getUTCDate().toString().padStart(2, '0') + '/' + 
+                                                  (new Date(selectedEmployee.admissionDate).getUTCMonth() + 1).toString().padStart(2, '0') + '/' + 
+                                                  new Date(selectedEmployee.admissionDate).getUTCFullYear()
+                                                : "-"}</span>
+                                        </div>
+                                        <div className="text-[11px]">
+                                            <strong>Celular/WhatsApp:</strong> <span className="text-slate-800 font-black">{selectedEmployee?.phone || selectedEmployee?.extraFields?.celularWhatsApp || selectedEmployee?.extraFields?.telefone || selectedEmployee?.extraFields?.phone || "Não cadastrado"}</span>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -956,34 +1015,48 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                                                             </TableCell>
                                                         </TableRow>
                                                     ) : (
-                                                        savedDeliveries.map(d => (
-                                                            <TableRow key={d.id} className="hover:bg-slate-50/40 text-xs">
-                                                                <TableCell className="font-semibold text-slate-600">
-                                                                    {new Date(d.deliveryDate).getUTCDate().toString().padStart(2, '0') + '/' + 
-                                                                      (new Date(d.deliveryDate).getUTCMonth() + 1).toString().padStart(2, '0') + '/' + 
-                                                                      new Date(d.deliveryDate).getUTCFullYear()}
-                                                                </TableCell>
-                                                                <TableCell className="font-bold text-slate-800">
-                                                                    {d.epiItem.name} {d.epiItem.size ? `(${d.epiItem.size})` : ""}
-                                                                </TableCell>
-                                                                <TableCell className="font-semibold text-slate-600">{d.epiItem.caNumber || "-"}</TableCell>
-                                                                <TableCell className="font-black text-center text-slate-800">{d.quantity}</TableCell>
-                                                                <TableCell className="text-slate-400">{d.epiItem.unit}</TableCell>
-                                                                <TableCell className="font-medium">Cód. {d.merCode}</TableCell>
-                                                                <TableCell className="text-slate-500">{d.deliveredBy?.name || "Mesa"}</TableCell>
-                                                                <TableCell className="text-right">
-                                                                    <Button
-                                                                        type="button"
-                                                                        size="icon"
-                                                                        variant="ghost"
-                                                                        onClick={() => handleDeleteSavedDelivery(d.id)}
-                                                                        className="h-7 w-7 text-slate-400 hover:text-red-500 rounded-lg"
-                                                                    >
-                                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                                    </Button>
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        ))
+                                                        savedDeliveries.map(d => {
+                                                            const isSigned = d.recipientSignature === "ASSINADO";
+                                                            const isSentAutentique = d.recipientSignature && d.recipientSignature.startsWith("ENVIADO_AUTENTIQUE_");
+                                                            
+                                                            return (
+                                                                <TableRow key={d.id} className="hover:bg-slate-50/40 text-xs">
+                                                                    <TableCell className="font-semibold text-slate-600">
+                                                                        {new Date(d.deliveryDate).getUTCDate().toString().padStart(2, '0') + '/' + 
+                                                                          (new Date(d.deliveryDate).getUTCMonth() + 1).toString().padStart(2, '0') + '/' + 
+                                                                          new Date(d.deliveryDate).getUTCFullYear()}
+                                                                    </TableCell>
+                                                                    <TableCell className="font-bold text-slate-800">
+                                                                        {d.epiItem.name} {d.epiItem.size ? `(${d.epiItem.size})` : ""}
+                                                                    </TableCell>
+                                                                    <TableCell className="font-semibold text-slate-600">{d.epiItem.caNumber || "-"}</TableCell>
+                                                                    <TableCell className="font-black text-center text-slate-800">{d.quantity}</TableCell>
+                                                                    <TableCell className="text-slate-400">{d.epiItem.unit}</TableCell>
+                                                                    <TableCell className="font-medium">Cód. {d.merCode}</TableCell>
+                                                                    <TableCell className="text-slate-500">
+                                                                        {d.deliveredBy?.name || "Mesa"}
+                                                                        {isSigned ? (
+                                                                            <span className="ml-1 text-[8px] font-bold text-green-700 bg-green-50 px-1 rounded">Assinado</span>
+                                                                        ) : isSentAutentique ? (
+                                                                            <span className="ml-1 text-[8px] font-bold text-amber-700 bg-amber-50 px-1 rounded">Enviado</span>
+                                                                        ) : (
+                                                                            <span className="ml-1 text-[8px] font-bold text-red-700 bg-red-50 px-1 rounded">Pendente</span>
+                                                                        )}
+                                                                    </TableCell>
+                                                                    <TableCell className="text-right">
+                                                                        <Button
+                                                                            type="button"
+                                                                            size="icon"
+                                                                            variant="ghost"
+                                                                            onClick={() => handleDeleteSavedDelivery(d.id)}
+                                                                            className="h-7 w-7 text-slate-400 hover:text-red-500 rounded-lg"
+                                                                        >
+                                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                                        </Button>
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            );
+                                                        })
                                                     )}
                                                 </TableBody>
                                             </Table>
@@ -997,14 +1070,24 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                     <DialogFooter className="border-t pt-4 mt-6 flex flex-col sm:flex-row justify-between items-center gap-4 print:hidden">
                         <div className="flex gap-2 w-full sm:w-auto">
                             {selectedEmployeeId && (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => window.open(`/admin/epi/print/${selectedEmployeeId}`, "_blank")}
-                                    className="border-slate-200 hover:bg-slate-50 font-bold h-10 text-xs gap-1.5 flex-1 sm:flex-initial"
-                                >
-                                    <Printer className="w-4 h-4 text-slate-500" /> Gerar Ficha / Imprimir
-                                </Button>
+                                <>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => window.open(`/admin/epi/print/${selectedEmployeeId}`, "_blank")}
+                                        className="border-slate-200 hover:bg-slate-50 font-bold h-10 text-xs gap-1.5 flex-1 sm:flex-initial"
+                                    >
+                                        <Printer className="w-4 h-4 text-slate-500" /> Gerar Ficha / Imprimir
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        onClick={() => handleSendToAutentique(selectedEmployeeId)}
+                                        disabled={sendingAutentique || savedDeliveries.length === 0}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 text-xs gap-1.5 flex-1 sm:flex-initial"
+                                    >
+                                        <Send className="w-4 h-4" /> Enviar p/ Assinatura (WhatsApp)
+                                    </Button>
+                                </>
                             )}
                         </div>
                         <div className="flex gap-2 w-full sm:w-auto justify-end">

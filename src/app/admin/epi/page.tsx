@@ -18,6 +18,7 @@ export default async function EpiPage() {
                 id: true,
                 name: true,
                 cpf: true,
+                phone: true,
                 admissionDate: true,
                 extraFields: true,
                 company: {
