@@ -529,6 +529,17 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                                 </div>
                             </div>
 
+                            <div className="grid grid-cols-2 gap-4 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
+                                <div className="space-y-1">
+                                    <Label className="font-bold text-slate-800">WhatsApp / Celular (Contato)</Label>
+                                    <Input name="phone" defaultValue={employee.phone || ""} placeholder="Ex: (41) 99999-9999 (Obrigatório para Assinatura Autentique)" className="h-9 rounded-xl border-slate-200 bg-white" />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="font-bold text-slate-700">Email Pessoal</Label>
+                                    <Input name="email" type="email" defaultValue={employee.email || ""} placeholder="email@exemplo.com" className="h-9 rounded-xl border-slate-200 bg-white" />
+                                </div>
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <Label className="font-bold text-slate-700">Gênero</Label>
@@ -608,16 +619,6 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                             <div className="space-y-1">
                                 <Label className="font-bold text-slate-700">Endereço Completo</Label>
                                 <Input name="address" defaultValue={employee.address || ""} placeholder="Rua, Número, Bairro, Cidade - UF" className="h-9 rounded-xl border-slate-200" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Telefone / Celular</Label>
-                                    <Input name="phone" defaultValue={employee.phone || ""} placeholder="(00) 00000-0000" className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Email Pessoal</Label>
-                                    <Input name="email" type="email" defaultValue={employee.email || ""} placeholder="email@exemplo.com" className="h-9 rounded-xl border-slate-200" />
-                                </div>
                             </div>
                         </div>
                     </details>
