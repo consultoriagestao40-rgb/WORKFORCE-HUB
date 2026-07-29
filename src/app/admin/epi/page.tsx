@@ -11,7 +11,7 @@ export default async function EpiPage() {
         redirect('/admin');
     }
 
-    const [employees, epiItems] = await Promise.all([
+    const [employees, epiItems, allDeliveries] = await Promise.all([
         prisma.employee.findMany({
             where: { status: "Ativo" },
             select: {
@@ -21,6 +21,11 @@ export default async function EpiPage() {
                 admissionDate: true,
                 extraFields: true,
                 company: {
+                    select: {
+                        name: true
+                    }
+                },
+                role: {
                     select: {
                         name: true
                     }
@@ -40,6 +45,21 @@ export default async function EpiPage() {
         }),
         prisma.epiItem.findMany({
             orderBy: { name: "asc" }
+        }),
+        prisma.epiDelivery.findMany({
+            include: {
+                epiItem: true,
+                employee: {
+                    select: {
+                        name: true,
+                        cpf: true,
+                        company: { select: { name: true } },
+                        role: { select: { name: true } }
+                    }
+                },
+                deliveredBy: { select: { name: true } }
+            },
+            orderBy: { deliveryDate: "desc" }
         })
     ]);
 
@@ -50,7 +70,11 @@ export default async function EpiPage() {
                 <p className="text-slate-500 font-medium mt-1">Gerencie a entrega de equipamentos de proteção individual e vestuários de trabalho</p>
             </div>
             
-            <EpiDashboard initialEmployees={employees} initialEpiItems={epiItems} />
+            <EpiDashboard 
+                initialEmployees={employees} 
+                initialEpiItems={epiItems} 
+                initialDeliveries={allDeliveries} 
+            />
         </div>
     );
 }

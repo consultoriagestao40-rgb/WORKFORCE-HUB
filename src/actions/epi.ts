@@ -278,3 +278,64 @@ export async function updateEmployeeSizes(employeeId: string, sizes: { camiseta?
         throw new Error("Erro ao salvar tamanhos do colaborador.");
     }
 }
+
+export async function toggleDeliverySignature(id: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Não autorizado.");
+
+        const delivery = await prisma.epiDelivery.findUnique({
+            where: { id }
+        });
+
+        if (!delivery) throw new Error("Lançamento não encontrado.");
+
+        const currentSig = delivery.recipientSignature;
+        const newSig = currentSig === "ASSINADO" ? "PENDENTE" : "ASSINADO";
+
+        const updated = await prisma.epiDelivery.update({
+            where: { id },
+            data: { recipientSignature: newSig },
+            include: {
+                epiItem: true,
+                employee: {
+                    select: {
+                        name: true,
+                        cpf: true,
+                        company: { select: { name: true } },
+                        role: { select: { name: true } }
+                    }
+                },
+                deliveredBy: { select: { name: true } }
+            }
+        });
+
+        return updated;
+    } catch (e: any) {
+        console.error("Error toggling delivery signature:", e);
+        throw new Error(e.message || "Erro ao alternar assinatura da entrega.");
+    }
+}
+
+export async function getAllDeliveries() {
+    try {
+        return await prisma.epiDelivery.findMany({
+            include: {
+                epiItem: true,
+                employee: {
+                    select: {
+                        name: true,
+                        cpf: true,
+                        company: { select: { name: true } },
+                        role: { select: { name: true } }
+                    }
+                },
+                deliveredBy: { select: { name: true } }
+            },
+            orderBy: { deliveryDate: "desc" }
+        });
+    } catch (e: any) {
+        console.error("Error fetching all deliveries:", e);
+        throw new Error("Erro ao recarregar lançamentos.");
+    }
+}
