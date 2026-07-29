@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Users, Building, ClipboardList, LayoutDashboard, History, Clock, Calendar, Building2, ShieldAlert, Briefcase, DollarSign, LogOut, Inbox, AlertCircle, BarChart, UserPlus, Landmark, CreditCard, Calculator } from "lucide-react";
+import { Users, Building, ClipboardList, LayoutDashboard, History, Clock, Calendar, Building2, ShieldAlert, Briefcase, DollarSign, LogOut, Inbox, AlertCircle, BarChart, UserPlus, Landmark, CreditCard, Calculator, Scale } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -84,6 +84,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
                 <SectionHeader title="Operação" />
 
                 <NavLink href="/admin/operations" icon={Clock} label="Mesa de Operações" colorClass="text-indigo-400" />
+                <NavLink href="/admin/disciplinary" icon={Scale} label="Gestão de Medidas" colorClass="text-rose-500" />
                 <NavLink href="/admin/requests" icon={Inbox} label="Central de Solicitações" colorClass="text-orange-400" />
                 <NavLink href="/admin/occurrences" icon={AlertCircle} label="Livro de Ocorrências" colorClass="text-red-400" />
                 <NavLink href="/admin/roster" icon={Calendar} label="Escalas" />

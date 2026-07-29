@@ -5,13 +5,15 @@ export function middleware(request: NextRequest) {
     const sessionCookie = request.cookies.get("auth_session");
     const { pathname } = request.nextUrl;
 
-    // Public Assets, Login & Candidate Application Form
+    // Public Assets, Login, Candidate Form & Disciplinary Measures Public Forms
     if (
         pathname.startsWith("/_next") ||
         pathname.startsWith("/static") ||
         pathname.includes(".") ||
         pathname === "/login" ||
-        pathname.startsWith("/candidatar")
+        pathname.startsWith("/candidatar") ||
+        pathname.startsWith("/disciplinary-upload") ||
+        pathname.startsWith("/disciplinary-print")
     ) {
         if (pathname === "/login" && sessionCookie) {
             try {
