@@ -40,6 +40,7 @@ const wizardTabs = [
     
     { step: 2, tab: "ctps", label: "Carteira de Trabalho" },
     { step: 2, tab: "fgts", label: "FGTS" },
+    { step: 2, tab: "pagamento", label: "Pagamento" },
     { step: 2, tab: "conselhos", label: "Conselhos" },
     
     { step: 3, tab: "dados_pessoais", label: "Dados Pessoais" },
@@ -254,6 +255,8 @@ export function EmployeeOnvioWizard({
     const [conselhoUf, setConselhoUf] = useState("");
     const [conselhoValidade, setConselhoValidade] = useState("");
     const [chavePix, setChavePix] = useState("");
+    const [formaPagamento, setFormaPagamento] = useState("PIX");
+    const [tipoChavePix, setTipoChavePix] = useState("");
 
     const [estadoCivil, setEstadoCivil] = useState("");
     const [grauInstrucao, setGrauInstrucao] = useState("");
@@ -517,6 +520,8 @@ export function EmployeeOnvioWizard({
             setReservistaNumero(extra.reservistaNumero || "");
             setReservistaCategoria(extra.reservistaCategoria || "");
             setChavePix(extra.chavePix || "");
+            setFormaPagamento(extra.formaPagamento || "PIX");
+            setTipoChavePix(extra.tipoChavePix || "");
 
             setDependentes(extra.dependentes || []);
             setObservacoes(extra.observacoes || "");
@@ -652,6 +657,8 @@ export function EmployeeOnvioWizard({
         reservistaNumero,
         reservistaCategoria,
         chavePix,
+        formaPagamento,
+        tipoChavePix,
         dependentes,
         observacoes,
         attachments
@@ -2023,8 +2030,42 @@ export function EmployeeOnvioWizard({
                                     <Label htmlFor="fgtsBanco">Banco Depositário</Label>
                                     <Input id="fgtsBanco" value={fgtsBanco} onChange={e => setFgtsBanco(e.target.value)} placeholder="Ex: Caixa Econômica Federal" />
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Tab: Pagamento */}
+                        {currentTab === "pagamento" && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <Label htmlFor="formaPagamento">Forma de Pagamento</Label>
+                                    <Select value={formaPagamento} onValueChange={setFormaPagamento}>
+                                        <SelectTrigger id="formaPagamento">
+                                            <SelectValue placeholder="Selecione a forma" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
+                                            <SelectItem value="CHEQUE">Cheque</SelectItem>
+                                            <SelectItem value="CREDITO_CONTA">Crédito em Conta</SelectItem>
+                                            <SelectItem value="PIX">PIX</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="tipoChavePix">Tipo de Chave PIX</Label>
+                                    <Select value={tipoChavePix} onValueChange={setTipoChavePix}>
+                                        <SelectTrigger id="tipoChavePix">
+                                            <SelectValue placeholder="Selecione o tipo" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="CPF">CPF</SelectItem>
+                                            <SelectItem value="CELULAR">Celular</SelectItem>
+                                            <SelectItem value="EMAIL">E-mail</SelectItem>
+                                            <SelectItem value="CHAVE_ALEATORIA">Chave Aleatória</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                                 <div className="space-y-1 col-span-2">
-                                    <Label htmlFor="chavePix">Chave PIX (Para pagamento de benefícios fracionados)</Label>
+                                    <Label htmlFor="chavePix">Chave PIX</Label>
                                     <Input id="chavePix" value={chavePix} onChange={e => setChavePix(e.target.value)} placeholder="Ex: CPF, Telefone, E-mail ou Chave Aleatória" />
                                 </div>
                             </div>

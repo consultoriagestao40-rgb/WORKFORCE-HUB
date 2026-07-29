@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { getBenefitsConfig } from "@/actions/benefits";
 import { SecullumApiClient } from "@/lib/secullum";
+import { generateRoster } from "@/lib/scheduling";
 
 // Helper: Format Date to YYYY-MM-DD
 function formatDateToISO(date: Date): string {
@@ -138,7 +139,18 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
 
         // B. Fetch active DB employees and build a lookup map: cleanedCpf -> employeeId
         const dbEmployees = await prisma.employee.findMany({
-            select: { id: true, cpf: true, name: true }
+            select: { 
+                id: true, 
+                cpf: true, 
+                name: true,
+                admissionDate: true,
+                assignments: {
+                    where: { endDate: null },
+                    include: {
+                        posto: true
+                    }
+                }
+            }
         });
         const cpfToEmployeeIdMap = new Map<string, string>();
         dbEmployees.forEach(emp => {
@@ -228,15 +240,6 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
             const rawObs = (b.Observacoes || "").toLowerCase();
             const rawEntrada = (b.Entrada1 || "").toLowerCase();
             
-            const isAtestado = /at\.?\s*med/i.test(rawEntrada) || /at\.?\s*med/i.test(rawObs) ||
-                               rawEntrada.includes("atestado") || rawEntrada.includes("medico") || rawEntrada.includes("médico") || rawEntrada.includes("atest") ||
-                               rawObs.includes("atestado") || rawObs.includes("medico") || rawObs.includes("médico") || rawObs.includes("atest");
-            
-            // Only count as Lack (Falta) if explicitly marked OR if it's a scheduled workday with no punches
-            const hasNoPunches = !b.Entrada1 && !b.Saida1 && !b.Entrada2 && !b.Saida2;
-            const isWorkday = b.Folga === false;
-            const isFalta = rawEntrada.includes("falta") || rawObs.includes("falta") || (hasNoPunches && isWorkday && !isAtestado);
-            
             const folha = b.Funcionario?.NumeroFolha?.trim();
             if (!folha) continue;
 
@@ -252,6 +255,29 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
             if (!employeeId) continue;
 
             const occDate = b.Data ? parseLocalDate(b.Data) : new Date();
+
+            // Roster/Schedule verification to determine work day vs rest day (folga)
+            const empDb = dbEmployees.find(e => e.id === employeeId);
+            const activeAssignment = empDb?.assignments?.[0];
+            const posto = activeAssignment?.posto;
+
+            let isLocalFolga = false;
+            if (posto && posto.schedule) {
+                const pivotDate = activeAssignment.startDate || empDb?.admissionDate || new Date();
+                const roster = generateRoster(posto.schedule, pivotDate, [occDate]);
+                if (roster.length > 0 && roster[0].status === "Folga") {
+                    isLocalFolga = true;
+                }
+            }
+
+            const isAtestado = /at\.?\s*med/i.test(rawEntrada) || /at\.?\s*med/i.test(rawObs) ||
+                               rawEntrada.includes("atestado") || rawEntrada.includes("medico") || rawEntrada.includes("médico") || rawEntrada.includes("atest") ||
+                               rawObs.includes("atestado") || rawObs.includes("medico") || rawObs.includes("médico") || rawObs.includes("atest");
+            
+            // Only count as Lack (Falta) if explicitly marked OR if it's a scheduled workday with no punches
+            const hasNoPunches = !b.Entrada1 && !b.Saida1 && !b.Entrada2 && !b.Saida2;
+            const isWorkday = b.Folga === false;
+            const isFalta = !isLocalFolga && (rawEntrada.includes("falta") || rawObs.includes("falta") || (hasNoPunches && isWorkday && !isAtestado));
             const startOfDay = new Date(occDate);
             startOfDay.setHours(0, 0, 0, 0);
             const endOfDay = new Date(occDate);

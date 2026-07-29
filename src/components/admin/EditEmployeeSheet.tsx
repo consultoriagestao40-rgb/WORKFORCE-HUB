@@ -326,6 +326,8 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
     const [reservistaNumero, setReservistaNumero] = useState(extra.reservistaNumero || "");
     const [reservistaCategoria, setReservistaCategoria] = useState(extra.reservistaCategoria || "");
     const [chavePix, setChavePix] = useState(extra.chavePix || "");
+    const [formaPagamento, setFormaPagamento] = useState(extra.formaPagamento || "PIX");
+    const [tipoChavePix, setTipoChavePix] = useState(extra.tipoChavePix || "");
 
     // File attachments handlers
     const handleUploadAttachment = async (rawFile: File, label: string) => {
@@ -454,6 +456,8 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
         reservistaNumero,
         reservistaCategoria,
         chavePix,
+        formaPagamento,
+        tipoChavePix,
         dependentes: dependents,
         attachments
     };
@@ -1381,8 +1385,38 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                             <div className="pt-2 border-t border-slate-100 font-bold text-slate-800 text-[11px] uppercase tracking-wider">
                                 Dados de Pagamento (PIX)
                             </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <Label className="font-bold text-slate-700">Forma de Pagamento</Label>
+                                    <Select value={formaPagamento} onValueChange={setFormaPagamento}>
+                                        <SelectTrigger className="h-9 rounded-xl border-slate-200">
+                                            <SelectValue placeholder="Selecione a forma" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
+                                            <SelectItem value="CHEQUE">Cheque</SelectItem>
+                                            <SelectItem value="CREDITO_CONTA">Crédito em Conta</SelectItem>
+                                            <SelectItem value="PIX">PIX</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="font-bold text-slate-700">Tipo de Chave PIX</Label>
+                                    <Select value={tipoChavePix} onValueChange={setTipoChavePix}>
+                                        <SelectTrigger className="h-9 rounded-xl border-slate-200">
+                                            <SelectValue placeholder="Selecione o tipo" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="CPF">CPF</SelectItem>
+                                            <SelectItem value="CELULAR">Celular</SelectItem>
+                                            <SelectItem value="EMAIL">E-mail</SelectItem>
+                                            <SelectItem value="CHAVE_ALEATORIA">Chave Aleatória</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
                             <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">Chave PIX (Para benefícios fracionados)</Label>
+                                <Label className="font-bold text-slate-700">Chave PIX</Label>
                                 <Input value={chavePix} onChange={e => setChavePix(e.target.value)} placeholder="Ex: CPF, Telefone, E-mail, ou Chave Aleatória" className="h-9 rounded-xl border-slate-200" />
                             </div>
 
