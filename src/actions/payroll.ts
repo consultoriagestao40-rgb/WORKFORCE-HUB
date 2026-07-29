@@ -170,10 +170,11 @@ export async function getPayrollPreview(year: number, month: number) {
         const clientName = posto?.client ? posto.client.name : "Interno";
         const postoName = posto ? (posto.role?.name || "Posto") : "Sem Posto";
 
-        // Pro-rata based on admission date
+        // Pro-rata based on admission date (using UTC to avoid timezone shifts)
         const admissionDateObj = new Date(emp.admissionDate);
-        const admissionYear = admissionDateObj.getFullYear();
-        const admissionMonth = admissionDateObj.getMonth() + 1;
+        const admissionYear = admissionDateObj.getUTCFullYear();
+        const admissionMonth = admissionDateObj.getUTCMonth() + 1;
+        const admissionDayVal = admissionDateObj.getUTCDate();
         const isAdmittedThisMonth = (admissionYear === year && admissionMonth === month);
 
         let daysWorked = totalDaysInMonth;
@@ -184,7 +185,7 @@ export async function getPayrollPreview(year: number, month: number) {
         let outrosAdicionais = emp.outrosAdicionais;
 
         if (isAdmittedThisMonth) {
-            daysWorked = totalDaysInMonth - admissionDateObj.getDate() + 1;
+            daysWorked = totalDaysInMonth - admissionDayVal + 1;
             baseSalary = Math.round(((emp.salary / totalDaysInMonth) * daysWorked) * 100) / 100;
             insalubridade = Math.round(((emp.insalubridade / totalDaysInMonth) * daysWorked) * 100) / 100;
             periculosidade = Math.round(((emp.periculosidade / totalDaysInMonth) * daysWorked) * 100) / 100;
@@ -194,22 +195,34 @@ export async function getPayrollPreview(year: number, month: number) {
 
         const totalGrossSalaryBase = baseSalary + insalubridade + periculosidade + gratificacao + outrosAdicionais;
 
-        // Filter occurrences to only include dates on or after the employee's admission date
+        // Filter occurrences to only include dates on or after the employee's admission date (using UTC)
         const filteredOccurrences = (emp.occurrences || []).filter(occ => {
             const occurrenceDate = new Date(occ.date);
-            const occurrenceDay = new Date(occurrenceDate.getFullYear(), occurrenceDate.getMonth(), occurrenceDate.getDate());
-            const admissionDay = new Date(admissionDateObj.getFullYear(), admissionDateObj.getMonth(), admissionDateObj.getDate());
+            const occurrenceDay = new Date(
+                occurrenceDate.getUTCFullYear(),
+                occurrenceDate.getUTCMonth(),
+                occurrenceDate.getUTCDate()
+            );
+            const admissionDay = new Date(
+                admissionDateObj.getUTCFullYear(),
+                admissionDateObj.getUTCMonth(),
+                admissionDateObj.getUTCDate()
+            );
             return occurrenceDay >= admissionDay;
         });
 
         // Occurrences list & count in payroll window
-        const occurrencesList = filteredOccurrences.map(occ => ({
-            id: occ.id,
-            date: new Date(occ.date).toLocaleDateString('pt-BR'),
-            type: occ.type === "ATESTADO" ? "Atestado Médico" : (occ.type === "FALTA_INJUSTIFICADA" ? "Falta Injustificada" : "Falta"),
-            notes: occ.description || occ.title || undefined,
-            rawType: occ.type
-        }));
+        const occurrencesList = filteredOccurrences.map(occ => {
+            const d = new Date(occ.date);
+            const dateStr = `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+            return {
+                id: occ.id,
+                date: dateStr,
+                type: occ.type === "ATESTADO" ? "Atestado Médico" : (occ.type === "FALTA_INJUSTIFICADA" ? "Falta Injustificada" : "Falta"),
+                notes: occ.description || occ.title || undefined,
+                rawType: occ.type
+            };
+        });
         const faltasCount = occurrencesList.filter(o => o.rawType === "FALTA" || o.rawType === "FALTA_INJUSTIFICADA").length;
         const atestadosCount = occurrencesList.filter(o => o.rawType === "ATESTADO").length;
 

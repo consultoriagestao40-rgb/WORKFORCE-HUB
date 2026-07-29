@@ -469,25 +469,37 @@ export async function getBenefitsCalculation(year: number, month: number) {
         const roleName = emp.role ? emp.role.name : "Cargo não informado";
 
         const admissionDateObj = new Date(emp.admissionDate);
-        const admissionMonth = admissionDateObj.getMonth() + 1;
-        const admissionYear = admissionDateObj.getFullYear();
+        const admissionMonth = admissionDateObj.getUTCMonth() + 1;
+        const admissionYear = admissionDateObj.getUTCFullYear();
 
         const isNewHire = (admissionMonth === month && admissionYear === year);
 
-        // Deductions count & list from 26-25 window (only on/after admission date)
+        // Deductions count & list from 26-25 window (only on/after admission date) (using UTC)
         const filteredOccurrences = (emp.occurrences || []).filter(occ => {
             const occurrenceDate = new Date(occ.date);
-            const occurrenceDay = new Date(occurrenceDate.getFullYear(), occurrenceDate.getMonth(), occurrenceDate.getDate());
-            const admissionDay = new Date(admissionDateObj.getFullYear(), admissionDateObj.getMonth(), admissionDateObj.getDate());
+            const occurrenceDay = new Date(
+                occurrenceDate.getUTCFullYear(),
+                occurrenceDate.getUTCMonth(),
+                occurrenceDate.getUTCDate()
+            );
+            const admissionDay = new Date(
+                admissionDateObj.getUTCFullYear(),
+                admissionDateObj.getUTCMonth(),
+                admissionDateObj.getUTCDate()
+            );
             return occurrenceDay >= admissionDay;
         });
 
-        const occurrencesList: BenefitOccurrenceDetail[] = filteredOccurrences.map(occ => ({
-            id: occ.id,
-            date: new Date(occ.date).toLocaleDateString('pt-BR'),
-            type: occ.type === "FALTA_INJUSTIFICADA" ? "Falta Injustificada" : (occ.type === "ATESTADO" ? "Atestado Médico" : "Falta"),
-            notes: occ.description || occ.title || undefined
-        }));
+        const occurrencesList: BenefitOccurrenceDetail[] = filteredOccurrences.map(occ => {
+            const d = new Date(occ.date);
+            const dateStr = `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+            return {
+                id: occ.id,
+                date: dateStr,
+                type: occ.type === "FALTA_INJUSTIFICADA" ? "Falta Injustificada" : (occ.type === "ATESTADO" ? "Atestado Médico" : "Falta"),
+                notes: occ.description || occ.title || undefined
+            };
+        });
 
         const occurrencesCount = occurrencesList.length;
 
