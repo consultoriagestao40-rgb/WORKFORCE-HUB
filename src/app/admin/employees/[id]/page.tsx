@@ -56,6 +56,10 @@ async function getEmployeeDetails(id: string) {
                 },
                 vacations: {
                     orderBy: { startDate: 'desc' }
+                },
+                disciplinaryMeasures: {
+                    include: { supervisor: true },
+                    orderBy: { createdAt: 'desc' }
                 }
             }
         }),

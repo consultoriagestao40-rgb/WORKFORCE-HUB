@@ -2102,6 +2102,7 @@ export async function createUser(formData: FormData) {
     const password = formData.get("password") as string;
     const role = formData.get("role") as any;
     const clientIds = formData.getAll("clientIds") as string[];
+    const phone = formData.get("phone") as string;
 
     const hashedPassword = await hashPassword(password);
 
@@ -2113,7 +2114,8 @@ export async function createUser(formData: FormData) {
             password: hashedPassword,
             role,
             isActive: true,
-            clientIds
+            clientIds,
+            phone
         }
     });
 
@@ -2131,13 +2133,15 @@ export async function updateUser(formData: FormData) {
     const isActive = formData.get("isActive") === "true";
     const password = formData.get("password") as string;
     const clientIds = formData.getAll("clientIds") as string[];
+    const phone = formData.get("phone") as string;
 
     const updateData: any = {
         name,
         email,
         role,
         isActive,
-        clientIds
+        clientIds,
+        phone
     };
 
     if (password && password.length > 0) {
@@ -3155,3 +3159,275 @@ export async function deleteAdministrativeMeasure(employeeId: string, measureId:
         return { error: e.message || "Erro ao remover medida administrativa." };
     }
 }
+
+// ==========================================
+// DISCIPLINARY MEASURES ACTIONS
+// ==========================================
+
+async function sendZapiMessage(phone: string, text: string) {
+    const instanceId = process.env.ZAPI_INSTANCE_ID;
+    const token = process.env.ZAPI_TOKEN;
+    if (!instanceId || !token) {
+        console.log("Z-API credentials missing. Skipping automatic message.");
+        return { success: false, error: "Z-API credentials not configured in environmental variables." };
+    }
+    try {
+        const cleanPhone = phone.replace(/\D/g, "");
+        const finalPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
+        const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/send-text`;
+        
+        console.log(`Sending Z-API message to ${finalPhone}...`);
+        const res = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                phone: finalPhone,
+                message: text
+            })
+        });
+        
+        if (!res.ok) {
+            const errText = await res.text();
+            console.error("Z-API send failed:", res.status, errText);
+            return { success: false, error: `Z-API returned status ${res.status}: ${errText}` };
+        }
+        
+        console.log("Z-API message sent successfully.");
+        return { success: true };
+    } catch (e: any) {
+        console.error("Z-API exception:", e.message);
+        return { success: false, error: e.message };
+    }
+}
+
+export async function createDisciplinaryMeasure(data: {
+    employeeId: string;
+    type: string;
+    occurrenceDate: string;
+    cltArticle: string;
+    description: string;
+    supervisorId: string;
+}) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
+
+        const employee = await prisma.employee.findUnique({
+            where: { id: data.employeeId }
+        });
+        if (!employee) throw new Error("Employee not found");
+
+        const supervisor = await prisma.user.findUnique({
+            where: { id: data.supervisorId }
+        });
+        if (!supervisor) throw new Error("Supervisor not found");
+
+        // Create db record
+        const measure = await prisma.disciplinaryMeasure.create({
+            data: {
+                employeeId: data.employeeId,
+                type: data.type,
+                occurrenceDate: new Date(data.occurrenceDate + "T12:00:00Z"),
+                cltArticle: data.cltArticle,
+                description: data.description,
+                status: "PENDENTE",
+                supervisorId: data.supervisorId,
+                createdById: user.id
+            }
+        });
+
+        // Trigger Z-API if supervisor has a phone number
+        let zapiResult = null;
+        if (supervisor.phone) {
+            const formattedDate = new Date(data.occurrenceDate + "T12:00:00Z").toLocaleDateString("pt-BR");
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://workforce-hub-henna.vercel.app";
+            const uploadLink = `${baseUrl}/disciplinary-upload/${measure.token}`;
+
+            const textMessage = `*⚠️ SOLICITAÇÃO DE MEDIDA DISCIPLINAR*\n\n` +
+                `Olá, *${supervisor.name}*!\n` +
+                `Você foi designado(a) como responsável por aplicar uma medida disciplinar para o seguinte colaborador:\n\n` +
+                `👤 *Colaborador:* ${employee.name}\n` +
+                `📅 *Data da Ocorrência:* ${formattedDate}\n` +
+                `⚖️ *Enquadramento (CLT):* ${data.cltArticle}\n` +
+                `📝 *Motivo:* ${data.description}\n\n` +
+                `*Instruções:*\n` +
+                `1. Acesse o link abaixo pelo celular ou computador.\n` +
+                `2. Visualize o documento oficial, imprima e colha a assinatura do colaborador.\n` +
+                `3. Tire uma foto nítida do documento assinado e envie de volta pelo mesmo link.\n\n` +
+                `🔗 *Link para aplicação e upload:*\n${uploadLink}\n\n` +
+                `_Aviso automático do Workforce Hub._`;
+
+            zapiResult = await sendZapiMessage(supervisor.phone, textMessage);
+        } else {
+            zapiResult = { success: false, error: "Supervisor sem telefone cadastrado no sistema." };
+        }
+
+        // Log it
+        await prisma.log.create({
+            data: {
+                action: "MEDIDA_DISCIPLINAR_CRIADA",
+                details: `Medida ${data.type} pendente com o supervisor ${supervisor.name} para o funcionário ${employee.name}.`,
+                employeeId: data.employeeId,
+                userId: user.id
+            }
+        });
+
+        revalidatePath("/admin/operations");
+        revalidatePath("/admin/disciplinary");
+        revalidatePath(`/admin/employees/${data.employeeId}`);
+
+        return { success: true, measure, zapi: zapiResult };
+    } catch (e: any) {
+        console.error("createDisciplinaryMeasure error:", e);
+        return { success: false, error: e.message || "Erro ao solicitar medida disciplinar." };
+    }
+}
+
+export async function resendDisciplinaryWhatsApp(measureId: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
+
+        const measure = await prisma.disciplinaryMeasure.findUnique({
+            where: { id: measureId },
+            include: { employee: true, supervisor: true }
+        });
+        if (!measure) throw new Error("Measure not found");
+        if (!measure.supervisor.phone) throw new Error("Supervisor sem telefone cadastrado.");
+
+        const formattedDate = new Date(measure.occurrenceDate).toLocaleDateString("pt-BR");
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://workforce-hub-henna.vercel.app";
+        const uploadLink = `${baseUrl}/disciplinary-upload/${measure.token}`;
+
+        const textMessage = `*⚠️ SOLICITAÇÃO DE MEDIDA DISCIPLINAR (REENVIO)*\n\n` +
+            `Olá, *${measure.supervisor.name}*!\n` +
+            `Estamos reenviando a solicitação de medida disciplinar pendente:\n\n` +
+            `👤 *Colaborador:* ${measure.employee.name}\n` +
+            `📅 *Data da Ocorrência:* ${formattedDate}\n` +
+            `⚖️ *Enquadramento (CLT):* ${measure.cltArticle || "Não especificado"}\n` +
+            `📝 *Motivo:* ${measure.description}\n\n` +
+            `🔗 *Link para aplicação e upload:*\n${uploadLink}\n\n` +
+            `_Aviso automático do Workforce Hub._`;
+
+        const zapiResult = await sendZapiMessage(measure.supervisor.phone, textMessage);
+        return zapiResult;
+    } catch (e: any) {
+        console.error("resendDisciplinaryWhatsApp error:", e);
+        return { success: false, error: e.message || "Erro ao reenviar WhatsApp." };
+    }
+}
+
+export async function completeDisciplinaryMeasure(token: string, data: { fileName: string; fileData: string }) {
+    try {
+        const measure = await prisma.disciplinaryMeasure.findUnique({
+            where: { token },
+            include: { employee: true }
+        });
+        if (!measure) throw new Error("Link inválido ou expirado.");
+
+        await prisma.disciplinaryMeasure.update({
+            where: { id: measure.id },
+            data: {
+                status: "CONCLUIDO",
+                attachmentName: data.fileName,
+                attachmentData: data.fileData,
+                completedAt: new Date()
+            }
+        });
+
+        // Log it
+        await prisma.log.create({
+            data: {
+                action: "MEDIDA_DISCIPLINAR_CONCLUIDA",
+                details: `Medida ${measure.type} concluída e assinada para o funcionário ${measure.employee.name}.`,
+                employeeId: measure.employeeId,
+                userId: measure.supervisorId // Encarregado que fez o upload
+            }
+        });
+
+        revalidatePath(`/admin/employees/${measure.employeeId}`);
+        revalidatePath("/admin/disciplinary");
+
+        return { success: true };
+    } catch (e: any) {
+        console.error("completeDisciplinaryMeasure error:", e);
+        return { success: false, error: e.message || "Erro ao concluir medida disciplinar." };
+    }
+}
+
+export async function createAdHocDisciplinaryMeasure(data: {
+    employeeId: string;
+    type: string;
+    occurrenceDate: string;
+    cltArticle: string;
+    description: string;
+    fileName: string;
+    fileData: string;
+}) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
+
+        const employee = await prisma.employee.findUnique({
+            where: { id: data.employeeId }
+        });
+        if (!employee) throw new Error("Employee not found");
+
+        const measure = await prisma.disciplinaryMeasure.create({
+            data: {
+                employeeId: data.employeeId,
+                type: data.type,
+                occurrenceDate: new Date(data.occurrenceDate + "T12:00:00Z"),
+                cltArticle: data.cltArticle,
+                description: data.description,
+                status: "CONCLUIDO",
+                attachmentName: data.fileName,
+                attachmentData: data.fileData,
+                supervisorId: user.id, // O próprio criador foi o encarregado
+                createdById: user.id,
+                completedAt: new Date()
+            }
+        });
+
+        // Log it
+        await prisma.log.create({
+            data: {
+                action: "MEDIDA_DISCIPLINAR_AVULSA",
+                details: `Medida avulsa ${data.type} anexada diretamente para o funcionário ${employee.name}.`,
+                employeeId: data.employeeId,
+                userId: user.id
+            }
+        });
+
+        revalidatePath(`/admin/employees/${data.employeeId}`);
+        revalidatePath("/admin/disciplinary");
+
+        return { success: true, measure };
+    } catch (e: any) {
+        console.error("createAdHocDisciplinaryMeasure error:", e);
+        return { success: false, error: e.message || "Erro ao lançar medida disciplinar avulsa." };
+    }
+}
+
+export async function deleteDisciplinaryMeasure(id: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
+
+        const measure = await prisma.disciplinaryMeasure.findUnique({ where: { id } });
+        if (!measure) throw new Error("Measure not found");
+
+        await prisma.disciplinaryMeasure.delete({ where: { id } });
+
+        revalidatePath(`/admin/employees/${measure.employeeId}`);
+        revalidatePath("/admin/disciplinary");
+
+        return { success: true };
+    } catch (e: any) {
+        console.error("deleteDisciplinaryMeasure error:", e);
+        return { success: false, error: e.message || "Erro ao excluir medida disciplinar." };
+    }
+}
+

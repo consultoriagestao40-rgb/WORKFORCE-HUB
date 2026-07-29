@@ -19,11 +19,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Combobox } from "@/components/ui/combobox";
 import {
     Calendar, ChevronLeft, ChevronRight, Search, UserCheck, UserX, 
-    AlertTriangle, Clock, Coins, Download, RefreshCw, Eye, Edit
+    AlertTriangle, Clock, Coins, Download, RefreshCw, Eye, Edit,
+    Scale, FileText
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar, PieChart, Pie, Cell, Legend } from "recharts";
 import { toast } from "sonner";
+import { createDisciplinaryMeasure } from "@/app/actions";
 
 interface Company {
     id: string;
@@ -118,6 +120,73 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
     const [loadingMotivos, setLoadingMotivos] = useState<boolean>(false);
     const [selectedMotivoId, setSelectedMotivoId] = useState<string>("");
     const [actionLoading, setActionLoading] = useState<boolean>(false);
+
+    // Dialog state for disciplinary measures
+    const [openDisciplinaryDialog, setOpenDisciplinaryDialog] = useState<boolean>(false);
+    const [disciplinaryType, setDisciplinaryType] = useState<string>("ADVERTENCIA");
+    const [disciplinaryCltArticle, setDisciplinaryCltArticle] = useState<string>("Artigo 482, alínea e - Desídia (Faltas/Atrasos)");
+    const [disciplinaryOccurrenceDate, setDisciplinaryOccurrenceDate] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
+    const [disciplinaryDescription, setDisciplinaryDescription] = useState<string>("");
+    const [disciplinarySupervisorId, setDisciplinarySupervisorId] = useState<string>("");
+    const [isSubmittingDisciplinary, setIsSubmittingDisciplinary] = useState<boolean>(false);
+    const [generatedDisciplinaryLink, setGeneratedDisciplinaryLink] = useState<string>("");
+    const [zapiStatus, setZapiStatus] = useState<{ success: boolean; error?: string } | null>(null);
+
+    const handleRequestDisciplinary = (item: AttendanceItem) => {
+        setSelectedItem(item);
+        setDisciplinaryType("ADVERTENCIA");
+        setDisciplinaryCltArticle("Artigo 482, alínea e - Desídia (Faltas/Atrasos)");
+        setDisciplinaryOccurrenceDate(date); // matches active table date
+        setDisciplinaryDescription(`O colaborador faltou injustificadamente ao posto no dia ${format(new Date(date + "T12:00:00Z"), "dd/MM/yyyy")}.`);
+        setDisciplinarySupervisorId(systemUsers[0]?.id || "");
+        setGeneratedDisciplinaryLink("");
+        setZapiStatus(null);
+        setOpenDisciplinaryDialog(true);
+    };
+
+    const handleSendDisciplinary = async () => {
+        if (!selectedItem?.employee?.id) {
+            toast.error("Funcionário não selecionado.");
+            return;
+        }
+        if (!disciplinarySupervisorId) {
+            toast.error("Por favor, selecione o supervisor responsável.");
+            return;
+        }
+        setIsSubmittingDisciplinary(true);
+        setZapiStatus(null);
+        try {
+            const res = await createDisciplinaryMeasure({
+                employeeId: selectedItem.employee.id,
+                type: disciplinaryType,
+                occurrenceDate: disciplinaryOccurrenceDate,
+                cltArticle: disciplinaryCltArticle,
+                description: disciplinaryDescription,
+                supervisorId: disciplinarySupervisorId
+            });
+
+            if (res.success && res.measure) {
+                toast.success("Medida disciplinar solicitada com sucesso!");
+                const baseUrl = window.location.origin;
+                setGeneratedDisciplinaryLink(`${baseUrl}/disciplinary-upload/${res.measure.token}`);
+                if (res.zapi) {
+                    setZapiStatus(res.zapi);
+                    if (res.zapi.success) {
+                        toast.success("Notificação enviada ao supervisor via WhatsApp!");
+                    } else {
+                        toast.error(`Falha no envio WhatsApp: ${res.zapi.error}`);
+                    }
+                }
+            } else {
+                toast.error(res.error || "Erro ao solicitar medida disciplinar.");
+            }
+        } catch (e: any) {
+            toast.error("Erro interno ao processar solicitação.");
+            console.error(e);
+        } finally {
+            setIsSubmittingDisciplinary(false);
+        }
+    };
 
     // Dialog state for viewing active metrics cards details
     const [openDetailsDialog, setOpenDetailsDialog] = useState<boolean>(false);
@@ -975,26 +1044,37 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 {item.employee ? (
-                                                    <a
-                                                        href={item.employee.phone ? getWhatsAppLink(item.employee.phone) : "#"}
-                                                        target={item.employee.phone ? "_blank" : undefined}
-                                                        rel="noopener noreferrer"
-                                                        onClick={(e) => {
-                                                            if (!item.employee?.phone) {
-                                                                e.preventDefault();
-                                                                toast.error("Colaborador sem número de telefone cadastrado.");
-                                                            }
-                                                        }}
-                                                        className={`inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-semibold transition-all ${
-                                                            item.employee.phone 
-                                                                ? "bg-[#e2f5e9] hover:bg-[#d0eed9] active:scale-95 shadow-sm" 
-                                                                : "bg-slate-100 cursor-not-allowed"
-                                                        }`}
-                                                        title={item.employee.phone ? `Falar com ${item.employee.name} no WhatsApp` : "Nenhum telefone cadastrado"}
-                                                    >
-                                                        <WhatsAppIcon className={`w-4 h-4 shrink-0 ${item.employee.phone ? "text-[#25d366]" : "text-slate-400"}`} />
-                                                        <span className={item.employee.phone ? "text-slate-800" : "text-slate-400"}>WhatsApp</span>
-                                                    </a>
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <a
+                                                            href={item.employee.phone ? getWhatsAppLink(item.employee.phone) : "#"}
+                                                            target={item.employee.phone ? "_blank" : undefined}
+                                                            rel="noopener noreferrer"
+                                                            onClick={(e) => {
+                                                                if (!item.employee?.phone) {
+                                                                    e.preventDefault();
+                                                                    toast.error("Colaborador sem número de telefone cadastrado.");
+                                                                }
+                                                            }}
+                                                            className={`inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-semibold transition-all ${
+                                                                item.employee.phone 
+                                                                    ? "bg-[#e2f5e9] hover:bg-[#d0eed9] active:scale-95 shadow-sm" 
+                                                                    : "bg-slate-100 cursor-not-allowed"
+                                                            }`}
+                                                            title={item.employee.phone ? `Falar com ${item.employee.name} no WhatsApp` : "Nenhum telefone cadastrado"}
+                                                        >
+                                                            <WhatsAppIcon className={`w-4 h-4 shrink-0 ${item.employee.phone ? "text-[#25d366]" : "text-slate-400"}`} />
+                                                            <span className={item.employee.phone ? "text-slate-800" : "text-slate-400"}>WhatsApp</span>
+                                                        </a>
+                                                        <Button
+                                                            size="icon"
+                                                            variant="outline"
+                                                            className="h-8 w-8 text-rose-600 border-rose-100 hover:bg-rose-50 rounded-full shrink-0"
+                                                            onClick={() => handleRequestDisciplinary(item)}
+                                                            title="Solicitar Medida Disciplinar"
+                                                        >
+                                                            <Scale className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
                                                 ) : (
                                                     <span className="text-slate-300">-</span>
                                                 )}
@@ -1738,6 +1818,181 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
                             Fechar
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Dialog for requesting Disciplinary Measure */}
+            <Dialog open={openDisciplinaryDialog} onOpenChange={setOpenDisciplinaryDialog}>
+                <DialogContent className="sm:max-w-[480px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-rose-600">
+                            <Scale className="w-5 h-5" />
+                            Solicitar Medida Disciplinar
+                        </DialogTitle>
+                        <DialogDescription>
+                            Gere uma advertência ou suspensão para o colaborador e notifique o supervisor.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {generatedDisciplinaryLink ? (
+                        <div className="space-y-4 py-2">
+                            <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3.5 space-y-2">
+                                <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wider">🎉 Solicitação Registrada!</h4>
+                                <p className="text-xs text-emerald-700">
+                                    A medida disciplinar foi salva como <strong>Pendente</strong> no perfil do colaborador.
+                                </p>
+                                {zapiStatus?.success ? (
+                                    <p className="text-xs text-emerald-700 font-semibold">
+                                        ✅ Notificação enviada automaticamente para o WhatsApp do supervisor!
+                                    </p>
+                                ) : zapiStatus ? (
+                                    <p className="text-xs text-amber-700 font-semibold">
+                                        ⚠️ Falha ao notificar via Z-API: {zapiStatus.error}. Envie o link manualmente abaixo.
+                                    </p>
+                                ) : null}
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Link de Upload do Supervisor</label>
+                                <div className="flex gap-2">
+                                    <Input 
+                                        readOnly 
+                                        value={generatedDisciplinaryLink} 
+                                        className="h-10 text-xs bg-slate-50 border-slate-200" 
+                                    />
+                                    <Button 
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(generatedDisciplinaryLink);
+                                            toast.success("Link copiado para a área de transferência!");
+                                        }}
+                                        className="bg-slate-800 hover:bg-slate-900 text-white font-bold h-10 px-3 shrink-0"
+                                    >
+                                        Copiar
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="pt-2 border-t flex justify-end gap-2">
+                                {selectedItem?.employee && (
+                                    <a
+                                        href={`https://wa.me/${selectedItem.employee.phone ? '55' + selectedItem.employee.phone.replace(/\D/g, '') : ''}?text=${encodeURIComponent(
+                                            `Olá! Aqui está o link para aplicação da medida disciplinar do colaborador ${selectedItem.employee.name}:\n\n${generatedDisciplinaryLink}`
+                                        )}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center justify-center gap-1.5 h-10 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors"
+                                    >
+                                        <WhatsAppIcon className="w-4 h-4 text-white" />
+                                        Enviar via WhatsApp Manual
+                                    </a>
+                                )}
+                                <Button 
+                                    variant="outline" 
+                                    onClick={() => setOpenDisciplinaryDialog(false)}
+                                    className="h-10 text-xs font-bold"
+                                >
+                                    Concluir
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-4 py-2">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Colaborador</label>
+                                    <Input 
+                                        readOnly 
+                                        value={selectedItem?.employee?.name || ""} 
+                                        className="h-10 text-xs bg-slate-50 border-slate-200 font-bold" 
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Tipo de Medida</label>
+                                    <select
+                                        value={disciplinaryType}
+                                        onChange={(e) => setDisciplinaryType(e.target.value)}
+                                        className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <option value="ADVERTENCIA">Advertência Escrita</option>
+                                        <option value="SUSPENSAO">Suspensão</option>
+                                        <option value="OUTRO">Outra Medida</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Data da Ocorrência</label>
+                                    <Input
+                                        type="date"
+                                        value={disciplinaryOccurrenceDate}
+                                        onChange={(e) => setDisciplinaryOccurrenceDate(e.target.value)}
+                                        className="h-10 text-xs border-slate-200"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Supervisor Responsável</label>
+                                    <select
+                                        value={disciplinarySupervisorId}
+                                        onChange={(e) => setDisciplinarySupervisorId(e.target.value)}
+                                        className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <option value="">Selecione um supervisor...</option>
+                                        {systemUsers.map((u) => (
+                                            <option key={u.id} value={u.id}>
+                                                {u.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Enquadramento Legal (CLT)</label>
+                                <select
+                                    value={disciplinaryCltArticle}
+                                    onChange={(e) => setDisciplinaryCltArticle(e.target.value)}
+                                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <option value="Artigo 482, alínea e - Desídia (Faltas/Atrasos)">Artigo 482, alínea e - Desídia (Faltas/Atrasos)</option>
+                                    <option value="Artigo 482, alínea h - Indisciplina ou Insubordinação">Artigo 482, alínea h - Indisciplina ou Insubordinação</option>
+                                    <option value="Artigo 482, alínea b - Mau procedimento ou Incontinência de conduta">Artigo 482, alínea b - Mau procedimento ou Incontinência de conduta</option>
+                                    <option value="Artigo 482, alínea a - Ato de improbidade">Artigo 482, alínea a - Ato de improbidade</option>
+                                    <option value="Artigo 482, alínea i - Abandono de emprego">Artigo 482, alínea i - Abandono de emprego</option>
+                                    <option value="Outro Artigo/Motivo administrativo">Outro Artigo/Motivo administrativo</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Descrição dos Fatos (Texto do Documento)</label>
+                                <textarea
+                                    value={disciplinaryDescription}
+                                    onChange={(e) => setDisciplinaryDescription(e.target.value)}
+                                    rows={4}
+                                    className="flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[80px]"
+                                    placeholder="Descreva detalhadamente o comportamento do colaborador..."
+                                />
+                            </div>
+
+                            <DialogFooter className="pt-2 border-t">
+                                <Button 
+                                    variant="outline" 
+                                    onClick={() => setOpenDisciplinaryDialog(false)}
+                                    className="h-10 text-xs font-bold"
+                                    disabled={isSubmittingDisciplinary}
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button 
+                                    onClick={handleSendDisciplinary}
+                                    className="bg-rose-600 hover:bg-rose-700 text-white font-bold h-10 text-xs gap-1.5"
+                                    disabled={isSubmittingDisciplinary}
+                                >
+                                    {isSubmittingDisciplinary ? "Processando..." : "Gerar e Enviar Medida"}
+                                </Button>
+                            </DialogFooter>
+                        </div>
+                    )}
                 </DialogContent>
             </Dialog>
         </div>

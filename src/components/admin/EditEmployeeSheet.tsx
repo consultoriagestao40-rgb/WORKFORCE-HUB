@@ -6,13 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
     Edit, Plus, Trash2, Download, UploadCloud, FileText, CheckCircle2, 
     User, Briefcase, CreditCard, ShieldAlert, Users, Paperclip, ChevronDown,
-    Pencil, X, Check, Loader2
+    Pencil, X, Check, Loader2, Scale
 } from "lucide-react";
-import { updateEmployee } from "@/app/actions";
+import { 
+    updateEmployee, 
+    createAdHocDisciplinaryMeasure, 
+    deleteDisciplinaryMeasure,
+    resendDisciplinaryWhatsApp
+} from "@/app/actions";
 import { VacationHistory } from "./VacationHistory";
 import { toast } from "sonner";
 
@@ -80,6 +86,98 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [status, setStatus] = useState(employee.status);
     const [situationId, setSituationId] = useState(employee.situationId || "");
+
+    // Ad-hoc Disciplinary Measures states
+    const [openAdHocDialog, setOpenAdHocDialog] = useState(false);
+    const [adHocType, setAdHocType] = useState("ADVERTENCIA");
+    const [adHocCltArticle, setAdHocCltArticle] = useState("Artigo 482, alínea e - Desídia (Faltas/Atrasos)");
+    const [adHocOccurrenceDate, setAdHocOccurrenceDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [adHocDescription, setAdHocDescription] = useState("");
+    const [adHocFile, setAdHocFile] = useState<File | null>(null);
+    const [adHocFileName, setAdHocFileName] = useState("");
+    const [adHocFileData, setAdHocFileData] = useState("");
+    const [isAnalyzingDoc, setIsAnalyzingDoc] = useState(false);
+    const [isSubmittingAdHoc, setIsSubmittingAdHoc] = useState(false);
+
+    const handleAdHocFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setAdHocFile(file);
+        setAdHocFileName(file.name);
+        
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+            setAdHocFileData(reader.result as string);
+        };
+
+        setIsAnalyzingDoc(true);
+        const toastId = toast.loading("Inteligência Artificial analisando o documento...");
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const response = await fetch("/api/extract-disciplinary", {
+                method: "POST",
+                body: formData
+            });
+
+            const result = await response.json();
+            if (result.success && result.data) {
+                toast.success("Documento analisado! Campos preenchidos automaticamente.", { id: toastId });
+                const extracted = result.data;
+                if (extracted.type) setAdHocType(extracted.type);
+                if (extracted.occurrenceDate) setAdHocOccurrenceDate(extracted.occurrenceDate);
+                if (extracted.cltArticle) setAdHocCltArticle(extracted.cltArticle);
+                if (extracted.description) setAdHocDescription(extracted.description);
+            } else {
+                toast.error(result.error || "A IA não conseguiu ler o documento, insira os dados manualmente.", { id: toastId });
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Erro ao conectar com a IA, insira os dados manualmente.", { id: toastId });
+        } finally {
+            setIsAnalyzingDoc(false);
+        }
+    };
+
+    const handleSaveAdHoc = async () => {
+        if (!adHocFileData) {
+            toast.error("Por favor, anexe o documento assinado.");
+            return;
+        }
+        setIsSubmittingAdHoc(true);
+        try {
+            const res = await createAdHocDisciplinaryMeasure({
+                employeeId: employee.id,
+                type: adHocType,
+                occurrenceDate: adHocOccurrenceDate,
+                cltArticle: adHocCltArticle,
+                description: adHocDescription,
+                fileName: adHocFileName,
+                fileData: adHocFileData
+            });
+
+            if (res.success) {
+                toast.success("Medida disciplinar registrada com sucesso!");
+                setOpenAdHocDialog(false);
+                setAdHocFile(null);
+                setAdHocFileName("");
+                setAdHocFileData("");
+                setAdHocDescription("");
+                setAdHocCltArticle("");
+                setOpen(false);
+            } else {
+                toast.error(res.error || "Erro ao salvar medida disciplinar.");
+            }
+        } catch (e: any) {
+            console.error(e);
+            toast.error("Erro interno ao salvar.");
+        } finally {
+            setIsSubmittingAdHoc(false);
+        }
+    };
 
     const extra = employee.extraFields || {};
 
@@ -1598,6 +1696,135 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                         </div>
                     </details>
 
+                    {/* SEÇÃO: MEDIDAS DISCIPLINARES */}
+                    <details className="group border border-slate-200 rounded-2xl p-4 bg-white shadow-sm open:shadow-md transition-all space-y-4">
+                        <summary className="font-bold text-slate-800 cursor-pointer select-none flex items-center justify-between list-none">
+                            <span className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-700">
+                                <ShieldAlert className="w-4 h-4 text-rose-500" /> Medidas Disciplinares ({(employee.disciplinaryMeasures || []).length})
+                            </span>
+                            <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
+                        </summary>
+                        <div className="pt-3 space-y-4">
+                            {/* Medida Direct Launch Button */}
+                            <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border">
+                                <span className="text-xs text-slate-500 font-bold">Lançar advertência avulsa direta (com leitura IA)</span>
+                                <Button 
+                                    type="button" 
+                                    size="sm" 
+                                    className="bg-rose-600 hover:bg-rose-700 text-white font-bold h-8 text-[10px]"
+                                    onClick={() => {
+                                        setAdHocType("ADVERTENCIA");
+                                        setAdHocCltArticle("Artigo 482, alínea e - Desídia (Faltas/Atrasos)");
+                                        setAdHocOccurrenceDate(new Date().toISOString().split('T')[0]);
+                                        setAdHocDescription("");
+                                        setAdHocFile(null);
+                                        setAdHocFileName("");
+                                        setAdHocFileData("");
+                                        setOpenAdHocDialog(true);
+                                    }}
+                                >
+                                    <Plus className="w-3.5 h-3.5 mr-1" /> Novo Lançamento
+                                </Button>
+                            </div>
+
+                            {(!employee.disciplinaryMeasures || employee.disciplinaryMeasures.length === 0) ? (
+                                <div className="text-center py-4 bg-slate-50 text-slate-400 font-bold border border-dashed rounded-xl text-xs">
+                                    Nenhuma medida disciplinar registrada.
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {employee.disciplinaryMeasures.map((measure: any) => {
+                                        const dateLabel = new Date(measure.occurrenceDate).toLocaleDateString("pt-BR");
+                                        const createdLabel = new Date(measure.createdAt).toLocaleDateString("pt-BR");
+                                        return (
+                                            <div key={measure.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col gap-2 text-left">
+                                                <div className="flex items-center justify-between">
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                                                        measure.type === "SUSPENSAO" 
+                                                            ? "bg-orange-50 text-orange-700 border-orange-200" 
+                                                            : "bg-rose-50 text-rose-700 border-rose-200"
+                                                    }`}>
+                                                        {measure.type === "SUSPENSAO" ? "Suspensão" : "Advertência"}
+                                                    </span>
+                                                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${
+                                                        measure.status === "CONCLUIDO" 
+                                                            ? "bg-emerald-50 text-emerald-700" 
+                                                            : "bg-amber-50 text-amber-700"
+                                                    }`}>
+                                                        {measure.status === "CONCLUIDO" ? "Assinado/Arquivado" : "Pendente"}
+                                                    </span>
+                                                </div>
+
+                                                <div className="text-xs text-slate-700 font-medium font-sans">
+                                                    <strong>Fato em:</strong> {dateLabel} <br/>
+                                                    {measure.cltArticle && <span><strong>Motivo CLT:</strong> {measure.cltArticle} <br/></span>}
+                                                    <strong>Descrição:</strong> <span className="italic">"{measure.description}"</span>
+                                                </div>
+
+                                                <div className="text-[10px] text-slate-400 border-t pt-2 mt-1 flex items-center justify-between font-sans">
+                                                    <span>Aplicador: {measure.supervisor?.name || "Administração"}</span>
+                                                    <span>Criado em: {createdLabel}</span>
+                                                </div>
+
+                                                <div className="flex justify-end gap-1.5 pt-1.5">
+                                                    {measure.status === "PENDENTE" && (
+                                                        <Button 
+                                                            type="button" 
+                                                            variant="outline" 
+                                                            size="sm"
+                                                            onClick={async () => {
+                                                                const res = await resendDisciplinaryWhatsApp(measure.id);
+                                                                if (res.success) {
+                                                                    toast.success("Notificação enviada com sucesso!");
+                                                                } else {
+                                                                    toast.error(res.error || "Erro ao enviar.");
+                                                                }
+                                                            }}
+                                                            className="h-7 text-[10px] font-bold text-slate-700"
+                                                            title="Cobrar Supervisor via WhatsApp"
+                                                        >
+                                                            Cobrar
+                                                        </Button>
+                                                    )}
+                                                    {measure.attachmentData && (
+                                                        <Button 
+                                                            type="button" 
+                                                            variant="outline" 
+                                                            size="sm"
+                                                            onClick={() => handleDownloadFile(measure.attachmentData, measure.attachmentName || "advertencia.jpg")}
+                                                            className="h-7 text-[10px] font-bold text-indigo-600 gap-1"
+                                                        >
+                                                            <Download className="w-3.5 h-3.5" /> Baixar Assinado
+                                                        </Button>
+                                                    )}
+                                                    <Button 
+                                                        type="button" 
+                                                        variant="ghost" 
+                                                        size="sm"
+                                                        onClick={async () => {
+                                                            if (confirm("Deseja realmente excluir esta medida disciplinar?")) {
+                                                                const res = await deleteDisciplinaryMeasure(measure.id);
+                                                                if (res.success) {
+                                                                    toast.success("Medida disciplinar excluída.");
+                                                                    setOpen(false);
+                                                                } else {
+                                                                    toast.error(res.error || "Erro ao excluir.");
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="h-7 w-7 p-0 rounded text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </details>
+
                     {/* FÉRIAS (HISTÓRICO INTEGRADO) */}
                     <details className="group border border-slate-200 rounded-2xl p-4 bg-white shadow-sm open:shadow-md transition-all space-y-4">
                         <summary className="font-bold text-slate-800 cursor-pointer select-none flex items-center justify-between list-none">
@@ -1631,6 +1858,123 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                         </Button>
                     </div>
                 </form>
+            {/* Dialog for launching Ad-hoc Disciplinary Measure with Gemini OCR */}
+            <Dialog open={openAdHocDialog} onOpenChange={setOpenAdHocDialog}>
+                <DialogContent className="sm:max-w-[480px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-rose-600">
+                            <Scale className="w-5 h-5" />
+                            Lançar Medida Disciplinar Direta
+                        </DialogTitle>
+                        <DialogDescription>
+                            Anexe o arquivo assinado. A Inteligência Artificial lerá o documento para preencher o formulário automaticamente.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2 text-left">
+                        {/* File Upload Selector */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Anexar Documento Assinado (Foto ou PDF)</label>
+                            <div className="relative border border-dashed border-slate-200 hover:border-rose-350 rounded-lg p-3 flex flex-col items-center justify-center cursor-pointer bg-slate-50">
+                                <input 
+                                    type="file" 
+                                    accept="image/*,application/pdf"
+                                    onChange={handleAdHocFileChange}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    disabled={isAnalyzingDoc || isSubmittingAdHoc}
+                                />
+                                {adHocFile ? (
+                                    <div className="text-center">
+                                        <p className="text-xs font-bold text-emerald-600">✓ {adHocFileName}</p>
+                                        <p className="text-[9px] text-slate-400">Clique ou arraste para substituir</p>
+                                    </div>
+                                ) : (
+                                    <div className="text-center text-slate-400">
+                                        <p className="text-xs font-bold">Selecionar arquivo...</p>
+                                        <p className="text-[9px]">A IA iniciará a leitura imediata após selecionar</p>
+                                    </div>
+                                )}
+                            </div>
+                            {isAnalyzingDoc && (
+                                <p className="text-[10px] text-rose-600 animate-pulse font-bold mt-1">
+                                    ⏳ Inteligência Artificial está lendo o documento, aguarde...
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Tipo de Medida</label>
+                                <select
+                                    value={adHocType}
+                                    onChange={(e) => setAdHocType(e.target.value)}
+                                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none"
+                                >
+                                    <option value="ADVERTENCIA">Advertência Escrita</option>
+                                    <option value="SUSPENSAO">Suspensão</option>
+                                    <option value="OUTRO">Outra Medida</option>
+                                </select>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Data da Ocorrência</label>
+                                <Input
+                                    type="date"
+                                    value={adHocOccurrenceDate}
+                                    onChange={(e) => setAdHocOccurrenceDate(e.target.value)}
+                                    className="h-10 text-xs border-slate-200"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Enquadramento Legal (CLT)</label>
+                            <select
+                                value={adHocCltArticle}
+                                onChange={(e) => setAdHocCltArticle(e.target.value)}
+                                className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none"
+                            >
+                                <option value="Artigo 482, alínea e - Desídia (Faltas/Atrasos)">Artigo 482, alínea e - Desídia (Faltas/Atrasos)</option>
+                                <option value="Artigo 482, alínea h - Indisciplina ou Insubordinação">Artigo 482, alínea h - Indisciplina ou Insubordinação</option>
+                                <option value="Artigo 482, alínea b - Mau procedimento ou Incontinência de conduta">Artigo 482, alínea b - Mau procedimento ou Incontinência de conduta</option>
+                                <option value="Artigo 482, alínea a - Ato de improbidade">Artigo 482, alínea a - Ato de improbidade</option>
+                                <option value="Artigo 482, alínea i - Abandono de emprego">Artigo 482, alínea i - Abandono de emprego</option>
+                                <option value="Outro Artigo/Motivo administrativo">Outro Artigo/Motivo administrativo</option>
+                            </select>
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Descrição Extraída do Documento</label>
+                            <textarea
+                                value={adHocDescription}
+                                onChange={(e) => setAdHocDescription(e.target.value)}
+                                rows={4}
+                                className="flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none min-h-[80px]"
+                                placeholder="Descrição extraída ou inserida manualmente..."
+                            />
+                        </div>
+
+                        <DialogFooter className="pt-2 border-t">
+                            <Button 
+                                type="button"
+                                variant="outline" 
+                                onClick={() => setOpenAdHocDialog(false)}
+                                className="h-10 text-xs font-bold"
+                                disabled={isSubmittingAdHoc || isAnalyzingDoc}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button 
+                                type="button"
+                                onClick={handleSaveAdHoc}
+                                className="bg-rose-600 hover:bg-rose-700 text-white font-bold h-10 text-xs"
+                                disabled={isSubmittingAdHoc || isAnalyzingDoc || !adHocFileData}
+                            >
+                                {isSubmittingAdHoc ? "Salvando..." : "Salvar Medida"}
+                            </Button>
+                        </DialogFooter>
+                    </div>
+                </DialogContent>
+            </Dialog>
             </SheetContent>
         </Sheet>
     );

@@ -18,6 +18,7 @@ interface User {
     name: string;
     username: string;
     email: string | null;
+    phone?: string | null;
     role: string;
     isActive: boolean;
     clientIds?: string[];
@@ -120,6 +121,11 @@ export function UserDialog({ user, clients = [], trigger, open, onOpenChange }: 
                     <div className="space-y-1">
                         <Label>Email</Label>
                         <Input name="email" type="email" defaultValue={user?.email || ""} placeholder="exemplo@empresa.com" className="h-10 text-xs border-slate-200" />
+                    </div>
+
+                    <div className="space-y-1">
+                        <Label>Telefone / WhatsApp</Label>
+                        <Input name="phone" defaultValue={user?.phone || ""} placeholder="41999999999" className="h-10 text-xs border-slate-200" />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
