@@ -419,6 +419,11 @@ async function queryAutentique(query: string, variables: any, fileBuffer?: Buffe
     return result.data;
 }
 
+function sanitizeText(str: string): string {
+    if (!str) return "";
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 // Server side PDF builder using pdf-lib
 export async function generateEpiPdfBytes(employeeId: string): Promise<Buffer> {
     const employee = await getEpiPrintData(employeeId);
@@ -459,14 +464,14 @@ export async function generateEpiPdfBytes(employeeId: string): Promise<Buffer> {
 
     // Draw employee Details
     let y = 750;
-    page.drawText(`Empresa: ${companyName}`, { x: 40, y, size: 9, font });
+    page.drawText(`Empresa: ${sanitizeText(companyName)}`, { x: 40, y, size: 9, font });
     y -= 15;
-    page.drawText(`Trabalhador: ${employee.name}`, { x: 40, y, size: 9, font });
+    page.drawText(`Trabalhador: ${sanitizeText(employee.name)}`, { x: 40, y, size: 9, font });
     y -= 15;
     page.drawText(`CPF: ${employee.cpf || "-"}`, { x: 40, y, size: 9, font });
-    page.drawText(`Função: ${roleName}`, { x: 300, y, size: 9, font });
+    page.drawText(`Funcao: ${sanitizeText(roleName)}`, { x: 300, y, size: 9, font });
     y -= 15;
-    page.drawText(`Data de Admissão: ${formattedAdmission}`, { x: 40, y, size: 9, font });
+    page.drawText(`Data de Admissao: ${formattedAdmission}`, { x: 40, y, size: 9, font });
     
     y -= 25;
 
@@ -475,12 +480,12 @@ export async function generateEpiPdfBytes(employeeId: string): Promise<Buffer> {
     
     const wrapped = wrapText(responsibilityText, 515, 8);
     for (const line of wrapped) {
-        page.drawText(line, { x: 40, y, size: 8, font: fontRegular });
+        page.drawText(sanitizeText(line), { x: 40, y, size: 8, font: fontRegular });
         y -= 12;
     }
 
     y -= 15;
-    page.drawText(`Grade de Tamanhos: ${sizesStr}`, { x: 40, y, size: 9, font });
+    page.drawText(`Grade de Tamanhos: ${sanitizeText(sizesStr)}`, { x: 40, y, size: 9, font });
 
     y -= 30;
 
@@ -498,7 +503,7 @@ export async function generateEpiPdfBytes(employeeId: string): Promise<Buffer> {
     page.drawText("QTD", { x: 105, y, size: 8, font });
     page.drawText("UND", { x: 135, y, size: 8, font });
     page.drawText("C.A.", { x: 165, y, size: 8, font });
-    page.drawText("ITEM / DESCRIÇÃO", { x: 215, y, size: 8, font });
+    page.drawText("ITEM / DESCRICAO", { x: 215, y, size: 8, font });
     page.drawText("M.E.R", { x: 450, y, size: 8, font });
 
     y -= 20;
@@ -510,14 +515,14 @@ export async function generateEpiPdfBytes(employeeId: string): Promise<Buffer> {
         
         page.drawText(dateStr, { x: 45, y, size: 8, font: fontRegular });
         page.drawText(String(d.quantity), { x: 105, y, size: 8, font: fontRegular });
-        page.drawText(d.epiItem.unit, { x: 135, y, size: 8, font: fontRegular });
+        page.drawText(sanitizeText(d.epiItem.unit), { x: 135, y, size: 8, font: fontRegular });
         page.drawText(d.epiItem.caNumber || "-", { x: 165, y, size: 8, font: fontRegular });
         
         let itemName = d.epiItem.name;
         if (d.epiItem.size) itemName += ` (${d.epiItem.size})`;
         if (itemName.length > 32) itemName = itemName.substring(0, 29) + "...";
 
-        page.drawText(itemName, { x: 215, y, size: 8, font: fontRegular });
+        page.drawText(sanitizeText(itemName), { x: 215, y, size: 8, font: fontRegular });
         page.drawText(String(d.merCode), { x: 450, y, size: 8, font: fontRegular });
 
         page.drawLine({
@@ -569,11 +574,15 @@ export async function sendEpiFichaToAutentique(employeeId: string) {
         // 3. Autentique GraphQL createDocument mutation variables
         const query = `
             mutation CreateDocumentMutation($document: DocumentInput!, $signers: [SignerInput!]!, $file: Upload!) {
-                createDocument(document: $document, signers: $signers, file: $file) {
+                createDocument(sandbox: true, document: $document, signers: $signers, file: $file) {
                     id
                     name
-                    link {
-                        short_link
+                    signatures {
+                        public_id
+                        name
+                        link {
+                            short_link
+                        }
                     }
                 }
             }
@@ -581,8 +590,7 @@ export async function sendEpiFichaToAutentique(employeeId: string) {
 
         const variables = {
             document: {
-                name: `Ficha de EPI - ${employee.name}`,
-                sandbox: true // Set sandbox to avoid consuming real document quotas during test
+                name: `Ficha de EPI - ${employee.name}`
             },
             signers: [
                 {
@@ -596,7 +604,7 @@ export async function sendEpiFichaToAutentique(employeeId: string) {
 
         const res = await queryAutentique(query, variables, pdfBuffer, `Ficha_EPI_${employee.name.replace(/\s+/g, "_")}.pdf`);
         const docId = res.createDocument.id;
-        const shortLink = res.createDocument.link.short_link;
+        const shortLink = res.createDocument.signatures?.[0]?.link?.short_link || "";
 
         // 4. Update all deliveries of this employee currently PENDENTE to ENVIADO_AUTENTIQUE_<docId>
         await prisma.epiDelivery.updateMany({
