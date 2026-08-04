@@ -140,12 +140,12 @@ export default async function EmployeeProfilePage(props: {
     return (
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
             {/* Action Bar */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col xl:flex-row gap-4 items-start xl:items-center justify-between">
                 <BackButton 
                     fallbackUrl={backTo} 
                     label={backTo.includes('financial-costs') ? 'Voltar para Custos' : 'Voltar para Equipe'} 
                 />
-                <div className="flex gap-2.5 items-center">
+                <div className="flex flex-wrap gap-2 items-center xl:justify-end">
                     <NewRhRequestDialog employee={{ id: employee.id, name: employee.name, roleName: employee.role?.name }} />
                     <KitAdmissaoButtons employeeId={employee.id} employeeName={employee.name} />
                     <Link href={`/admin/employees/${employee.id}/print`} target="_blank">
