@@ -200,6 +200,11 @@ export function ClientsList({
                                         <div className="flex items-center gap-2 group">
                                             <Building className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
                                             <span className="font-semibold">{client.name}</span>
+                                            {client.isActive === false && (
+                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200 uppercase">
+                                                    Encerrado
+                                                </span>
+                                            )}
                                             <EditClientSheet client={client} companies={companies} systemUsers={systemUsers} />
                                         </div>
                                     </TableCell>

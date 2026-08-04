@@ -35,6 +35,9 @@ async function getVacantStats() {
 
     const [postos, monthlyCoverages] = await Promise.all([
         prisma.posto.findMany({
+            where: {
+                client: { isActive: true }
+            },
             include: {
                 assignments: {
                     include: {

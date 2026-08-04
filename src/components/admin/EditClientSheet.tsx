@@ -16,6 +16,7 @@ interface EditClientSheetProps {
         address: string;
         companyId: string | null;
         monitorInOperations?: boolean;
+        isActive?: boolean;
         accountManagerId?: string | null;
     };
     companies: { id: string; name: string }[];
@@ -79,7 +80,23 @@ export function EditClientSheet({ client, companies, systemUsers = [] }: EditCli
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="flex items-center gap-2 py-2">
+                    <div className="space-y-2 pt-2 border-t mt-4">
+                        <Label className="text-sm font-semibold">Status do Contrato</Label>
+                        <Select name="isActive" defaultValue={client.isActive === false ? "false" : "true"}>
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="true">Ativo</SelectItem>
+                                <SelectItem value="false">Encerrado</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-slate-500">
+                            Contratos encerrados não aparecem mais na Mesa de Operações e as vagas em aberto são canceladas.
+                        </p>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 py-2 pt-4">
                         <input 
                             type="checkbox" 
                             id="monitorInOperations" 

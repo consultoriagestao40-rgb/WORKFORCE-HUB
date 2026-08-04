@@ -38,6 +38,9 @@ export async function GET(request: Request) {
 
         // 2. Buscar todos os postos com alocações válidas no período para calcular a expectativa de escala
         const postos = await prisma.posto.findMany({
+            where: {
+                client: { isActive: true }
+            },
             include: {
                 client: {
                     include: { company: true }

@@ -9,6 +9,7 @@ export default async function OperationsPage() {
             orderBy: { name: 'asc' }
         }),
         prisma.client.findMany({
+            where: { isActive: true },
             select: { id: true, name: true, companyId: true, accountManagerId: true },
             orderBy: { name: 'asc' }
         }),

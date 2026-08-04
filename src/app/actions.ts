@@ -1255,21 +1255,42 @@ export async function updateClient(formData: FormData) {
     const companyId = formData.get("companyId") as string;
     const monitorInOperations = formData.get("monitorInOperations") === "true" || formData.get("monitorInOperations") === "on";
     const accountManagerId = formData.get("accountManagerId") as string;
+    const isActive = formData.get("isActive") === "true" || formData.get("isActive") === "on";
 
-    await prisma.client.update({
-        where: { id },
-        data: {
-            name,
-            address,
-            companyId: companyId || undefined,
-            monitorInOperations,
-            accountManagerId: (accountManagerId === "none" || !accountManagerId) ? null : accountManagerId
+    await prisma.$transaction(async (tx) => {
+        await tx.client.update({
+            where: { id },
+            data: {
+                name,
+                address,
+                companyId: companyId || undefined,
+                monitorInOperations,
+                isActive,
+                accountManagerId: (accountManagerId === "none" || !accountManagerId) ? null : accountManagerId
+            }
+        });
+
+        if (!isActive) {
+            // Cancelar automaticamente todas as vagas em aberto ligadas aos postos deste cliente
+            const postos = await tx.posto.findMany({ where: { clientId: id }, select: { id: true } });
+            const postoIds = postos.map(p => p.id);
+            if (postoIds.length > 0) {
+                await tx.vacancy.updateMany({
+                    where: { 
+                        postoId: { in: postoIds },
+                        status: "OPEN"
+                    },
+                    data: { status: "CANCELLED" }
+                });
+            }
         }
     });
 
     revalidatePath("/admin/clients");
     revalidatePath(`/admin/clients/${id}`);
     revalidatePath("/mobile");
+    revalidatePath("/admin/operations");
+    revalidatePath("/admin/recruitment");
 }
 
 export async function deleteClient(id: string) {

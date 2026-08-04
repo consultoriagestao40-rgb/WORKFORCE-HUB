@@ -26,6 +26,7 @@ export async function GET(request: Request) {
             where: {
                 client: {
                     monitorInOperations: true,
+                    isActive: true,
                     companyId: companyId && companyId !== "all" ? companyId : undefined,
                     id: clientId && clientId !== "all" ? clientId : undefined,
                     accountManagerId: accountManagerId && accountManagerId !== "all"
