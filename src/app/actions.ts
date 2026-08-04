@@ -1280,7 +1280,7 @@ export async function updateClient(formData: FormData) {
                         postoId: { in: postoIds },
                         status: "OPEN"
                     },
-                    data: { status: "CANCELLED" }
+                    data: { status: "CLOSED" }
                 });
             }
         }
