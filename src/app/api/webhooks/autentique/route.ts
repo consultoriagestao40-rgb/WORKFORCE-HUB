@@ -19,10 +19,13 @@ export async function POST(request: Request) {
             
             await prisma.epiDelivery.updateMany({
                 where: {
-                    recipientSignature: `ENVIADO_AUTENTIQUE_${docId}`
+                    OR: [
+                        { recipientSignature: `ENVIADO_AUTENTIQUE_${docId}` },
+                        { recipientSignature: `ASSINADO_AUTENTIQUE_${docId}` }
+                    ]
                 },
                 data: {
-                    recipientSignature: "ASSINADO"
+                    recipientSignature: `ASSINADO_AUTENTIQUE_${docId}`
                 }
             });
             

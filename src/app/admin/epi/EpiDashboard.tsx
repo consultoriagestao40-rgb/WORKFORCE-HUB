@@ -15,7 +15,8 @@ import {
     UserCheck,
     CheckCircle,
     XCircle,
-    Send
+    Send,
+    ExternalLink
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -634,8 +635,11 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                                         </TableRow>
                                     ) : (
                                         filteredDeliveries.map(d => {
-                                            const isSigned = d.recipientSignature === "ASSINADO";
+                                            const isSigned = d.recipientSignature === "ASSINADO" || (d.recipientSignature && d.recipientSignature.startsWith("ASSINADO_AUTENTIQUE_"));
                                             const isSentAutentique = d.recipientSignature && d.recipientSignature.startsWith("ENVIADO_AUTENTIQUE_");
+                                            const autentiqueDocId = d.recipientSignature && d.recipientSignature.includes("_AUTENTIQUE_")
+                                                ? d.recipientSignature.split("_AUTENTIQUE_")[1]
+                                                : null;
                                             
                                             return (
                                                 <TableRow key={d.id} className="hover:bg-slate-50/40 text-xs">
@@ -658,7 +662,13 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                                                     <TableCell>
                                                         <button
                                                             type="button"
-                                                            onClick={() => handleToggleSignature(d.id)}
+                                                            onClick={() => {
+                                                                if (autentiqueDocId) {
+                                                                    window.open(`https://painel.autentique.com.br/documentos/${autentiqueDocId}`, "_blank");
+                                                                } else {
+                                                                    handleToggleSignature(d.id);
+                                                                }
+                                                            }}
                                                             className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-black transition-all ${
                                                                 isSigned 
                                                                     ? "bg-green-100 text-green-800 hover:bg-green-200" 
@@ -666,6 +676,7 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                                                                         ? "bg-amber-100 text-amber-800 hover:bg-amber-200 animate-pulse"
                                                                         : "bg-red-100 text-red-800 hover:bg-red-200"
                                                             }`}
+                                                            title={autentiqueDocId ? "Clique para abrir o Documento Assinado Oficial na Autentique" : "Clique para alterar o status da assinatura"}
                                                         >
                                                             {isSigned ? (
                                                                 <>
@@ -684,6 +695,19 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                                                     </TableCell>
                                                     <TableCell className="text-right">
                                                         <div className="flex justify-end gap-1">
+                                                            {/* Autentique direct link button */}
+                                                            {autentiqueDocId && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => window.open(`https://painel.autentique.com.br/documentos/${autentiqueDocId}`, "_blank")}
+                                                                    className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg border-emerald-300"
+                                                                    title="Abrir Documento Oficial Assinado no Autentique (Com Folha de Auditoria e Validade Jurídica)"
+                                                                >
+                                                                    <ExternalLink className="w-3.5 h-3.5" />
+                                                                </Button>
+                                                            )}
                                                             {/* Send to Autentique quick button */}
                                                             {(!isSigned) && (
                                                                 <Button
@@ -714,7 +738,7 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                                                                 size="sm"
                                                                 onClick={() => window.open(`/admin/epi/print/${d.employeeId}`, "_blank")}
                                                                 className="h-8 w-8 p-0 text-slate-500 hover:text-slate-800 rounded-lg border-slate-200"
-                                                                title="Imprimir Ficha Oficial"
+                                                                title="Imprimir Ficha Local (Modelo de Balcão)"
                                                             >
                                                                 <Printer className="w-3.5 h-3.5" />
                                                             </Button>
@@ -1016,7 +1040,7 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                                                         </TableRow>
                                                     ) : (
                                                         savedDeliveries.map(d => {
-                                                            const isSigned = d.recipientSignature === "ASSINADO";
+                                                            const isSigned = d.recipientSignature === "ASSINADO" || (d.recipientSignature && d.recipientSignature.startsWith("ASSINADO_AUTENTIQUE_"));
                                                             const isSentAutentique = d.recipientSignature && d.recipientSignature.startsWith("ENVIADO_AUTENTIQUE_");
                                                             
                                                             return (

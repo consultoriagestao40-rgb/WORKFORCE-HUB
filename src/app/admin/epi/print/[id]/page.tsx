@@ -111,10 +111,12 @@ export default async function EpiPrintPage({ params }: PrintPageProps) {
                     {/* Location and Signature */}
                     <div className="flex justify-between items-end pt-4 pb-2 text-xs">
                         <div>
-                            Curitiba, ______/______/__________
+                            Curitiba, {new Date().getUTCDate().toString().padStart(2, '0')}/{(new Date().getUTCMonth() + 1).toString().padStart(2, '0')}/{new Date().getUTCFullYear()}
                         </div>
                         <div className="text-center w-[300px]">
-                            <div className="border-b border-black w-full h-4 mb-1"></div>
+                            <div className="border-b border-black w-full mb-1 font-serif italic text-blue-900 text-lg leading-none pb-0.5">
+                                {employee.name}
+                            </div>
                             <span className="font-extrabold">ASSINATURA DO TRABALHADOR</span>
                         </div>
                     </div>
@@ -150,7 +152,9 @@ export default async function EpiPrintPage({ params }: PrintPageProps) {
                                             {d.epiItem.name} {d.epiItem.size ? `(${d.epiItem.size})` : ""}
                                         </td>
                                         <td className="border border-black p-1">{d.merCode}</td>
-                                        <td className="border border-black p-1 text-slate-400 italic">Ciente / Assinado</td>
+                                        <td className="border border-black p-1 font-bold text-slate-800">
+                                            Visto ({employee.name?.trim().split(/\s+/).filter((w: string) => w.length > 2 || w === w.toUpperCase()).map((w: string) => w[0].toUpperCase()).join(".") || "VISTO"})
+                                        </td>
                                         <td className="border border-black p-1 truncate max-w-[110px]">
                                             {d.deliveredBy?.name || "Mesa"}
                                         </td>

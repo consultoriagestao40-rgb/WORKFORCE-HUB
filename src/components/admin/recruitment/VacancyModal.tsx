@@ -37,6 +37,7 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
         postoId: "none",
         companyId: "none",
         priority: "MEDIUM",
+        openingReason: "SUBSTITUICAO",
         recruiterId: "",
         reqGender: "Ambos",
         reqExperience: "",
@@ -83,6 +84,7 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
                 roleId: item.roleId,
                 postoId: item.postoId,
                 companyId: item.companyId || "none",
+                openingReason: formData.openingReason || "SUBSTITUICAO",
                 description: `Vaga de Reposição\n\nCliente: ${formattedClient}\nCargo: ${item.roleName}\nPosto: ${toTitleCase(item.title)}`
             });
         }
@@ -106,6 +108,7 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
                 postoId: formData.postoId === "none" ? undefined : formData.postoId,
                 companyId: formData.companyId === "none" ? undefined : formData.companyId,
                 priority: formData.priority,
+                openingReason: formData.openingReason,
                 recruiterId: formData.recruiterId,
                 reqGender: formData.reqGender,
                 reqExperience: formData.reqExperience || undefined,
@@ -124,6 +127,7 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
                 postoId: "none",
                 companyId: "none",
                 priority: "MEDIUM",
+                openingReason: "SUBSTITUICAO",
                 recruiterId: "",
                 reqGender: "Ambos",
                 reqExperience: "",
@@ -194,22 +198,41 @@ export function VacancyModal({ open, onOpenChange, roles, postos, companies, bac
                         />
                     </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="recruiter" className="text-red-700 font-bold">Recrutador Responsável *</Label>
-                        <Select
-                            value={formData.recruiterId}
-                            onValueChange={(val) => setFormData({ ...formData, recruiterId: val })}
-                            required
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Selecione o recrutador..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {recruiters.map(r => (
-                                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="openingReason" className="font-bold">Motivo da Abertura</Label>
+                            <Select
+                                value={formData.openingReason}
+                                onValueChange={(val) => setFormData({ ...formData, openingReason: val })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione o motivo..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="FERIAS">🏖️ Substituição por Férias</SelectItem>
+                                    <SelectItem value="DEMISSAO">🔴 Substituição por Demissão</SelectItem>
+                                    <SelectItem value="AUMENTO_QUADRO">🟢 Aumento de Quadro / Nova Vaga</SelectItem>
+                                    <SelectItem value="SUBSTITUICAO">🔄 Substituição Geral</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="recruiter" className="text-red-700 font-bold">Recrutador Responsável *</Label>
+                            <Select
+                                value={formData.recruiterId}
+                                onValueChange={(val) => setFormData({ ...formData, recruiterId: val })}
+                                required
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione o recrutador..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {recruiters.map(r => (
+                                        <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
 
                     <div className="grid gap-2">

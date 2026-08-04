@@ -420,26 +420,26 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
     return (
         <div className="h-full min-h-[500px] overflow-x-auto">
             <DragDropContext onDragEnd={onDragEnd} onDragStart={() => setIsDragging(true)}>
-                <div className="flex gap-4 min-w-max pb-4 items-start h-full">
+                <div className="flex gap-2.5 min-w-max pb-4 items-start h-full">
                     {stages.map((stage) => {
                         // FIX: Use isSystem flag because ID is now dynamic from DB
                         const isRnsStage = stage.isSystem;
                         return (
-                            <div key={stage.id} className={`w-80 flex flex-col rounded-lg min-h-[200px] ${isRnsStage ? 'bg-indigo-50 border-indigo-100 border' : 'bg-slate-100'} `}>
-                                <div className={`p-3 font-semibold flex justify-between items-center border-b ${isRnsStage ? 'text-indigo-700 border-indigo-200' : 'text-slate-700 border-slate-200'} `}>
-                                    <div className="flex items-center gap-2">
-                                        <span>{stage.name}</span>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full ${isRnsStage ? 'bg-indigo-200 text-indigo-800' : 'bg-slate-200 text-slate-600'}`}>
+                            <div key={stage.id} className={`w-[270px] flex flex-col rounded-xl min-h-[200px] border shadow-2xs ${isRnsStage ? 'bg-indigo-50/60 border-indigo-100' : 'bg-slate-100/70 border-slate-200/70'} `}>
+                                <div className={`px-3 py-2 font-bold flex justify-between items-center border-b text-xs ${isRnsStage ? 'text-indigo-800 border-indigo-200' : 'text-slate-700 border-slate-200'} `}>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="font-bold tracking-tight">{stage.name}</span>
+                                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${isRnsStage ? 'bg-indigo-200/80 text-indigo-900' : 'bg-slate-200 text-slate-700'}`}>
                                             {stage.candidates.length}
                                         </span>
                                         {stage.approverId && (
-                                            <ShieldCheck className="w-4 h-4 text-emerald-600 ml-1" />
+                                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 ml-0.5" />
                                         )}
                                     </div>
                                     <Popover>
                                         <PopoverTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-slate-700" title="Configurar Etapa">
-                                                <Settings className="w-3.5 h-3.5" />
+                                            <Button variant="ghost" size="icon" className="h-5 w-5 text-slate-400 hover:text-slate-700" title="Configurar Etapa">
+                                                <Settings className="w-3 h-3" />
                                             </Button>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-64 p-4">
@@ -453,7 +453,7 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                         <div
                                             {...provided.droppableProps}
                                             ref={provided.innerRef}
-                                            className={`flex-1 p-2 space-y-2 transition-colors ${snapshot.isDraggingOver ? 'bg-slate-200/50' : ''}`}
+                                            className={`flex-1 p-1.5 space-y-1.5 transition-colors ${snapshot.isDraggingOver ? 'bg-slate-200/60' : ''}`}
                                         >
                                             {stage.candidates.map((candidate, index) => {
                                                 // MOD: Standardize SLA calculation based on CreatedAt (Birth Date) for ALL stages
@@ -464,6 +464,11 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
 
                                                 // @ts-ignore
                                                 const recruiterName = candidate.vacancy?.recruiter?.name;
+
+                                                const reason = (candidate.vacancy as any)?.openingReason || "";
+                                                const title = candidate.vacancy?.title || "";
+                                                const desc = candidate.vacancy?.description || "";
+                                                const isVacationCard = reason === 'FERIAS' || /férias|ferias/i.test(reason) || /férias|ferias/i.test(title) || /férias|ferias/i.test(desc);
 
                                                 return (
                                                     <Draggable
@@ -478,26 +483,30 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                 {...provided.draggableProps}
                                                                 {...provided.dragHandleProps}
                                                                 style={{ ...provided.draggableProps.style }}
-                                                                className={`bg-white p-3 rounded shadow-sm border hover:shadow-md transition-shadow mb-3 group cursor-pointer
-                                                                    ${candidate.type === 'VACANCY' ? 'bg-white border-indigo-100' : 'bg-white border-slate-200'}
-                                                                    ${snapshot.isDragging ? 'rotate-2 shadow-lg ring-2 ring-indigo-500/20' : ''}
+                                                                className={`bg-white p-2.5 rounded-lg border shadow-2xs hover:shadow-md transition-all cursor-pointer group
+                                                                    ${isVacationCard ? 'border-cyan-200 bg-cyan-50/20 hover:border-cyan-400' : candidate.type === 'VACANCY' ? 'border-indigo-100/90 hover:border-indigo-300' : 'border-slate-200'}
+                                                                    ${snapshot.isDragging ? 'rotate-1 shadow-lg ring-2 ring-indigo-500/20' : ''}
                                                                     ${candidate.type === 'CANDIDATE' && candidate.requirementsEvaluation?.isDisqualified ? 'opacity-65 border-red-200 bg-red-50/20' : ''}
                                                                 `}
                                                                 onClick={() => handleCardClick(candidate)}
                                                             >
-                                                                {/* Header: Title and Priority */}
-                                                                <div className="flex justify-between items-start mb-2">
-                                                                    <div className="font-bold text-slate-800 line-clamp-2 leading-tight flex-1 mr-2 text-sm flex flex-col gap-1">
-                                                                        <span>{candidate.type === 'VACANCY' ? candidate.vacancy.title : candidate.name}</span>
+                                                                {/* Header: Title, Férias Badge and Priority */}
+                                                                <div className="flex justify-between items-start gap-1 mb-1">
+                                                                    <div className="font-bold text-slate-800 line-clamp-2 leading-snug flex-1 text-xs flex flex-col gap-0.5">
+                                                                        <span className="text-slate-900 font-bold group-hover:text-indigo-600 transition-colors">
+                                                                            {candidate.type === 'VACANCY' ? candidate.vacancy.title : candidate.name}
+                                                                        </span>
                                                                         {candidate.type === 'VACANCY' && candidate.vacancy.plannedStartDate && (
-                                                                            <span className="text-[10px] text-indigo-500 font-semibold">Início Planejado: {new Date(candidate.vacancy.plannedStartDate).toLocaleDateString('pt-BR')}</span>
+                                                                            <span className="text-[10px] text-indigo-600 font-semibold">
+                                                                                Início: {new Date(candidate.vacancy.plannedStartDate).toLocaleDateString('pt-BR')}
+                                                                            </span>
                                                                         )}
                                                                         {candidate.type === 'CANDIDATE' && (
-                                                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                                            <div className="flex items-center gap-1 mt-0.5">
                                                                                 {candidate.requirementsEvaluation?.isDisqualified ? (
-                                                                                    <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase tracking-wider">ELIMINADO</span>
+                                                                                    <span className="px-1.5 py-0.2 rounded bg-red-100 text-red-800 text-[9px] font-black uppercase tracking-wider">ELIMINADO</span>
                                                                                 ) : candidate.requirementsEvaluation?.adherenceScore !== undefined ? (
-                                                                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider
+                                                                                    <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider
                                                                                         ${candidate.requirementsEvaluation.adherenceScore >= 75 ? 'bg-emerald-100 text-emerald-800' : 
                                                                                           candidate.requirementsEvaluation.adherenceScore >= 50 ? 'bg-amber-100 text-amber-800' : 
                                                                                           'bg-red-100 text-red-800'}
@@ -506,49 +515,37 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                                     </span>
                                                                                 ) : null}
                                                                                 {candidate.appliedFromPublicForm && (
-                                                                                    <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[9px] font-black uppercase tracking-wider" title="Inscrição pública via Meta Ads">Meta Ads</span>
+                                                                                    <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 text-[9px] font-black uppercase tracking-wider" title="Inscrição pública via Meta Ads">Meta Ads</span>
                                                                                 )}
                                                                             </div>
                                                                         )}
                                                                     </div>
-                                                                    <Badge variant={candidate.vacancy?.priority === 'URGENT' ? 'destructive' : 'secondary'} className="text-[10px] px-1.5 py-0 h-5 shrink-0">
-                                                                        {candidate.vacancy?.priority === 'URGENT' ? 'Urg' : candidate.vacancy?.priority === 'HIGH' ? 'Alta' : 'Nor'}
-                                                                    </Badge>
+                                                                    <div className="flex flex-col items-end gap-1 shrink-0">
+                                                                        <Badge variant={candidate.vacancy?.priority === 'URGENT' ? 'destructive' : 'secondary'} className="text-[9px] px-1.5 py-0 h-4 font-bold shrink-0 uppercase tracking-wider">
+                                                                            {candidate.vacancy?.priority === 'URGENT' ? 'Urg' : candidate.vacancy?.priority === 'HIGH' ? 'Alta' : 'Nor'}
+                                                                        </Badge>
+                                                                        {isVacationCard && (
+                                                                            <span className="px-1.5 py-0.2 rounded bg-cyan-100 text-cyan-900 border border-cyan-300/80 text-[9px] font-black uppercase tracking-wider flex items-center gap-0.5 shadow-2xs" title="Vaga proveniente de Férias">
+                                                                                🏖️ Férias
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
 
                                                                 {/* Subtitle: Role/Context */}
-                                                                <div className="text-xs text-slate-500 mb-3">
-                                                                    {candidate.type === 'VACANCY' ? (
-                                                                        <div className="flex items-center gap-1">
-                                                                            <Briefcase className="w-3 h-3 text-indigo-400" />
-                                                                            <span>{candidate.vacancy?.role?.name || "Sem Cargo"}</span>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="flex items-center gap-1">
-                                                                            <Briefcase className="w-3 h-3 text-slate-400" />
-                                                                            <span>{candidate.vacancy?.role?.name || candidate.vacancy?.title || "Sem Vaga"}</span>
-                                                                        </div>
-                                                                    )}
+                                                                <div className="text-[11px] text-slate-500 font-medium mb-2 flex items-center gap-1">
+                                                                    <Briefcase className="w-3 h-3 text-slate-400 shrink-0" />
+                                                                    <span className="truncate">
+                                                                        {candidate.type === 'VACANCY'
+                                                                            ? (candidate.vacancy?.role?.name || "Sem Cargo")
+                                                                            : (candidate.vacancy?.role?.name || candidate.vacancy?.title || "Sem Vaga")}
+                                                                    </span>
                                                                 </div>
 
                                                                 {/* Footer: Client, Due Date, Recruiter */}
-                                                                <div className="flex flex-col gap-2 pt-2 border-t border-slate-50">
-                                                                    {/* Dates Row (Restored) */}
-                                                                    <div className="flex flex-col gap-1 text-[10px] text-slate-400">
-                                                                        <div className="flex items-center gap-1" title="Data de Abertura da Vaga">
-                                                                            <Briefcase className="w-3 h-3 text-slate-300" />
-                                                                            <span>Abertura: {candidate.vacancy?.createdAt ? new Date(candidate.vacancy.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A'}</span>
-                                                                        </div>
-                                                                        {candidate.type !== 'VACANCY' && (
-                                                                            <div className="flex items-center gap-1" title="Data de Inscrição do Candidato">
-                                                                                <UserIcon className="w-3 h-3 text-slate-300" />
-                                                                                <span>Inscrição: {new Date(candidate.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-
-                                                                    <div className="flex justify-between items-center text-[11px] text-slate-400">
-                                                                        <span className="truncate max-w-[120px]" title={candidate.vacancy?.posto?.client?.name}>
+                                                                <div className="flex flex-col gap-1.5 pt-1.5 border-t border-slate-100">
+                                                                    <div className="flex justify-between items-center text-[10px] text-slate-400">
+                                                                        <span className="truncate max-w-[125px] font-semibold text-slate-600" title={candidate.vacancy?.posto?.client?.name}>
                                                                             {candidate.vacancy?.posto?.client?.name || candidate.vacancy?.company?.name || "N/A"}
                                                                         </span>
 
@@ -557,7 +554,7 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                             <Button
                                                                                 size="sm"
                                                                                 variant="default"
-                                                                                className="h-6 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white ml-2"
+                                                                                className="h-5 text-[9px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded shadow-2xs"
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
                                                                                     setPrefilledEmployee({
@@ -579,15 +576,19 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                         {/* Recruiter Avatar */}
                                                                         {recruiterName && (
                                                                             <div className="flex items-center gap-1" title={`Recrutador: ${recruiterName}`}>
-                                                                                <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[9px] font-bold border border-indigo-200">
+                                                                                <div className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[8px] font-bold border border-indigo-200">
                                                                                     {getInitials(recruiterName)}
                                                                                 </div>
                                                                             </div>
                                                                         )}
                                                                     </div>
 
-                                                                    {/* SLA / Due Date Badge (Restored) */}
-                                                                    <div className="flex justify-between items-center pt-2">
+                                                                    {/* SLA / Due Date Badge */}
+                                                                    <div className="flex justify-between items-center text-[10px] text-slate-400">
+                                                                        <span className="text-[10px] text-slate-400">
+                                                                            Abertura: {candidate.vacancy?.createdAt ? new Date(candidate.vacancy.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : 'N/A'}
+                                                                        </span>
+
                                                                         {candidate.type === 'VACANCY' ? (
                                                                             (() => {
                                                                                 // @ts-ignore
@@ -596,22 +597,22 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                                 const status = getVacancyDueDateStatus(start, sla);
                                                                                 if (!status) return null;
                                                                                 return (
-                                                                                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 gap-1 ${status.color} font-medium`}>
-                                                                                        <status.icon className="w-3 h-3" />
+                                                                                    <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 gap-1 ${status.color} font-medium`}>
+                                                                                        <status.icon className="w-2.5 h-2.5" />
                                                                                         {status.text}
                                                                                     </Badge>
                                                                                 );
                                                                             })()
                                                                         ) : (
                                                                             stage.name === 'Posto' ? (
-                                                                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 gap-1 bg-purple-100 text-purple-700 border-purple-200 font-medium" title="Tempo de Ciclo (Dias desde a criação)">
-                                                                                    <Clock className="w-3 h-3" />
-                                                                                    {Math.max(1, Math.floor((new Date(candidate.updatedAt || new Date()).getTime() - new Date(candidate.createdAt).getTime()) / (1000 * 60 * 60 * 24)))} dias
+                                                                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 gap-1 bg-purple-100 text-purple-700 border-purple-200 font-medium" title="Tempo de Ciclo (Dias desde a criação)">
+                                                                                    <Clock className="w-2.5 h-2.5" />
+                                                                                    {Math.max(1, Math.floor((new Date(candidate.updatedAt || new Date()).getTime() - new Date(candidate.createdAt).getTime()) / (1000 * 60 * 60 * 24)))}d
                                                                                 </Badge>
                                                                             ) : (
                                                                                 dueStatus && (
-                                                                                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 gap-1 ${dueStatus.color} font-medium`}>
-                                                                                        <dueStatus.icon className="w-3 h-3" />
+                                                                                    <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 gap-1 ${dueStatus.color} font-medium`}>
+                                                                                        <dueStatus.icon className="w-2.5 h-2.5" />
                                                                                         {dueStatus.text}
                                                                                     </Badge>
                                                                                 )

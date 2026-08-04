@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getOrCreateRotativoPosto } from "@/lib/rotativo";
+import { createVacancyFromPosto } from "@/actions/recruitment";
 
 async function processVacationStarts() {
     const today = new Date();
@@ -32,6 +33,8 @@ async function processVacationStarts() {
     for (const vacation of vacationsToStart) {
         if (vacation.employee.situationId !== vacationSituation.id) {
             try {
+                let originPostoIdToCreate: string | null = null;
+
                 await prisma.$transaction(async (tx) => {
                     // 1. Buscar a alocação ativa atual dele
                     const currentAssignment = await tx.assignment.findFirst({
@@ -48,12 +51,10 @@ async function processVacationStarts() {
                         }
                     });
 
-                    let originPostoId: string | null = null;
-
                     if (currentAssignment) {
                         // Se estiver alocado em um posto de cliente real (diferente de ROTATIVO), desvincula!
                         if (currentAssignment.posto.client.name !== 'ROTATIVO') {
-                            originPostoId = currentAssignment.postoId;
+                            originPostoIdToCreate = currentAssignment.postoId;
 
                             // Encerrar a alocação no posto físico
                             await tx.assignment.update({
@@ -69,7 +70,7 @@ async function processVacationStarts() {
                                     employeeId: vacation.employeeId,
                                     postoId: rotativoPosto.id,
                                     startDate: today,
-                                    originPostoId: originPostoId
+                                    originPostoId: originPostoIdToCreate
                                 }
                             });
                         }
@@ -85,13 +86,22 @@ async function processVacationStarts() {
                     await tx.log.create({
                         data: {
                             action: "INICIO_AUTOMATICO_FERIAS",
-                            details: `Férias iniciadas automaticamente para ${vacation.employee.name}. ${originPostoId ? 'Desvinculado do posto original e alocado no Rotativo.' : 'Mantido no Rotativo.'}`,
+                            details: `Férias iniciadas automaticamente para ${vacation.employee.name}. ${originPostoIdToCreate ? 'Desvinculado do posto original e alocado no Rotativo.' : 'Mantido no Rotativo.'}`,
                             employeeId: vacation.employeeId
                         }
                     });
 
                     console.log(`Férias de ${vacation.employee.name} iniciadas automaticamente!`);
                 });
+
+                if (originPostoIdToCreate) {
+                    try {
+                        await createVacancyFromPosto(originPostoIdToCreate, vacation.employee.name, "FERIAS");
+                        console.log(`Vaga de Férias criada com sucesso para o posto ${originPostoIdToCreate}`);
+                    } catch (vErr: any) {
+                        console.error(`Erro ao criar vaga de férias para o posto ${originPostoIdToCreate}:`, vErr.message);
+                    }
+                }
             } catch (err: any) {
                 console.error(`Erro ao iniciar férias automáticas de ${vacation.employee.name}:`, err.message);
             }
@@ -141,41 +151,37 @@ export async function processVacationReturns() {
                     include: { posto: true }
                 });
 
-                if (!currentAssignment) {
-                    throw new Error(`Employee ${vacation.employee.name} has no active assignment to return from`);
-                }
+                let targetPostoId: string | null = null;
+                let actionDetails: string = "Processado retorno de férias";
 
-                const originPostoId = currentAssignment.originPostoId;
-                let targetPostoId: string;
-                let actionDetails: string;
+                if (currentAssignment) {
+                    const originPostoId = currentAssignment.originPostoId;
 
-                // Determine target posto
-                if (originPostoId) {
-                    // Check if origin posto is available
-                    const isOccupied = await tx.assignment.findFirst({
-                        where: {
-                            postoId: originPostoId,
-                            endDate: null
+                    // Determine target posto
+                    if (originPostoId) {
+                        // Check if origin posto is available
+                        const isOccupied = await tx.assignment.findFirst({
+                            where: {
+                                postoId: originPostoId,
+                                endDate: null
+                            }
+                        });
+
+                        if (!isOccupied) {
+                            targetPostoId = originPostoId;
+                            actionDetails = `Retorno de férias para posto original`;
+                        } else {
+                            const rotativo = await getOrCreateRotativoPosto();
+                            targetPostoId = rotativo.id;
+                            actionDetails = `Posto original ocupado. Mantido no Rotativo.`;
                         }
-                    });
-
-                    if (!isOccupied) {
-                        targetPostoId = originPostoId;
-                        actionDetails = `Retorno de férias para posto original`;
                     } else {
-                        // Origin occupied, keep in Rotativo (or move to Rotativo if not already)
-                        // But wait, if they are already in Rotativo, we just update situation?
-                        // If they are in Rotativo, we might want to ensure they stay there but situation changes.
-                        // Let's assume we always ensure Rotativo if origin occupied.
                         const rotativo = await getOrCreateRotativoPosto();
                         targetPostoId = rotativo.id;
-                        actionDetails = `Posto original ocupado. Mantido no Rotativo.`;
+                        actionDetails = `Sem posto de origem. Alocado no Rotativo.`;
                     }
                 } else {
-                    // No origin, go to Rotativo
-                    const rotativo = await getOrCreateRotativoPosto();
-                    targetPostoId = rotativo.id;
-                    actionDetails = `Sem posto de origem. Alocado no Rotativo.`;
+                    actionDetails = `Sem alocação ativa. Marcado como processado.`;
                 }
 
                 // Update Employee Situation to 'Ativo'
@@ -192,36 +198,32 @@ export async function processVacationReturns() {
                     data: { situationId: activeSituation.id }
                 });
 
-                // Handle Assignment
-                // If target is different from current, move them
-                if (currentAssignment.postoId !== targetPostoId) {
-                    // End current
-                    await tx.assignment.update({
-                        where: { id: currentAssignment.id },
-                        data: { endDate: new Date() }
-                    });
-
-                    // Create new
-                    await tx.assignment.create({
-                        data: {
-                            employeeId: vacation.employeeId,
-                            postoId: targetPostoId,
-                            startDate: new Date(),
-                            originPostoId: null // Clear origin
-                        }
-                    });
-                } else {
-                    // Even if staying in Rotativo, we might want to clear originPostoId?
-                    // Or maybe we treat "Return" as just status change.
-                    // But if we want to "Process" it, we should probably clear the origin pointer so we don't try again?
-                    // Actually, if they are staying in Rotativo because origin is occupied, maybe keep originPostoId?
-                    // For now, let's strictly follow: Return Done -> Situation Active -> Logic Complete.
-                    // If we moved them, clear origin.
-                    if (currentAssignment.originPostoId) {
+                if (currentAssignment && targetPostoId) {
+                    // Handle Assignment
+                    // If target is different from current, move them
+                    if (currentAssignment.postoId !== targetPostoId) {
+                        // End current
                         await tx.assignment.update({
                             where: { id: currentAssignment.id },
-                            data: { originPostoId: null }
+                            data: { endDate: new Date() }
                         });
+
+                        // Create new
+                        await tx.assignment.create({
+                            data: {
+                                employeeId: vacation.employeeId,
+                                postoId: targetPostoId,
+                                startDate: new Date(),
+                                originPostoId: null // Clear origin
+                            }
+                        });
+                    } else {
+                        if (currentAssignment.originPostoId) {
+                            await tx.assignment.update({
+                                where: { id: currentAssignment.id },
+                                data: { originPostoId: null }
+                            });
+                        }
                     }
                 }
 

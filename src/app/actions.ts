@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { webcrypto } from "crypto";
 import { getCurrentUserRole, getCurrentUser } from "@/lib/auth";
 import { createVacancyFromPosto } from "@/actions/recruitment";
+import { processVacationReturns } from "@/lib/cron/vacation-return";
 
 function parseDateString(str: string | null | undefined): Date | null {
     if (!str) return null;
@@ -233,10 +234,44 @@ export async function deleteSituation(formData: FormData) {
 // ============= ROLE (CARGO) ACTIONS =============
 export async function createRole(formData: FormData) {
     const name = formData.get("name") as string;
-    const description = formData.get("description") as string;
+    const cbo = formData.get("cbo") as string || null;
+    const description = formData.get("description") as string || null;
+    const atividadeDescricao = formData.get("atividadeDescricao") as string || null;
+    const riscoFisico = formData.get("riscoFisico") as string || null;
+    const riscoQuimico = formData.get("riscoQuimico") as string || null;
+    const riscoBiologico = formData.get("riscoBiologico") as string || null;
+    const riscoErgonomico = formData.get("riscoErgonomico") as string || null;
+    const riscoAcidentes = formData.get("riscoAcidentes") as string || null;
+    const episNecessarios = formData.get("episNecessarios") as string || null;
+
+    let ordemServicoText = formData.get("ordemServicoText") as string || null;
+    let ordemServicoName = null;
+
+    const file = formData.get("ordemServicoFile") as File | null;
+    if (file && file.size > 0 && file.name.endsWith(".docx")) {
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        const mammoth = (await import("mammoth")).default;
+        const parsed = await mammoth.extractRawText({ buffer });
+        ordemServicoText = parsed.value || ordemServicoText;
+        ordemServicoName = file.name;
+    }
 
     await prisma.role.create({
-        data: { name, description }
+        data: {
+            name,
+            cbo,
+            description,
+            atividadeDescricao,
+            riscoFisico,
+            riscoQuimico,
+            riscoBiologico,
+            riscoErgonomico,
+            riscoAcidentes,
+            episNecessarios,
+            ordemServicoText,
+            ordemServicoName
+        }
     });
 
     revalidatePath("/admin/roles");
@@ -245,11 +280,49 @@ export async function createRole(formData: FormData) {
 export async function updateRole(formData: FormData) {
     const id = formData.get("id") as string;
     const name = formData.get("name") as string;
-    const description = formData.get("description") as string;
+    const cbo = formData.get("cbo") as string || null;
+    const description = formData.get("description") as string || null;
+    const atividadeDescricao = formData.get("atividadeDescricao") as string || null;
+    const riscoFisico = formData.get("riscoFisico") as string || null;
+    const riscoQuimico = formData.get("riscoQuimico") as string || null;
+    const riscoBiologico = formData.get("riscoBiologico") as string || null;
+    const riscoErgonomico = formData.get("riscoErgonomico") as string || null;
+    const riscoAcidentes = formData.get("riscoAcidentes") as string || null;
+    const episNecessarios = formData.get("episNecessarios") as string || null;
+
+    let ordemServicoText = formData.get("ordemServicoText") as string || null;
+    let ordemServicoName: string | null = undefined as any;
+
+    const file = formData.get("ordemServicoFile") as File | null;
+    if (file && file.size > 0 && file.name.endsWith(".docx")) {
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        const mammoth = (await import("mammoth")).default;
+        const parsed = await mammoth.extractRawText({ buffer });
+        ordemServicoText = parsed.value || ordemServicoText;
+        ordemServicoName = file.name;
+    }
+
+    const updateData: any = {
+        name,
+        cbo,
+        description,
+        atividadeDescricao,
+        riscoFisico,
+        riscoQuimico,
+        riscoBiologico,
+        riscoErgonomico,
+        riscoAcidentes,
+        episNecessarios,
+        ordemServicoText
+    };
+    if (ordemServicoName !== undefined) {
+        updateData.ordemServicoName = ordemServicoName;
+    }
 
     await prisma.role.update({
         where: { id },
-        data: { name, description }
+        data: updateData
     });
 
     revalidatePath("/admin/roles");
@@ -1634,6 +1707,7 @@ export async function addVacation(formData: FormData) {
     const endDateStr = formData.get("endDate") as string;
     const daysTaken = parseInt(formData.get("daysTaken") as string) || 0;
     const daysSold = parseInt(formData.get("daysSold") as string) || 0;
+    const notes = (formData.get("notes") as string) || null;
 
     if (!employeeId || !startDateStr || !endDateStr) {
         return { error: "Preencha todos os campos obrigatórios." };
@@ -1655,7 +1729,8 @@ export async function addVacation(formData: FormData) {
             startDate,
             endDate,
             daysTaken,
-            daysSold
+            daysSold,
+            notes
         }
     });
 
@@ -1669,6 +1744,10 @@ export async function addVacation(formData: FormData) {
         }
     });
 
+    await processVacationReturns().catch((err) => console.error("Error processing vacation returns after create:", err));
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/vacation-monitor");
     revalidatePath("/admin/employees");
     revalidatePath(`/admin/employees/${employeeId}`);
 }
@@ -1680,6 +1759,7 @@ export async function updateVacation(formData: FormData) {
     const endDateStr = formData.get("endDate") as string;
     const daysTaken = parseInt(formData.get("daysTaken") as string) || 0;
     const daysSold = parseInt(formData.get("daysSold") as string) || 0;
+    const notes = (formData.get("notes") as string) || null;
 
     if (!vacationId || !employeeId || !startDateStr || !endDateStr) {
         return { error: "Preencha todos os campos obrigatórios." };
@@ -1713,7 +1793,8 @@ export async function updateVacation(formData: FormData) {
             startDate,
             endDate,
             daysTaken,
-            daysSold
+            daysSold,
+            notes
         }
     });
 
@@ -1724,8 +1805,27 @@ export async function updateVacation(formData: FormData) {
         }
     });
 
+    await processVacationReturns().catch((err) => console.error("Error processing vacation returns after update:", err));
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/vacation-monitor");
     revalidatePath("/admin/employees");
     revalidatePath(`/admin/employees/${employeeId}`);
+}
+
+export async function updateVacationNotes(vacationId: string, notes: string) {
+    try {
+        await prisma.vacation.update({
+            where: { id: vacationId },
+            data: { notes }
+        });
+        revalidatePath("/admin");
+        revalidatePath("/admin/vacation-monitor");
+        revalidatePath("/admin/employees");
+        return { success: true };
+    } catch (e: any) {
+        return { error: e.message || "Erro ao salvar anotação." };
+    }
 }
 
 export async function deleteVacation(vacationId: string, employeeId: string) {
@@ -1787,15 +1887,16 @@ export async function getEmployeesOnVacation() {
 
     return vacations.map(v => ({
         id: v.employee.id,
+        vacationId: v.id,
         name: v.employee.name,
         vacationStart: v.startDate,
         vacationEnd: v.endDate,
+        notes: v.notes || "",
         clientName: v.employee.assignments[0]?.posto?.client?.name || "Sem Alocação",
         postoName: v.employee.assignments[0]?.posto?.role.name || "N/A"
     }));
 }
 
-// --- Authentication Actions ---
 
 export async function login(formData: FormData) {
     const username = formData.get("username") as string;

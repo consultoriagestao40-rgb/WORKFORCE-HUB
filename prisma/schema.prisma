@@ -171,14 +171,25 @@ model Situation {
 }
 
 model Role {
-  id          String     @id @default(uuid())
-  name        String     @unique
-  description String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  employees   Employee[]
-  postos      Posto[]
-  vacancies   Vacancy[]
+  id                 String     @id @default(uuid())
+  name               String     @unique
+  cbo                String?
+  description        String?
+  atividadeDescricao String?
+  riscoFisico        String?
+  riscoQuimico       String?
+  riscoBiologico     String?
+  riscoErgonomico    String?
+  riscoAcidentes     String?
+  episNecessarios    String?
+  ordemServicoText   String?
+  ordemServicoFile   String?
+  ordemServicoName   String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  employees          Employee[]
+  postos             Posto[]
+  vacancies          Vacancy[]
 }
 
 model Employee {
@@ -287,6 +298,7 @@ model Vacancy {
   description  String?
   status       VacancyStatus          @default(OPEN)
   priority     String                 @default("MEDIUM")
+  openingReason String?
   postoId      String?
   roleId       String?
   companyId    String?
@@ -394,6 +406,7 @@ model Vacation {
   endDate    DateTime
   daysTaken  Int
   daysSold   Int      @default(0)
+  notes      String?
   processed  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

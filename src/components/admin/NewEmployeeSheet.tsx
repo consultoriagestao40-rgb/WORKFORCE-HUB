@@ -201,7 +201,16 @@ export function NewEmployeeSheet({
                 return;
             }
 
-            toast.success("Colaborador cadastrado e vinculado com sucesso!");
+            if (data?.employeeId) {
+                toast.success("Colaborador admitido com sucesso!", {
+                    action: {
+                        label: "📥 Baixar Kit de Admissão",
+                        onClick: () => window.open(`/api/admin/employees/${data.employeeId}/kit-admissao?type=kit`, "_blank")
+                    }
+                });
+            } else {
+                toast.success("Colaborador cadastrado e vinculado com sucesso!");
+            }
             handleCancel();
             if (onSuccess) onSuccess();
         } catch (e: any) {

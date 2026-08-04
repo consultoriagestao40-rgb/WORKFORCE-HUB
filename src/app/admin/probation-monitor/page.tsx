@@ -103,8 +103,8 @@ export default async function ProbationMonitorPage({ searchParams }: { searchPar
 
     const employees = await getProbationData(companyId, search);
 
-    const { experienceAlerts, alertUserId, systemUsers } = await getGlobalAlerts();
-    const allAlerts = experienceAlerts.map(a => ({
+    const { experienceAlerts, probationAlertUserId, systemUsers } = (await getGlobalAlerts()) as any;
+    const allAlerts = experienceAlerts.map((a: any) => ({
         id: a.id,
         employeeId: a.employeeId,
         employeeName: a.employeeName,
@@ -126,14 +126,15 @@ export default async function ProbationMonitorPage({ searchParams }: { searchPar
                 <div className="flex items-center gap-2">
                     <DismissalAlertsDialog 
                         alerts={allAlerts} 
-                        alertUserId={alertUserId}
+                        alertUserId={probationAlertUserId}
                         systemUsers={systemUsers}
                         isAdmin={isAdmin}
                     />
                     <DPAlertSettingsDialog 
-                        alertUserId={alertUserId}
+                        alertUserId={probationAlertUserId}
                         systemUsers={systemUsers}
                         isAdmin={isAdmin}
+                        type="probation"
                     />
                 </div>
             </div>

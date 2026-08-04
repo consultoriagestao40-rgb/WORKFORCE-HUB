@@ -43,6 +43,25 @@ export async function createVacancyFromPosto(
     const title = `${posto.role.name} - ${posto.client.name}`;
     const description = `Vaga aberta automaticamente após realocação de colaborador.\n\nDetalhes do posto:\n- Escala: ${posto.schedule}\n- Horário: ${posto.startTime} - ${posto.endTime}\n- Carga horária: ${posto.requiredWorkload}h`;
 
+    const isVacationReason = reason && /férias|ferias/i.test(reason);
+    const openingReason = isVacationReason ? 'FERIAS' : (reason || null);
+
+    // Check if an OPEN vacancy already exists for this postoId to prevent duplicate cards
+    const existingOpenVacancy = await prisma.vacancy.findFirst({
+        where: { postoId: posto.id, status: 'OPEN' },
+        orderBy: { createdAt: 'desc' }
+    });
+
+    if (existingOpenVacancy) {
+        if (openingReason && existingOpenVacancy.openingReason !== openingReason) {
+            await prisma.vacancy.update({
+                where: { id: existingOpenVacancy.id },
+                data: { openingReason }
+            });
+        }
+        return existingOpenVacancy;
+    }
+
     // Create vacancy inheriting requirements from the previous vacancy of the same Posto
     const vacancy = await prisma.vacancy.create({
         data: {
@@ -52,6 +71,7 @@ export async function createVacancyFromPosto(
             companyId: posto.client.company?.id || null,
             status: 'OPEN',
             priority: 'MEDIUM',
+            openingReason,
             recruiterId: latestVacancy?.recruiterId || null,
             reqGender: latestVacancy?.reqGender || null,
             reqExperience: latestVacancy?.reqExperience || null,
@@ -140,6 +160,7 @@ export async function createVacancy(data: {
     postoId?: string;
     companyId?: string;
     priority: string;
+    openingReason?: string;
     recruiterId: string; // NEW Mandatory
     reqGender?: string;
     reqExperience?: string;
@@ -182,6 +203,7 @@ export async function createVacancy(data: {
             postoId: data.postoId || null,
             companyId: data.companyId || null,
             priority: data.priority,
+            openingReason: data.openingReason || null,
             status: "OPEN",
             recruiterId: data.recruiterId,
             reqGender: data.reqGender || inheritData?.reqGender || null,
@@ -427,6 +449,7 @@ export async function getRecruitmentBoardData() {
             id: v.id,
             title: `${v.title} (${totalCandidates} candidato${totalCandidates !== 1 ? 's' : ''})`,
             priority: v.priority,
+            openingReason: (v as any).openingReason,
             status: v.status,
             role: v.role,
             posto: v.posto,

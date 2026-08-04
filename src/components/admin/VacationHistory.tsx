@@ -32,6 +32,7 @@ interface Vacation {
     endDate: Date;
     daysTaken: number;
     daysSold?: number;
+    notes?: string | null;
 }
 
 interface VacationHistoryProps {
@@ -48,6 +49,7 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
     const [endDate, setEndDate] = useState("");
     const [days, setDays] = useState(30);
     const [daysSold, setDaysSold] = useState(0);
+    const [notes, setNotes] = useState("");
 
     useEffect(() => {
         const handleOpen = () => {
@@ -88,6 +90,7 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
         setEndDate("");
         setDays(30);
         setDaysSold(0);
+        setNotes("");
     };
 
     async function handleAddOrUpdate(formData: FormData) {
@@ -209,6 +212,17 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
                             </div>
                         </div>
 
+                        <div className="space-y-1.5">
+                            <Label className="text-xs">Anotação / Cobertura (Opcional)</Label>
+                            <Input
+                                type="text"
+                                placeholder="Ex: Cobrir com diarista Maria (41-99999-9999). Não abrir vaga."
+                                className="h-8 text-xs bg-white"
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                            />
+                        </div>
+
                         <div className="grid grid-cols-2 gap-2">
                             <Button type="button" variant="ghost" size="sm" className="w-full h-8 text-xs bg-white border" onClick={handleCancel}>Cancelar</Button>
                              <Button
@@ -223,6 +237,7 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
                                     formData.append("endDate", endDate);
                                     formData.append("daysTaken", days.toString());
                                     formData.append("daysSold", daysSold.toString());
+                                    formData.append("notes", notes);
                                     handleAddOrUpdate(formData);
                                 }}
                             >

@@ -17,20 +17,26 @@ export interface GlobalAlertItem {
     daysLeft: number;
 }
 
-export async function updateAlertUserId(userId: string) {
+export async function updateAlertUserId(userId: string, type?: 'benefits' | 'dismissal' | 'probation') {
     const user = await getCurrentUser();
     if (!user || user.role !== 'ADMIN') throw new Error("Não autorizado.");
+
+    const field = type === 'dismissal' 
+        ? 'dismissalAlertUserId' 
+        : type === 'probation' 
+            ? 'probationAlertUserId' 
+            : 'alertUserId';
 
     const config = await prisma.benefitsConfig.findFirst();
     if (config) {
         await prisma.benefitsConfig.update({
             where: { id: config.id },
-            data: { alertUserId: userId === "none" ? null : userId }
+            data: { [field]: userId === "none" ? null : userId }
         });
     } else {
         await prisma.benefitsConfig.create({
             data: {
-                alertUserId: userId === "none" ? null : userId
+                [field]: userId === "none" ? null : userId
             }
         });
     }
@@ -43,7 +49,9 @@ export async function getGlobalAlerts() {
         benefitsAlerts: [], 
         experienceAlerts: [], 
         dismissalAlerts: [],
-        alertUserId: null, 
+        alertUserId: null,
+        dismissalAlertUserId: null,
+        probationAlertUserId: null,
         currentUserId: null,
         currentUserRole: null,
         systemUsers: [] 
@@ -53,9 +61,11 @@ export async function getGlobalAlerts() {
     const todayStart = new Date(today);
     todayStart.setHours(0, 0, 0, 0);
 
-    // 1. Fetch benefits config to identify the alert receiver
+    // 1. Fetch benefits config to identify the alert receivers
     const config = await prisma.benefitsConfig.findFirst();
     const alertUserId = config?.alertUserId || null;
+    const dismissalAlertUserId = config?.dismissalAlertUserId || null;
+    const probationAlertUserId = config?.probationAlertUserId || null;
 
     // Fetch system users for selection dropdown (only if admin)
     let systemUsers: { id: string; name: string; email: string | null }[] = [];
@@ -316,6 +326,8 @@ export async function getGlobalAlerts() {
         experienceAlerts,
         dismissalAlerts,
         alertUserId,
+        dismissalAlertUserId,
+        probationAlertUserId,
         currentUserId: user.id,
         currentUserRole: user.role,
         systemUsers

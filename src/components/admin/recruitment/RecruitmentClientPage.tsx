@@ -42,12 +42,32 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
     const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
+    // Vacation Filter state
+    const [vacationFilter, setVacationFilter] = useState<"ALL" | "VACATION" | "NO_VACATION">("ALL");
+
+    // Helper: Check if card is associated with a vacation vacancy
+    const checkIsVacationCard = (c: any) => {
+        const reason = c.vacancy?.openingReason || "";
+        const title = c.vacancy?.title || "";
+        const desc = c.vacancy?.description || "";
+        return (
+            reason === 'FERIAS' ||
+            /férias|ferias/i.test(reason) ||
+            /férias|ferias/i.test(title) ||
+            /férias|ferias/i.test(desc)
+        );
+    };
+
     // Filter Logic for Kanban View
     const filteredStages = stages.map(stage => ({
         ...stage,
         candidates: stage.candidates.filter((c: any) => {
             const clientName = c.vacancy?.posto?.client?.name || "";
             if (clientName === 'ROTATIVO') return false;
+
+            const isVacation = checkIsVacationCard(c);
+            if (vacationFilter === 'VACATION' && !isVacation) return false;
+            if (vacationFilter === 'NO_VACATION' && isVacation) return false;
 
             if (!searchTerm) return true;
 
@@ -193,28 +213,57 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
                 <div className="space-y-4">
                     {/* Barra de controle de visão e barra de busca */}
                     <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-white p-3 rounded-xl border shadow-sm">
-                        <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
-                            <button
-                                type="button"
-                                onClick={() => setViewMode("stages")}
-                                className={`px-3 py-1.5 rounded-md font-bold transition-all flex items-center gap-1.5 ${viewMode === "stages" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
-                            >
-                                📋 Por Fases
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setViewMode("clients")}
-                                className={`px-3 py-1.5 rounded-md font-bold transition-all flex items-center gap-1.5 ${viewMode === "clients" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
-                            >
-                                🏢 Por Cliente
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setViewMode("list")}
-                                className={`px-3 py-1.5 rounded-md font-bold transition-all flex items-center gap-1.5 ${viewMode === "list" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
-                            >
-                                📝 Lista de Vagas
-                            </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMode("stages")}
+                                    className={`px-3 py-1.5 rounded-md font-bold transition-all flex items-center gap-1.5 ${viewMode === "stages" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                                >
+                                    📋 Por Fases
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMode("clients")}
+                                    className={`px-3 py-1.5 rounded-md font-bold transition-all flex items-center gap-1.5 ${viewMode === "clients" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                                >
+                                    🏢 Por Cliente
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMode("list")}
+                                    className={`px-3 py-1.5 rounded-md font-bold transition-all flex items-center gap-1.5 ${viewMode === "list" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                                >
+                                    📝 Lista de Vagas
+                                </button>
+                            </div>
+
+                            {/* Filtro por Origem da Vaga (Férias vs Operacional) */}
+                            <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+                                <button
+                                    type="button"
+                                    onClick={() => setVacationFilter("ALL")}
+                                    className={`px-2.5 py-1.5 rounded-md font-bold transition-all ${vacationFilter === "ALL" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                                >
+                                    Todas as Vagas
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setVacationFilter("VACATION")}
+                                    className={`px-2.5 py-1.5 rounded-md font-bold transition-all flex items-center gap-1 ${vacationFilter === "VACATION" ? "bg-cyan-600 text-white shadow-sm font-black" : "text-cyan-700 hover:text-cyan-900"}`}
+                                    title="Exibir apenas vagas provenientes de Férias"
+                                >
+                                    🏖️ Vagas de Férias
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setVacationFilter("NO_VACATION")}
+                                    className={`px-2.5 py-1.5 rounded-md font-bold transition-all flex items-center gap-1 ${vacationFilter === "NO_VACATION" ? "bg-slate-800 text-white shadow-sm font-black" : "text-slate-600 hover:text-slate-900"}`}
+                                    title="Exibir apenas vagas operacionais (sem férias)"
+                                >
+                                    💼 Sem Férias
+                                </button>
+                            </div>
                         </div>
 
                         <div className="relative w-full md:w-80">

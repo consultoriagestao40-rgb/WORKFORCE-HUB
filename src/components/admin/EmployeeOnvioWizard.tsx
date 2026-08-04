@@ -1048,6 +1048,10 @@ export function EmployeeOnvioWizard({
                                     <Label htmlFor="cpf" className="text-slate-700 font-medium">CPF</Label>
                                     <Input id="cpf" name="cpf" value={cpf} onChange={e => setCpf(e.target.value)} required placeholder="000.000.000-00" />
                                 </div>
+                                <div className="space-y-1 bg-slate-50 p-2.5 rounded-xl border border-slate-100/80">
+                                    <Label htmlFor="phone" className="text-slate-800 font-black">WhatsApp / Celular (Obrigatório para Assinatura)</Label>
+                                    <Input id="phone" name="phone" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(00) 00000-0000" className="bg-white" />
+                                </div>
                                 <div className="space-y-1">
                                     <Label htmlFor="roleId" className="text-slate-700 font-medium">
                                         Cargo <span className="text-slate-400 font-normal italic">- opcional</span>

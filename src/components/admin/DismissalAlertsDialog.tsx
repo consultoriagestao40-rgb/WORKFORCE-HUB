@@ -180,37 +180,11 @@ export function DismissalAlertsDialog({ alerts, alertUserId, systemUsers, isAdmi
                     )}
                 </div>
 
-                {/* Responsible Manager Selector Footer */}
-                <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    {isAdmin ? (
-                        <div className="flex flex-col gap-1 w-full max-w-sm">
-                            <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                                <Settings className="w-3.5 h-3.5 text-slate-500" /> Gestor Responsável (Alertas Globais)
-                            </Label>
-                            <Select
-                                value={selectedManager}
-                                onValueChange={handleManagerChange}
-                                disabled={updating}
-                            >
-                                <SelectTrigger className="h-9 rounded-xl border-slate-250 text-xs bg-white font-semibold shadow-sm">
-                                    <SelectValue placeholder="Selecione o gestor..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">Todos (Nenhum gestor específico)</SelectItem>
-                                    {systemUsers.map(u => (
-                                        <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    ) : (
-                        <div className="text-[10px] text-slate-400 font-medium italic">
-                            Apenas Administradores podem configurar o Gestor Responsável.
-                        </div>
-                    )}
+                {/* Footer */}
+                <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end">
                     <Button 
                         onClick={() => setOpen(false)} 
-                        className="bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs h-9 px-6 self-end"
+                        className="bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs h-9 px-6"
                     >
                         Fechar
                     </Button>

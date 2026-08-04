@@ -160,6 +160,10 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
         });
 
         let totalImported = 0;
+        // In-memory dedup guard: tracks "employeeId_YYYY-MM-DD" keys already processed
+        // in this sync run to prevent duplicate creation from race conditions or
+        // multiple Secullum records for the same employee+day
+        const processedOccurrences = new Set<string>();
 
         // C. Fetch long-term Afastamentos (Vacations, INSS, Licenças, Atestados de longo prazo)
         const afastamentos = await client.getAfastamentos(startDateStr, endDateStr);
@@ -283,7 +287,11 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
             const endOfDay = new Date(occDate);
             endOfDay.setHours(23, 59, 59, 999);
 
-            // Double check no occurrence exists on this date
+            // In-memory dedup: skip if we already handled this employee+day in this sync run
+            const dateKey = `${employeeId}_${occDate.toISOString().split('T')[0]}`;
+            if (processedOccurrences.has(dateKey)) continue;
+
+            // Double check no occurrence exists on this date in the DB
             const existing = await prisma.occurrence.findFirst({
                 where: {
                     employeeId,
@@ -297,6 +305,7 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
                 : "Secullum (Falta): Falta registrada";
 
             if (existing) {
+                processedOccurrences.add(dateKey); // mark as handled
                 if (isAtestado) {
                     if (existing.type !== "ATESTADO") {
                         await prisma.occurrence.update({
@@ -342,10 +351,12 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
                                 description: `Importada automaticamente das batidas do Secullum Ponto Web. Obs: ${b.Observacoes || 'Nenhuma'}`
                             }
                         });
+                        processedOccurrences.add(dateKey); // prevent re-creation for same employee+day
                         totalImported++;
                     }
                 }
             }
+
         }
 
         // E. Fetch calculations for each employee in parallel chunks to prevent timeouts
