@@ -3,7 +3,10 @@
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, rgb } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
+import fs from "fs";
+import path from "path";
 
 export interface EpiItemInput {
     name: string;
@@ -419,20 +422,141 @@ async function queryAutentique(query: string, variables: any, fileBuffer?: Buffe
     return result.data;
 }
 
+export async function sendAutentiqueDocument(employeeName: string, phone: string, pdfBuffer: Buffer, fileName: string, docName: string) {
+    const formatted = formatPhone(phone);
+    const query = `
+        mutation CreateDocumentMutation($document: DocumentInput!, $signers: [SignerInput!]!, $file: Upload!) {
+            createDocument(sandbox: false, document: $document, signers: $signers, file: $file) {
+                id
+                name
+                signatures {
+                    public_id
+                    name
+                    link {
+                        short_link
+                    }
+                }
+            }
+        }
+    `;
+
+    const variables = {
+        document: {
+            name: docName
+        },
+        signers: [
+            {
+                name: employeeName,
+                action: "SIGN",
+                phone: formatted,
+                delivery_method: "DELIVERY_METHOD_WHATSAPP"
+            }
+        ]
+    };
+
+    return await queryAutentique(query, variables, pdfBuffer, fileName);
+}
+
 function sanitizeText(str: string): string {
     if (!str) return "";
-    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return str
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")  // strip diacritical marks (accents)
+        .replace(/[º°]/g, "o")            // ordinal indicators
+        .replace(/[ª]/g, "a")
+        .replace(/[–—]/g, "-")            // dashes
+        .replace(/[""]/g, '"')            // smart quotes
+        .replace(/[''´`]/g, "'")          // smart apostrophes
+        .replace(/[^\x20-\x7E]/g, "?");   // replace any remaining non-ASCII with ?
+}
+
+export async function seedDefaultEpiDeliveries(employeeId: string) {
+    try {
+        const employee = await prisma.employee.findUnique({
+            where: { id: employeeId },
+            include: { epiDeliveries: true }
+        });
+
+        if (!employee) return { error: "Colaborador não encontrado." };
+
+        const defaultItems = [
+            { name: "Sapato de segurança", type: "EPI", unit: "par", caNumber: "38592" },
+            { name: "Luva de Látex", type: "EPI", unit: "par", caNumber: "41982" },
+            { name: "Óculos de segurança", type: "EPI", unit: "unidade", caNumber: "25712" },
+            { name: "Máscara PFF2-S", type: "EPI", unit: "unidade", caNumber: "38904" },
+            { name: "Uniforme / Crachá", type: "UNIFORME", unit: "conjunto", caNumber: null }
+        ];
+
+        for (const item of defaultItems) {
+            let epiItem = await prisma.epiItem.findFirst({
+                where: { name: item.name }
+            });
+
+            if (!epiItem) {
+                epiItem = await prisma.epiItem.create({
+                    data: {
+                        name: item.name,
+                        type: item.type,
+                        unit: item.unit,
+                        caNumber: item.caNumber,
+                        stockQuantity: 100,
+                        minStockQuantity: 10
+                    }
+                });
+            }
+
+            const existing = await prisma.epiDelivery.findFirst({
+                where: {
+                    employeeId,
+                    epiItemId: epiItem.id
+                }
+            });
+
+            if (!existing) {
+                await prisma.epiDelivery.create({
+                    data: {
+                        employeeId,
+                        epiItemId: epiItem.id,
+                        quantity: 1,
+                        deliveryDate: employee.admissionDate || new Date(),
+                        merCode: 1, // 1 = Admissão
+                        notes: "Lançamento automático de EPIs Básicos de Admissão"
+                    }
+                });
+            }
+        }
+
+        revalidatePath("/admin/epi");
+        revalidatePath(`/admin/employees/${employeeId}`);
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error seeding default EPI deliveries:", e);
+        return { error: e.message };
+    }
 }
 
 // Server side PDF builder using pdf-lib
 export async function generateEpiPdfBytes(employeeId: string): Promise<Buffer> {
-    const employee = await getEpiPrintData(employeeId);
+    let employee = await getEpiPrintData(employeeId);
     if (!employee) throw new Error("Colaborador não encontrado.");
 
+    if (!employee.epiDeliveries || employee.epiDeliveries.length === 0) {
+        await seedDefaultEpiDeliveries(employeeId);
+        employee = await getEpiPrintData(employeeId);
+    }
+
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([595, 842]);
-    const font = await pdfDoc.embedFont(StandardFonts.CourierBold);
-    const fontRegular = await pdfDoc.embedFont(StandardFonts.Courier);
+    pdfDoc.registerFontkit(fontkit);
+
+    // Load embedded NotoSans font and AlexBrush handwritten signature font
+    const fontPath = path.join(process.cwd(), "public", "fonts", "NotoSans-Regular.ttf");
+    const fontSigPath = path.join(process.cwd(), "public", "fonts", "AlexBrush.ttf");
+    const fontBytes = fs.readFileSync(fontPath);
+    const fontSigBytes = fs.readFileSync(fontSigPath);
+    const font = await pdfDoc.embedFont(fontBytes);
+    const fontSig = await pdfDoc.embedFont(fontSigBytes);
+
+    const page = pdfDoc.addPage([595, 842]); // A4
 
     const companyName = employee.company?.name || "SPOT SERVIÇOS FACILITIES LTDA";
     const roleName = employee.role?.name || "Auxiliar de Limpeza";
@@ -441,104 +565,232 @@ export async function generateEpiPdfBytes(employeeId: string): Promise<Buffer> {
           (new Date(employee.admissionDate).getUTCMonth() + 1).toString().padStart(2, '0') + '/' + 
           new Date(employee.admissionDate).getUTCFullYear()
         : "__/__/____";
+    const formattedDismissal = employee.dismissalReason ? "__/__/____" : "__/__/____";
 
     const extra = (employee.extraFields as any) || {};
-    const sizesStr = `Camiseta: ${extra.camisetaTamanho || "___"} | Calça: ${extra.calcaTamanho || "___"} | Luvas: ${extra.luvasTamanho || "___"} | Sapato: ${extra.sapatoTamanho || "___"}`;
+    const camisetaSize = extra.camisetaTamanho || "___";
+    const calcaSize = extra.calcaTamanho || "___";
+    const luvasSize = extra.luvasTamanho || "___";
+    const sapatoSize = extra.sapatoTamanho || "___";
 
-    // Draw Title Header Box
+    const deliveries = (employee.epiDeliveries || []).map((d: any) => ({
+        deliveryDate: d.deliveryDate,
+        quantity: d.quantity,
+        unit: d.epiItem?.unit || "UN",
+        caNumber: d.epiItem?.caNumber || "-",
+        itemName: `${d.epiItem?.name || ''} ${d.epiItem?.size ? `(${d.epiItem.size})` : ''}`.trim(),
+        merCode: d.merCode,
+        deliveredBy: d.deliveredBy?.name || "Mesa"
+    }));
+
+    const startX = 30;
+    const endX = 565;
+    const contentWidth = endX - startX; // 535
+
+    // Outer Frame Border
     page.drawRectangle({
-        x: 40,
-        y: 775,
-        width: 515,
-        height: 35,
+        x: startX,
+        y: 30,
+        width: contentWidth,
+        height: 782,
         borderColor: rgb(0, 0, 0),
         borderWidth: 1
     });
 
-    page.drawText("FICHA DE ENTREGA DE EQUIPAMENTO DE PROTECAO INDIVIDUAL (EPI)", {
-        x: 55,
-        y: 788,
-        size: 11,
+    // 1. Header Title Box
+    let curY = 790;
+    page.drawText("FICHA DE ENTREGA DE EQUIPAMENTO DE PROTEÇÃO INDIVIDUAL (EPI)", {
+        x: startX + 50,
+        y: curY,
+        size: 10,
         font
     });
 
-    // Draw employee Details
-    let y = 750;
-    page.drawText(`Empresa: ${sanitizeText(companyName)}`, { x: 40, y, size: 9, font });
-    y -= 15;
-    page.drawText(`Trabalhador: ${sanitizeText(employee.name)}`, { x: 40, y, size: 9, font });
-    y -= 15;
-    page.drawText(`CPF: ${employee.cpf || "-"}`, { x: 40, y, size: 9, font });
-    page.drawText(`Funcao: ${sanitizeText(roleName)}`, { x: 300, y, size: 9, font });
-    y -= 15;
-    page.drawText(`Data de Admissao: ${formattedAdmission}`, { x: 40, y, size: 9, font });
-    
-    y -= 25;
-
-    // Draw Termo de Responsabilidade
-    const responsibilityText = "Declaro para os devidos fins que recebi os E.P.I's (Equipamento de Proteção Individual) abaixo descritos e me comprometo: Usá-los apenas para as finalidades a que se destinam; Responsabilizar-me por sua guarda e conservação; Comunicar ao empregador qualquer modificação que os tornem impróprios para o uso; Responsabilizar-me pela danificação do E.P.I devido ao uso inadequado ou fora das atividades a que se destinam, bem como pelo seu extravio. Declaro ainda estar ciente de que o uso é obrigatório sob pena de ser punido conforme LEI nº 6.514, de 22/12/77, artigo 158, que diz: recusa injustificada ao uso de EPI ou vestimenta fornecido pelo serviço de saúde constitui ato faltoso, autorizador de despedida por Justa Causa. Declaro que recebi treinamento referente ao uso e conservação do E.P.I segundo as Normas de Segurança do Trabalho.";
-    
-    const wrapped = wrapText(responsibilityText, 515, 8);
-    for (const line of wrapped) {
-        page.drawText(sanitizeText(line), { x: 40, y, size: 8, font: fontRegular });
-        y -= 12;
-    }
-
-    y -= 15;
-    page.drawText(`Grade de Tamanhos: ${sanitizeText(sizesStr)}`, { x: 40, y, size: 9, font });
-
-    y -= 30;
-
-    // Table Header
-    page.drawRectangle({
-        x: 40,
-        y: y - 5,
-        width: 515,
-        height: 18,
-        borderColor: rgb(0, 0, 0),
-        borderWidth: 1
+    curY -= 15;
+    page.drawLine({
+        start: { x: startX, y: curY },
+        end: { x: endX, y: curY },
+        thickness: 1,
+        color: rgb(0, 0, 0)
     });
 
-    page.drawText("DATA", { x: 45, y, size: 8, font });
-    page.drawText("QTD", { x: 105, y, size: 8, font });
-    page.drawText("UND", { x: 135, y, size: 8, font });
-    page.drawText("C.A.", { x: 165, y, size: 8, font });
-    page.drawText("ITEM / DESCRICAO", { x: 215, y, size: 8, font });
-    page.drawText("M.E.R", { x: 450, y, size: 8, font });
+    // 2. Employee and Company Details Grid
+    curY -= 15;
+    const col1X = startX + 10;
+    const col2X = startX + 270;
 
-    y -= 20;
+    page.drawText(`EMPRESA: ${companyName}`, { x: col1X, y: curY, size: 8, font });
+    page.drawText(`FUNÇÃO: ${roleName}`, { x: col2X, y: curY, size: 8, font });
+    curY -= 14;
+    page.drawText(`NOME DO TRABALHADOR: ${employee.name}`, { x: col1X, y: curY, size: 8, font });
+    page.drawText(`CPF: ${employee.cpf || "___________________"}`, { x: col2X, y: curY, size: 8, font });
+    curY -= 14;
+    page.drawText(`DATA DE ADMISSÃO: ${formattedAdmission}`, { x: col1X, y: curY, size: 8, font });
+    page.drawText(`DATA DE DEMISSÃO: ${formattedDismissal}`, { x: col2X, y: curY, size: 8, font });
 
-    const deliveries = employee.epiDeliveries || [];
-    for (const d of deliveries) {
-        const dateObj = new Date(d.deliveryDate);
-        const dateStr = `${dateObj.getUTCDate().toString().padStart(2, '0')}/${(dateObj.getUTCMonth() + 1).toString().padStart(2, '0')}/${dateObj.getUTCFullYear()}`;
-        
-        page.drawText(dateStr, { x: 45, y, size: 8, font: fontRegular });
-        page.drawText(String(d.quantity), { x: 105, y, size: 8, font: fontRegular });
-        page.drawText(sanitizeText(d.epiItem.unit), { x: 135, y, size: 8, font: fontRegular });
-        page.drawText(d.epiItem.caNumber || "-", { x: 165, y, size: 8, font: fontRegular });
-        
-        let itemName = d.epiItem.name;
-        if (d.epiItem.size) itemName += ` (${d.epiItem.size})`;
-        if (itemName.length > 32) itemName = itemName.substring(0, 29) + "...";
+    curY -= 10;
+    page.drawLine({
+        start: { x: startX, y: curY },
+        end: { x: endX, y: curY },
+        thickness: 1,
+        color: rgb(0, 0, 0)
+    });
 
-        page.drawText(sanitizeText(itemName), { x: 215, y, size: 8, font: fontRegular });
-        page.drawText(String(d.merCode), { x: 450, y, size: 8, font: fontRegular });
+    // 3. M.E.R - Motivos e Legenda Box
+    curY -= 12;
+    page.drawText("M.E.R - MOTIVOS PARA ENTREGA/RECEBIMENTO:", { x: col1X, y: curY, size: 7, font });
+    page.drawText("LEGENDA / INFORMAÇÕES:", { x: col2X, y: curY, size: 7, font });
 
-        page.drawLine({
-            start: { x: 40, y: y - 4 },
-            end: { x: 555, y: y - 4 },
-            thickness: 0.5,
-            color: rgb(0.8, 0.8, 0.8)
+    curY -= 11;
+    page.drawText("1 - Recebimento de rotina ou EPI descartável", { x: col1X, y: curY, size: 6.5, font });
+    page.drawText("CA: Certificado de Aprovação (Ministério do Trabalho)", { x: col2X, y: curY, size: 6.5, font });
+    curY -= 10;
+    page.drawText("2 - Substituição por dano justificado", { x: col1X, y: curY, size: 6.5, font });
+    page.drawText("M.E.R: Motivos para Entrega e Recebimento de EPI", { x: col2X, y: curY, size: 6.5, font });
+    curY -= 10;
+    page.drawText("3 - Substituição por dano próprio ou perda", { x: col1X, y: curY, size: 6.5, font });
+    curY -= 10;
+    page.drawText("4 - Devolução, demissão / mudança de função", { x: col1X, y: curY, size: 6.5, font });
+    curY -= 10;
+    page.drawText("5 - Primeira entrega", { x: col1X, y: curY, size: 6.5, font });
+
+    curY -= 8;
+    page.drawLine({
+        start: { x: startX, y: curY },
+        end: { x: endX, y: curY },
+        thickness: 1,
+        color: rgb(0, 0, 0)
+    });
+
+    // 4. Termo de Responsabilidade
+    curY -= 15;
+    page.drawText("TERMO DE RESPONSABILIDADE", { x: startX + 190, y: curY, size: 8, font });
+
+    curY -= 12;
+    const respText = `Declaro para os devidos fins que recebi os E.P.I's (Equipamento de Proteção Individual) abaixo descritos e me comprometo: Usá-los apenas para as finalidades a que se destinam; Responsabilizar-me por sua guarda e conservação; Comunicar ao empregador qualquer modificação que os tornem impróprios para o uso; Responsabilizar-me pela danificação do E.P.I devido ao uso inadequado ou fora das atividades a que se destinam, bem como pelo seu extravio. Declaro ainda estar ciente de que o uso é obrigatório sob pena de ser punido conforme LEI nº 6.514, de 22/12/77, artigo 158, que diz: recusa injustificada ao uso de EPI ou vestimenta fornecido pelo serviço de saúde constitui ato faltoso, autorizador de despedida por "Justa Causa". Declaro que recebi treinamento referente ao uso e conservação do E.P.I segundo as Normas de Segurança do Trabalho.`;
+    
+    const lines = wrapText(respText, contentWidth - 20, 6.5);
+    for (const l of lines) {
+        page.drawText(l, { x: col1X, y: curY, size: 6.5, font });
+        curY -= 9.5;
+    }
+
+    curY -= 5;
+    const sizesLine = `Camiseta: ${camisetaSize}    Calça: ${calcaSize}    Luvas: ${luvasSize}    Calçado: ${sapatoSize}`;
+    page.drawText(sizesLine, { x: startX + 130, y: curY, size: 7.5, font });
+
+    curY -= 20;
+    const now = new Date();
+    const todayFormatted = `${now.getUTCDate().toString().padStart(2, '0')}/${(now.getUTCMonth() + 1).toString().padStart(2, '0')}/${now.getUTCFullYear()}`;
+    
+    page.drawText(`Curitiba, ${todayFormatted}`, { x: col1X, y: curY, size: 7.5, font });
+
+    // Signature Line (left blank for Autentique / physical signature)
+    page.drawLine({
+        start: { x: col2X + 20, y: curY + 2 },
+        end: { x: endX - 20, y: curY + 2 },
+        thickness: 0.5,
+        color: rgb(0, 0, 0)
+    });
+    page.drawText("ASSINATURA DO TRABALHADOR", { x: col2X + 50, y: curY - 10, size: 7.5, font });
+
+    curY -= 20;
+    page.drawLine({
+        start: { x: startX, y: curY },
+        end: { x: endX, y: curY },
+        thickness: 1,
+        color: rgb(0, 0, 0)
+    });
+
+    // 5. Items Grid Table
+    const tableCols = [
+        { header: "DATA ENTREGA", x: startX, w: 55 },
+        { header: "QTD.", x: startX + 55, w: 25 },
+        { header: "UND.", x: startX + 80, w: 30 },
+        { header: "C.A.", x: startX + 110, w: 40 },
+        { header: "ITEM / DESCRIÇÃO", x: startX + 150, w: 190 },
+        { header: "M.E.R.", x: startX + 340, w: 40 },
+        { header: "ASSINATURA TRABALHADOR", x: startX + 380, w: 85 },
+        { header: "RESPONSÁVEL ENTREGA", x: startX + 465, w: 70 }
+    ];
+
+    const rowHeight = 17;
+    const headerHeight = 18;
+
+    // Header Row background & text
+    curY -= headerHeight;
+    page.drawRectangle({
+        x: startX,
+        y: curY,
+        width: contentWidth,
+        height: headerHeight,
+        color: rgb(0.93, 0.93, 0.93),
+        borderColor: rgb(0, 0, 0),
+        borderWidth: 0.5
+    });
+
+    for (const col of tableCols) {
+        page.drawText(col.header, { x: col.x + 2, y: curY + 5, size: 5.5, font });
+        if (col.x > startX) {
+            page.drawLine({
+                start: { x: col.x, y: curY },
+                end: { x: col.x, y: curY + headerHeight },
+                thickness: 0.5,
+                color: rgb(0, 0, 0)
+            });
+        }
+    }
+
+    // 16 Rows total (filled + empty padding rows)
+    const maxRows = 16;
+    for (let r = 0; r < maxRows; r++) {
+        curY -= rowHeight;
+        const d = deliveries[r];
+
+        page.drawRectangle({
+            x: startX,
+            y: curY,
+            width: contentWidth,
+            height: rowHeight,
+            borderColor: rgb(0, 0, 0),
+            borderWidth: 0.5
         });
 
-        y -= 16;
-        if (y < 50) break;
+        for (const col of tableCols) {
+            if (col.x > startX) {
+                page.drawLine({
+                    start: { x: col.x, y: curY },
+                    end: { x: col.x, y: curY + rowHeight },
+                    thickness: 0.5,
+                    color: rgb(0, 0, 0)
+                });
+            }
+        }
+
+        if (d) {
+            const dateObj = new Date(d.deliveryDate);
+            const dateFormatted = `${dateObj.getUTCDate().toString().padStart(2, '0')}/${(dateObj.getUTCMonth() + 1).toString().padStart(2, '0')}/${dateObj.getUTCFullYear()}`;
+
+            page.drawText(dateFormatted, { x: tableCols[0].x + 4, y: curY + 5, size: 6.5, font });
+            page.drawText(String(d.quantity), { x: tableCols[1].x + 10, y: curY + 5, size: 6.5, font });
+            page.drawText(d.unit, { x: tableCols[2].x + 4, y: curY + 5, size: 6.5, font });
+            page.drawText(d.caNumber || "-", { x: tableCols[3].x + 4, y: curY + 5, size: 6.5, font });
+            
+            let name = d.itemName;
+            if (name.length > 35) name = name.substring(0, 32) + "...";
+            page.drawText(name, { x: tableCols[4].x + 4, y: curY + 5, size: 6.5, font });
+            page.drawText(String(d.merCode), { x: tableCols[5].x + 15, y: curY + 5, size: 6.5, font });
+            
+            let resp = d.deliveredBy || "Mesa";
+            if (resp.length > 16) resp = resp.substring(0, 14) + "...";
+            page.drawText(resp, { x: tableCols[7].x + 4, y: curY + 5, size: 6, font });
+        }
     }
 
     const pdfBytes = await pdfDoc.save();
     return Buffer.from(pdfBytes);
 }
+
 
 // Action to trigger Autentique document signature request via WhatsApp
 export async function sendEpiFichaToAutentique(employeeId: string) {
@@ -574,7 +826,7 @@ export async function sendEpiFichaToAutentique(employeeId: string) {
         // 3. Autentique GraphQL createDocument mutation variables
         const query = `
             mutation CreateDocumentMutation($document: DocumentInput!, $signers: [SignerInput!]!, $file: Upload!) {
-                createDocument(sandbox: true, document: $document, signers: $signers, file: $file) {
+                createDocument(sandbox: false, document: $document, signers: $signers, file: $file) {
                     id
                     name
                     signatures {
