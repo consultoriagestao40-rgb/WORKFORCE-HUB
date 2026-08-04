@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { SidebarNav } from "@/components/admin/SidebarNav";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -14,6 +14,20 @@ interface AdminLayoutWrapperProps {
 
 export function AdminLayoutWrapper({ children, user }: AdminLayoutWrapperProps) {
     const [isCollapsed, setIsCollapsed] = useState(false);
+    
+    useEffect(() => {
+        const saved = localStorage.getItem("sidebarCollapsed");
+        if (saved) {
+            setIsCollapsed(JSON.parse(saved));
+        }
+    }, []);
+
+    const toggleSidebar = () => {
+        const newState = !isCollapsed;
+        setIsCollapsed(newState);
+        localStorage.setItem("sidebarCollapsed", JSON.stringify(newState));
+    };
+
     const pathname = usePathname();
     const isPerformancePage = pathname === "/admin/performance";
 
@@ -38,7 +52,7 @@ export function AdminLayoutWrapper({ children, user }: AdminLayoutWrapperProps) 
             >
                 {/* Toggle Button - Vertically Centered */}
                 <button
-                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    onClick={toggleSidebar}
                     className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-600 hover:text-blue-600 hover:scale-110 transition-all shadow-md z-50 cursor-pointer"
                 >
                     {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
