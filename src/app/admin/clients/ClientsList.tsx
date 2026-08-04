@@ -190,7 +190,7 @@ export function ClientsList({
                         </TableHeader>
                         <TableBody>
                             {filteredClients.map((client) => (
-                                <TableRow key={client.id}>
+                                <TableRow key={client.id} className={client.isActive === false ? "opacity-60 bg-slate-50" : ""}>
                                     <TableCell>
                                         <div className="text-xs font-bold text-blue-600 uppercase">
                                             {client.company?.name || 'Não vinculada'}
@@ -201,7 +201,7 @@ export function ClientsList({
                                             <Building className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
                                             <span className="font-semibold">{client.name}</span>
                                             {client.isActive === false && (
-                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200 uppercase">
+                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 border border-red-200 uppercase">
                                                     Encerrado
                                                 </span>
                                             )}
@@ -218,7 +218,11 @@ export function ClientsList({
                                     </TableCell>
                                     <TableCell>{client._count.postos} Postos</TableCell>
                                     <TableCell>
-                                        {client.monitorInOperations !== false ? (
+                                        {client.isActive === false ? (
+                                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200">
+                                                Contrato Encerrado
+                                            </span>
+                                        ) : client.monitorInOperations !== false ? (
                                             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                                 Mesa Ativa
                                             </span>
