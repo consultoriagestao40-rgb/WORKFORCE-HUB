@@ -157,28 +157,34 @@ export async function processVacationReturns() {
                 if (currentAssignment) {
                     const originPostoId = currentAssignment.originPostoId;
 
-                    // Determine target posto
-                    if (originPostoId) {
-                        // Check if origin posto is available
-                        const isOccupied = await tx.assignment.findFirst({
-                            where: {
-                                postoId: originPostoId,
-                                endDate: null
-                            }
-                        });
+                    const rotativo = await getOrCreateRotativoPosto();
 
-                        if (!isOccupied) {
-                            targetPostoId = originPostoId;
-                            actionDetails = `Retorno de férias para posto original`;
-                        } else {
-                            const rotativo = await getOrCreateRotativoPosto();
-                            targetPostoId = rotativo.id;
-                            actionDetails = `Posto original ocupado. Mantido no Rotativo.`;
-                        }
+                    // Se o funcionário já está em um posto físico (não rotativo), não mexe nele
+                    if (currentAssignment.postoId !== rotativo.id) {
+                        targetPostoId = currentAssignment.postoId;
+                        actionDetails = `Já alocado no posto atual (${currentAssignment.posto.name}). Mantido no posto.`;
                     } else {
-                        const rotativo = await getOrCreateRotativoPosto();
-                        targetPostoId = rotativo.id;
-                        actionDetails = `Sem posto de origem. Alocado no Rotativo.`;
+                        // O funcionário está no Rotativo, vamos tentar voltar para o posto original
+                        if (originPostoId) {
+                            // Check if origin posto is available
+                            const isOccupied = await tx.assignment.findFirst({
+                                where: {
+                                    postoId: originPostoId,
+                                    endDate: null
+                                }
+                            });
+
+                            if (!isOccupied) {
+                                targetPostoId = originPostoId;
+                                actionDetails = `Retorno de férias para posto original`;
+                            } else {
+                                targetPostoId = rotativo.id;
+                                actionDetails = `Posto original ocupado. Mantido no Rotativo.`;
+                            }
+                        } else {
+                            targetPostoId = rotativo.id;
+                            actionDetails = `Sem posto de origem. Mantido no Rotativo.`;
+                        }
                     }
                 } else {
                     actionDetails = `Sem alocação ativa. Marcado como processado.`;
