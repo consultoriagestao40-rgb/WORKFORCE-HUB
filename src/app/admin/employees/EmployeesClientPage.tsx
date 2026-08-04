@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Filter, User, Download, TrendingUp, Trash2 } from "lucide-react";
+import { Search, Filter, User, Download, TrendingUp, Trash2, FileCheck } from "lucide-react";
 import { useState } from "react";
 import { NewEmployeeSheet } from "@/components/admin/NewEmployeeSheet";
 import * as XLSX from "xlsx";
@@ -18,6 +18,7 @@ import { Demographics } from "@/components/admin/Demographics";
 import { ImportEmployeesDialog } from "@/components/admin/ImportEmployeesDialog";
 import { UpdateEmployeesFinanceDialog } from "@/components/admin/UpdateEmployeesFinanceDialog";
 import { deleteEmployee, deleteEmployeesBatch } from "@/app/actions";
+import { NewRhRequestDialog } from "@/components/admin/NewRhRequestDialog";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
@@ -411,14 +412,30 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                                                         </span>
                                                     )}
                                                 </TableCell>
-                                                <TableCell className="max-w-[200px] whitespace-normal break-words">
+                    <TableCell className="max-w-[200px] whitespace-normal break-words">
                                                     <span className="text-xs font-semibold text-slate-600 leading-tight block">
                                                         {activeAssignment?.posto?.client?.name || "-"}
                                                     </span>
                                                 </TableCell>
                                                 <TableCell className="text-right pr-8">
+                                                    <a
+                                                        href={`/api/admin/employees/${emp.id}/kit-admissao?type=kit`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        title="Baixar Kit de Admissão (OS + Termo Ponto + EPI)"
+                                                    >
+                                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-all">
+                                                            <FileCheck className="w-4 h-4 text-emerald-600" />
+                                                        </Button>
+                                                    </a>
+                                                    
+                                                    <NewRhRequestDialog 
+                                                        employee={{ id: emp.id, name: emp.name, roleName: emp.role?.name }} 
+                                                        triggerVariant="icon" 
+                                                    />
+
                                                     <Link href={`/admin/employees/${emp.id}`}>
-                                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-slate-200 text-slate-400 hover:text-primary transition-all">
+                                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-slate-200 text-slate-400 hover:text-primary transition-all ml-1">
                                                             <User className="w-4 h-4" />
                                                         </Button>
                                                     </Link>

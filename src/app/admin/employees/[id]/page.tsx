@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { KitAdmissaoButtons } from "@/components/admin/KitAdmissaoButtons";
 import {
     ArrowLeft,
     MapPin,
@@ -35,8 +36,10 @@ import { VacationHistory } from "@/components/admin/VacationHistory";
 import { MoveToRotativoButton } from "@/components/admin/MoveToRotativoButton";
 import { BackButton } from "@/components/admin/BackButton";
 import { InitiateDismissalDialog } from "@/components/admin/InitiateDismissalDialog";
+import { TerminationSimulatorDialog } from "@/components/admin/TerminationSimulatorDialog";
 import { LaunchVacationButton } from "@/components/admin/LaunchVacationButton";
 import { AdministrativeMeasuresCard } from "@/components/admin/AdministrativeMeasuresCard";
+import { NewRhRequestDialog } from "@/components/admin/NewRhRequestDialog";
 
 async function getEmployeeDetails(id: string) {
     const [employee, situations, roles, companies, postos] = await Promise.all([
@@ -143,6 +146,8 @@ export default async function EmployeeProfilePage(props: {
                     label={backTo.includes('financial-costs') ? 'Voltar para Custos' : 'Voltar para Equipe'} 
                 />
                 <div className="flex gap-2.5 items-center">
+                    <NewRhRequestDialog employee={{ id: employee.id, name: employee.name, roleName: employee.role?.name }} />
+                    <KitAdmissaoButtons employeeId={employee.id} employeeName={employee.name} />
                     <Link href={`/admin/employees/${employee.id}/print`} target="_blank">
                         <Button className="gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold border-none h-9 px-4 rounded-xl shadow-sm text-xs uppercase tracking-wider">
                             <FileText className="w-4 h-4" /> Exportar Ficha
@@ -150,6 +155,7 @@ export default async function EmployeeProfilePage(props: {
                     </Link>
                     <EditEmployeeSheet employee={employee} situations={situations} roles={roles} companies={companies} postos={postos} />
                     <LaunchVacationButton />
+                    <TerminationSimulatorDialog employee={{ ...employee, vacationDaysRemaining: daysRemaining }} />
                     {!employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name?.toUpperCase() === "ROTATIVO") && (
                         <MoveToRotativoButton employeeId={employee.id} />
                     )}
