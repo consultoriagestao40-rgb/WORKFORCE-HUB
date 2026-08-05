@@ -933,14 +933,26 @@ export async function getBacklogItems() {
             client: { include: { company: true } },
             role: true,
             vacancies: {
-                where: { status: 'OPEN' }
+                where: { status: 'OPEN' },
+                include: {
+                    candidates: {
+                        where: { type: 'VACANCY' },
+                        include: { stage: true }
+                    }
+                }
             }
         }
     });
 
-    // Return all vacant postos, even if they have an open vacancy in the Kanban.
-    // This allows the user to open new vacancies if their Kanban has "zombie" cards.
-    const backlog = vacantPostos;
+    // 2. Filter out postos that ALREADY have an OPEN vacancy actively running in the Kanban.
+    // We IGNORE vacancies that are sitting in the 'Posto' stage, because the user considers those 'finished' in R&S.
+    const backlog = vacantPostos.filter(p => {
+        const hasActiveVacancyInPipeline = p.vacancies.some(v => 
+            v.status === 'OPEN' && 
+            v.candidates.some(c => c.type === 'VACANCY' && c.stage?.name !== 'Posto')
+        );
+        return !hasActiveVacancyInPipeline;
+    });
 
     return backlog.map(p => ({
         id: p.id,
