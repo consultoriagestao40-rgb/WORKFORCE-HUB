@@ -922,6 +922,11 @@ export async function getBacklogItems() {
             client: {
                 name: { not: 'ROTATIVO' },
                 isActive: true
+            },
+            assignments: {
+                none: {
+                    endDate: null // Active assignments have no end date
+                }
             }
         },
         include: {
