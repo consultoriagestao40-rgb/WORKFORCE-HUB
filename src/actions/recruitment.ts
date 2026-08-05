@@ -938,8 +938,9 @@ export async function getBacklogItems() {
         }
     });
 
-    // 2. Filter out postos that ALREADY have an OPEN vacancy
-    const backlog = vacantPostos.filter(p => p.vacancies.length === 0);
+    // Return all vacant postos, even if they have an open vacancy in the Kanban.
+    // This allows the user to open new vacancies if their Kanban has "zombie" cards.
+    const backlog = vacantPostos;
 
     return backlog.map(p => ({
         id: p.id,
