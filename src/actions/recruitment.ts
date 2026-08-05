@@ -936,7 +936,6 @@ export async function getBacklogItems() {
                 where: { status: 'OPEN' },
                 include: {
                     candidates: {
-                        where: { type: 'VACANCY' },
                         include: { stage: true }
                     }
                 }
@@ -945,11 +944,11 @@ export async function getBacklogItems() {
     });
 
     // 2. Filter out postos that ALREADY have an OPEN vacancy actively running in the Kanban.
-    // We IGNORE vacancies that are sitting in the 'Posto' stage, because the user considers those 'finished' in R&S.
+    // We IGNORE vacancies where all candidates are in 'Posto' stage (considered done in R&S).
     const backlog = vacantPostos.filter(p => {
-        const hasActiveVacancyInPipeline = p.vacancies.some(v => 
-            v.status === 'OPEN' && 
-            v.candidates.some(c => c.type === 'VACANCY' && c.stage?.name !== 'Posto')
+        const hasActiveVacancyInPipeline = p.vacancies.some(v =>
+            v.status === 'OPEN' &&
+            v.candidates.some(c => c.stage?.name !== 'Posto')
         );
         return !hasActiveVacancyInPipeline;
     });
