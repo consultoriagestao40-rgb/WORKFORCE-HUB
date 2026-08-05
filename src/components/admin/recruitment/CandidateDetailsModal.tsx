@@ -9,6 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { X, MessageSquare, Send, Paperclip, CheckCircle2, XCircle, Clock, Save, User, Mail, Phone, Calendar, Briefcase, MapPin, Building2, Building, DollarSign, AlertCircle, Trash2, Copy, FileText, Upload, AlertTriangle, ChevronDown, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate, updateVacancy, addVacancyParticipant, removeVacancyParticipant, addRecruitmentComment, getRecruitmentComments, getVacancyCandidates, evaluateCandidateWithAI, updateCandidateEvaluation } from "@/actions/recruitment";
+import { DocumentacaoPanel } from "./stages/DocumentacaoPanel";
+import { ExamePanel } from "./stages/ExamePanel";
+import { OnvioPanel } from "./stages/OnvioPanel";
+import { BeneficiosPanel } from "./stages/BeneficiosPanel";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -354,20 +358,93 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                         </TabsList>
 
                         <TabsContent value="details" className="mt-4">
-                            {/* ADMISSION WORKFLOW - VISIBLE ONLY IF IN ADMISSION STAGE (SINGLE CANDIDATE VIEW) */}
-                            {candidate.type !== 'VACANCY' && currentStage?.name?.toLowerCase().includes('admissão') && (
+                            {/* ======================================================= */}
+                            {/* STAGE-SPECIFIC PANELS - shown based on current stage    */}
+                            {/* ======================================================= */}
+
+                            {/* DOCUMENTAÇÃO STAGE */}
+                            {candidate.type !== 'VACANCY' && currentStage?.name === 'Documentação' && (
+                                <div className="mb-6 bg-blue-50/50 border border-blue-100 rounded-xl p-5">
+                                    <h3 className="font-semibold text-blue-800 flex items-center gap-2 mb-4">
+                                        <FileText className="w-5 h-5" />
+                                        Envio de Documentação
+                                    </h3>
+                                    <DocumentacaoPanel
+                                        candidateId={candidate.id}
+                                        candidateName={candidate.name}
+                                        documentationLinkToken={candidate.documentationLinkToken}
+                                        documentationFiles={candidate.documentationFiles}
+                                        documentationStatus={candidate.documentationStatus}
+                                        onUpdate={() => window.location.reload()}
+                                    />
+                                </div>
+                            )}
+
+                            {/* EXAME STAGE */}
+                            {candidate.type !== 'VACANCY' && currentStage?.name === 'Exame' && (
+                                <div className="mb-6 bg-teal-50/50 border border-teal-100 rounded-xl p-5">
+                                    <h3 className="font-semibold text-teal-800 flex items-center gap-2 mb-4">
+                                        <Upload className="w-5 h-5" />
+                                        Exame Médico (ASO)
+                                    </h3>
+                                    <ExamePanel
+                                        candidateId={candidate.id}
+                                        candidateName={candidate.name}
+                                        asoFile={candidate.asoFile}
+                                        asoStatus={candidate.asoStatus}
+                                        onUpdate={() => window.location.reload()}
+                                    />
+                                </div>
+                            )}
+
+                            {/* ADMISSÃO (ONVIO) STAGE */}
+                            {candidate.type !== 'VACANCY' && currentStage?.name === 'Admissão (Onvio)' && (
+                                <div className="mb-6 bg-violet-50/50 border border-violet-100 rounded-xl p-5">
+                                    <h3 className="font-semibold text-violet-800 flex items-center gap-2 mb-4">
+                                        <CheckCircle2 className="w-5 h-5" />
+                                        Admissão no Onvio
+                                    </h3>
+                                    <OnvioPanel
+                                        candidateId={candidate.id}
+                                        candidateName={candidate.name}
+                                        onvioLaunched={candidate.onvioLaunched}
+                                        onvioConfirmedAt={candidate.onvioConfirmedAt}
+                                        onUpdate={() => window.location.reload()}
+                                    />
+                                </div>
+                            )}
+
+                            {/* ADMISSÃO (legado) STAGE - keep for backwards compatibility */}
+                            {candidate.type !== 'VACANCY' && currentStage?.name === 'Admissão' && (
                                 <AdmissionWorkflow 
                                     candidate={candidate} 
                                     onComplete={() => {
-                                        // Focus or show the allocation form, which might be in the "Dados da Vaga" section
                                         const el = document.getElementById('allocation-section');
                                         if (el) el.scrollIntoView({ behavior: 'smooth' });
                                     }} 
                                 />
                             )}
 
-                            {/* ADMISSION WORKFLOW FOR VACANCIES IN ADMISSION STAGE */}
-                            {candidate.type === 'VACANCY' && currentStage?.name?.toLowerCase().includes('admissão') && (
+                            {/* CADASTRO DE BENEFÍCIOS STAGE */}
+                            {candidate.type !== 'VACANCY' && currentStage?.name === 'Cadastro de Benefícios' && (
+                                <div className="mb-6 bg-emerald-50/50 border border-emerald-100 rounded-xl p-5">
+                                    <h3 className="font-semibold text-emerald-800 flex items-center gap-2 mb-4">
+                                        <AlertCircle className="w-5 h-5" />
+                                        Cadastro de Benefícios
+                                    </h3>
+                                    <BeneficiosPanel
+                                        candidateId={candidate.id}
+                                        cajuRegistered={candidate.cajuRegistered}
+                                        metocarRegistered={candidate.metocarRegistered}
+                                        urbisRegistered={candidate.urbisRegistered}
+                                        benefitsCompletedAt={candidate.benefitsCompletedAt}
+                                        onUpdate={() => window.location.reload()}
+                                    />
+                                </div>
+                            )}
+
+                            {/* VACANCY MODE - Admissão (Onvio) */}
+                            {candidate.type === 'VACANCY' && (currentStage?.name === 'Admissão (Onvio)' || currentStage?.name?.toLowerCase().includes('admissão')) && (
                                 <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-5 mb-6">
                                     <h3 className="font-semibold text-indigo-800 flex items-center gap-2 mb-4">
                                         <UserPlus className="w-5 h-5" />
