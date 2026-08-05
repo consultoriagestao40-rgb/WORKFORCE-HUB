@@ -162,7 +162,7 @@ export async function processVacationReturns() {
                     // Se o funcionário já está em um posto físico (não rotativo), não mexe nele
                     if (currentAssignment.postoId !== rotativo.id) {
                         targetPostoId = currentAssignment.postoId;
-                        actionDetails = `Já alocado no posto atual (${currentAssignment.posto.name}). Mantido no posto.`;
+                        actionDetails = `Já alocado no posto atual (mantido no posto).`;
                     } else {
                         // O funcionário está no Rotativo, vamos tentar voltar para o posto original
                         if (originPostoId) {
