@@ -372,11 +372,24 @@ model RecruitmentCandidate {
   appliedFromPublicForm  Boolean @default(false)
   extraFields            Json?
 
-  // Fluxo de Admissão
-  admissionStatus        String? // PENDING_DOCS, PENDING_ASO, READY_TO_HIRE
-  admissionDocuments     Json?   // { uploads: { cpf: url, ... }, data: { email: string, ... } }
-  admissionAsoFile       String?
-  admissionAsoStatus     String? // Apto, Inapto, Apto com Restrições
+  // Documentação
+  documentationLinkToken   String?  // token único para link de envio pelo candidato
+  documentationFiles       Json?    // { cpf: url, rg: url, ctps: url, comprResid: url, foto: url }
+  documentationStatus      String?  // PENDING | SUBMITTED | APPROVED
+
+  // Exame Médico
+  asoFile                  String?  // URL do ASO uploadado
+  asoStatus                String?  // PENDING | APTO | INAPTO
+
+  // Admissão Onvio
+  onvioLaunched            Boolean  @default(false)
+  onvioConfirmedAt         DateTime?
+
+  // Benefícios
+  cajuRegistered           Boolean  @default(false)
+  metocarRegistered        Boolean  @default(false)
+  urbisRegistered          Boolean  @default(false)
+  benefitsCompletedAt      DateTime?
 }
 
 model RecruitmentStage {

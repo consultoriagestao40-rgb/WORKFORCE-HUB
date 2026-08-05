@@ -378,15 +378,54 @@ export async function getRecruitmentBoardData() {
         await prisma.recruitmentStage.update({ where: { id: postoStageMigrate.id }, data: { order: 4 } });
     }
 
+    // --- MIGRATION: New Pipeline Stages ---
+    // Rename 'Entrevista Técnica' -> 'Entrevista'
+    const entTecStage = await prisma.recruitmentStage.findFirst({ where: { name: 'Entrevista Técnica' } });
+    if (entTecStage) {
+        await prisma.recruitmentStage.update({ where: { id: entTecStage.id }, data: { name: 'Entrevista', order: 2 } });
+    }
+
+    // Rename 'Posto' -> 'Admitido'
+    const postoRenameStage = await prisma.recruitmentStage.findFirst({ where: { name: 'Posto' } });
+    if (postoRenameStage) {
+        await prisma.recruitmentStage.update({ where: { id: postoRenameStage.id }, data: { name: 'Admitido', order: 7 } });
+    }
+
+    // Create new stages if they don't exist yet
+    const newStagesConfig = [
+        { name: 'Documentação', order: 3, slaDays: 5 },
+        { name: 'Exame', order: 4, slaDays: 3 },
+        { name: 'Admissão (Onvio)', order: 5, slaDays: 2 },
+        { name: 'Cadastro de Benefícios', order: 8, slaDays: 3 },
+        { name: 'Processo Concluído', order: 9, slaDays: 0 },
+    ];
+    for (const cfg of newStagesConfig) {
+        const exists = await prisma.recruitmentStage.findFirst({ where: { name: cfg.name } });
+        if (!exists) {
+            await prisma.recruitmentStage.create({ data: cfg });
+        }
+    }
+
+    // Fix 'Admissão' order to 6 (was 3 before new stages)
+    const admissaoMigrate = await prisma.recruitmentStage.findFirst({ where: { name: 'Admissão' } });
+    if (admissaoMigrate && admissaoMigrate.order !== 6) {
+        await prisma.recruitmentStage.update({ where: { id: admissaoMigrate.id }, data: { order: 6 } });
+    }
+
     // Ensure Default Stages (Corrected Set) exist if completely empty
     const stagesCount = await prisma.recruitmentStage.count();
     if (stagesCount === 0) {
         await prisma.recruitmentStage.createMany({
             data: [
-                { name: "Seleção", order: 1, slaDays: 3 },
-                { name: "Entrevista Técnica", order: 2, slaDays: 5 },
-                { name: "Admissão", order: 3, slaDays: 2 }, // Unified
-                { name: "Posto", order: 4, slaDays: 0 },
+                { name: 'Seleção', order: 1, slaDays: 3 },
+                { name: 'Entrevista', order: 2, slaDays: 5 },
+                { name: 'Documentação', order: 3, slaDays: 5 },
+                { name: 'Exame', order: 4, slaDays: 3 },
+                { name: 'Admissão (Onvio)', order: 5, slaDays: 2 },
+                { name: 'Admissão', order: 6, slaDays: 2 },
+                { name: 'Admitido', order: 7, slaDays: 0 },
+                { name: 'Cadastro de Benefícios', order: 8, slaDays: 3 },
+                { name: 'Processo Concluído', order: 9, slaDays: 0 },
             ]
         });
     }
@@ -1795,5 +1834,214 @@ export async function getVacancyCandidates(vacancyId: string) {
         if (!isDisqA && isDisqB) return -1;
         return (evalB.adherenceScore || 0) - (evalA.adherenceScore || 0);
     });
+}
+
+// ==========================================
+// PIPELINE STAGE ACTIONS
+// ==========================================
+
+export async function generateDocumentationLink(candidateId: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error('Unauthorized');
+    
+    const token = `doc-${candidateId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    await prisma.recruitmentCandidate.update({
+        where: { id: candidateId },
+        data: { documentationLinkToken: token, documentationStatus: 'PENDING' }
+    });
+    
+    revalidatePath('/admin/recrutamento');
+    return { token };
+}
+
+export async function uploadCandidateDocuments(candidateId: string, files: Record<string, string>) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error('Unauthorized');
+    
+    const candidate = await prisma.recruitmentCandidate.findUnique({ where: { id: candidateId } });
+    if (!candidate) throw new Error('Candidato não encontrado');
+    
+    const existing = (candidate.documentationFiles as Record<string, string>) || {};
+    const merged = { ...existing, ...files };
+    
+    await prisma.recruitmentCandidate.update({
+        where: { id: candidateId },
+        data: { 
+            documentationFiles: merged,
+            documentationStatus: 'SUBMITTED'
+        }
+    });
+    
+    await prisma.recruitmentTimeline.create({
+        data: {
+            candidateId,
+            candidateName: candidate.name,
+            vacancyId: candidate.vacancyId,
+            action: 'DOCUMENT_UPLOADED',
+            details: `Documentos enviados: ${Object.keys(files).join(', ')}`,
+            userId: user.id
+        }
+    });
+    
+    revalidatePath('/admin/recrutamento');
+    return { success: true };
+}
+
+export async function approveDocumentation(candidateId: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error('Unauthorized');
+    
+    // Find the Exame stage
+    const exameStage = await prisma.recruitmentStage.findFirst({ where: { name: 'Exame' } });
+    if (!exameStage) throw new Error('Etapa Exame não encontrada');
+    
+    const candidate = await prisma.recruitmentCandidate.findUnique({ where: { id: candidateId } });
+    if (!candidate) throw new Error('Candidato não encontrado');
+    
+    await prisma.recruitmentCandidate.update({
+        where: { id: candidateId },
+        data: { 
+            documentationStatus: 'APPROVED',
+            stageId: exameStage.id
+        }
+    });
+    
+    await prisma.recruitmentTimeline.create({
+        data: {
+            candidateId,
+            candidateName: candidate.name,
+            vacancyId: candidate.vacancyId,
+            action: 'STAGE_MOVED',
+            details: 'Documentação aprovada. Avançado para Exame Médico.',
+            userId: user.id
+        }
+    });
+    
+    revalidatePath('/admin/recrutamento');
+    return { success: true };
+}
+
+export async function uploadAsoFile(candidateId: string, fileUrl: string, asoStatus: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error('Unauthorized');
+    
+    const candidate = await prisma.recruitmentCandidate.findUnique({ where: { id: candidateId } });
+    if (!candidate) throw new Error('Candidato não encontrado');
+    
+    await prisma.recruitmentCandidate.update({
+        where: { id: candidateId },
+        data: { 
+            asoFile: fileUrl,
+            asoStatus 
+        }
+    });
+    
+    await prisma.recruitmentTimeline.create({
+        data: {
+            candidateId,
+            candidateName: candidate.name,
+            vacancyId: candidate.vacancyId,
+            action: 'ASO_UPLOADED',
+            details: `ASO enviado. Status: ${asoStatus}`,
+            userId: user.id
+        }
+    });
+    
+    // If APTO, advance to Admissão (Onvio)
+    if (asoStatus === 'APTO') {
+        const admissaoStage = await prisma.recruitmentStage.findFirst({ where: { name: { contains: 'Onvio' } } });
+        if (admissaoStage) {
+            await prisma.recruitmentCandidate.update({
+                where: { id: candidateId },
+                data: { stageId: admissaoStage.id }
+            });
+            await prisma.recruitmentTimeline.create({
+                data: {
+                    candidateId,
+                    candidateName: candidate.name,
+                    vacancyId: candidate.vacancyId,
+                    action: 'STAGE_MOVED',
+                    details: 'ASO Apto. Avançado para Admissão (Onvio).',
+                    userId: user.id
+                }
+            });
+        }
+    }
+    
+    revalidatePath('/admin/recrutamento');
+    return { success: true };
+}
+
+export async function confirmOnvio(candidateId: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error('Unauthorized');
+    
+    const candidate = await prisma.recruitmentCandidate.findUnique({ where: { id: candidateId } });
+    if (!candidate) throw new Error('Candidato não encontrado');
+    
+    // Find Admitido stage
+    const admitidoStage = await prisma.recruitmentStage.findFirst({ where: { name: 'Admitido' } });
+    if (!admitidoStage) throw new Error('Etapa Admitido não encontrada');
+    
+    await prisma.recruitmentCandidate.update({
+        where: { id: candidateId },
+        data: { 
+            onvioLaunched: true,
+            onvioConfirmedAt: new Date(),
+            stageId: admitidoStage.id
+        }
+    });
+    
+    await prisma.recruitmentTimeline.create({
+        data: {
+            candidateId,
+            candidateName: candidate.name,
+            vacancyId: candidate.vacancyId,
+            action: 'STAGE_MOVED',
+            details: 'Onvio confirmado. Avançado para Admitido.',
+            userId: user.id
+        }
+    });
+    
+    revalidatePath('/admin/recrutamento');
+    return { success: true };
+}
+
+export async function saveBenefits(candidateId: string, benefits: { caju: boolean; metocar: boolean; urbis: boolean }) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error('Unauthorized');
+    
+    const candidate = await prisma.recruitmentCandidate.findUnique({ where: { id: candidateId } });
+    if (!candidate) throw new Error('Candidato não encontrado');
+    
+    // Find Processo Concluído stage
+    const conclusaoStage = await prisma.recruitmentStage.findFirst({ where: { name: 'Processo Concluído' } });
+    if (!conclusaoStage) throw new Error('Etapa Processo Concluído não encontrada');
+    
+    await prisma.recruitmentCandidate.update({
+        where: { id: candidateId },
+        data: { 
+            cajuRegistered: benefits.caju,
+            metocarRegistered: benefits.metocar,
+            urbisRegistered: benefits.urbis,
+            benefitsCompletedAt: new Date(),
+            stageId: conclusaoStage.id
+        }
+    });
+    
+    await prisma.recruitmentTimeline.create({
+        data: {
+            candidateId,
+            candidateName: candidate.name,
+            vacancyId: candidate.vacancyId,
+            action: 'BENEFITS_REGISTERED',
+            details: `Benefícios cadastrados: CAJU=${benefits.caju}, Metocar=${benefits.metocar}, Urbis=${benefits.urbis}`,
+            userId: user.id
+        }
+    });
+    
+    revalidatePath('/admin/recrutamento');
+    return { success: true };
 }
 
