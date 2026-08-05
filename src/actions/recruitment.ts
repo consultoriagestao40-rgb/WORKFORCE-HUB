@@ -917,16 +917,11 @@ export async function getBacklogItems() {
     const user = await getCurrentUser();
     if (!user) return [];
 
-    // 1. Get all postos that currently have NO active assignment
     const vacantPostos = await prisma.posto.findMany({
         where: {
             client: {
-                name: { not: 'ROTATIVO' }
-            },
-            assignments: {
-                none: {
-                    endDate: null // Active assignments have no end date
-                }
+                name: { not: 'ROTATIVO' },
+                isActive: true
             }
         },
         include: {

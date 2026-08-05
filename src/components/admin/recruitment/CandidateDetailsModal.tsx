@@ -351,8 +351,8 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                         </TabsList>
 
                         <TabsContent value="details" className="mt-4">
-                            {/* ADMISSION WORKFLOW - VISIBLE ONLY IF IN ADMISSION STAGE */}
-                            {currentStage?.name?.toLowerCase().includes('admissão') && (
+                            {/* ADMISSION WORKFLOW - VISIBLE ONLY IF IN ADMISSION STAGE (SINGLE CANDIDATE VIEW) */}
+                            {candidate.type !== 'VACANCY' && currentStage?.name?.toLowerCase().includes('admissão') && (
                                 <AdmissionWorkflow 
                                     candidate={candidate} 
                                     onComplete={() => {
@@ -940,6 +940,23 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                                         <span className="block mt-0.5 text-red-700">Não atende a um ou mais requisitos eliminatórios obrigatórios.</span>
                                                                                     </div>
                                                                                 </div>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* FLUXO DE ADMISSÃO (Exibido apenas se a vaga estiver na etapa de Admissão) */}
+                                                                        {!isDisqualified && currentStage?.name?.toLowerCase().includes('admissão') && (
+                                                                            <div className="pt-4 pb-2">
+                                                                                <div className="mb-3">
+                                                                                    <span className="text-[10px] uppercase font-black text-indigo-500 block">Processo de Admissão</span>
+                                                                                    <p className="text-xs text-slate-500">Valide os documentos e exames deste candidato para efetivar a contratação.</p>
+                                                                                </div>
+                                                                                <AdmissionWorkflow 
+                                                                                    candidate={cand} 
+                                                                                    onComplete={() => {
+                                                                                        const el = document.getElementById('allocation-section');
+                                                                                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                                                                                    }} 
+                                                                                />
                                                                             </div>
                                                                         )}
 
