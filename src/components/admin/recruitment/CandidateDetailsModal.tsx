@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState, useEffect } from "react";
 import { ApprovalModal } from "./ApprovalModal";
+import { AdmissionWorkflow } from "./admission/AdmissionWorkflow";
 import { useRouter } from "next/navigation";
 
 interface CandidateDetailsModalProps {
@@ -350,6 +351,18 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                         </TabsList>
 
                         <TabsContent value="details" className="mt-4">
+                            {/* ADMISSION WORKFLOW - VISIBLE ONLY IF IN ADMISSION STAGE */}
+                            {currentStage?.name?.toLowerCase().includes('admissão') && (
+                                <AdmissionWorkflow 
+                                    candidate={candidate} 
+                                    onComplete={() => {
+                                        // Focus or show the allocation form, which might be in the "Dados da Vaga" section
+                                        const el = document.getElementById('allocation-section');
+                                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                                    }} 
+                                />
+                            )}
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
                                 {/* Candidate Info */}
                                 {candidate.type !== 'VACANCY' && (

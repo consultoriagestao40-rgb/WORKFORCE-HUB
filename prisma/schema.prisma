@@ -371,6 +371,12 @@ model RecruitmentCandidate {
   resumeText             String?
   appliedFromPublicForm  Boolean @default(false)
   extraFields            Json?
+
+  // Fluxo de Admissão
+  admissionStatus        String? // PENDING_DOCS, PENDING_ASO, READY_TO_HIRE
+  admissionDocuments     Json?   // { uploads: { cpf: url, ... }, data: { email: string, ... } }
+  admissionAsoFile       String?
+  admissionAsoStatus     String? // Apto, Inapto, Apto com Restrições
 }
 
 model RecruitmentStage {
