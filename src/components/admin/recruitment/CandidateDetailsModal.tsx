@@ -60,6 +60,9 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
     const [isUploadingVacancyCv, setIsUploadingVacancyCv] = useState(false);
     const [expandedRankId, setExpandedRankId] = useState<string | null>(null);
     const [rankEvals, setRankEvals] = useState<Record<string, any[]>>({});
+    
+    // Admission State
+    const [selectedAdmissionCandidateId, setSelectedAdmissionCandidateId] = useState<string>("");
     const [notes, setNotes] = useState("");
     const [isVacancyReqsExpanded, setIsVacancyReqsExpanded] = useState(false);
     const [isReevaluatingAi, setIsReevaluatingAi] = useState(false);
@@ -361,6 +364,45 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                         if (el) el.scrollIntoView({ behavior: 'smooth' });
                                     }} 
                                 />
+                            )}
+
+                            {/* ADMISSION WORKFLOW FOR VACANCIES IN ADMISSION STAGE */}
+                            {candidate.type === 'VACANCY' && currentStage?.name?.toLowerCase().includes('admissão') && (
+                                <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-5 mb-6">
+                                    <h3 className="font-semibold text-indigo-800 flex items-center gap-2 mb-4">
+                                        <UserPlus className="w-5 h-5" />
+                                        Processo de Admissão
+                                    </h3>
+                                    {rankedCandidates.length === 0 ? (
+                                        <p className="text-sm text-slate-500">Nenhum candidato nesta vaga. Acesse a aba ATS para adicionar candidatos.</p>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="text-xs font-medium text-slate-700 uppercase mb-1 block">Selecione o candidato aprovado para admissão</label>
+                                                <Select 
+                                                    value={selectedAdmissionCandidateId} 
+                                                    onValueChange={setSelectedAdmissionCandidateId}
+                                                >
+                                                    <SelectTrigger className="bg-white">
+                                                        <SelectValue placeholder="Selecione um candidato..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {rankedCandidates.map(c => (
+                                                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            
+                                            {selectedAdmissionCandidateId && (
+                                                <AdmissionWorkflow 
+                                                    candidate={rankedCandidates.find(c => c.id === selectedAdmissionCandidateId)} 
+                                                    onComplete={() => {}} 
+                                                />
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                             )}
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
