@@ -173,8 +173,8 @@ export function DocumentacaoPanel({
                     O candidato acessa este link publicamente pelo celular ou computador para enviar os documentos e dados de uniforme.
                 </p>
 
-                <div className="flex items-center gap-3">
-                    <div className="w-44 shrink-0">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 w-full min-w-0 overflow-hidden">
+                    <div className="w-full sm:w-44 shrink-0">
                         <Label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">Prazo de Validade</Label>
                         <Select value={expirationHours} onValueChange={setExpirationHours} disabled={generatingLink}>
                             <SelectTrigger className="bg-white text-xs h-8">
@@ -189,15 +189,15 @@ export function DocumentacaoPanel({
                         </Select>
                     </div>
 
-                    <div className="flex-1 pt-4">
+                    <div className="flex-1 min-w-0 w-full">
                         {publicLink ? (
-                            <div className="flex items-center gap-2">
-                                <div className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 truncate font-mono select-all">
+                            <div className="flex items-center gap-2 w-full min-w-0 overflow-hidden">
+                                <div className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 truncate font-mono select-all overflow-hidden">
                                     {publicLink}
                                 </div>
-                                <Button size="sm" variant="outline" onClick={handleCopyLink} className="shrink-0 h-8">
+                                <Button size="sm" variant="outline" onClick={handleCopyLink} className="shrink-0 h-8 text-xs">
                                     <Copy className="w-3.5 h-3.5 mr-1" />
-                                    Copiar Link
+                                    Copiar
                                 </Button>
                             </div>
                         ) : (
