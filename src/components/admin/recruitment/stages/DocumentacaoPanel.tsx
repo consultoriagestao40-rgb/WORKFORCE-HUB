@@ -5,7 +5,7 @@ import { FileText, Link2, Upload, CheckCircle2, Clock, Copy, AlertTriangle, Load
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { generateDocumentationLink, uploadCandidateDocuments, approveDocumentation } from "@/src/actions/recruitment";
+import { generateDocumentationLink, uploadCandidateDocuments, approveDocumentation } from "@/actions/recruitment";
 
 const DOC_TYPES = [
     { key: "rg", label: "RG (frente e verso)" },

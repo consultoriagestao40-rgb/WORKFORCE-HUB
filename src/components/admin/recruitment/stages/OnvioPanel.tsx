@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CheckCircle2, Loader2, ExternalLink, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { confirmOnvio } from "@/src/actions/recruitment";
+import { confirmOnvio } from "@/actions/recruitment";
 
 interface OnvioPanelProps {
     candidateId: string;
