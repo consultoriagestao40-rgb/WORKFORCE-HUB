@@ -443,42 +443,95 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                 </div>
                             )}
 
-                            {/* VACANCY MODE - Admissão (Onvio) */}
-                            {candidate.type === 'VACANCY' && (currentStage?.name === 'Admissão (Onvio)' || currentStage?.name?.toLowerCase().includes('admissão')) && (
-                                <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-5 mb-6">
-                                    <h3 className="font-semibold text-indigo-800 flex items-center gap-2 mb-4">
-                                        <UserPlus className="w-5 h-5" />
-                                        Processo de Admissão
-                                    </h3>
-                                    {rankedCandidates.length === 0 ? (
-                                        <p className="text-sm text-slate-500">Nenhum candidato nesta vaga. Acesse a aba ATS para adicionar candidatos.</p>
-                                    ) : (
-                                        <div className="space-y-4">
-                                            <div>
-                                                <label className="text-xs font-medium text-slate-700 uppercase mb-1 block">Selecione o candidato aprovado para admissão</label>
+                            {/* VACANCY MODE - STAGE ACTION PANELS FOR CANDIDATE */}
+                            {candidate.type === 'VACANCY' && rankedCandidates.length > 0 && (
+                                <div className="bg-indigo-50/40 border border-indigo-100 rounded-xl p-5 mb-6">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="font-semibold text-indigo-900 flex items-center gap-2">
+                                            <UserPlus className="w-5 h-5 text-indigo-600" />
+                                            Ações da Etapa do Candidato
+                                        </h3>
+                                        {rankedCandidates.length > 1 && (
+                                            <div className="w-64">
                                                 <Select 
-                                                    value={selectedAdmissionCandidateId} 
+                                                    value={selectedAdmissionCandidateId || rankedCandidates[0]?.id} 
                                                     onValueChange={setSelectedAdmissionCandidateId}
                                                 >
-                                                    <SelectTrigger className="bg-white">
+                                                    <SelectTrigger className="bg-white text-xs h-8">
                                                         <SelectValue placeholder="Selecione um candidato..." />
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         {rankedCandidates.map(c => (
-                                                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                                            <SelectItem key={c.id} value={c.id}>
+                                                                {c.name} ({c.stage?.name || 'Inscrição'})
+                                                            </SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
                                             </div>
-                                            
-                                            {selectedAdmissionCandidateId && (
-                                                <AdmissionWorkflow 
-                                                    candidate={rankedCandidates.find(c => c.id === selectedAdmissionCandidateId)} 
-                                                    onComplete={() => {}} 
+                                        )}
+                                    </div>
+
+                                    {(() => {
+                                        const selCand = rankedCandidates.find(c => c.id === (selectedAdmissionCandidateId || rankedCandidates[0]?.id)) || rankedCandidates[0];
+                                        if (!selCand) return null;
+                                        const stageName = selCand.stage?.name || currentStage?.name;
+
+                                        if (stageName === 'Documentação') {
+                                            return (
+                                                <DocumentacaoPanel
+                                                    candidateId={selCand.id}
+                                                    candidateName={selCand.name}
+                                                    documentationLinkToken={selCand.documentationLinkToken}
+                                                    documentationFiles={selCand.documentationFiles}
+                                                    documentationStatus={selCand.documentationStatus}
+                                                    onUpdate={() => window.location.reload()}
                                                 />
-                                            )}
-                                        </div>
-                                    )}
+                                            );
+                                        }
+                                        if (stageName === 'Exame') {
+                                            return (
+                                                <ExamePanel
+                                                    candidateId={selCand.id}
+                                                    candidateName={selCand.name}
+                                                    asoFile={selCand.asoFile}
+                                                    asoStatus={selCand.asoStatus}
+                                                    onUpdate={() => window.location.reload()}
+                                                />
+                                            );
+                                        }
+                                        if (stageName === 'Admissão (Onvio)') {
+                                            return (
+                                                <OnvioPanel
+                                                    candidateId={selCand.id}
+                                                    candidateName={selCand.name}
+                                                    onvioLaunched={selCand.onvioLaunched}
+                                                    onvioConfirmedAt={selCand.onvioConfirmedAt}
+                                                    onUpdate={() => window.location.reload()}
+                                                />
+                                            );
+                                        }
+                                        if (stageName === 'Admissão') {
+                                            return <AdmissionWorkflow candidate={selCand} onComplete={() => {}} />;
+                                        }
+                                        if (stageName === 'Cadastro de Benefícios') {
+                                            return (
+                                                <BeneficiosPanel
+                                                    candidateId={selCand.id}
+                                                    cajuRegistered={selCand.cajuRegistered}
+                                                    metocarRegistered={selCand.metocarRegistered}
+                                                    urbisRegistered={selCand.urbisRegistered}
+                                                    benefitsCompletedAt={selCand.benefitsCompletedAt}
+                                                    onUpdate={() => window.location.reload()}
+                                                />
+                                            );
+                                        }
+                                        return (
+                                            <div className="text-xs text-slate-500 bg-white p-3 rounded-lg border">
+                                                Candidato <strong>{selCand.name}</strong> está na etapa: <Badge variant="outline">{stageName || 'Inscrição'}</Badge>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             )}
 
@@ -1059,24 +1112,60 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                                         <span className="block mt-0.5 text-red-700">Não atende a um ou mais requisitos eliminatórios obrigatórios.</span>
                                                                                     </div>
                                                                                 </div>
+                                                                                                                                     {/* PAINÉIS DE ETAPA DO CANDIDATO (Documentação, Exame, Onvio, Benefícios) */}
+                                                                        {!isDisqualified && cand.stage?.name === 'Documentação' && (
+                                                                            <div className="pt-4 pb-2 border-b border-slate-100">
+                                                                                <span className="text-[10px] uppercase font-black text-blue-600 block mb-2">Etapa: Documentação</span>
+                                                                                <DocumentacaoPanel
+                                                                                    candidateId={cand.id}
+                                                                                    candidateName={cand.name}
+                                                                                    documentationLinkToken={cand.documentationLinkToken}
+                                                                                    documentationFiles={cand.documentationFiles}
+                                                                                    documentationStatus={cand.documentationStatus}
+                                                                                    onUpdate={() => window.location.reload()}
+                                                                                />
                                                                             </div>
                                                                         )}
 
-                                                                        {/* FLUXO DE ADMISSÃO (Exibido apenas se a vaga estiver na etapa de Admissão) */}
-                                                                        {!isDisqualified && currentStage?.name?.toLowerCase().includes('admissão') && (
-                                                                            <div className="pt-4 pb-2">
-                                                                                <div className="mb-3">
-                                                                                    <span className="text-[10px] uppercase font-black text-indigo-500 block">Processo de Admissão</span>
-                                                                                    <p className="text-xs text-slate-500">Valide os documentos e exames deste candidato para efetivar a contratação.</p>
-                                                                                </div>
-                                                                                <AdmissionWorkflow 
-                                                                                    candidate={cand} 
-                                                                                    onComplete={() => {
-                                                                                        const el = document.getElementById('allocation-section');
-                                                                                        if (el) el.scrollIntoView({ behavior: 'smooth' });
-                                                                                    }} 
+                                                                        {!isDisqualified && cand.stage?.name === 'Exame' && (
+                                                                            <div className="pt-4 pb-2 border-b border-slate-100">
+                                                                                <span className="text-[10px] uppercase font-black text-teal-600 block mb-2">Etapa: Exame Médico</span>
+                                                                                <ExamePanel
+                                                                                    candidateId={cand.id}
+                                                                                    candidateName={cand.name}
+                                                                                    asoFile={cand.asoFile}
+                                                                                    asoStatus={cand.asoStatus}
+                                                                                    onUpdate={() => window.location.reload()}
                                                                                 />
                                                                             </div>
+                                                                        )}
+
+                                                                        {!isDisqualified && (cand.stage?.name === 'Admissão (Onvio)' || cand.stage?.name === 'Admissão') && (
+                                                                            <div className="pt-4 pb-2 border-b border-slate-100">
+                                                                                <span className="text-[10px] uppercase font-black text-violet-600 block mb-2">Etapa: Admissão (Onvio)</span>
+                                                                                <OnvioPanel
+                                                                                    candidateId={cand.id}
+                                                                                    candidateName={cand.name}
+                                                                                    onvioLaunched={cand.onvioLaunched}
+                                                                                    onvioConfirmedAt={cand.onvioConfirmedAt}
+                                                                                    onUpdate={() => window.location.reload()}
+                                                                                />
+                                                                            </div>
+                                                                        )}
+
+                                                                        {!isDisqualified && cand.stage?.name === 'Cadastro de Benefícios' && (
+                                                                            <div className="pt-4 pb-2 border-b border-slate-100">
+                                                                                <span className="text-[10px] uppercase font-black text-emerald-600 block mb-2">Etapa: Cadastro de Benefícios</span>
+                                                                                <BeneficiosPanel
+                                                                                    candidateId={cand.id}
+                                                                                    cajuRegistered={cand.cajuRegistered}
+                                                                                    metocarRegistered={cand.metocarRegistered}
+                                                                                    urbisRegistered={cand.urbisRegistered}
+                                                                                    benefitsCompletedAt={cand.benefitsCompletedAt}
+                                                                                    onUpdate={() => window.location.reload()}
+                                                                                />
+                                                                            </div>
+                                                                        )}                        </div>
                                                                         )}
 
                                                                         {/* Dados extraídos do CV */}
