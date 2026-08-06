@@ -48,6 +48,8 @@ export function DocumentacaoPanel({
     const [approvingDocs, setApprovingDocs] = useState(false);
     const [savingUniforms, setSavingUniforms] = useState(false);
 
+    const [localDocs, setLocalDocs] = useState<Record<string, string>>((documentationFiles as Record<string, string>) || {});
+
     const uniformData = extraFields?.uniformData || {};
 
     const [shoeSize, setShoeSize] = useState(uniformData.shoeSize || "");
@@ -55,8 +57,7 @@ export function DocumentacaoPanel({
     const [shirtSize, setShirtSize] = useState(uniformData.shirtSize || "");
     const [pixKey, setPixKey] = useState(uniformData.pixKey || "");
 
-    const docs = (documentationFiles as Record<string, string>) || {};
-    const submittedCount = Object.keys(docs).length;
+    const submittedCount = Object.keys(localDocs).length;
     const totalDocs = COMPLETE_DOC_TYPES.length;
 
     const publicLink = documentationLinkToken
@@ -68,7 +69,7 @@ export function DocumentacaoPanel({
         try {
             await generateDocumentationLink(candidateId, parseInt(expirationHours));
             toast.success("Link de documentação gerado com sucesso!");
-            onUpdate();
+            if (onUpdate) onUpdate();
         } catch (e: any) {
             toast.error(e.message || "Erro ao gerar link");
         } finally {
@@ -90,8 +91,9 @@ export function DocumentacaoPanel({
             reader.onload = async (e) => {
                 const dataUrl = e.target?.result as string;
                 await uploadCandidateDocuments(candidateId, { [docKey]: dataUrl }, { shoeSize, pantsSize, shirtSize, pixKey });
-                toast.success("Documento enviado com sucesso!");
-                onUpdate();
+                setLocalDocs((prev) => ({ ...prev, [docKey]: dataUrl }));
+                toast.success("Documento anexado com sucesso!");
+                if (onUpdate) onUpdate();
                 setUploadingDoc(null);
             };
             reader.readAsDataURL(file);
@@ -285,7 +287,7 @@ export function DocumentacaoPanel({
 
                 <div className="grid grid-cols-1 gap-2.5 w-full min-w-0">
                     {COMPLETE_DOC_TYPES.map((doc) => {
-                        const hasFile = !!docs[doc.key];
+                        const hasFile = !!localDocs[doc.key];
                         const isUploading = uploadingDoc === doc.key;
                         return (
                             <div key={doc.key} className="grid grid-cols-[1fr_auto] gap-2.5 items-center min-w-0 w-full">

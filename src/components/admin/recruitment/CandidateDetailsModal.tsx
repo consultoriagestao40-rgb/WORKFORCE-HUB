@@ -1358,7 +1358,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                     documentationFiles={activeCand.documentationFiles}
                                     documentationStatus={activeCand.documentationStatus}
                                     extraFields={activeCand.extraFields}
-                                    onUpdate={() => window.location.reload()}
+                                    onUpdate={() => router.refresh()}
                                 />
                             ) : (
                                 <p className="text-xs text-slate-500 py-4 text-center">Nenhum candidato selecionado.</p>
@@ -1390,7 +1390,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                     candidateName={activeCand.name}
                                     asoFile={activeCand.asoFile}
                                     asoStatus={activeCand.asoStatus}
-                                    onUpdate={() => window.location.reload()}
+                                    onUpdate={() => router.refresh()}
                                 />
                             ) : (
                                 <p className="text-xs text-slate-500 py-4 text-center">Nenhum candidato selecionado.</p>
@@ -1434,7 +1434,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                     extraFields={activeCand.extraFields}
                                     onvioLaunched={activeCand.onvioLaunched}
                                     onvioConfirmedAt={activeCand.onvioConfirmedAt}
-                                    onUpdate={() => window.location.reload()}
+                                    onUpdate={() => router.refresh()}
                                 />
                             ) : (
                                 <p className="text-xs text-slate-500 py-4 text-center">Nenhum candidato selecionado.</p>
@@ -1467,7 +1467,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                     metocarRegistered={activeCand.metocarRegistered}
                                     urbisRegistered={activeCand.urbisRegistered}
                                     benefitsCompletedAt={activeCand.benefitsCompletedAt}
-                                    onUpdate={() => window.location.reload()}
+                                    onUpdate={() => router.refresh()}
                                 />
                             ) : (
                                 <p className="text-xs text-slate-500 py-4 text-center">Nenhum candidato selecionado.</p>
