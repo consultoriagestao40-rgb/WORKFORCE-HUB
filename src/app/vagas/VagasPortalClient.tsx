@@ -186,27 +186,37 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
         <div className="min-h-screen bg-[#f8fafc] font-sans antialiased text-slate-900 selection:bg-teal-500 selection:text-white">
             
             {/* Top Teal Luxury Header */}
-            <header className="bg-[#042d36] text-white py-3 px-4 sm:px-8 border-b border-teal-800/40 sticky top-0 z-40 backdrop-blur-xl bg-opacity-95 shadow-md">
-                <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <header className="bg-[#042d36] text-white py-2.5 px-4 sm:px-8 border-b border-teal-800/40 sticky top-0 z-40 backdrop-blur-xl bg-opacity-95 shadow-md">
+                <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-xs">
                     
-                    {/* Left: Contact Info */}
-                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4">
+                    {/* Far Left: JVS Logo with Transparent Background */}
+                    <div className="flex items-center shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img 
+                            src="https://grupojvsserv.com.br/wp-content/uploads/2023/11/logo-horizontal-300px.png" 
+                            alt="Grupo JVS Facilities" 
+                            className="h-8 sm:h-10 w-auto object-contain bg-transparent max-w-[170px] sm:max-w-[210px] brightness-0 invert opacity-95 hover:opacity-100 transition-all"
+                        />
+                    </div>
+
+                    {/* Center: Contact Info */}
+                    <div className="flex flex-wrap items-center justify-center gap-3">
                         <a 
                             href="https://wa.me/554135030020" 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 px-3.5 py-1 rounded-full font-bold transition-all border border-emerald-400/30 hover:scale-105 active:scale-95"
+                            className="inline-flex items-center gap-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 px-3 py-1 rounded-full font-bold transition-all border border-emerald-400/30 hover:scale-105 active:scale-95 text-[11px] sm:text-xs"
                             title="Falar no WhatsApp Oficial"
                         >
-                            <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
+                            <MessageCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-pulse" />
                             <span>(41) 3503-0020</span>
                         </a>
 
-                        <span className="hidden sm:inline opacity-30 text-teal-400">|</span>
+                        <span className="hidden md:inline opacity-30 text-teal-400">|</span>
 
                         <a 
                             href="mailto:dp@grupojvsserv.com.br" 
-                            className="flex items-center gap-1.5 hover:text-cyan-200 transition-all opacity-90 text-[11px] sm:text-xs"
+                            className="hidden sm:flex items-center gap-1.5 hover:text-cyan-200 transition-all opacity-90 text-[11px] sm:text-xs"
                             title="Enviar E-mail para o DP"
                         >
                             <Mail className="w-3.5 h-3.5 text-teal-400 shrink-0" />
@@ -214,15 +224,15 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                         </a>
                     </div>
 
-                    {/* Right: Social Media */}
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-teal-200/60 font-black uppercase tracking-widest hidden md:inline">Siga a JVS:</span>
-                        <div className="flex items-center gap-2">
+                    {/* Far Right: Social Media */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] text-teal-200/60 font-black uppercase tracking-widest hidden lg:inline">Siga a JVS:</span>
+                        <div className="flex items-center gap-1.5">
                             <a 
                                 href="https://www.linkedin.com/company/jvs-facilities/" 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="w-7.5 h-7.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
+                                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
                                 title="LinkedIn Oficial JVS Facilities"
                             >
                                 <Linkedin className="w-3.5 h-3.5" />
@@ -231,7 +241,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                 href="https://www.instagram.com/jvsfacilities/" 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="w-7.5 h-7.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
+                                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
                                 title="Instagram Oficial JVS Facilities"
                             >
                                 <Instagram className="w-3.5 h-3.5" />
@@ -242,25 +252,13 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
             </header>
 
             {/* HERO SECTION - Compact Petrol Mesh Gradient Banner */}
-            <section className="relative bg-[#03242c] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#07596b] via-[#04333d] to-[#021d23] text-white pt-5 pb-12 sm:pt-6 sm:pb-14 px-4 sm:px-6 lg:px-8 overflow-hidden shadow-lg">
+            <section className="relative bg-[#03242c] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#07596b] via-[#04333d] to-[#021d23] text-white pt-4 pb-11 sm:pt-5 sm:pb-12 px-4 sm:px-6 lg:px-8 overflow-hidden shadow-lg">
                 
                 {/* Decorative Mesh Background Effects */}
                 <div className="absolute top-[-40%] left-[-10%] w-[350px] h-[350px] rounded-full bg-teal-500/10 blur-[90px] pointer-events-none" />
                 <div className="absolute bottom-[-30%] right-[-10%] w-[350px] h-[350px] rounded-full bg-indigo-500/10 blur-[90px] pointer-events-none" />
 
-                <div className="max-w-5xl mx-auto text-center space-y-4 relative z-10">
-                    
-                    {/* Logo JVS Compact Pill */}
-                    <div className="flex justify-center items-center">
-                        <div className="bg-white/95 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 shadow-lg">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img 
-                                src="https://grupojvsserv.com.br/wp-content/uploads/2023/11/logo-horizontal-300px.png" 
-                                alt="Grupo JVS Serviços" 
-                                className="h-8 sm:h-10 w-auto object-contain max-w-[200px] sm:max-w-[240px]"
-                            />
-                        </div>
-                    </div>
+                <div className="max-w-5xl mx-auto text-center space-y-3 relative z-10">
 
                     {/* Headline Banner */}
                     <div className="space-y-1.5 max-w-2xl mx-auto">
