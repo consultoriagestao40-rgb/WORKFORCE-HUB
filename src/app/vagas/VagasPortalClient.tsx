@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { 
     Briefcase, MapPin, Building2, Calendar, Sparkles, Search, 
-    DollarSign, Clock, ShieldCheck, CheckCircle2, Loader2, Upload, FileText, ArrowRight, X, AlertCircle 
+    DollarSign, Clock, ShieldCheck, CheckCircle2, Loader2, Upload, FileText, ArrowRight, X, AlertCircle,
+    MessageCircle, Mail, Linkedin, Facebook, Instagram, Youtube
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -175,8 +176,79 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
     };
 
     return (
-        <div className="min-h-screen bg-slate-50/70 py-6 sm:py-10 px-4 sm:px-6 lg:px-8 font-sans antialiased">
-            <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
+        <div className="min-h-screen bg-slate-50/70 font-sans antialiased">
+            {/* Top Bar Navigation (Teal Brand Header) */}
+            <div className="bg-gradient-to-r from-[#065b6d] via-[#086a7e] to-[#044a59] text-white py-2.5 px-4 shadow-sm font-medium">
+                <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] sm:text-xs">
+                    {/* Left: WhatsApp & Email */}
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4">
+                        <a 
+                            href="https://wa.me/554135030020" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 hover:text-emerald-300 font-bold transition-all"
+                            title="Falar no WhatsApp"
+                        >
+                            <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span>(41) 3503-0020</span>
+                        </a>
+
+                        <span className="hidden sm:inline opacity-40">|</span>
+
+                        <a 
+                            href="mailto:comercial@grupojvsserv.com.br" 
+                            className="flex items-center gap-1.5 hover:text-cyan-200 transition-all"
+                            title="Enviar E-mail"
+                        >
+                            <Mail className="w-3.5 h-3.5 opacity-90 shrink-0" />
+                            <span className="truncate">comercial@grupojvsserv.com.br</span>
+                        </a>
+                    </div>
+
+                    {/* Right: Social Media Buttons */}
+                    <div className="flex items-center gap-2">
+                        <a 
+                            href="https://www.linkedin.com/company/grupo-jvs-servicos/" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="w-6.5 h-6.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all"
+                            title="LinkedIn"
+                        >
+                            <Linkedin className="w-3.5 h-3.5" />
+                        </a>
+                        <a 
+                            href="https://www.facebook.com/grupojvsservicos" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="w-6.5 h-6.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all"
+                            title="Facebook"
+                        >
+                            <Facebook className="w-3.5 h-3.5" />
+                        </a>
+                        <a 
+                            href="https://www.instagram.com/grupojvsservicos" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="w-6.5 h-6.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all"
+                            title="Instagram"
+                        >
+                            <Instagram className="w-3.5 h-3.5" />
+                        </a>
+                        <a 
+                            href="https://www.youtube.com/@grupojvsservicos" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="w-6.5 h-6.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all"
+                            title="YouTube"
+                        >
+                            <Youtube className="w-3.5 h-3.5" />
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div className="py-6 sm:py-10 px-4 sm:px-6 lg:px-8">
+                <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
                 
                 {/* Header Section */}
                 <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-10 shadow-sm text-center space-y-5 relative overflow-hidden">
@@ -365,6 +437,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                     <span>Plataforma Oficial de Vagas e Recrutamento &bull; JVS Facilities 2026</span>
                 </div>
             </div>
+        </div>
 
             {/* Modal 1: Vacancy Details Modal */}
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
