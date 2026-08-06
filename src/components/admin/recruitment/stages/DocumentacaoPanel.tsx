@@ -295,7 +295,7 @@ export function DocumentacaoPanel({
                                     ) : (
                                         <div className="w-4.5 h-4.5 rounded-full border-2 border-slate-300 shrink-0" />
                                     )}
-                                    <span className="truncate">{doc.label}</span>
+                                    <span className="break-words whitespace-normal leading-tight text-left text-xs font-bold">{doc.label}</span>
                                 </div>
                                 <label className="shrink-0">
                                     <input
