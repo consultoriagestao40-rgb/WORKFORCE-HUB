@@ -351,16 +351,10 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                     </DialogHeader>
 
                     <Tabs defaultValue="details" className="w-full">
-                        <TabsList className="grid w-full grid-cols-4">
+                        <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="details">Detalhes</TabsTrigger>
-                            <TabsTrigger value="ats">Triagem & Ranking IA</TabsTrigger>
-                            <TabsTrigger value="documents" className="relative font-bold text-blue-600">
-                                📄 Documentos & Exames
-                                {(candidate.documentationStatus === 'SUBMITTED' || candidate.asoStatus === 'APTO') && (
-                                    <span className="ml-1 w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                                )}
-                            </TabsTrigger>
-                            <TabsTrigger value="history">Histórico</TabsTrigger>
+                            <TabsTrigger value="ats">Triagem Inteligente (ATS)</TabsTrigger>
+                            <TabsTrigger value="history">Histórico & Auditoria</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="details" className="mt-4">
@@ -942,59 +936,74 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                                     </div>
                                                                                 </div>
                                                                                                                                      {/* PAINÉIS DE ETAPA DO CANDIDATO (Documentação, Exame, Onvio, Benefícios) */}
-                                                                        {!isDisqualified && cand.stage?.name === 'Documentação' && (
-                                                                            <div className="pt-4 pb-2 border-b border-slate-100">
-                                                                                <span className="text-[10px] uppercase font-black text-blue-600 block mb-2">Etapa: Documentação</span>
-                                                                                <DocumentacaoPanel
-                                                                                    candidateId={cand.id}
-                                                                                    candidateName={cand.name}
-                                                                                    documentationLinkToken={cand.documentationLinkToken}
-                                                                                    documentationFiles={cand.documentationFiles}
-                                                                                    documentationStatus={cand.documentationStatus}
-                                                                                    onUpdate={() => window.location.reload()}
-                                                                                />
-                                                                            </div>
-                                                                        )}
+                                                                        {(() => {
+                                                                            const stName = (cand.stage?.name || '').toLowerCase();
+                                                                            const stOrder = cand.stage?.order || 0;
 
-                                                                        {!isDisqualified && cand.stage?.name === 'Exame' && (
-                                                                            <div className="pt-4 pb-2 border-b border-slate-100">
-                                                                                <span className="text-[10px] uppercase font-black text-teal-600 block mb-2">Etapa: Exame Médico</span>
-                                                                                <ExamePanel
-                                                                                    candidateId={cand.id}
-                                                                                    candidateName={cand.name}
-                                                                                    asoFile={cand.asoFile}
-                                                                                    asoStatus={cand.asoStatus}
-                                                                                    onUpdate={() => window.location.reload()}
-                                                                                />
-                                                                            </div>
-                                                                        )}
+                                                                            const showDoc = stName.includes('doc') || stOrder >= 3 || !!cand.documentationStatus;
+                                                                            const showExame = stName.includes('exam') || stName.includes('aso') || stOrder >= 4 || !!cand.asoFile || !!cand.asoStatus;
+                                                                            const showOnvio = stName.includes('admi') || stName.includes('onvio') || stOrder >= 5 || cand.onvioLaunched;
+                                                                            const showBeneficios = stName.includes('bene') || stName.includes('admi') || stOrder >= 6 || cand.benefitsCompletedAt;
 
-                                                                        {!isDisqualified && (cand.stage?.name === 'Admissão (Onvio)' || cand.stage?.name === 'Admissão') && (
-                                                                            <div className="pt-4 pb-2 border-b border-slate-100">
-                                                                                <span className="text-[10px] uppercase font-black text-violet-600 block mb-2">Etapa: Admissão (Onvio)</span>
-                                                                                <OnvioPanel
-                                                                                    candidateId={cand.id}
-                                                                                    candidateName={cand.name}
-                                                                                    onvioLaunched={cand.onvioLaunched}
-                                                                                    onvioConfirmedAt={cand.onvioConfirmedAt}
-                                                                                    onUpdate={() => window.location.reload()}
-                                                                                />
-                                                                            </div>
-                                                                        )}
+                                                                            return (
+                                                                                <>
+                                                                                    {!isDisqualified && showDoc && (
+                                                                                        <div className="pt-4 pb-2 border-b border-slate-100">
+                                                                                            <span className="text-[10px] uppercase font-black text-blue-600 block mb-2">Etapa: Documentação</span>
+                                                                                            <DocumentacaoPanel
+                                                                                                candidateId={cand.id}
+                                                                                                candidateName={cand.name}
+                                                                                                documentationLinkToken={cand.documentationLinkToken}
+                                                                                                documentationFiles={cand.documentationFiles}
+                                                                                                documentationStatus={cand.documentationStatus}
+                                                                                                extraFields={cand.extraFields}
+                                                                                                onUpdate={() => window.location.reload()}
+                                                                                            />
+                                                                                        </div>
+                                                                                    )}
 
-                                                                        {!isDisqualified && cand.stage?.name === 'Cadastro de Benefícios' && (
-                                                                            <div className="pt-4 pb-2 border-b border-slate-100">
-                                                                                <span className="text-[10px] uppercase font-black text-emerald-600 block mb-2">Etapa: Cadastro de Benefícios</span>
-                                                                                <BeneficiosPanel
-                                                                                    candidateId={cand.id}
-                                                                                    cajuRegistered={cand.cajuRegistered}
-                                                                                    metocarRegistered={cand.metocarRegistered}
-                                                                                    urbisRegistered={cand.urbisRegistered}
-                                                                                    benefitsCompletedAt={cand.benefitsCompletedAt}
-                                                                                    onUpdate={() => window.location.reload()}
-                                                                                />
-                                                                            </div>
-                                                                        )}                        </div>
+                                                                                    {!isDisqualified && showExame && (
+                                                                                        <div className="pt-4 pb-2 border-b border-slate-100">
+                                                                                            <span className="text-[10px] uppercase font-black text-teal-600 block mb-2">Etapa: Exame Médico</span>
+                                                                                            <ExamePanel
+                                                                                                candidateId={cand.id}
+                                                                                                candidateName={cand.name}
+                                                                                                asoFile={cand.asoFile}
+                                                                                                asoStatus={cand.asoStatus}
+                                                                                                onUpdate={() => window.location.reload()}
+                                                                                            />
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    {!isDisqualified && showOnvio && (
+                                                                                        <div className="pt-4 pb-2 border-b border-slate-100">
+                                                                                            <span className="text-[10px] uppercase font-black text-violet-600 block mb-2">Etapa: Admissão no Onvio</span>
+                                                                                            <OnvioPanel
+                                                                                                candidateId={cand.id}
+                                                                                                candidateName={cand.name}
+                                                                                                onvioLaunched={cand.onvioLaunched}
+                                                                                                onvioConfirmedAt={cand.onvioConfirmedAt}
+                                                                                                onUpdate={() => window.location.reload()}
+                                                                                            />
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    {!isDisqualified && showBeneficios && (
+                                                                                        <div className="pt-4 pb-2 border-b border-slate-100">
+                                                                                            <span className="text-[10px] uppercase font-black text-emerald-600 block mb-2">Etapa: Cadastro de Benefícios</span>
+                                                                                            <BeneficiosPanel
+                                                                                                candidateId={cand.id}
+                                                                                                cajuRegistered={cand.cajuRegistered}
+                                                                                                metocarRegistered={cand.metocarRegistered}
+                                                                                                urbisRegistered={cand.urbisRegistered}
+                                                                                                benefitsCompletedAt={cand.benefitsCompletedAt}
+                                                                                                onUpdate={() => window.location.reload()}
+                                                                                            />
+                                                                                        </div>
+                                                                                    )}
+                                                                                </>
+                                                                            );
+                                                                        })()}                        </div>
                                                                         )}
 
                                                                         {/* Dados extraídos do CV */}
@@ -1337,168 +1346,6 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                 </div>
                             )}
 
-                        </TabsContent>
-
-                        {/* ======================================================= */}
-                        {/* TAB: DOCUMENTOS & EXAMES                                */}
-                        {/* ======================================================= */}
-                        <TabsContent value="documents" className="mt-4 space-y-6">
-                            {candidate.type === 'VACANCY' ? (
-                                <div className="space-y-4">
-                                    {rankedCandidates.length === 0 ? (
-                                        <div className="p-8 text-center bg-slate-50 border border-dashed rounded-xl space-y-2">
-                                            <FileText className="w-8 h-8 text-slate-400 mx-auto" />
-                                            <h4 className="font-semibold text-slate-700 text-sm">Nenhum candidato nesta vaga ainda</h4>
-                                            <p className="text-xs text-slate-500">Adicione candidatos na aba Triagem para gerenciar a documentação e exames.</p>
-                                        </div>
-                                    ) : (
-                                        <div className="bg-indigo-50/40 border border-indigo-100 rounded-xl p-5">
-                                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-indigo-100">
-                                                <div>
-                                                    <h3 className="font-semibold text-indigo-900 flex items-center gap-2">
-                                                        <FileText className="w-5 h-5 text-indigo-600" />
-                                                        Gestão de Documentos, Exames & Benefícios
-                                                    </h3>
-                                                    <p className="text-xs text-slate-500 mt-0.5">Selecione o candidato para visualizar e preencher os documentos do processo.</p>
-                                                </div>
-                                                {rankedCandidates.length > 1 && (
-                                                    <div className="w-64">
-                                                        <Select 
-                                                            value={selectedAdmissionCandidateId || rankedCandidates[0]?.id} 
-                                                            onValueChange={setSelectedAdmissionCandidateId}
-                                                        >
-                                                            <SelectTrigger className="bg-white text-xs h-9">
-                                                                <SelectValue placeholder="Selecione o candidato..." />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {rankedCandidates.map(c => (
-                                                                    <SelectItem key={c.id} value={c.id}>
-                                                                        {c.name} ({c.stage?.name || 'Inscrição'})
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {(() => {
-                                                const selCand = rankedCandidates.find(c => c.id === (selectedAdmissionCandidateId || rankedCandidates[0]?.id)) || rankedCandidates[0];
-                                                if (!selCand) return null;
-
-                                                return (
-                                                    <div className="space-y-6">
-                                                        {/* Documentação & Link Público */}
-                                                        <div className="bg-white p-4 rounded-xl border border-slate-200">
-                                                            <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2">
-                                                                <FileText className="w-4 h-4 text-blue-600" />
-                                                                1. Documentação Admissional & Link para Candidato
-                                                            </h4>
-                                                            <DocumentacaoPanel
-                                                                candidateId={selCand.id}
-                                                                candidateName={selCand.name}
-                                                                documentationLinkToken={selCand.documentationLinkToken}
-                                                                documentationFiles={selCand.documentationFiles}
-                                                                documentationStatus={selCand.documentationStatus}
-                                                                extraFields={selCand.extraFields}
-                                                                onUpdate={() => window.location.reload()}
-                                                            />
-                                                        </div>
-
-                                                        {/* Exame Médico (ASO) */}
-                                                        <div className="bg-white p-4 rounded-xl border border-slate-200">
-                                                            <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2">
-                                                                <Upload className="w-4 h-4 text-teal-600" />
-                                                                2. Exame Médico (ASO)
-                                                            </h4>
-                                                            <ExamePanel
-                                                                candidateId={selCand.id}
-                                                                candidateName={selCand.name}
-                                                                asoFile={selCand.asoFile}
-                                                                asoStatus={selCand.asoStatus}
-                                                                onUpdate={() => window.location.reload()}
-                                                            />
-                                                        </div>
-
-                                                        {/* Onvio */}
-                                                        <div className="bg-white p-4 rounded-xl border border-slate-200">
-                                                            <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2">
-                                                                <CheckCircle2 className="w-4 h-4 text-violet-600" />
-                                                                3. Admissão no Onvio
-                                                            </h4>
-                                                            <OnvioPanel
-                                                                candidateId={selCand.id}
-                                                                candidateName={selCand.name}
-                                                                onvioLaunched={selCand.onvioLaunched}
-                                                                onvioConfirmedAt={selCand.onvioConfirmedAt}
-                                                                onUpdate={() => window.location.reload()}
-                                                            />
-                                                        </div>
-
-                                                        {/* Benefícios */}
-                                                        <div className="bg-white p-4 rounded-xl border border-slate-200">
-                                                            <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2">
-                                                                <AlertCircle className="w-4 h-4 text-emerald-600" />
-                                                                4. Cadastro de Benefícios (CAJU / Metocar / Urbis)
-                                                            </h4>
-                                                            <BeneficiosPanel
-                                                                candidateId={selCand.id}
-                                                                cajuRegistered={selCand.cajuRegistered}
-                                                                metocarRegistered={selCand.metocarRegistered}
-                                                                urbisRegistered={selCand.urbisRegistered}
-                                                                benefitsCompletedAt={selCand.benefitsCompletedAt}
-                                                                onUpdate={() => window.location.reload()}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="space-y-6">
-                                    <div className="bg-white p-4 rounded-xl border border-slate-200">
-                                        <DocumentacaoPanel
-                                            candidateId={candidate.id}
-                                            candidateName={candidate.name}
-                                            documentationLinkToken={candidate.documentationLinkToken}
-                                            documentationFiles={candidate.documentationFiles}
-                                            documentationStatus={candidate.documentationStatus}
-                                            extraFields={candidate.extraFields}
-                                            onUpdate={() => window.location.reload()}
-                                        />
-                                    </div>
-                                    <div className="bg-white p-4 rounded-xl border border-slate-200">
-                                        <ExamePanel
-                                            candidateId={candidate.id}
-                                            candidateName={candidate.name}
-                                            asoFile={candidate.asoFile}
-                                            asoStatus={candidate.asoStatus}
-                                            onUpdate={() => window.location.reload()}
-                                        />
-                                    </div>
-                                    <div className="bg-white p-4 rounded-xl border border-slate-200">
-                                        <OnvioPanel
-                                            candidateId={candidate.id}
-                                            candidateName={candidate.name}
-                                            onvioLaunched={candidate.onvioLaunched}
-                                            onvioConfirmedAt={candidate.onvioConfirmedAt}
-                                            onUpdate={() => window.location.reload()}
-                                        />
-                                    </div>
-                                    <div className="bg-white p-4 rounded-xl border border-slate-200">
-                                        <BeneficiosPanel
-                                            candidateId={candidate.id}
-                                            cajuRegistered={candidate.cajuRegistered}
-                                            metocarRegistered={candidate.metocarRegistered}
-                                            urbisRegistered={candidate.urbisRegistered}
-                                            benefitsCompletedAt={candidate.benefitsCompletedAt}
-                                            onUpdate={() => window.location.reload()}
-                                        />
-                                    </div>
-                                </div>
-                            )}
                         </TabsContent>
 
                         <TabsContent value="history" className="mt-4">

@@ -220,75 +220,75 @@ export function DocumentacaoPanel({
             </div>
 
             {/* Informações de Tamanho & Uniformes (Sapato, Calça, Camisa) */}
-            <div className="border border-slate-200 rounded-xl p-4 bg-white space-y-3">
+            <div className="border border-slate-200 rounded-xl p-4 bg-white space-y-3 w-full min-w-0 overflow-hidden">
                 <div className="flex items-center justify-between border-b pb-2">
                     <div className="flex items-center gap-2 text-slate-800 font-semibold text-sm">
-                        <Shirt className="w-4 h-4 text-indigo-600" />
-                        Tamanhos de Uniforme & Dados Bancários (Digitados)
+                        <Shirt className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <span className="truncate">Tamanhos de Uniforme & Dados Bancários (Digitados)</span>
                     </div>
-                    <Button size="sm" variant="ghost" onClick={handleSaveUniforms} disabled={savingUniforms} className="h-7 text-xs text-indigo-600 hover:bg-indigo-50">
+                    <Button size="sm" variant="ghost" onClick={handleSaveUniforms} disabled={savingUniforms} className="h-7 text-xs text-indigo-600 hover:bg-indigo-50 shrink-0">
                         {savingUniforms ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
                         Salvar Dados
                     </Button>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                    <div>
-                        <Label className="text-[10px] text-slate-500 uppercase font-bold">Sapato / Calçado</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs w-full min-w-0">
+                    <div className="min-w-0">
+                        <Label className="text-[10px] text-slate-500 uppercase font-bold truncate block">Sapato / Calçado</Label>
                         <Input
                             placeholder="Ex: 40"
                             value={shoeSize}
                             onChange={(e) => setShoeSize(e.target.value)}
-                            className="h-8 text-xs mt-1"
+                            className="h-8 text-xs mt-1 w-full"
                         />
                     </div>
-                    <div>
-                        <Label className="text-[10px] text-slate-500 uppercase font-bold">Calça / Bermuda</Label>
+                    <div className="min-w-0">
+                        <Label className="text-[10px] text-slate-500 uppercase font-bold truncate block">Calça / Bermuda</Label>
                         <Input
                             placeholder="Ex: M / 42"
                             value={pantsSize}
                             onChange={(e) => setPantsSize(e.target.value)}
-                            className="h-8 text-xs mt-1"
+                            className="h-8 text-xs mt-1 w-full"
                         />
                     </div>
-                    <div>
-                        <Label className="text-[10px] text-slate-500 uppercase font-bold">Camisa / Camiseta</Label>
+                    <div className="min-w-0">
+                        <Label className="text-[10px] text-slate-500 uppercase font-bold truncate block">Camisa / Camiseta</Label>
                         <Input
                             placeholder="Ex: G / 44"
                             value={shirtSize}
                             onChange={(e) => setShirtSize(e.target.value)}
-                            className="h-8 text-xs mt-1"
+                            className="h-8 text-xs mt-1 w-full"
                         />
                     </div>
-                    <div>
-                        <Label className="text-[10px] text-slate-500 uppercase font-bold">Chave PIX</Label>
+                    <div className="min-w-0">
+                        <Label className="text-[10px] text-slate-500 uppercase font-bold truncate block">Chave PIX</Label>
                         <Input
                             placeholder="CPF, E-mail, Celular"
                             value={pixKey}
                             onChange={(e) => setPixKey(e.target.value)}
-                            className="h-8 text-xs mt-1"
+                            className="h-8 text-xs mt-1 w-full"
                         />
                     </div>
                 </div>
             </div>
 
             {/* Complete Document Upload List */}
-            <div className="border border-slate-200 rounded-xl p-4 bg-white space-y-3">
+            <div className="border border-slate-200 rounded-xl p-4 bg-white space-y-3 w-full min-w-0 overflow-hidden">
                 <div className="flex items-center justify-between border-b pb-2">
-                    <span className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                        <Upload className="w-4 h-4 text-indigo-600" />
-                        Relação Completa de Documentos para Admissão
+                    <span className="text-sm font-semibold text-slate-800 flex items-center gap-2 truncate">
+                        <Upload className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <span className="truncate">Relação Completa de Documentos para Admissão</span>
                     </span>
-                    <span className="text-xs text-slate-400">PDF ou Imagem</span>
+                    <span className="text-xs text-slate-400 shrink-0">PDF ou Imagem</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 w-full min-w-0">
                     {COMPLETE_DOC_TYPES.map((doc) => {
                         const hasFile = !!docs[doc.key];
                         const isUploading = uploadingDoc === doc.key;
                         return (
-                            <div key={doc.key} className="flex items-center gap-2">
-                                <div className={`flex-1 flex items-center justify-between px-3 py-2 rounded-lg text-xs border ${hasFile ? "bg-green-50 border-green-200 text-green-900 font-medium" : "bg-slate-50 border-slate-200 text-slate-700"}`}>
-                                    <div className="flex items-center gap-2 truncate">
+                            <div key={doc.key} className="flex items-center gap-2 min-w-0 w-full">
+                                <div className={`flex-1 min-w-0 flex items-center justify-between px-3 py-2 rounded-lg text-xs border ${hasFile ? "bg-green-50 border-green-200 text-green-900 font-medium" : "bg-slate-50 border-slate-200 text-slate-700"}`}>
+                                    <div className="flex items-center gap-2 truncate min-w-0">
                                         {hasFile ? (
                                             <CheckCircle2 className="w-3.5 h-3.5 text-green-600 shrink-0" />
                                         ) : (
