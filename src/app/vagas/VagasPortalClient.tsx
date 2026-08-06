@@ -179,18 +179,30 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
             <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
                 
                 {/* Header Section */}
-                <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-10 shadow-sm text-center space-y-4 relative overflow-hidden">
-                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-black uppercase tracking-wider">
-                        <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                        Portal Oficial de Oportunidades & Carreiras
+                <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-10 shadow-sm text-center space-y-5 relative overflow-hidden">
+                    {/* Logo JVS */}
+                    <div className="flex justify-center items-center pt-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img 
+                            src="https://grupojvsserv.com.br/wp-content/uploads/2023/11/logo-horizontal-300px.png" 
+                            alt="Grupo JVS Serviços" 
+                            className="h-12 sm:h-16 w-auto object-contain max-w-[260px] sm:max-w-[320px]"
+                        />
                     </div>
 
-                    <div className="space-y-2 max-w-2xl mx-auto">
-                        <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
-                            Vagas em Aberto
+                    {/* Welcome Pill & Title */}
+                    <div className="space-y-3 max-w-2xl mx-auto">
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs font-extrabold uppercase tracking-wider">
+                            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                            Seja Bem-Vindo ao Nosso Portal de Carreiras
+                        </div>
+
+                        <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight">
+                            Venha Fazer Parte do Nosso Time!
                         </h1>
-                        <p className="text-sm sm:text-base text-slate-500 font-medium">
-                            Explore nossas oportunidades de trabalho disponíveis, confira os requisitos e envie seu currículo diretamente para nossa equipe de RH.
+
+                        <p className="text-sm sm:text-base text-slate-600 font-medium leading-relaxed">
+                            Estamos em constante busca por profissionais engajados para integrar nossa equipe. Explore nossas vagas abertas abaixo, veja os detalhes de cada oportunidade e envie seu currículo diretamente para nosso time de RH em poucos segundos.
                         </p>
                     </div>
 
