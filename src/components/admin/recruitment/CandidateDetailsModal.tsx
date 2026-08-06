@@ -6,7 +6,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { X, MessageSquare, Send, Paperclip, CheckCircle2, XCircle, Clock, Save, User, Mail, Phone, Calendar, Briefcase, MapPin, Building2, Building, DollarSign, AlertCircle, Trash2, Copy, FileText, Upload, AlertTriangle, ChevronDown, Sparkles } from "lucide-react";
+import { X, MessageSquare, Send, Paperclip, CheckCircle2, XCircle, Clock, Save, User, Mail, Phone, Calendar, Briefcase, MapPin, Building2, Building, DollarSign, AlertCircle, Trash2, Copy, FileText, Upload, AlertTriangle, ChevronDown, Sparkles, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate, updateVacancy, addVacancyParticipant, removeVacancyParticipant, addRecruitmentComment, getRecruitmentComments, getVacancyCandidates, evaluateCandidateWithAI, updateCandidateEvaluation } from "@/actions/recruitment";
 import { DocumentacaoPanel } from "./stages/DocumentacaoPanel";
@@ -692,7 +692,58 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                         </TabsContent>
                         
                         <TabsContent value="ats" className="mt-4">
-                            {candidate.type === 'VACANCY' ? (
+                            {(() => {
+                                const activeCand = candidate.type === 'VACANCY' 
+                                    ? (rankedCandidates.find(c => c.id === (selectedAdmissionCandidateId || rankedCandidates[0]?.id)) || rankedCandidates[0])
+                                    : candidate;
+
+                                const stageName = activeCand?.stage?.name || '';
+                                const stageOrder = activeCand?.stage?.order || 0;
+                                const stNameLower = stageName.toLowerCase();
+
+                                const isDocActive = stNameLower.includes('doc') || stageOrder >= 3 || !!activeCand?.documentationStatus;
+                                const isDocOk = activeCand?.documentationStatus === 'APPROVED' || activeCand?.documentationStatus === 'SUBMITTED';
+
+                                const isAsoActive = (isDocActive && isDocOk) || stNameLower.includes('exam') || stNameLower.includes('aso') || stageOrder >= 4 || !!activeCand?.asoStatus;
+                                const isAsoOk = activeCand?.asoStatus === 'APTO' || activeCand?.asoStatus === 'Apto';
+
+                                const isAdmissaoActive = (isAsoActive && isAsoOk) || stNameLower.includes('admi') || stNameLower.includes('onvio') || stageOrder >= 5 || !!activeCand?.onvioLaunched;
+                                const isOnvioOk = !!activeCand?.onvioLaunched;
+
+                                const isBenefitsActive = (isAdmissaoActive && isOnvioOk) || stNameLower.includes('bene') || stageOrder >= 6 || !!activeCand?.benefitsCompletedAt;
+                                const isBenefitsOk = !!activeCand?.benefitsCompletedAt;
+
+                                return (
+                                    <Tabs defaultValue="ranking" className="w-full space-y-4">
+                                        <TabsList className="grid w-full grid-cols-5 bg-slate-100 p-1 rounded-xl">
+                                            <TabsTrigger value="ranking" className="text-xs font-semibold">
+                                                📋 Ranking & IA
+                                            </TabsTrigger>
+                                            <TabsTrigger value="documents" disabled={!isDocActive} className="text-xs font-semibold flex items-center justify-center gap-1">
+                                                {!isDocActive && <Lock className="w-3 h-3 text-slate-400" />}
+                                                📄 Documentação
+                                                {isDocOk && <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />}
+                                            </TabsTrigger>
+                                            <TabsTrigger value="aso" disabled={!isAsoActive} className="text-xs font-semibold flex items-center justify-center gap-1">
+                                                {!isAsoActive && <Lock className="w-3 h-3 text-slate-400" />}
+                                                🏥 Exame (ASO)
+                                                {isAsoOk && <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />}
+                                                {activeCand?.asoStatus === 'INAPTO' && <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />}
+                                            </TabsTrigger>
+                                            <TabsTrigger value="admissao" disabled={!isAdmissaoActive} className="text-xs font-semibold flex items-center justify-center gap-1 font-bold text-indigo-700">
+                                                {!isAdmissaoActive && <Lock className="w-3 h-3 text-slate-400" />}
+                                                ⚡ Admissão (Onvio)
+                                                {isOnvioOk && <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />}
+                                            </TabsTrigger>
+                                            <TabsTrigger value="benefits" disabled={!isBenefitsActive} className="text-xs font-semibold flex items-center justify-center gap-1 font-bold text-emerald-700">
+                                                {!isBenefitsActive && <Lock className="w-3 h-3 text-slate-400" />}
+                                                🎁 Benefícios
+                                                {isBenefitsOk && <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />}
+                                            </TabsTrigger>
+                                        </TabsList>
+
+                                        <TabsContent value="ranking">
+                                            {candidate.type === 'VACANCY' ? (
                                 <div className="space-y-6 py-2">
                                     {/* Link de Captação Meta Ads */}
                                     <div className="bg-gradient-to-r from-indigo-900/10 via-indigo-900/5 to-indigo-900/0 border border-indigo-100 p-4 rounded-xl space-y-3">
@@ -935,75 +986,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                                         <span className="block mt-0.5 text-red-700">Não atende a um ou mais requisitos eliminatórios obrigatórios.</span>
                                                                                     </div>
                                                                                 </div>
-                                                                                                                                     {/* PAINÉIS DE ETAPA DO CANDIDATO (Documentação, Exame, Onvio, Benefícios) */}
-                                                                        {(() => {
-                                                                            const stName = (cand.stage?.name || '').toLowerCase();
-                                                                            const stOrder = cand.stage?.order || 0;
-
-                                                                            const showDoc = stName.includes('doc') || stOrder >= 3 || !!cand.documentationStatus;
-                                                                            const showExame = stName.includes('exam') || stName.includes('aso') || stOrder >= 4 || !!cand.asoFile || !!cand.asoStatus;
-                                                                            const showOnvio = stName.includes('admi') || stName.includes('onvio') || stOrder >= 5 || cand.onvioLaunched;
-                                                                            const showBeneficios = stName.includes('bene') || stName.includes('admi') || stOrder >= 6 || cand.benefitsCompletedAt;
-
-                                                                            return (
-                                                                                <>
-                                                                                    {!isDisqualified && showDoc && (
-                                                                                        <div className="pt-4 pb-2 border-b border-slate-100">
-                                                                                            <span className="text-[10px] uppercase font-black text-blue-600 block mb-2">Etapa: Documentação</span>
-                                                                                            <DocumentacaoPanel
-                                                                                                candidateId={cand.id}
-                                                                                                candidateName={cand.name}
-                                                                                                documentationLinkToken={cand.documentationLinkToken}
-                                                                                                documentationFiles={cand.documentationFiles}
-                                                                                                documentationStatus={cand.documentationStatus}
-                                                                                                extraFields={cand.extraFields}
-                                                                                                onUpdate={() => window.location.reload()}
-                                                                                            />
-                                                                                        </div>
-                                                                                    )}
-
-                                                                                    {!isDisqualified && showExame && (
-                                                                                        <div className="pt-4 pb-2 border-b border-slate-100">
-                                                                                            <span className="text-[10px] uppercase font-black text-teal-600 block mb-2">Etapa: Exame Médico</span>
-                                                                                            <ExamePanel
-                                                                                                candidateId={cand.id}
-                                                                                                candidateName={cand.name}
-                                                                                                asoFile={cand.asoFile}
-                                                                                                asoStatus={cand.asoStatus}
-                                                                                                onUpdate={() => window.location.reload()}
-                                                                                            />
-                                                                                        </div>
-                                                                                    )}
-
-                                                                                    {!isDisqualified && showOnvio && (
-                                                                                        <div className="pt-4 pb-2 border-b border-slate-100">
-                                                                                            <span className="text-[10px] uppercase font-black text-violet-600 block mb-2">Etapa: Admissão no Onvio</span>
-                                                                                            <OnvioPanel
-                                                                                                candidateId={cand.id}
-                                                                                                candidateName={cand.name}
-                                                                                                onvioLaunched={cand.onvioLaunched}
-                                                                                                onvioConfirmedAt={cand.onvioConfirmedAt}
-                                                                                                onUpdate={() => window.location.reload()}
-                                                                                            />
-                                                                                        </div>
-                                                                                    )}
-
-                                                                                    {!isDisqualified && showBeneficios && (
-                                                                                        <div className="pt-4 pb-2 border-b border-slate-100">
-                                                                                            <span className="text-[10px] uppercase font-black text-emerald-600 block mb-2">Etapa: Cadastro de Benefícios</span>
-                                                                                            <BeneficiosPanel
-                                                                                                candidateId={cand.id}
-                                                                                                cajuRegistered={cand.cajuRegistered}
-                                                                                                metocarRegistered={cand.metocarRegistered}
-                                                                                                urbisRegistered={cand.urbisRegistered}
-                                                                                                benefitsCompletedAt={cand.benefitsCompletedAt}
-                                                                                                onUpdate={() => window.location.reload()}
-                                                                                            />
-                                                                                        </div>
-                                                                                    )}
-                                                                                </>
-                                                                            );
-                                                                        })()}                        </div>
+                                                                            </div>
                                                                         )}
 
                                                                         {/* Dados extraídos do CV */}
@@ -1168,7 +1151,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                     });
                                                 })()}
                                              </div>
-                                        )}
+                                         )}
                                     </div>
                                 </div>
                             ) : (
@@ -1348,6 +1331,153 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
 
                         </TabsContent>
 
+                        <TabsContent value="documents" className="pt-2">
+                            {candidate.type === 'VACANCY' && rankedCandidates.length > 1 && (
+                                <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-between mb-4">
+                                    <span className="text-xs font-semibold text-slate-700">Selecione o Candidato:</span>
+                                    <Select value={selectedAdmissionCandidateId || activeCand?.id} onValueChange={setSelectedAdmissionCandidateId}>
+                                        <SelectTrigger className="w-64 h-8 text-xs bg-white">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {rankedCandidates.map(c => (
+                                                <SelectItem key={c.id} value={c.id}>
+                                                    {c.name} ({c.stage?.name || 'Sem etapa'})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
+                            {activeCand ? (
+                                <DocumentacaoPanel
+                                    candidateId={activeCand.id}
+                                    candidateName={activeCand.name}
+                                    documentationLinkToken={activeCand.documentationLinkToken}
+                                    documentationFiles={activeCand.documentationFiles}
+                                    documentationStatus={activeCand.documentationStatus}
+                                    extraFields={activeCand.extraFields}
+                                    onUpdate={() => window.location.reload()}
+                                />
+                            ) : (
+                                <p className="text-xs text-slate-500 py-4 text-center">Nenhum candidato selecionado.</p>
+                            )}
+                        </TabsContent>
+
+                        <TabsContent value="aso" className="pt-2">
+                            {candidate.type === 'VACANCY' && rankedCandidates.length > 1 && (
+                                <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-between mb-4">
+                                    <span className="text-xs font-semibold text-slate-700">Selecione o Candidato:</span>
+                                    <Select value={selectedAdmissionCandidateId || activeCand?.id} onValueChange={setSelectedAdmissionCandidateId}>
+                                        <SelectTrigger className="w-64 h-8 text-xs bg-white">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {rankedCandidates.map(c => (
+                                                <SelectItem key={c.id} value={c.id}>
+                                                    {c.name} ({c.stage?.name || 'Sem etapa'})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
+                            {activeCand ? (
+                                <ExamePanel
+                                    candidateId={activeCand.id}
+                                    candidateName={activeCand.name}
+                                    asoFile={activeCand.asoFile}
+                                    asoStatus={activeCand.asoStatus}
+                                    onUpdate={() => window.location.reload()}
+                                />
+                            ) : (
+                                <p className="text-xs text-slate-500 py-4 text-center">Nenhum candidato selecionado.</p>
+                            )}
+                        </TabsContent>
+
+                        <TabsContent value="admissao" className="pt-2">
+                            {candidate.type === 'VACANCY' && rankedCandidates.length > 1 && (
+                                <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-between mb-4">
+                                    <span className="text-xs font-semibold text-slate-700">Selecione o Candidato:</span>
+                                    <Select value={selectedAdmissionCandidateId || activeCand?.id} onValueChange={setSelectedAdmissionCandidateId}>
+                                        <SelectTrigger className="w-64 h-8 text-xs bg-white">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {rankedCandidates.map(c => (
+                                                <SelectItem key={c.id} value={c.id}>
+                                                    {c.name} ({c.stage?.name || 'Sem etapa'})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
+                            {activeCand ? (
+                                <OnvioPanel
+                                    candidateId={activeCand.id}
+                                    candidateName={activeCand.name}
+                                    email={activeCand.email}
+                                    phone={activeCand.phone}
+                                    cpf={activeCand.extraFields?.cpf}
+                                    birthDate={activeCand.extraFields?.birthDate}
+                                    gender={activeCand.extraFields?.gender}
+                                    address={activeCand.extraFields?.address}
+                                    rg={activeCand.extraFields?.rg}
+                                    roleTitle={activeCand.vacancy?.title || candidate.vacancy?.title}
+                                    salary={activeCand.vacancy?.salary || candidate.vacancy?.salary}
+                                    startDate={activeCand.vacancy?.plannedStartDate ? new Date(activeCand.vacancy.plannedStartDate).toLocaleDateString('pt-BR') : ''}
+                                    companyName={activeCand.vacancy?.company?.name || activeCand.vacancy?.posto?.client?.name}
+                                    extraFields={activeCand.extraFields}
+                                    onvioLaunched={activeCand.onvioLaunched}
+                                    onvioConfirmedAt={activeCand.onvioConfirmedAt}
+                                    onUpdate={() => window.location.reload()}
+                                />
+                            ) : (
+                                <p className="text-xs text-slate-500 py-4 text-center">Nenhum candidato selecionado.</p>
+                            )}
+                        </TabsContent>
+
+                        <TabsContent value="benefits" className="pt-2">
+                            {candidate.type === 'VACANCY' && rankedCandidates.length > 1 && (
+                                <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-between mb-4">
+                                    <span className="text-xs font-semibold text-slate-700">Selecione o Candidato:</span>
+                                    <Select value={selectedAdmissionCandidateId || activeCand?.id} onValueChange={setSelectedAdmissionCandidateId}>
+                                        <SelectTrigger className="w-64 h-8 text-xs bg-white">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {rankedCandidates.map(c => (
+                                                <SelectItem key={c.id} value={c.id}>
+                                                    {c.name} ({c.stage?.name || 'Sem etapa'})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
+                            {activeCand ? (
+                                <BeneficiosPanel
+                                    candidateId={activeCand.id}
+                                    cajuRegistered={activeCand.cajuRegistered}
+                                    metocarRegistered={activeCand.metocarRegistered}
+                                    urbisRegistered={activeCand.urbisRegistered}
+                                    benefitsCompletedAt={activeCand.benefitsCompletedAt}
+                                    onUpdate={() => window.location.reload()}
+                                />
+                            ) : (
+                                <p className="text-xs text-slate-500 py-4 text-center">Nenhum candidato selecionado.</p>
+                            )}
+                        </TabsContent>
+                                    </Tabs>
+                                );
+                            })()}
+                        </TabsContent>
+
                         <TabsContent value="history" className="mt-4">
                             <div className="bg-white rounded-lg border p-4 max-h-[400px] overflow-y-auto">
                                 {loadingTimeline ? (
@@ -1390,7 +1520,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                 )}
                             </div>
                         </TabsContent>
-                    </Tabs >
+                    </Tabs>
 
                     <div className="flex justify-between pt-4 border-t mt-4">
                         <div className="flex gap-2">

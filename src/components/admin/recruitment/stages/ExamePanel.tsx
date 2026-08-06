@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { uploadAsoFile } from "@/actions/recruitment";
+import { uploadAsoFile, moveCandidateToStageByName } from "@/actions/recruitment";
 
 interface ExamePanelProps {
     candidateId: string;
@@ -25,6 +25,7 @@ export function ExamePanel({
 }: ExamePanelProps) {
     const [uploading, setUploading] = useState(false);
     const [selectedStatus, setSelectedStatus] = useState(asoStatus || "APTO");
+    const [isMovingStage, setIsMovingStage] = useState(false);
 
     async function handleFileUpload(file: File) {
         setUploading(true);
@@ -34,9 +35,9 @@ export function ExamePanel({
                 const dataUrl = e.target?.result as string;
                 await uploadAsoFile(candidateId, dataUrl, selectedStatus);
                 if (selectedStatus === "APTO") {
-                    toast.success("ASO enviado! Candidato avançado automaticamente para Admissão (Onvio).");
+                    toast.success("ASO analisado como APTO! Candidato avançado automaticamente para Admissão (Onvio).");
                 } else {
-                    toast.warning(`ASO enviado com status: ${selectedStatus}`);
+                    toast.warning(`ASO enviado com status: INAPTO.`);
                 }
                 onUpdate();
                 setUploading(false);
@@ -45,6 +46,19 @@ export function ExamePanel({
         } catch (e: any) {
             toast.error(e.message || "Erro ao enviar ASO");
             setUploading(false);
+        }
+    }
+
+    async function handleMoveToStage(stageName: string, reason: string) {
+        setIsMovingStage(true);
+        try {
+            await moveCandidateToStageByName(candidateId, stageName, reason);
+            toast.success(`Candidato movido para ${stageName}`);
+            onUpdate();
+        } catch (e: any) {
+            toast.error(e.message || "Erro ao mover candidato de etapa");
+        } finally {
+            setIsMovingStage(false);
         }
     }
 
@@ -61,8 +75,44 @@ export function ExamePanel({
             {/* Status */}
             <div className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium ${statusConfig.color}`}>
                 <StatusIcon className="w-4 h-4" />
-                {statusConfig.label}
+                <span>{statusConfig.label}</span>
             </div>
+
+            {/* Inapto Decision Alert & Flow Control */}
+            {asoStatus === "INAPTO" && (
+                <div className="border border-red-200 bg-red-50 rounded-xl p-4 space-y-3">
+                    <div className="flex items-start gap-2.5">
+                        <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                        <div>
+                            <h4 className="font-bold text-red-900 text-xs uppercase tracking-wider">Candidato Inapto no Exame Médico</h4>
+                            <p className="text-xs text-red-700 mt-1">
+                                O ASO deste candidato indicou inaptidão para o cargo. Selecione abaixo a ação desejada:
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-red-200/60">
+                        <Button
+                            size="sm"
+                            disabled={isMovingStage}
+                            onClick={() => handleMoveToStage('Documentação', 'Candidato Inapto. Solicitada convocação de novo candidato para documentação.')}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs flex-1"
+                        >
+                            {isMovingStage ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1" />}
+                            Inserir Novo Candidato (Fase Documentação)
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={isMovingStage}
+                            onClick={() => handleMoveToStage('Seleção', 'Candidato Inapto. Retornado para Seleção (Triagem).')}
+                            className="border-red-300 text-red-800 hover:bg-red-100 text-xs flex-1"
+                        >
+                            📋 Voltar para Seleção (Triagem)
+                        </Button>
+                    </div>
+                </div>
+            )}
 
             {/* Current ASO file */}
             {asoFile && (
@@ -107,13 +157,13 @@ export function ExamePanel({
                             <SelectItem value="APTO">
                                 <span className="flex items-center gap-2">
                                     <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
-                                    Apto
+                                    Apto (Avança p/ Admissão)
                                 </span>
                             </SelectItem>
                             <SelectItem value="INAPTO">
                                 <span className="flex items-center gap-2">
                                     <XCircle className="w-3.5 h-3.5 text-red-600" />
-                                    Inapto
+                                    Inapto (Solicita Ação)
                                 </span>
                             </SelectItem>
                         </SelectContent>
@@ -148,7 +198,7 @@ export function ExamePanel({
                             ) : (
                                 <Upload className="w-4 h-4 mr-2" />
                             )}
-                            {uploading ? "Enviando..." : "Selecionar e Enviar ASO (PDF)"}
+                            {uploading ? "Enviando e Analisando..." : "Selecionar e Enviar ASO (PDF)"}
                         </span>
                     </Button>
                 </label>

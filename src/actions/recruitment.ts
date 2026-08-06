@@ -1989,6 +1989,39 @@ export async function uploadAsoFile(candidateId: string, fileUrl: string, asoSta
     return { success: true };
 }
 
+export async function moveCandidateToStageByName(candidateId: string, stageNameKeyword: string, detailsReason?: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error('Unauthorized');
+    
+    const candidate = await prisma.recruitmentCandidate.findUnique({ where: { id: candidateId } });
+    if (!candidate) throw new Error('Candidato não encontrado');
+    
+    const targetStage = await prisma.recruitmentStage.findFirst({
+        where: { name: { contains: stageNameKeyword, mode: 'insensitive' } }
+    });
+    
+    if (!targetStage) throw new Error(`Etapa '${stageNameKeyword}' não encontrada`);
+    
+    await prisma.recruitmentCandidate.update({
+        where: { id: candidateId },
+        data: { stageId: targetStage.id }
+    });
+    
+    await prisma.recruitmentTimeline.create({
+        data: {
+            candidateId,
+            candidateName: candidate.name,
+            vacancyId: candidate.vacancyId,
+            action: 'STAGE_MOVED',
+            details: detailsReason || `Candidato movido para ${targetStage.name}.`,
+            userId: user.id
+        }
+    });
+    
+    revalidatePath('/admin/recrutamento');
+    return { success: true, stageName: targetStage.name };
+}
+
 export async function confirmOnvio(candidateId: string) {
     const user = await getCurrentUser();
     if (!user) throw new Error('Unauthorized');
@@ -1996,16 +2029,18 @@ export async function confirmOnvio(candidateId: string) {
     const candidate = await prisma.recruitmentCandidate.findUnique({ where: { id: candidateId } });
     if (!candidate) throw new Error('Candidato não encontrado');
     
-    // Find Admitido stage
-    const admitidoStage = await prisma.recruitmentStage.findFirst({ where: { name: 'Admitido' } });
-    if (!admitidoStage) throw new Error('Etapa Admitido não encontrada');
+    // Find Cadastro de Benefícios stage (or fallback to Admitido)
+    let nextStage = await prisma.recruitmentStage.findFirst({ where: { name: { contains: 'Benefícios', mode: 'insensitive' } } });
+    if (!nextStage) {
+        nextStage = await prisma.recruitmentStage.findFirst({ where: { name: { contains: 'Admitido', mode: 'insensitive' } } });
+    }
     
     await prisma.recruitmentCandidate.update({
         where: { id: candidateId },
         data: { 
             onvioLaunched: true,
             onvioConfirmedAt: new Date(),
-            stageId: admitidoStage.id
+            ...(nextStage ? { stageId: nextStage.id } : {})
         }
     });
     
@@ -2015,7 +2050,7 @@ export async function confirmOnvio(candidateId: string) {
             candidateName: candidate.name,
             vacancyId: candidate.vacancyId,
             action: 'STAGE_MOVED',
-            details: 'Onvio confirmado. Avançado para Admitido.',
+            details: `Onvio confirmado. Avançado para ${nextStage?.name || 'próxima etapa'}.`,
             userId: user.id
         }
     });
