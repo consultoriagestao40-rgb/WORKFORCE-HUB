@@ -329,21 +329,21 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
     return (
         <>
             <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[92vh] overflow-y-auto p-4 sm:p-6">
+                <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <div className="flex justify-between items-start pr-6">
+                        <div className="flex justify-between items-start pr-8">
                             <div>
-                                <DialogTitle className="text-lg sm:text-xl font-bold">
+                                <DialogTitle className="text-xl">
                                     {candidate.type === 'VACANCY' ? 'Detalhes da Vaga' : 'Detalhes do Candidato'}
                                 </DialogTitle>
-                                <DialogDescription className="text-xs sm:text-sm">
+                                <DialogDescription>
                                     {candidate.type === 'VACANCY'
                                         ? "Gerencie a linha do tempo e histórico desta vaga"
                                         : "Visualizando informações completas do processo seletivo."}
                                 </DialogDescription>
                             </div>
                             {candidate.type === 'VACANCY' && (
-                                <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] sm:text-xs shrink-0">
+                                <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
                                     Modo Vaga
                                 </Badge>
                             )}
@@ -1111,28 +1111,25 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                                         <span className="font-black block text-xs uppercase tracking-wider">Candidato Desclassificado</span>
                                                                                         <span className="block mt-0.5 text-red-700">Não atende a um ou mais requisitos eliminatórios obrigatórios.</span>
                                                                                     </div>
-                                                                                                                  {/* SUB-ABAS DO CANDIDATO NA TRIAGEM (Abaixo da linha principal de abas) */}
-                                                                        <Tabs defaultValue="docs" className="w-full mt-3">
-                                                                            <TabsList className="flex w-full overflow-x-auto whitespace-nowrap justify-start gap-1 p-1 bg-slate-100/90 rounded-xl text-xs">
-                                                                                <TabsTrigger value="docs" className="px-3 py-1 text-xs shrink-0">📄 Documentação & Link</TabsTrigger>
-                                                                                <TabsTrigger value="aso" className="px-3 py-1 text-xs shrink-0">🏥 Exame Médico (ASO)</TabsTrigger>
-                                                                                <TabsTrigger value="admission" className="px-3 py-1 text-xs shrink-0">💼 Admissão & Benefícios</TabsTrigger>
-                                                                                <TabsTrigger value="requirements" className="px-3 py-1 text-xs shrink-0">📋 Triagem & IA</TabsTrigger>
-                                                                            </TabsList>
-
-                                                                            <TabsContent value="docs" className="pt-3 min-w-0 overflow-hidden">
+                                                                                </div>
+                                                                                                                                     {/* PAINÉIS DE ETAPA DO CANDIDATO (Documentação, Exame, Onvio, Benefícios) */}
+                                                                        {!isDisqualified && cand.stage?.name === 'Documentação' && (
+                                                                            <div className="pt-4 pb-2 border-b border-slate-100">
+                                                                                <span className="text-[10px] uppercase font-black text-blue-600 block mb-2">Etapa: Documentação</span>
                                                                                 <DocumentacaoPanel
                                                                                     candidateId={cand.id}
                                                                                     candidateName={cand.name}
                                                                                     documentationLinkToken={cand.documentationLinkToken}
                                                                                     documentationFiles={cand.documentationFiles}
                                                                                     documentationStatus={cand.documentationStatus}
-                                                                                    extraFields={cand.extraFields}
                                                                                     onUpdate={() => window.location.reload()}
                                                                                 />
-                                                                            </TabsContent>
+                                                                            </div>
+                                                                        )}
 
-                                                                            <TabsContent value="aso" className="pt-3 min-w-0 overflow-hidden">
+                                                                        {!isDisqualified && cand.stage?.name === 'Exame' && (
+                                                                            <div className="pt-4 pb-2 border-b border-slate-100">
+                                                                                <span className="text-[10px] uppercase font-black text-teal-600 block mb-2">Etapa: Exame Médico</span>
                                                                                 <ExamePanel
                                                                                     candidateId={cand.id}
                                                                                     candidateName={cand.name}
@@ -1140,9 +1137,12 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                                     asoStatus={cand.asoStatus}
                                                                                     onUpdate={() => window.location.reload()}
                                                                                 />
-                                                                            </TabsContent>
+                                                                            </div>
+                                                                        )}
 
-                                                                            <TabsContent value="admission" className="pt-3 min-w-0 overflow-hidden space-y-4">
+                                                                        {!isDisqualified && (cand.stage?.name === 'Admissão (Onvio)' || cand.stage?.name === 'Admissão') && (
+                                                                            <div className="pt-4 pb-2 border-b border-slate-100">
+                                                                                <span className="text-[10px] uppercase font-black text-violet-600 block mb-2">Etapa: Admissão (Onvio)</span>
                                                                                 <OnvioPanel
                                                                                     candidateId={cand.id}
                                                                                     candidateName={cand.name}
@@ -1150,6 +1150,12 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                                     onvioConfirmedAt={cand.onvioConfirmedAt}
                                                                                     onUpdate={() => window.location.reload()}
                                                                                 />
+                                                                            </div>
+                                                                        )}
+
+                                                                        {!isDisqualified && cand.stage?.name === 'Cadastro de Benefícios' && (
+                                                                            <div className="pt-4 pb-2 border-b border-slate-100">
+                                                                                <span className="text-[10px] uppercase font-black text-emerald-600 block mb-2">Etapa: Cadastro de Benefícios</span>
                                                                                 <BeneficiosPanel
                                                                                     candidateId={cand.id}
                                                                                     cajuRegistered={cand.cajuRegistered}
@@ -1158,55 +1164,54 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                                     benefitsCompletedAt={cand.benefitsCompletedAt}
                                                                                     onUpdate={() => window.location.reload()}
                                                                                 />
-                                                                            </TabsContent>
+                                                                            </div>
+                                                                        )}                        </div>
+                                                                        )}
 
-                                                                            <TabsContent value="requirements" className="pt-3 min-w-0 overflow-hidden space-y-3">
-                                                                                {/* Dados extraídos do CV */}
-                                                                                {evaluation.aiAnalysis ? (
-                                                                                    <div className="pt-3.5 space-y-3">
-                                                                                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1">
-                                                                                            <span className="text-[10px] uppercase font-black text-slate-500 block">Parecer Técnico da IA</span>
-                                                                                            <p className="text-xs text-slate-700 italic">"{evaluation.aiAnalysis}"</p>
-                                                                                        </div>
+                                                                        {/* Dados extraídos do CV */}
+                                                                        {evaluation.aiAnalysis ? (
+                                                                            <div className="pt-3.5 space-y-3">
+                                                                                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1">
+                                                                                    <span className="text-[10px] uppercase font-black text-slate-500 block">Parecer Técnico da IA</span>
+                                                                                    <p className="text-xs text-slate-700 italic">"{evaluation.aiAnalysis}"</p>
+                                                                                </div>
 
-                                                                                        <div className="grid grid-cols-2 gap-2 text-xs">
-                                                                                            <div className="p-2 bg-white rounded border border-slate-100">
-                                                                                                <span className="text-[9px] uppercase font-black text-slate-400 block">Idade Extraída</span>
-                                                                                                <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.age ? `${evaluation.parsedDetails.age} anos` : 'Não especificado'}</span>
-                                                                                            </div>
-                                                                                            <div className="p-2 bg-white rounded border border-slate-100">
-                                                                                                <span className="text-[9px] uppercase font-black text-slate-400 block">Estabilidade (Últimos Empregos)</span>
-                                                                                                <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.averageTenureMonths ? `${evaluation.parsedDetails.averageTenureMonths} meses / vaga` : 'Não especificado'}</span>
-                                                                                            </div>
-                                                                                            <div className="p-2 bg-white rounded border border-slate-100">
-                                                                                                <span className="text-[9px] uppercase font-black text-slate-400 block">Distância Estimada</span>
-                                                                                                <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.distanceKm ? `${evaluation.parsedDetails.distanceKm} Km` : 'Não especificado'}</span>
-                                                                                            </div>
-                                                                                            <div className="p-2 bg-white rounded border border-slate-100">
-                                                                                                <span className="text-[9px] uppercase font-black text-slate-400 block">Filhos menores de 5 anos</span>
-                                                                                                <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.hasChildrenUnderFive ? 'Sim' : 'Não'}</span>
-                                                                                            </div>
-                                                                                        </div>
-
-                                                                                        {evaluation.warnings && evaluation.warnings.length > 0 && (
-                                                                                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 space-y-1">
-                                                                                                <span className="text-[9px] uppercase font-black text-amber-800 flex items-center gap-1">
-                                                                                                    <AlertTriangle className="w-3.5 h-3.5" />
-                                                                                                    Alertas de Risco
-                                                                                                </span>
-                                                                                                <ul className="list-disc pl-4 text-xs text-amber-900 space-y-0.5">
-                                                                                                    {evaluation.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
-                                                                                                </ul>
-                                                                                            </div>
-                                                                                        )}
+                                                                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                                                                    <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                        <span className="text-[9px] uppercase font-black text-slate-400 block">Idade Extraída</span>
+                                                                                        <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.age ? `${evaluation.parsedDetails.age} anos` : 'Não especificado'}</span>
                                                                                     </div>
-                                                                                ) : (
-                                                                                    <div className="text-xs text-slate-500 py-3">
-                                                                                        Nenhuma análise de currículo por IA disponível. Envie o CV acima para rodar a triagem.
+                                                                                    <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                        <span className="text-[9px] uppercase font-black text-slate-400 block">Estabilidade (Últimos Empregos)</span>
+                                                                                        <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.averageTenureMonths ? `${evaluation.parsedDetails.averageTenureMonths} meses / vaga` : 'Não especificado'}</span>
+                                                                                    </div>
+                                                                                    <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                        <span className="text-[9px] uppercase font-black text-slate-400 block">Distância Estimada</span>
+                                                                                        <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.distanceKm ? `${evaluation.parsedDetails.distanceKm} Km` : 'Não especificado'}</span>
+                                                                                    </div>
+                                                                                    <div className="p-2 bg-white rounded border border-slate-100">
+                                                                                        <span className="text-[9px] uppercase font-black text-slate-400 block">Filhos menores de 5 anos</span>
+                                                                                        <span className="font-semibold text-slate-800">{evaluation.parsedDetails?.hasChildrenUnderFive ? 'Sim' : 'Não'}</span>
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                {evaluation.warnings && evaluation.warnings.length > 0 && (
+                                                                                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 space-y-1">
+                                                                                        <span className="text-[9px] uppercase font-black text-amber-800 flex items-center gap-1">
+                                                                                            <AlertTriangle className="w-3.5 h-3.5" />
+                                                                                            Alertas de Risco
+                                                                                        </span>
+                                                                                        <ul className="list-disc pl-4 text-xs text-amber-900 space-y-0.5">
+                                                                                            {evaluation.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
+                                                                                        </ul>
                                                                                     </div>
                                                                                 )}
-                                                                            </TabsContent>
-                                                                        </Tabs>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="pt-3.5 text-center py-2 text-xs text-slate-400">
+                                                                                Nenhuma análise de currículo por IA disponível. Envie o CV acima para rodar a triagem.
+                                                                            </div>
+                                                                        )}
 
                                                                         {/* Visualizador de Currículo no Ranking da Vaga */}
                                                                         {(() => {
@@ -1324,7 +1329,8 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                         );
                                                     });
                                                 })()}
-                                            </div>
+                                             </div>
+                                        )}
                                     </div>
                                 </div>
                             ) : (
