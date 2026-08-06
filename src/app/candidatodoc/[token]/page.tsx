@@ -143,111 +143,113 @@ export default function PublicCandidateDocPage() {
     const clientName = candidate?.vacancy?.posto?.client?.name || "";
 
     return (
-        <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6">
-            <div className="max-w-2xl mx-auto space-y-6">
-                {/* Header Banner */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-2">
-                    <div className="flex items-center gap-2 text-indigo-600 text-xs font-bold uppercase tracking-wider">
-                        <ShieldCheck className="w-4 h-4" />
-                        Envio de Documentos para Admissão
+        <div className="min-h-screen bg-slate-50/60 py-6 px-4 sm:px-6">
+            <div className="max-w-md sm:max-w-xl mx-auto space-y-5">
+                {/* Header Banner Card */}
+                <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-3">
+                    <div className="flex items-center gap-2 text-indigo-600 text-xs font-black uppercase tracking-wider">
+                        <ShieldCheck className="w-4.5 h-4.5" />
+                        ENVIO DE DOCUMENTOS PARA ADMISSÃO
                     </div>
                     <h1 className="text-2xl font-black text-slate-900">{candidate?.name}</h1>
                     <div className="flex flex-wrap gap-2 text-xs text-slate-500 pt-1">
-                        <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                        <Badge variant="outline" className="bg-indigo-50/80 text-indigo-700 border-indigo-200/80 px-3 py-1 rounded-xl font-semibold">
                             Vaga: {vacancyTitle}
                         </Badge>
                         {clientName && (
-                            <Badge variant="outline" className="bg-slate-100 text-slate-700">
+                            <Badge variant="outline" className="bg-slate-100/80 text-slate-700 px-3 py-1 rounded-xl font-semibold">
                                 {clientName}
                             </Badge>
                         )}
                     </div>
                 </div>
 
-                {/* Form Uniforms & Banking */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-                    <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b pb-3">
-                        <Shirt className="w-4 h-4 text-indigo-600" />
-                        1. Tamanhos de Uniformes e Chave PIX
-                    </h2>
+                {/* Form 1: Uniforms & PIX */}
+                <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-4">
+                    <div className="border-b border-slate-100 pb-3">
+                        <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+                            <Shirt className="w-4 h-4 text-indigo-600" />
+                            1. Tamanhos de Uniformes e Chave PIX
+                        </h2>
+                    </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-3 text-xs">
                         <div>
-                            <Label className="text-xs font-medium text-slate-700">E-mail Pessoal</Label>
+                            <Label className="text-xs font-bold text-slate-700 block mb-1">E-mail Pessoal</Label>
                             <Input
                                 type="email"
                                 placeholder="seu.email@exemplo.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="mt-1"
+                                className="h-11 rounded-2xl border-slate-200 text-xs px-4 bg-white"
                             />
                         </div>
                         <div>
-                            <Label className="text-xs font-medium text-slate-700">Chave PIX (para pagamento de benefícios)</Label>
+                            <Label className="text-xs font-bold text-slate-700 block mb-1">Chave PIX (para pagamento de benefícios)</Label>
                             <Input
                                 placeholder="CPF, Celular ou E-mail"
                                 value={pixKey}
                                 onChange={(e) => setPixKey(e.target.value)}
-                                className="mt-1"
+                                className="h-11 rounded-2xl border-slate-200 text-xs px-4 bg-white"
                             />
                         </div>
                         <div>
-                            <Label className="text-xs font-medium text-slate-700">Tamanho do Sapato / Calçado</Label>
+                            <Label className="text-xs font-bold text-slate-700 block mb-1">Tamanho do Sapato / Calçado</Label>
                             <Input
                                 placeholder="Ex: 40"
                                 value={shoeSize}
                                 onChange={(e) => setShoeSize(e.target.value)}
-                                className="mt-1"
+                                className="h-11 rounded-2xl border-slate-200 text-xs px-4 bg-white"
                             />
                         </div>
                         <div>
-                            <Label className="text-xs font-medium text-slate-700">Tamanho da Calça / Bermuda</Label>
+                            <Label className="text-xs font-bold text-slate-700 block mb-1">Tamanho da Calça / Bermuda</Label>
                             <Input
                                 placeholder="Ex: M / 42"
                                 value={pantsSize}
                                 onChange={(e) => setPantsSize(e.target.value)}
-                                className="mt-1"
+                                className="h-11 rounded-2xl border-slate-200 text-xs px-4 bg-white"
                             />
                         </div>
-                        <div className="sm:col-span-2">
-                            <Label className="text-xs font-medium text-slate-700">Tamanho da Camisa / Camiseta</Label>
+                        <div>
+                            <Label className="text-xs font-bold text-slate-700 block mb-1">Tamanho da Camisa / Camiseta</Label>
                             <Input
                                 placeholder="Ex: G / 44"
                                 value={shirtSize}
                                 onChange={(e) => setShirtSize(e.target.value)}
-                                className="mt-1"
+                                className="h-11 rounded-2xl border-slate-200 text-xs px-4 bg-white"
                             />
                         </div>
                     </div>
                 </div>
 
-                {/* Upload Documents Section */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-                    <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b pb-3">
-                        <Upload className="w-4 h-4 text-indigo-600" />
-                        2. Anexo dos Documentos Pessoais
-                    </h2>
-                    <p className="text-xs text-slate-500">
-                        Tire fotos nítidas dos seus documentos ou envie em formato PDF.
-                    </p>
+                {/* Form 2: Document Upload Section */}
+                <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-4">
+                    <div className="border-b border-slate-100 pb-3 space-y-1">
+                        <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+                            <Upload className="w-4 h-4 text-indigo-600" />
+                            2. Anexo dos Documentos Pessoais
+                        </h2>
+                        <p className="text-xs text-slate-500 font-medium">
+                            Tire fotos nítidas dos seus documentos ou envie em formato PDF.
+                        </p>
+                    </div>
 
                     <div className="space-y-3">
                         {DOC_TYPES.map((doc) => {
                             const isAttached = !!files[doc.key];
                             const isUploading = uploadingKey === doc.key;
                             return (
-                                <div key={doc.key} className="flex items-center gap-3">
-                                    <div className={`flex-1 flex items-center justify-between px-4 py-3 rounded-xl border ${isAttached ? "bg-green-50 border-green-200 text-green-900" : "bg-slate-50 border-slate-200 text-slate-700"}`}>
-                                        <div className="flex items-center gap-2 text-xs font-medium">
-                                            {isAttached ? (
-                                                <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
-                                            ) : (
-                                                <div className="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0" />
-                                            )}
-                                            <span>{doc.label}</span>
-                                        </div>
-                                        {isAttached && <Badge className="bg-green-100 text-green-700 border-0 text-[10px]">Anexado</Badge>}
+                                <div key={doc.key} className="grid grid-cols-[1fr_auto] gap-2.5 items-center">
+                                    <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border text-xs font-bold transition-all ${isAttached ? "bg-green-50/50 border-green-300 text-green-900" : "bg-slate-50/40 border-slate-200 text-slate-800"}`}>
+                                        {isAttached ? (
+                                            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
+                                        ) : (
+                                            <div className="w-5 h-5 rounded-full border-2 border-slate-300 shrink-0" />
+                                        )}
+                                        <span className="truncate">{doc.label}</span>
                                     </div>
+
                                     <label className="shrink-0">
                                         <input
                                             type="file"
@@ -262,15 +264,15 @@ export default function PublicCandidateDocPage() {
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="h-10 text-xs px-3 cursor-pointer"
+                                            className={`h-11 px-4 text-xs font-bold rounded-2xl border-slate-200 cursor-pointer shadow-none transition-all ${isAttached ? "bg-green-100 text-green-800 border-green-300" : "bg-white hover:bg-slate-50 text-slate-800"}`}
                                             asChild
                                             disabled={isUploading}
                                         >
                                             <span>
                                                 {isUploading ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                                                    <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
                                                 ) : (
-                                                    <Upload className="w-4 h-4 mr-1" />
+                                                    <Upload className="w-4 h-4 mr-1.5 text-slate-600" />
                                                 )}
                                                 {isAttached ? "Substituir" : "Anexar"}
                                             </span>
@@ -284,7 +286,7 @@ export default function PublicCandidateDocPage() {
 
                 {/* Submit Action */}
                 <Button
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-6 rounded-xl text-sm font-bold shadow-md"
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-12 rounded-2xl text-sm font-black shadow-md"
                     onClick={handleSubmit}
                     disabled={submitting}
                 >
