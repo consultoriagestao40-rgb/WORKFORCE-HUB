@@ -1324,7 +1324,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                         );
                                                     });
                                                 })()}
-                                            </div>                                        )}
+                                            </div>
                                     </div>
                                 </div>
                             ) : (
