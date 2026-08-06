@@ -7,7 +7,7 @@ import { VacancyModal } from "@/components/admin/recruitment/VacancyModal";
 import { CandidateModal } from "@/components/admin/recruitment/CandidateModal";
 import { CandidateDetailsModal } from "@/components/admin/recruitment/CandidateDetailsModal";
 import { Button } from "@/components/ui/button";
-import { Plus, UserPlus, Search, User, Filter, AlertCircle, FileText, CheckCircle2, XCircle, Briefcase } from "lucide-react";
+import { Plus, UserPlus, Search, User, Filter, AlertCircle, FileText, CheckCircle2, XCircle, Briefcase, Globe } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -173,6 +173,21 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
                             <Button variant="outline" onClick={() => setIsCandidateModalOpen(true)} size="sm">
                                 <UserPlus className="w-4 h-4 mr-2" />
                                 Novo Candidato
+                            </Button>
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="border-indigo-200 bg-indigo-50/80 text-indigo-700 hover:bg-indigo-100 font-bold"
+                                onClick={() => {
+                                    const portalUrl = `${window.location.origin}/vagas`;
+                                    navigator.clipboard.writeText(portalUrl);
+                                    toast.success("Link do Portal Público de Vagas copiado!");
+                                    window.open(portalUrl, "_blank");
+                                }}
+                                title="Abrir e copiar link do Portal Público de Vagas Abertas"
+                            >
+                                <Globe className="w-4 h-4 mr-2 text-indigo-600" />
+                                Portal de Vagas
                             </Button>
                         </div>
                     </div>

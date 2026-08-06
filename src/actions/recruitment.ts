@@ -2096,3 +2096,67 @@ export async function saveBenefits(candidateId: string, benefits: { caju: boolea
     return { success: true };
 }
 
+export async function getPublicPortalVacancies() {
+    try {
+        const openVacancies = await prisma.vacancy.findMany({
+            where: {
+                status: 'OPEN'
+            },
+            include: {
+                role: true,
+                posto: { include: { client: true } },
+                company: true,
+                candidates: {
+                    include: { stage: true }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        const activePortalVacancies = openVacancies.filter((v) => {
+            if (v.candidates.length === 0) return true;
+
+            const hasAdvancedCandidates = v.candidates.some((c) => {
+                const stageName = c.stage?.name || "";
+                const stageOrder = c.stage?.order ?? 0;
+                return (
+                    stageName.includes("Documentação") ||
+                    stageName.includes("Exame") ||
+                    stageName.includes("Admissão") ||
+                    stageName.includes("Benefícios") ||
+                    stageName.includes("Concluído") ||
+                    stageOrder >= 3
+                );
+            });
+
+            return !hasAdvancedCandidates;
+        });
+
+        return activePortalVacancies.map((v) => ({
+            id: v.id,
+            title: v.title,
+            priority: v.priority,
+            roleName: v.role?.name || "Geral",
+            companyName: v.company?.name || "JVS Facilities",
+            clientName: v.posto?.client?.name || "",
+            location: v.posto?.client?.address || "Pernambuco, BR",
+            baseSalary: v.posto?.baseSalary || 0,
+            valeAlimentacao: v.posto?.valeAlimentacao || 0,
+            valeTransporte: v.posto?.valeTransporte || 0,
+            schedule: v.posto?.schedule ? `${v.posto.schedule} (${v.posto.startTime || ''} - ${v.posto.endTime || ''})` : "",
+            plannedStartDate: v.plannedStartDate ? new Date(v.plannedStartDate).toISOString().split('T')[0] : null,
+            description: v.description || "",
+            reqGender: v.reqGender,
+            reqExperience: v.reqExperience,
+            reqKnowledge: v.reqKnowledge,
+            reqAgeMin: v.reqAgeMin,
+            reqAgeMax: v.reqAgeMax,
+            customRequirements: v.customRequirements,
+            createdAt: v.createdAt.toISOString(),
+        }));
+    } catch (error) {
+        console.error("Error in getPublicPortalVacancies:", error);
+        return [];
+    }
+}
+
