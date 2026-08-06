@@ -1201,11 +1201,12 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                                         )}
                                                                                     </div>
                                                                                 ) : (
-                                                                                    <div className="text-xs text-slate-500 py-3">Sem análise da IA cadastrada.</div>
+                                                                                    <div className="text-xs text-slate-500 py-3">
+                                                                                        Nenhuma análise de currículo por IA disponível. Envie o CV acima para rodar a triagem.
+                                                                                    </div>
                                                                                 )}
-                                                                                Nenhuma análise de currículo por IA disponível. Envie o CV acima para rodar a triagem.
-                                                                            </div>
-                                                                        )}
+                                                                            </TabsContent>
+                                                                        </Tabs>
 
                                                                         {/* Visualizador de Currículo no Ranking da Vaga */}
                                                                         {(() => {
