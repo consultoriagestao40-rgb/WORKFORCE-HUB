@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
     Briefcase, MapPin, Building2, Calendar, Sparkles, Search, 
     DollarSign, Clock, ShieldCheck, CheckCircle2, Loader2, Upload, FileText, ArrowRight, X, AlertCircle,
-    MessageCircle, Mail, Linkedin, Facebook, Instagram, Youtube, Award, Zap, CheckCircle, Flame, Filter, ChevronRight, Layers, UserCheck
+    MessageCircle, Mail, Linkedin, Facebook, Instagram, Youtube, Award, Zap, CheckCircle, Flame, Filter, ChevronRight, Layers, UserCheck, Send
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +71,36 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitSuccess, setSubmitSuccess] = useState(false);
+
+    // Auto open vacancy details if direct URL parameter ?vaga=id exists
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            const params = new URLSearchParams(window.location.search);
+            const vagaId = params.get("vaga");
+            if (vagaId) {
+                const found = initialVacancies.find(v => v.id === vagaId);
+                if (found) {
+                    setSelectedVacancy(found);
+                    setIsDetailsOpen(true);
+                }
+            }
+        }
+    }, [initialVacancies]);
+
+    // Share individual vacancy link on WhatsApp (Paper Airplane Feature)
+    const handleShareVacancy = (v: VacancyItem) => {
+        const pageUrl = `${window.location.origin}/vagas?vaga=${v.id}`;
+        const text = `*Vaga de Emprego no Grupo JVS* 🏢\n\n📌 *${v.title}*\n🏢 Empresa: ${v.companyName}\n📍 Local: ${v.location || "Curitiba e Região"}\n💰 Salário: ${v.baseSalary ? `R$ ${v.baseSalary.toLocaleString('pt-BR')}` : 'A combinar'}\n\nConfira os detalhes e candidate-se direto pelo link abaixo 👇\n${pageUrl}`;
+        
+        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        
+        if (typeof navigator !== "undefined" && navigator.clipboard) {
+            navigator.clipboard.writeText(pageUrl).catch(() => {});
+        }
+        
+        window.open(whatsappUrl, "_blank");
+        toast.success("WhatsApp aberto! O link individual desta vaga foi preparado para seu amigo.");
+    };
 
     // Extract unique categories (roles) for quick filtering
     const categories = Array.from(new Set(initialVacancies.map(v => v.roleName))).filter(Boolean);
@@ -193,18 +223,20 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
     return (
         <div className="min-h-screen bg-[#f8fafc] font-sans antialiased text-slate-900 selection:bg-teal-500 selection:text-white">
             
-            {/* Top Clean Luxury Header */}
-            <header className="bg-white border-b border-slate-200/90 py-2.5 px-4 sm:px-8 sticky top-0 z-40 backdrop-blur-xl bg-opacity-95 shadow-xs">
+            {/* Top Teal Luxury Header */}
+            <header className="bg-[#042d36] text-white py-2.5 px-4 sm:px-8 border-b border-teal-800/40 sticky top-0 z-40 backdrop-blur-xl bg-opacity-95 shadow-md">
                 <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-xs">
                     
-                    {/* Far Left: JVS Logo with Transparent Background */}
+                    {/* Far Left: JVS Logo with Badge Pill */}
                     <div className="flex items-center shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img 
-                            src="https://grupojvsserv.com.br/wp-content/uploads/2023/11/logo-horizontal-300px.png" 
-                            alt="Grupo JVS Facilities" 
-                            className="h-9 sm:h-11 w-auto object-contain bg-transparent max-w-[180px] sm:max-w-[230px] transition-all"
-                        />
+                        <div className="bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/20 shadow-sm">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img 
+                                src="https://grupojvsserv.com.br/wp-content/uploads/2023/11/logo-horizontal-300px.png" 
+                                alt="Grupo JVS Facilities" 
+                                className="h-7 sm:h-8 w-auto object-contain"
+                            />
+                        </div>
                     </div>
 
                     {/* Far Right: Social Media */}
@@ -213,7 +245,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                             href="https://www.linkedin.com/company/jvs-facilities/" 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 transition-all hover:scale-110 border border-slate-200/60"
+                            className="w-7.5 h-7.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
                             title="LinkedIn Oficial JVS Facilities"
                         >
                             <Linkedin className="w-3.5 h-3.5" />
@@ -222,7 +254,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                             href="https://www.instagram.com/jvsfacilities/" 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 transition-all hover:scale-110 border border-slate-200/60"
+                            className="w-7.5 h-7.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
                             title="Instagram Oficial JVS Facilities"
                         >
                             <Instagram className="w-3.5 h-3.5" />
@@ -416,14 +448,23 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                     </div>
 
                                     {/* Card Footer Actions */}
-                                    <div className="grid grid-cols-2 gap-3 pt-2">
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => { setSelectedVacancy(v); setIsDetailsOpen(true); }}
-                                            className="h-11 rounded-2xl text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-all"
-                                        >
-                                            Ver Requisitos
-                                        </Button>
+                                    <div className="grid grid-cols-2 gap-2 pt-2">
+                                        <div className="flex items-center gap-1.5">
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => { setSelectedVacancy(v); setIsDetailsOpen(true); }}
+                                                className="flex-1 h-11 rounded-2xl text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-all"
+                                            >
+                                                Ver Requisitos
+                                            </Button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleShareVacancy(v); }}
+                                                className="h-11 w-11 shrink-0 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-xs"
+                                                title="Enviar vaga no WhatsApp (Aviãozinho)"
+                                            >
+                                                <Send className="w-4 h-4 text-emerald-600 -rotate-12 translate-x-0.5" />
+                                            </button>
+                                        </div>
                                         <Button
                                             onClick={() => handleOpenApply(v)}
                                             className="h-11 rounded-2xl text-xs font-black bg-gradient-to-r from-[#076477] via-[#065868] to-[#043d49] hover:from-[#087389] hover:to-[#054957] text-white shadow-lg shadow-teal-900/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
@@ -550,12 +591,22 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                             </div>
 
                             {/* Action */}
-                            <Button
-                                onClick={() => { setIsDetailsOpen(false); handleOpenApply(selectedVacancy); }}
-                                className="w-full h-12 rounded-2xl text-sm font-black bg-teal-700 hover:bg-teal-800 text-white shadow-md active:scale-[0.98] transition-all"
-                            >
-                                Candidatar-se a esta Vaga <ArrowRight className="w-4 h-4 ml-2" />
-                            </Button>
+                            <div className="flex items-center gap-2 pt-1">
+                                <Button
+                                    onClick={() => { setIsDetailsOpen(false); handleOpenApply(selectedVacancy); }}
+                                    className="flex-1 h-12 rounded-2xl text-xs sm:text-sm font-black bg-teal-700 hover:bg-teal-800 text-white shadow-md active:scale-[0.98] transition-all"
+                                >
+                                    Candidatar-se a esta Vaga <ArrowRight className="w-4 h-4 ml-1.5" />
+                                </Button>
+                                <button
+                                    onClick={() => handleShareVacancy(selectedVacancy)}
+                                    className="h-12 px-4 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold border border-emerald-200/80 flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-xs text-xs"
+                                    title="Enviar vaga no WhatsApp (Aviãozinho)"
+                                >
+                                    <Send className="w-4 h-4 text-emerald-600 -rotate-12" />
+                                    <span className="hidden sm:inline">Compartilhar</span>
+                                </button>
+                            </div>
                         </>
                     )}
                 </DialogContent>
