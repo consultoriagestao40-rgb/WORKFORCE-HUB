@@ -157,7 +157,7 @@ export function OnvioPanel({
     return (
         <div className="space-y-6">
             {/* Header / Status Banner */}
-            {onvioLaunched ? (
+            {onvioLaunched && (
                 <div className="flex items-center gap-2 px-4 py-3 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-800 text-sm font-medium shadow-sm">
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                     <div>
@@ -170,14 +170,6 @@ export function OnvioPanel({
                             {confirmedDate}
                         </span>
                     )}
-                </div>
-            ) : (
-                <div className="flex items-center gap-2 px-4 py-3 rounded-xl border bg-amber-50 border-amber-200 text-amber-900 text-sm font-medium shadow-sm">
-                    <Loader2 className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
-                    <div>
-                        <span className="font-bold">Etapa de Admissão Ativa (Onvio)</span>
-                        <span className="block text-xs text-amber-700">Formulário completo de Admissão Onvio com 6 etapas e sub-abas.</span>
-                    </div>
                 </div>
             )}
 
