@@ -423,15 +423,34 @@ export function EmployeeOnvioWizard({
 
             const selectedPosto = postos.find(p => p.id === resolvedPostoId);
 
-            if (initialData.name) setName(prev => prev || initialData.name || "");
-            if (initialData.cpf) setCpf(prev => prev || initialData.cpf || "");
-            if (initialData.roleId) setRoleId(prev => prev || initialData.roleId || (selectedPosto ? selectedPosto.roleId : ""));
-            if (initialData.companyId) setCompanyId(prev => prev || initialData.companyId || "");
-            if (initialData.type) setType(prev => prev || initialData.type || "CLT");
-            if (initialData.status) setStatus(prev => prev || initialData.status || "Ativo");
-            if (initialData.situationId) setSituationId(prev => prev || initialData.situationId || "");
+            const safeFormatDate = (d?: string) => {
+                if (!d) return "";
+                if (d.includes("-")) return d.split("T")[0];
+                if (d.includes("/")) {
+                    const parts = d.split("/");
+                    if (parts.length === 3) {
+                        const [day, month, year] = parts;
+                        if (year.length === 4) return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                    }
+                }
+                try {
+                    const date = new Date(d);
+                    if (!isNaN(date.getTime())) {
+                        return date.toISOString().split("T")[0];
+                    }
+                } catch (e) {}
+                return "";
+            };
+
+            if (initialData.name) setName(initialData.name);
+            if (initialData.cpf) setCpf(initialData.cpf);
+            if (initialData.roleId) setRoleId(initialData.roleId);
+            if (initialData.companyId) setCompanyId(initialData.companyId);
+            if (initialData.type) setType(initialData.type);
+            if (initialData.status) setStatus(initialData.status);
+            if (initialData.situationId) setSituationId(initialData.situationId);
             if (initialData.admissionDate) {
-                setAdmissionDate(new Date(initialData.admissionDate).toISOString().split("T")[0]);
+                setAdmissionDate(safeFormatDate(initialData.admissionDate));
             }
             
             // Sincroniza valores do posto se não houver valor salvo ou se for 0
@@ -448,7 +467,7 @@ export function EmployeeOnvioWizard({
             setWorkload(initialData.workload ? String(initialData.workload) : (selectedPosto ? String(selectedPosto.requiredWorkload || 220) : "220"));
 
             if (initialData.birthDate) {
-                setBirthDate(new Date(initialData.birthDate).toISOString().split("T")[0]);
+                setBirthDate(safeFormatDate(initialData.birthDate));
             }
             setGender(initialData.gender || "");
             setAddress(initialData.address || "");
@@ -482,34 +501,34 @@ export function EmployeeOnvioWizard({
             setCtpsNumero(extra.ctpsNumero || "");
             setCtpsSerie(extra.ctpsSerie || "");
             setCtpsUf(extra.ctpsUf || "");
-            setCtpsDataEmissao(extra.ctpsDataEmissao || "");
+            setCtpsDataEmissao(safeFormatDate(extra.ctpsDataEmissao));
             setPisNumero(extra.pisNumero || "");
 
             setFgtsOpcao(extra.fgtsOpcao || "Sim");
-            setFgtsDataOpcao(extra.fgtsDataOpcao || "");
+            setFgtsDataOpcao(safeFormatDate(extra.fgtsDataOpcao));
             setFgtsBanco(extra.fgtsBanco || "");
 
             setConselhoNome(extra.conselhoNome || "");
             setConselhoNumero(extra.conselhoNumero || "");
             setConselhoUf(extra.conselhoUf || "");
-            setConselhoValidade(extra.conselhoValidade || "");
+            setConselhoValidade(safeFormatDate(extra.conselhoValidade));
 
-            setEstadoCivil(extra.estadoCivil || "");
-            setGrauInstrucao(extra.grauInstrucao || "");
-            setNomePai(extra.nomePai || "");
-            setNomeMae(extra.nomeMae || "");
+            setEstadoCivil(extra.estadoCivil || extra.estado_civil || "");
+            setGrauInstrucao(extra.grauInstrucao || extra.escolaridade || "");
+            setNomePai(extra.nomePai || extra.pai || "");
+            setNomeMae(extra.nomeMae || extra.mae || "");
             setNacionalidade(extra.nacionalidade || "Brasileira");
-            setNaturalidadeCidade(extra.naturalidadeCidade || "");
-            setNaturalidadeUf(extra.naturalidadeUf || "");
+            setNaturalidadeCidade(extra.naturalidadeCidade || extra.cidadeNatal || "");
+            setNaturalidadeUf(extra.naturalidadeUf || extra.ufNatal || "");
 
-            setRgNumero(extra.rgNumero || "");
+            setRgNumero(extra.rgNumero || extra.rg || initialData.rg || "");
             setRgOrgaoEmissor(extra.rgOrgaoEmissor || "");
-            setRgDataEmissao(extra.rgDataEmissao || "");
+            setRgDataEmissao(safeFormatDate(extra.rgDataEmissao));
             setRgUf(extra.rgUf || "");
 
             setCnhNumero(extra.cnhNumero || "");
             setCnhCategoria(extra.cnhCategoria || "");
-            setCnhValidade(extra.cnhValidade || "");
+            setCnhValidade(safeFormatDate(extra.cnhValidade));
             setCnhUf(extra.cnhUf || "");
 
             setTituloEleitorNumero(extra.tituloEleitorNumero || "");
