@@ -288,147 +288,80 @@ export async function getRecruitmentBoardData() {
     const user = await getCurrentUser();
     if (!user) return [];
 
-    // --- MIGRATION: Unify Triagem + RH -> Seleção ---
-    // 1. Rename 'Triagem' to 'Seleção'
-    const triagemStage = await prisma.recruitmentStage.findFirst({ where: { name: "Triagem" } });
-    if (triagemStage) {
-        await prisma.recruitmentStage.update({
-            where: { id: triagemStage.id },
-            data: { name: "Seleção", order: 1 }
-        });
-    }
+    // --- PIPELINE CLEANUP & DEDUPARATION ---
+    // Map legacy stage names to new official stage names
+    const legacyStageMap: Record<string, string> = {
+        'Triagem': 'Seleção',
+        'Entrevista RH': 'Seleção',
+        'Entrevista Técnica': 'Entrevista',
+        'Oferta': 'Admissão (Onvio)',
+        'Contratado': 'Admissão (Onvio)',
+        'Admissão': 'Admissão (Onvio)',
+        'Posto': 'Admitido'
+    };
 
-    // 2. Move 'Entrevista RH' candidates to 'Seleção' and delete 'Entrevista RH'
-    const rhStage = await prisma.recruitmentStage.findFirst({ where: { name: "Entrevista RH" } });
-    if (rhStage) {
-        // Find Seleção (target)
-        const selecaoStage = await prisma.recruitmentStage.findFirst({ where: { name: "Seleção" } });
-        if (selecaoStage) {
-            await prisma.recruitmentCandidate.updateMany({
-                where: { stageId: rhStage.id },
-                data: { stageId: selecaoStage.id }
-            });
-            // Delete RH Stage
-            await prisma.recruitmentStage.delete({ where: { id: rhStage.id } });
+    for (const [oldName, newName] of Object.entries(legacyStageMap)) {
+        const oldStages = await prisma.recruitmentStage.findMany({ where: { name: oldName } });
+        if (oldStages.length > 0) {
+            let targetStage = await prisma.recruitmentStage.findFirst({ where: { name: newName } });
+            if (!targetStage) {
+                targetStage = await prisma.recruitmentStage.create({ data: { name: newName, order: 1, slaDays: 3 } });
+            }
+            for (const oldS of oldStages) {
+                if (oldS.id !== targetStage.id) {
+                    await prisma.recruitmentCandidate.updateMany({
+                        where: { stageId: oldS.id },
+                        data: { stageId: targetStage.id }
+                    });
+                    await prisma.recruitmentStage.delete({ where: { id: oldS.id } }).catch(() => {});
+                }
+            }
         }
     }
 
-    // --- SYNC BACKLOG GAPS TO VACANCIES ---
-    // Automatically create vacancies for vacant postos
-    await syncBacklogGaps();
-    // MOD: Disabled purgeRedundantVacancies so manually opened vacancies are NEVER automatically closed/purged.
-    // await purgeRedundantVacancies();
-
-    // 3. Reorder remaining stages (Shift up)
-    // Seleção is 1. We want:
-    // Entrevista Técnica -> 2
-    // Oferta -> 3
-    // Contratado -> 4
-    // Posto -> 5
-
-    // Check if reordering is needed (simple check: if Entrevista Técnica is order 3, move to 2)
-    const tecStage = await prisma.recruitmentStage.findFirst({ where: { name: "Entrevista Técnica", order: 3 } });
-    if (tecStage) {
-        await prisma.recruitmentStage.update({ where: { id: tecStage.id }, data: { order: 2 } });
-
-        const ofertaStage = await prisma.recruitmentStage.findFirst({ where: { name: "Oferta" } });
-        if (ofertaStage) await prisma.recruitmentStage.update({ where: { id: ofertaStage.id }, data: { order: 3 } });
-
-        const hiredStage = await prisma.recruitmentStage.findFirst({ where: { name: "Contratado" } });
-        if (hiredStage) await prisma.recruitmentStage.update({ where: { id: hiredStage.id }, data: { order: 4 } });
-
-        // Posto might be 6 from previous logic, move to 5
-        const postoStage = await prisma.recruitmentStage.findFirst({ where: { name: "Posto" } });
-        if (postoStage && postoStage.order !== 5) await prisma.recruitmentStage.update({ where: { id: postoStage.id }, data: { order: 5 } });
-    } else {
-        // Safety check for Posto if it was just created as 6
-        const postoStage = await prisma.recruitmentStage.findFirst({ where: { name: "Posto", order: 6 } });
-        if (postoStage) await prisma.recruitmentStage.update({ where: { id: postoStage.id }, data: { order: 5 } });
-    }
-
-    // --- MIGRATION: Unify Oferta + Contratado -> Admissão ---
-    // 1. Rename 'Oferta' to 'Admissão'
-    const ofertaStage = await prisma.recruitmentStage.findFirst({ where: { name: "Oferta" } });
-    if (ofertaStage) {
-        await prisma.recruitmentStage.update({
-            where: { id: ofertaStage.id },
-            data: { name: "Admissão", order: 3 }
-        });
-    }
-
-    // 2. Move 'Contratado' candidates to 'Admissão' and delete 'Contratado'
-    const contratadoStage = await prisma.recruitmentStage.findFirst({ where: { name: "Contratado" } });
-    if (contratadoStage) {
-        // Find Admissão (target) - logic handles if it was just renamed from Oferta or already exists
-        const admissaoStage = await prisma.recruitmentStage.findFirst({ where: { name: "Admissão" } });
-        if (admissaoStage) {
-            await prisma.recruitmentCandidate.updateMany({
-                where: { stageId: contratadoStage.id },
-                data: { stageId: admissaoStage.id }
-            });
-            // Delete Contratado Stage
-            await prisma.recruitmentStage.delete({ where: { id: contratadoStage.id } });
-        }
-    }
-
-    // 3. Reorder Posto to follows Admissão
-    // Seleção (1) -> Ent. Técnica (2) -> Admissão (3) -> Posto (4)
-    const postoStageMigrate = await prisma.recruitmentStage.findFirst({ where: { name: "Posto" } });
-    if (postoStageMigrate && postoStageMigrate.order !== 4) {
-        await prisma.recruitmentStage.update({ where: { id: postoStageMigrate.id }, data: { order: 4 } });
-    }
-
-    // --- MIGRATION: New Pipeline Stages ---
-    // Rename 'Entrevista Técnica' -> 'Entrevista'
-    const entTecStage = await prisma.recruitmentStage.findFirst({ where: { name: 'Entrevista Técnica' } });
-    if (entTecStage) {
-        await prisma.recruitmentStage.update({ where: { id: entTecStage.id }, data: { name: 'Entrevista', order: 2 } });
-    }
-
-    // Rename 'Posto' -> 'Admitido'
-    const postoRenameStage = await prisma.recruitmentStage.findFirst({ where: { name: 'Posto' } });
-    if (postoRenameStage) {
-        await prisma.recruitmentStage.update({ where: { id: postoRenameStage.id }, data: { name: 'Admitido', order: 7 } });
-    }
-
-    // Create new stages if they don't exist yet
-    const newStagesConfig = [
+    // Official pipeline stages in exact order
+    const desiredStages = [
+        { name: 'Seleção', order: 1, slaDays: 3 },
+        { name: 'Entrevista', order: 2, slaDays: 5 },
         { name: 'Documentação', order: 3, slaDays: 5 },
         { name: 'Exame', order: 4, slaDays: 3 },
         { name: 'Admissão (Onvio)', order: 5, slaDays: 2 },
-        { name: 'Cadastro de Benefícios', order: 8, slaDays: 3 },
-        { name: 'Processo Concluído', order: 9, slaDays: 0 },
+        { name: 'Admitido', order: 6, slaDays: 0 },
+        { name: 'Cadastro de Benefícios', order: 7, slaDays: 3 },
+        { name: 'Processo Concluído', order: 8, slaDays: 0 },
     ];
-    for (const cfg of newStagesConfig) {
-        const exists = await prisma.recruitmentStage.findFirst({ where: { name: cfg.name } });
-        if (!exists) {
+
+    for (const cfg of desiredStages) {
+        const stagesWithName = await prisma.recruitmentStage.findMany({
+            where: { name: cfg.name },
+            orderBy: { createdAt: 'asc' }
+        });
+
+        if (stagesWithName.length === 0) {
             await prisma.recruitmentStage.create({ data: cfg });
+        } else {
+            const primary = stagesWithName[0];
+            await prisma.recruitmentStage.update({
+                where: { id: primary.id },
+                data: { order: cfg.order }
+            });
+
+            // Delete duplicates and move their candidates to primary
+            if (stagesWithName.length > 1) {
+                for (let i = 1; i < stagesWithName.length; i++) {
+                    const dup = stagesWithName[i];
+                    await prisma.recruitmentCandidate.updateMany({
+                        where: { stageId: dup.id },
+                        data: { stageId: primary.id }
+                    });
+                    await prisma.recruitmentStage.delete({ where: { id: dup.id } }).catch(() => {});
+                }
+            }
         }
     }
 
-    // Fix 'Admissão' order to 6 (was 3 before new stages)
-    const admissaoMigrate = await prisma.recruitmentStage.findFirst({ where: { name: 'Admissão' } });
-    if (admissaoMigrate && admissaoMigrate.order !== 6) {
-        await prisma.recruitmentStage.update({ where: { id: admissaoMigrate.id }, data: { order: 6 } });
-    }
-
-    // Ensure Default Stages (Corrected Set) exist if completely empty
-    const stagesCount = await prisma.recruitmentStage.count();
-    if (stagesCount === 0) {
-        await prisma.recruitmentStage.createMany({
-            data: [
-                { name: 'Seleção', order: 1, slaDays: 3 },
-                { name: 'Entrevista', order: 2, slaDays: 5 },
-                { name: 'Documentação', order: 3, slaDays: 5 },
-                { name: 'Exame', order: 4, slaDays: 3 },
-                { name: 'Admissão (Onvio)', order: 5, slaDays: 2 },
-                { name: 'Admissão', order: 6, slaDays: 2 },
-                { name: 'Admitido', order: 7, slaDays: 0 },
-                { name: 'Cadastro de Benefícios', order: 8, slaDays: 3 },
-                { name: 'Processo Concluído', order: 9, slaDays: 0 },
-            ]
-        });
-    }
+    // Sync backlog gaps
+    await syncBacklogGaps();
 
     // 1. Fetch Open Vacancies with their candidates and stages
     const openVacancies = await prisma.vacancy.findMany({
