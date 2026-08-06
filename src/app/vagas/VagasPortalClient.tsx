@@ -227,16 +227,14 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
             <header className="bg-[#042d36] text-white py-2.5 px-4 sm:px-8 border-b border-teal-800/40 sticky top-0 z-40 backdrop-blur-xl bg-opacity-95 shadow-md">
                 <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-xs">
                     
-                    {/* Far Left: JVS Logo with Badge Pill */}
+                    {/* Far Left: JVS Logo with Transparent Background */}
                     <div className="flex items-center shrink-0">
-                        <div className="bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/20 shadow-sm">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img 
-                                src="https://grupojvsserv.com.br/wp-content/uploads/2023/11/logo-horizontal-300px.png" 
-                                alt="Grupo JVS Facilities" 
-                                className="h-7 sm:h-8 w-auto object-contain"
-                            />
-                        </div>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img 
+                            src="https://grupojvsserv.com.br/wp-content/uploads/2023/11/logo-horizontal-300px.png" 
+                            alt="Grupo JVS Facilities" 
+                            className="h-9 sm:h-11 w-auto object-contain bg-transparent"
+                        />
                     </div>
 
                     {/* Far Right: Social Media */}
