@@ -12,6 +12,7 @@ export function middleware(request: NextRequest) {
         pathname.includes(".") ||
         pathname === "/login" ||
         pathname.startsWith("/candidatar") ||
+        pathname.startsWith("/candidatodoc") ||
         pathname.startsWith("/disciplinary-upload") ||
         pathname.startsWith("/disciplinary-print")
     ) {

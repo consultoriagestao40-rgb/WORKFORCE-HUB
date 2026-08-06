@@ -329,7 +329,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
     return (
         <>
             <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <div className="flex justify-between items-start pr-8">
                             <div>

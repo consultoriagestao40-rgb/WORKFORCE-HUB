@@ -1773,22 +1773,99 @@ export async function getVacancyCandidates(vacancyId: string) {
 // PIPELINE STAGE ACTIONS
 // ==========================================
 
-export async function generateDocumentationLink(candidateId: string) {
+export async function generateDocumentationLink(candidateId: string, hoursValid: number = 48) {
     const user = await getCurrentUser();
     if (!user) throw new Error('Unauthorized');
     
-    const token = `doc-${candidateId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const token = `doc-${candidateId}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const expiresAt = hoursValid > 0 ? new Date(Date.now() + hoursValid * 60 * 60 * 1000) : null;
     
     await prisma.recruitmentCandidate.update({
         where: { id: candidateId },
-        data: { documentationLinkToken: token, documentationStatus: 'PENDING' }
+        data: { 
+            documentationLinkToken: token, 
+            documentationStatus: 'PENDING',
+            extraFields: {
+                linkExpiresAt: expiresAt?.toISOString() || null,
+            }
+        }
     });
     
     revalidatePath('/admin/recrutamento');
-    return { token };
+    return { token, expiresAt };
 }
 
-export async function uploadCandidateDocuments(candidateId: string, files: Record<string, string>) {
+export async function getCandidateByDocToken(token: string) {
+    const candidate = await prisma.recruitmentCandidate.findFirst({
+        where: { documentationLinkToken: token },
+        include: {
+            vacancy: {
+                include: {
+                    role: true,
+                    posto: { include: { client: true } }
+                }
+            }
+        }
+    });
+
+    if (!candidate) return { error: "Link de documentação inválido ou expirado." };
+
+    const extraFields = (candidate.extraFields as any) || {};
+    if (extraFields.linkExpiresAt) {
+        const expDate = new Date(extraFields.linkExpiresAt);
+        if (expDate < new Date()) {
+            return { error: "Este link de documentação já expirou. Solicite um novo link ao recrutador." };
+        }
+    }
+
+    return { candidate };
+}
+
+export async function submitCandidatePublicDocumentation(
+    token: string, 
+    files: Record<string, string>,
+    uniformData: { shoeSize?: string; pantsSize?: string; shirtSize?: string; pixKey?: string; email?: string }
+) {
+    const candidate = await prisma.recruitmentCandidate.findFirst({
+        where: { documentationLinkToken: token }
+    });
+
+    if (!candidate) throw new Error("Link de documentação inválido ou expirado.");
+
+    const existingFiles = (candidate.documentationFiles as Record<string, string>) || {};
+    const mergedFiles = { ...existingFiles, ...files };
+
+    const existingExtra = (candidate.extraFields as Record<string, any>) || {};
+    const mergedExtra = { ...existingExtra, uniformData };
+
+    await prisma.recruitmentCandidate.update({
+        where: { id: candidate.id },
+        data: {
+            documentationFiles: mergedFiles,
+            documentationStatus: 'SUBMITTED',
+            email: uniformData.email || candidate.email,
+            extraFields: mergedExtra
+        }
+    });
+
+    await prisma.recruitmentTimeline.create({
+        data: {
+            candidateId: candidate.id,
+            candidateName: candidate.name,
+            vacancyId: candidate.vacancyId,
+            action: 'PUBLIC_DOCUMENTS_SUBMITTED',
+            details: `Documentos enviados via link público pelo próprio candidato: ${Object.keys(files).join(', ')}`
+        }
+    });
+
+    return { success: true };
+}
+
+export async function uploadCandidateDocuments(
+    candidateId: string, 
+    files: Record<string, string>,
+    uniformData?: { shoeSize?: string; pantsSize?: string; shirtSize?: string; pixKey?: string }
+) {
     const user = await getCurrentUser();
     if (!user) throw new Error('Unauthorized');
     
@@ -1798,11 +1875,17 @@ export async function uploadCandidateDocuments(candidateId: string, files: Recor
     const existing = (candidate.documentationFiles as Record<string, string>) || {};
     const merged = { ...existing, ...files };
     
+    const existingExtra = (candidate.extraFields as Record<string, any>) || {};
+    const updatedExtra = uniformData 
+        ? { ...existingExtra, uniformData: { ...(existingExtra.uniformData || {}), ...uniformData } }
+        : existingExtra;
+
     await prisma.recruitmentCandidate.update({
         where: { id: candidateId },
         data: { 
             documentationFiles: merged,
-            documentationStatus: 'SUBMITTED'
+            documentationStatus: 'SUBMITTED',
+            extraFields: updatedExtra
         }
     });
     
@@ -1812,7 +1895,7 @@ export async function uploadCandidateDocuments(candidateId: string, files: Recor
             candidateName: candidate.name,
             vacancyId: candidate.vacancyId,
             action: 'DOCUMENT_UPLOADED',
-            details: `Documentos enviados: ${Object.keys(files).join(', ')}`,
+            details: `Documentos atualizados pelo recrutador: ${Object.keys(files).join(', ')}`,
             userId: user.id
         }
     });
