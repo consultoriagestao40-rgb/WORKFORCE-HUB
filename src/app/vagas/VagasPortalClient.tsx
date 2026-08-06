@@ -241,69 +241,60 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                 </div>
             </header>
 
-            {/* HERO SECTION - Deep Petrol Mesh Gradient Banner */}
-            <section className="relative bg-[#03242c] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#07596b] via-[#04333d] to-[#021d23] text-white pt-10 pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden shadow-xl">
+            {/* HERO SECTION - Compact Petrol Mesh Gradient Banner */}
+            <section className="relative bg-[#03242c] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#07596b] via-[#04333d] to-[#021d23] text-white pt-5 pb-12 sm:pt-6 sm:pb-14 px-4 sm:px-6 lg:px-8 overflow-hidden shadow-lg">
                 
                 {/* Decorative Mesh Background Effects */}
-                <div className="absolute top-[-30%] left-[-10%] w-[500px] h-[500px] rounded-full bg-teal-500/10 blur-[120px] pointer-events-none" />
-                <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-500/10 blur-[120px] pointer-events-none" />
+                <div className="absolute top-[-40%] left-[-10%] w-[350px] h-[350px] rounded-full bg-teal-500/10 blur-[90px] pointer-events-none" />
+                <div className="absolute bottom-[-30%] right-[-10%] w-[350px] h-[350px] rounded-full bg-indigo-500/10 blur-[90px] pointer-events-none" />
 
-                <div className="max-w-5xl mx-auto text-center space-y-8 relative z-10">
+                <div className="max-w-5xl mx-auto text-center space-y-4 relative z-10">
                     
-                    {/* Logo JVS Container */}
+                    {/* Logo JVS Compact Pill */}
                     <div className="flex justify-center items-center">
-                        <div className="bg-white/95 backdrop-blur-xl px-6 py-3 rounded-3xl border border-white/20 shadow-2xl shadow-black/40">
+                        <div className="bg-white/95 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/20 shadow-lg">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img 
                                 src="https://grupojvsserv.com.br/wp-content/uploads/2023/11/logo-horizontal-300px.png" 
                                 alt="Grupo JVS Serviços" 
-                                className="h-14 sm:h-18 w-auto object-contain max-w-[280px] sm:max-w-[340px]"
+                                className="h-8 sm:h-10 w-auto object-contain max-w-[200px] sm:max-w-[240px]"
                             />
                         </div>
                     </div>
 
                     {/* Headline Banner */}
-                    <div className="space-y-4 max-w-3xl mx-auto">
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-teal-500/15 border border-teal-400/30 text-teal-200 text-xs font-black uppercase tracking-widest shadow-inner">
-                            <Sparkles className="w-4 h-4 text-emerald-400" />
-                            Portal Oficial de Carreiras & Oportunidades
-                        </div>
-
-                        <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-tight drop-shadow-md">
-                            Venha Fazer Parte do <br />
-                            <span className="bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-300 bg-clip-text text-transparent">
-                                Nosso Time de Sucesso!
-                            </span>
+                    <div className="space-y-1.5 max-w-2xl mx-auto">
+                        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
+                            Vagas em Aberto &bull; <span className="bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-300 bg-clip-text text-transparent">Grupo JVS</span>
                         </h1>
-
-                        <p className="text-base sm:text-lg text-teal-100/90 font-medium max-w-2xl mx-auto leading-relaxed">
-                            Estamos em constante expansão e buscando profissionais comprometidos. Confira nossas vagas abertas e envie seu currículo em menos de 1 minuto.
+                        <p className="text-xs sm:text-sm text-teal-100/90 font-medium max-w-xl mx-auto">
+                            Confira as vagas disponíveis, veja os detalhes e candidate-se em menos de 1 minuto.
                         </p>
                     </div>
 
-                    {/* Floating Search Container */}
-                    <div className="pt-2 max-w-3xl mx-auto">
-                        <div className="bg-white/95 backdrop-blur-2xl p-3 sm:p-4 rounded-3xl border border-white/50 shadow-2xl shadow-black/30 flex flex-col sm:flex-row gap-3 items-center">
+                    {/* Compact Search Bar */}
+                    <div className="pt-1 max-w-2xl mx-auto">
+                        <div className="bg-white/95 backdrop-blur-2xl p-1.5 sm:p-2 rounded-2xl border border-white/50 shadow-xl flex items-center gap-2">
                             <div className="relative flex-1 w-full">
-                                <Search className="w-5 h-5 text-slate-400 absolute left-4 top-3.5" />
+                                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                                 <Input
-                                    placeholder="Qual vaga ou cargo você está procurando? (Ex: Auxiliar de Limpeza)"
+                                    placeholder="Buscar por cargo, palavra-chave ou cidade..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="h-12 pl-12 pr-10 border-0 bg-slate-50/80 rounded-2xl text-slate-900 text-sm font-semibold placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-teal-500 w-full"
+                                    className="h-10 pl-9 pr-8 border-0 bg-slate-50/90 rounded-xl text-slate-900 text-xs font-semibold placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-teal-500 w-full"
                                 />
                                 {searchTerm && (
-                                    <button onClick={() => setSearchTerm("")} className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 p-1">
-                                        <X className="w-4 h-4" />
+                                    <button onClick={() => setSearchTerm("")} className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 p-1">
+                                        <X className="w-3.5 h-3.5" />
                                     </button>
                                 )}
                             </div>
 
                             <Button 
                                 type="button"
-                                className="h-12 px-6 rounded-2xl font-black text-xs uppercase tracking-wider bg-teal-600 hover:bg-teal-700 text-white shadow-md w-full sm:w-auto shrink-0"
+                                className="h-10 px-4 rounded-xl font-black text-xs uppercase tracking-wider bg-teal-600 hover:bg-teal-700 text-white shadow-sm shrink-0"
                             >
-                                <Search className="w-4 h-4 mr-2" /> Buscar Vagas
+                                <Search className="w-3.5 h-3.5 mr-1.5" /> Buscar
                             </Button>
                         </div>
                     </div>
@@ -312,64 +303,31 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
             </section>
 
             {/* MAIN CONTENT AREA */}
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12 relative z-20 pb-16 space-y-8">
+            <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 sm:-mt-7 relative z-20 pb-12 space-y-5">
                 
-                {/* Stats Highlights Bar */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-md flex items-center gap-4 hover:border-teal-300 transition-all">
-                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
-                            <Zap className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Inscrição Rápida</span>
-                            <span className="text-sm font-black text-slate-800">Sem Cadastro Necessário</span>
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-md flex items-center gap-4 hover:border-teal-300 transition-all">
-                        <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 shrink-0">
-                            <ShieldCheck className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Canal Oficial JVS</span>
-                            <span className="text-sm font-black text-slate-800">Processo 100% Seguro</span>
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-md flex items-center gap-4 hover:border-teal-300 transition-all">
-                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 shrink-0">
-                            <UserCheck className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Retorno do RH</span>
-                            <span className="text-sm font-black text-slate-800">Triagem Ágil de Currículos</span>
-                        </div>
-                    </div>
-                </div>
-
                 {/* Categories & Filter Pills */}
-                <div className="bg-white rounded-3xl border border-slate-200/80 p-4 sm:p-5 shadow-sm space-y-3">
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-500 border-b border-slate-100 pb-3">
-                        <span className="flex items-center gap-2 text-slate-800 font-black">
-                            <Filter className="w-4 h-4 text-teal-600" />
-                            Filtrar por Setor ou Categoria:
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-3 sm:p-4 shadow-md space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+                        <span className="flex items-center gap-1.5 text-slate-800 font-black text-xs">
+                            <Filter className="w-3.5 h-3.5 text-teal-600" />
+                            Filtrar por Categoria:
                         </span>
-                        <span className="text-slate-400">
-                            Vagas disponíveis: <strong className="text-slate-900">{filteredVacancies.length}</strong>
+                        <span className="text-[11px] text-slate-400">
+                            <strong>{filteredVacancies.length}</strong> vagas disponíveis
                         </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                         <button
                             onClick={() => setSelectedCategory("ALL")}
-                            className={`px-4 py-2 rounded-2xl text-xs font-black transition-all ${selectedCategory === "ALL" ? "bg-teal-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${selectedCategory === "ALL" ? "bg-teal-700 text-white shadow-xs" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
                         >
-                            Todas as Vagas ({initialVacancies.length})
+                            Todas ({initialVacancies.length})
                         </button>
 
                         <button
                             onClick={() => setSelectedCategory("URGENT")}
-                            className={`px-4 py-2 rounded-2xl text-xs font-black transition-all flex items-center gap-1.5 ${selectedCategory === "URGENT" ? "bg-red-600 text-white shadow-sm" : "bg-red-50 text-red-700 hover:bg-red-100 border border-red-200/60"}`}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${selectedCategory === "URGENT" ? "bg-red-600 text-white shadow-xs" : "bg-red-50 text-red-700 hover:bg-red-100 border border-red-200/60"}`}
                         >
                             <Flame className="w-3.5 h-3.5 text-amber-300 fill-amber-300 animate-bounce" />
                             Urgentes ({initialVacancies.filter(v => v.priority === 'URGENTE').length})
@@ -379,7 +337,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                             <button
                                 key={cat}
                                 onClick={() => setSelectedCategory(cat)}
-                                className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all ${selectedCategory === cat ? "bg-teal-700 text-white shadow-sm" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${selectedCategory === cat ? "bg-teal-700 text-white shadow-xs" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
                             >
                                 {cat}
                             </button>
