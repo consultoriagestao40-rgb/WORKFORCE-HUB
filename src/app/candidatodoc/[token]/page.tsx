@@ -143,21 +143,25 @@ export default function PublicCandidateDocPage() {
     const clientName = candidate?.vacancy?.posto?.client?.name || "";
 
     return (
-        <div className="min-h-screen bg-slate-50/60 py-6 px-4 sm:px-6">
-            <div className="max-w-md sm:max-w-xl mx-auto space-y-5">
+        <div className="min-h-screen bg-slate-50/70 py-4 sm:py-8 px-3 sm:px-6 antialiased">
+            <div className="max-w-md sm:max-w-xl mx-auto space-y-4 sm:space-y-6 w-full min-w-0 overflow-hidden">
                 {/* Header Banner Card */}
-                <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-3">
-                    <div className="flex items-center gap-2 text-indigo-600 text-xs font-black uppercase tracking-wider">
-                        <ShieldCheck className="w-4.5 h-4.5" />
-                        ENVIO DE DOCUMENTOS PARA ADMISSÃO
+                <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-sm space-y-3 w-full min-w-0 overflow-hidden">
+                    <div className="flex items-center gap-2 text-indigo-600 text-[11px] sm:text-xs font-black uppercase tracking-wider">
+                        <ShieldCheck className="w-4 h-4 shrink-0 text-indigo-600" />
+                        <span className="truncate">ENVIO DE DOCUMENTOS PARA ADMISSÃO</span>
                     </div>
-                    <h1 className="text-2xl font-black text-slate-900">{candidate?.name}</h1>
-                    <div className="flex flex-wrap gap-2 text-xs text-slate-500 pt-1">
-                        <Badge variant="outline" className="bg-indigo-50/80 text-indigo-700 border-indigo-200/80 px-3 py-1 rounded-xl font-semibold">
+                    
+                    <h1 className="text-xl sm:text-2xl font-black text-slate-900 break-words leading-tight">
+                        {candidate?.name}
+                    </h1>
+
+                    <div className="flex flex-wrap gap-2 text-xs text-slate-600 pt-1 w-full min-w-0">
+                        <Badge variant="outline" className="bg-indigo-50/90 text-indigo-800 border-indigo-200/80 px-3 py-1 rounded-xl font-bold max-w-full text-left whitespace-normal break-words">
                             Vaga: {vacancyTitle}
                         </Badge>
                         {clientName && (
-                            <Badge variant="outline" className="bg-slate-100/80 text-slate-700 px-3 py-1 rounded-xl font-semibold">
+                            <Badge variant="outline" className="bg-slate-100 text-slate-700 px-3 py-1 rounded-xl font-semibold max-w-full truncate">
                                 {clientName}
                             </Badge>
                         )}
@@ -165,89 +169,89 @@ export default function PublicCandidateDocPage() {
                 </div>
 
                 {/* Form 1: Uniforms & PIX */}
-                <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-4">
+                <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-sm space-y-4 w-full min-w-0 overflow-hidden">
                     <div className="border-b border-slate-100 pb-3">
-                        <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
-                            <Shirt className="w-4 h-4 text-indigo-600" />
-                            1. Tamanhos de Uniformes e Chave PIX
+                        <h2 className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2 truncate">
+                            <Shirt className="w-4.5 h-4.5 text-indigo-600 shrink-0" />
+                            <span className="truncate">1. Tamanhos de Uniformes e Chave PIX</span>
                         </h2>
                     </div>
 
-                    <div className="space-y-3 text-xs">
-                        <div>
-                            <Label className="text-xs font-bold text-slate-700 block mb-1">E-mail Pessoal</Label>
+                    <div className="space-y-3.5 text-xs w-full min-w-0">
+                        <div className="w-full min-w-0">
+                            <Label className="text-xs font-bold text-slate-700 block mb-1.5">E-mail Pessoal</Label>
                             <Input
                                 type="email"
                                 placeholder="seu.email@exemplo.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="h-11 rounded-2xl border-slate-200 text-xs px-4 bg-white"
+                                className="h-11 rounded-xl sm:rounded-2xl border-slate-200 text-xs sm:text-sm px-3.5 bg-white w-full shadow-xs"
                             />
                         </div>
-                        <div>
-                            <Label className="text-xs font-bold text-slate-700 block mb-1">Chave PIX (para pagamento de benefícios)</Label>
+                        <div className="w-full min-w-0">
+                            <Label className="text-xs font-bold text-slate-700 block mb-1.5">Chave PIX (para pagamento de benefícios)</Label>
                             <Input
                                 placeholder="CPF, Celular ou E-mail"
                                 value={pixKey}
                                 onChange={(e) => setPixKey(e.target.value)}
-                                className="h-11 rounded-2xl border-slate-200 text-xs px-4 bg-white"
+                                className="h-11 rounded-xl sm:rounded-2xl border-slate-200 text-xs sm:text-sm px-3.5 bg-white w-full shadow-xs"
                             />
                         </div>
-                        <div>
-                            <Label className="text-xs font-bold text-slate-700 block mb-1">Tamanho do Sapato / Calçado</Label>
+                        <div className="w-full min-w-0">
+                            <Label className="text-xs font-bold text-slate-700 block mb-1.5">Tamanho do Sapato / Calçado</Label>
                             <Input
                                 placeholder="Ex: 40"
                                 value={shoeSize}
                                 onChange={(e) => setShoeSize(e.target.value)}
-                                className="h-11 rounded-2xl border-slate-200 text-xs px-4 bg-white"
+                                className="h-11 rounded-xl sm:rounded-2xl border-slate-200 text-xs sm:text-sm px-3.5 bg-white w-full shadow-xs"
                             />
                         </div>
-                        <div>
-                            <Label className="text-xs font-bold text-slate-700 block mb-1">Tamanho da Calça / Bermuda</Label>
+                        <div className="w-full min-w-0">
+                            <Label className="text-xs font-bold text-slate-700 block mb-1.5">Tamanho da Calça / Bermuda</Label>
                             <Input
                                 placeholder="Ex: M / 42"
                                 value={pantsSize}
                                 onChange={(e) => setPantsSize(e.target.value)}
-                                className="h-11 rounded-2xl border-slate-200 text-xs px-4 bg-white"
+                                className="h-11 rounded-xl sm:rounded-2xl border-slate-200 text-xs sm:text-sm px-3.5 bg-white w-full shadow-xs"
                             />
                         </div>
-                        <div>
-                            <Label className="text-xs font-bold text-slate-700 block mb-1">Tamanho da Camisa / Camiseta</Label>
+                        <div className="w-full min-w-0">
+                            <Label className="text-xs font-bold text-slate-700 block mb-1.5">Tamanho da Camisa / Camiseta</Label>
                             <Input
                                 placeholder="Ex: G / 44"
                                 value={shirtSize}
                                 onChange={(e) => setShirtSize(e.target.value)}
-                                className="h-11 rounded-2xl border-slate-200 text-xs px-4 bg-white"
+                                className="h-11 rounded-xl sm:rounded-2xl border-slate-200 text-xs sm:text-sm px-3.5 bg-white w-full shadow-xs"
                             />
                         </div>
                     </div>
                 </div>
 
                 {/* Form 2: Document Upload Section */}
-                <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-4">
-                    <div className="border-b border-slate-100 pb-3 space-y-1">
-                        <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
-                            <Upload className="w-4 h-4 text-indigo-600" />
-                            2. Anexo dos Documentos Pessoais
+                <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-4 sm:p-6 shadow-sm space-y-4 w-full min-w-0 overflow-hidden">
+                    <div className="border-b border-slate-100 pb-3 space-y-1 w-full min-w-0">
+                        <h2 className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2 truncate">
+                            <Upload className="w-4.5 h-4.5 text-indigo-600 shrink-0" />
+                            <span className="truncate">2. Anexo dos Documentos Pessoais</span>
                         </h2>
                         <p className="text-xs text-slate-500 font-medium">
                             Tire fotos nítidas dos seus documentos ou envie em formato PDF.
                         </p>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-2.5 w-full min-w-0">
                         {DOC_TYPES.map((doc) => {
                             const isAttached = !!files[doc.key];
                             const isUploading = uploadingKey === doc.key;
                             return (
-                                <div key={doc.key} className="grid grid-cols-[1fr_auto] gap-2.5 items-center">
-                                    <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border text-xs font-bold transition-all ${isAttached ? "bg-green-50/50 border-green-300 text-green-900" : "bg-slate-50/40 border-slate-200 text-slate-800"}`}>
+                                <div key={doc.key} className="flex flex-row items-center justify-between gap-2 border border-slate-200/80 rounded-xl sm:rounded-2xl p-2.5 sm:p-3 bg-white w-full min-w-0 shadow-xs hover:border-indigo-200 transition-all">
+                                    <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg sm:rounded-xl border text-xs font-bold flex-1 min-w-0 overflow-hidden ${isAttached ? "bg-emerald-50/80 border-emerald-200 text-emerald-950" : "bg-slate-50/80 border-slate-200/80 text-slate-800"}`}>
                                         {isAttached ? (
-                                            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
+                                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                                         ) : (
-                                            <div className="w-5 h-5 rounded-full border-2 border-slate-300 shrink-0" />
+                                            <div className="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0" />
                                         )}
-                                        <span className="truncate">{doc.label}</span>
+                                        <span className="truncate leading-tight">{doc.label}</span>
                                     </div>
 
                                     <label className="shrink-0">
@@ -264,15 +268,15 @@ export default function PublicCandidateDocPage() {
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className={`h-11 px-4 text-xs font-bold rounded-2xl border-slate-200 cursor-pointer shadow-none transition-all ${isAttached ? "bg-green-100 text-green-800 border-green-300" : "bg-white hover:bg-slate-50 text-slate-800"}`}
+                                            className={`h-9 sm:h-10 px-3 sm:px-4 text-xs font-bold rounded-lg sm:rounded-xl border-slate-200 cursor-pointer shadow-none transition-all ${isAttached ? "bg-emerald-100/90 text-emerald-900 border-emerald-300 hover:bg-emerald-200/80" : "bg-white hover:bg-slate-50 text-slate-800"}`}
                                             asChild
                                             disabled={isUploading}
                                         >
                                             <span>
                                                 {isUploading ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
                                                 ) : (
-                                                    <Upload className="w-4 h-4 mr-1.5 text-slate-600" />
+                                                    <Upload className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
                                                 )}
                                                 {isAttached ? "Substituir" : "Anexar"}
                                             </span>
@@ -286,7 +290,7 @@ export default function PublicCandidateDocPage() {
 
                 {/* Submit Action */}
                 <Button
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-12 rounded-2xl text-sm font-black shadow-md"
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-12 rounded-xl sm:rounded-2xl text-sm font-black shadow-md transition-all active:scale-[0.99]"
                     onClick={handleSubmit}
                     disabled={submitting}
                 >
