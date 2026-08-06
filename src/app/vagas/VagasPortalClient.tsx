@@ -4,7 +4,7 @@ import { useState } from "react";
 import { 
     Briefcase, MapPin, Building2, Calendar, Sparkles, Search, 
     DollarSign, Clock, ShieldCheck, CheckCircle2, Loader2, Upload, FileText, ArrowRight, X, AlertCircle,
-    MessageCircle, Mail, Linkedin, Facebook, Instagram, Youtube, Award, Zap, CheckCircle
+    MessageCircle, Mail, Linkedin, Facebook, Instagram, Youtube, Award, Zap, CheckCircle, Flame, Filter, ChevronRight, Layers, UserCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +43,7 @@ interface VagasPortalClientProps {
 
 export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) {
     const [searchTerm, setSearchTerm] = useState("");
-    const [selectedPriorityFilter, setSelectedPriorityFilter] = useState<"ALL" | "URGENT">("ALL");
+    const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
 
     // Modal state for viewing details
     const [selectedVacancy, setSelectedVacancy] = useState<VacancyItem | null>(null);
@@ -64,10 +64,17 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitSuccess, setSubmitSuccess] = useState(false);
 
-    // Filter vacancies based on search term & priority
+    // Extract unique categories (roles) for quick filtering
+    const categories = Array.from(new Set(initialVacancies.map(v => v.roleName))).filter(Boolean);
+
+    // Filter vacancies based on search term & category/priority
     const filteredVacancies = initialVacancies.filter(v => {
-        if (selectedPriorityFilter === "URGENT" && v.priority !== "URGENTE") {
+        if (selectedCategory === "URGENT" && v.priority !== "URGENTE") {
             return false;
+        }
+
+        if (selectedCategory !== "ALL" && selectedCategory !== "URGENT") {
+            if (v.roleName !== selectedCategory) return false;
         }
 
         if (!searchTerm.trim()) return true;
@@ -176,307 +183,366 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
     };
 
     return (
-        <div className="min-h-screen bg-slate-50/80 font-sans antialiased selection:bg-indigo-500 selection:text-white">
-            {/* Top Bar Navigation (Teal Premium Brand Header) */}
-            <header className="bg-gradient-to-r from-[#054957] via-[#076477] to-[#043d49] text-white py-2.5 px-4 shadow-md font-medium">
-                <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] sm:text-xs">
-                    {/* Left: WhatsApp & Email */}
+        <div className="min-h-screen bg-[#f8fafc] font-sans antialiased text-slate-900 selection:bg-teal-500 selection:text-white">
+            
+            {/* Top Teal Luxury Header */}
+            <header className="bg-[#042d36] text-white py-3 px-4 sm:px-8 border-b border-teal-800/40 sticky top-0 z-40 backdrop-blur-xl bg-opacity-95 shadow-md">
+                <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                    
+                    {/* Left: Contact Info */}
                     <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4">
                         <a 
                             href="https://wa.me/554135030020" 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 px-3 py-1 rounded-full font-bold transition-all border border-emerald-400/30"
-                            title="Falar no WhatsApp"
+                            className="inline-flex items-center gap-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 px-3.5 py-1 rounded-full font-bold transition-all border border-emerald-400/30 hover:scale-105 active:scale-95"
+                            title="Falar no WhatsApp Oficial"
                         >
-                            <MessageCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
                             <span>(41) 3503-0020</span>
                         </a>
 
-                        <span className="hidden sm:inline opacity-30">|</span>
+                        <span className="hidden sm:inline opacity-30 text-teal-400">|</span>
 
                         <a 
                             href="mailto:comercial@grupojvsserv.com.br" 
-                            className="flex items-center gap-1.5 hover:text-cyan-200 transition-all opacity-90"
-                            title="Enviar E-mail"
+                            className="flex items-center gap-1.5 hover:text-cyan-200 transition-all opacity-90 text-[11px] sm:text-xs"
+                            title="Enviar E-mail Comercial"
                         >
-                            <Mail className="w-3.5 h-3.5 shrink-0" />
+                            <Mail className="w-3.5 h-3.5 text-teal-400 shrink-0" />
                             <span className="truncate">comercial@grupojvsserv.com.br</span>
                         </a>
                     </div>
 
-                    {/* Right: Social Media Buttons */}
+                    {/* Right: Social Media */}
                     <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-cyan-200/70 font-semibold uppercase tracking-wider hidden md:inline">Siga-nos:</span>
-                        <a 
-                            href="https://www.linkedin.com/company/grupo-jvs-servicos/" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-105"
-                            title="LinkedIn"
-                        >
-                            <Linkedin className="w-3.5 h-3.5" />
-                        </a>
-                        <a 
-                            href="https://www.facebook.com/grupojvsservicos" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-105"
-                            title="Facebook"
-                        >
-                            <Facebook className="w-3.5 h-3.5" />
-                        </a>
-                        <a 
-                            href="https://www.instagram.com/grupojvsservicos" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-105"
-                            title="Instagram"
-                        >
-                            <Instagram className="w-3.5 h-3.5" />
-                        </a>
-                        <a 
-                            href="https://www.youtube.com/@grupojvsservicos" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-105"
-                            title="YouTube"
-                        >
-                            <Youtube className="w-3.5 h-3.5" />
-                        </a>
+                        <span className="text-[10px] text-teal-200/60 font-black uppercase tracking-widest hidden md:inline">Siga o Grupo JVS:</span>
+                        <div className="flex items-center gap-1.5">
+                            <a 
+                                href="https://www.linkedin.com/company/grupo-jvs-servicos/" 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="w-7.5 h-7.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
+                                title="LinkedIn"
+                            >
+                                <Linkedin className="w-3.5 h-3.5" />
+                            </a>
+                            <a 
+                                href="https://www.facebook.com/grupojvsservicos" 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="w-7.5 h-7.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
+                                title="Facebook"
+                            >
+                                <Facebook className="w-3.5 h-3.5" />
+                            </a>
+                            <a 
+                                href="https://www.instagram.com/grupojvsservicos" 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="w-7.5 h-7.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
+                                title="Instagram"
+                            >
+                                <Instagram className="w-3.5 h-3.5" />
+                            </a>
+                            <a 
+                                href="https://www.youtube.com/@grupojvsservicos" 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="w-7.5 h-7.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
+                                title="YouTube"
+                            >
+                                <Youtube className="w-3.5 h-3.5" />
+                            </a>
+                        </div>
                     </div>
                 </div>
             </header>
 
-            {/* Main Content Area */}
-            <main className="py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
-                <div className="max-w-6xl mx-auto space-y-8 sm:space-y-10">
-                    
-                    {/* Hero Showcase Card */}
-                    <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-slate-200/80 p-6 sm:p-12 shadow-xl shadow-slate-200/50 text-center space-y-6 relative overflow-hidden">
-                        {/* Soft Ambient Glow background */}
-                        <div className="absolute top-[-20%] left-[20%] w-72 h-72 rounded-full bg-indigo-500/5 blur-3xl pointer-events-none" />
-                        <div className="absolute bottom-[-20%] right-[20%] w-72 h-72 rounded-full bg-teal-500/5 blur-3xl pointer-events-none" />
+            {/* HERO SECTION - Deep Petrol Mesh Gradient Banner */}
+            <section className="relative bg-[#03242c] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#07596b] via-[#04333d] to-[#021d23] text-white pt-10 pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden shadow-xl">
+                
+                {/* Decorative Mesh Background Effects */}
+                <div className="absolute top-[-30%] left-[-10%] w-[500px] h-[500px] rounded-full bg-teal-500/10 blur-[120px] pointer-events-none" />
+                <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-500/10 blur-[120px] pointer-events-none" />
 
-                        {/* Logo JVS */}
-                        <div className="flex justify-center items-center relative z-10 pt-2">
+                <div className="max-w-5xl mx-auto text-center space-y-8 relative z-10">
+                    
+                    {/* Logo JVS Container */}
+                    <div className="flex justify-center items-center">
+                        <div className="bg-white/95 backdrop-blur-xl px-6 py-3 rounded-3xl border border-white/20 shadow-2xl shadow-black/40">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img 
                                 src="https://grupojvsserv.com.br/wp-content/uploads/2023/11/logo-horizontal-300px.png" 
                                 alt="Grupo JVS Serviços" 
-                                className="h-14 sm:h-20 w-auto object-contain max-w-[280px] sm:max-w-[340px] drop-shadow-xs"
+                                className="h-14 sm:h-18 w-auto object-contain max-w-[280px] sm:max-w-[340px]"
                             />
-                        </div>
-
-                        {/* Welcome Pill & Title */}
-                        <div className="space-y-3.5 max-w-2xl mx-auto relative z-10">
-                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 border border-indigo-200/80 text-indigo-700 text-xs font-black uppercase tracking-widest shadow-2xs">
-                                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                                Portal Oficial de Oportunidades & Carreiras
-                            </div>
-
-                            <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight">
-                                Venha Fazer Parte do Nosso Time!
-                            </h1>
-
-                            <p className="text-sm sm:text-base text-slate-600 font-medium leading-relaxed max-w-xl mx-auto">
-                                Estamos em constante busca por profissionais talentosos. Explore nossas oportunidades em aberto abaixo e envie seu currículo em poucos segundos.
-                            </p>
-                        </div>
-
-                        {/* Floating Search & Filter Bar */}
-                        <div className="pt-2 max-w-2xl mx-auto relative z-10">
-                            <div className="bg-white p-2 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-lg shadow-slate-200/60 flex flex-col sm:flex-row gap-2 items-center">
-                                <div className="relative flex-1 w-full">
-                                    <Search className="w-4 h-4 text-slate-400 absolute left-4 top-4" />
-                                    <Input
-                                        placeholder="Buscar cargo, palavra-chave ou cidade..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="h-12 pl-11 border-0 bg-transparent text-sm font-semibold placeholder:text-slate-400 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
-                                    />
-                                    {searchTerm && (
-                                        <button onClick={() => setSearchTerm("")} className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 p-1">
-                                            <X className="w-4 h-4" />
-                                        </button>
-                                    )}
-                                </div>
-
-                                <div className="flex gap-2 w-full sm:w-auto shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
-                                    <Button
-                                        type="button"
-                                        variant={selectedPriorityFilter === "ALL" ? "default" : "outline"}
-                                        onClick={() => setSelectedPriorityFilter("ALL")}
-                                        className={`h-11 rounded-xl sm:rounded-2xl text-xs font-black transition-all flex-1 sm:flex-initial ${selectedPriorityFilter === "ALL" ? "bg-slate-900 text-white shadow-sm" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}
-                                    >
-                                        Todas ({initialVacancies.length})
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        variant={selectedPriorityFilter === "URGENT" ? "destructive" : "outline"}
-                                        onClick={() => setSelectedPriorityFilter("URGENT")}
-                                        className={`h-11 rounded-xl sm:rounded-2xl text-xs font-black transition-all flex-1 sm:flex-initial ${selectedPriorityFilter === "URGENT" ? "bg-red-600 text-white shadow-sm" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}
-                                    >
-                                        🔥 Urgentes ({initialVacancies.filter(v => v.priority === 'URGENTE').length})
-                                    </Button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Trust Micro Seals */}
-                        <div className="pt-2 flex flex-wrap items-center justify-center gap-6 text-[11px] font-bold text-slate-500 border-t border-slate-100 max-w-xl mx-auto">
-                            <span className="flex items-center gap-1.5">
-                                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Candidatura 100% Gratuita
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                                <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" /> Processo Seguro & Direto
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                                <Zap className="w-3.5 h-3.5 text-amber-500" /> Triagem Ágil com IA
-                            </span>
                         </div>
                     </div>
 
-                    {/* Counter & Status Bar */}
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-3 text-xs text-slate-500 font-semibold">
-                        <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
-                            <span>
-                                Exibindo <strong className="text-slate-900">{filteredVacancies.length}</strong> de <strong className="text-slate-900">{initialVacancies.length}</strong> vagas disponíveis agora
-                            </span>
+                    {/* Headline Banner */}
+                    <div className="space-y-4 max-w-3xl mx-auto">
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-teal-500/15 border border-teal-400/30 text-teal-200 text-xs font-black uppercase tracking-widest shadow-inner">
+                            <Sparkles className="w-4 h-4 text-emerald-400" />
+                            Portal Oficial de Carreiras & Oportunidades
                         </div>
-                        <span className="text-[11px] text-indigo-700 font-bold bg-indigo-50 border border-indigo-200/80 px-3 py-1 rounded-full shadow-2xs">
-                            Recrutamento Ativo &bull; Grupo JVS
+
+                        <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-tight drop-shadow-md">
+                            Venha Fazer Parte do <br />
+                            <span className="bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-300 bg-clip-text text-transparent">
+                                Nosso Time de Sucesso!
+                            </span>
+                        </h1>
+
+                        <p className="text-base sm:text-lg text-teal-100/90 font-medium max-w-2xl mx-auto leading-relaxed">
+                            Estamos em constante expansão e buscando profissionais comprometidos. Confira nossas vagas abertas e envie seu currículo em menos de 1 minuto.
+                        </p>
+                    </div>
+
+                    {/* Floating Search Container */}
+                    <div className="pt-2 max-w-3xl mx-auto">
+                        <div className="bg-white/95 backdrop-blur-2xl p-3 sm:p-4 rounded-3xl border border-white/50 shadow-2xl shadow-black/30 flex flex-col sm:flex-row gap-3 items-center">
+                            <div className="relative flex-1 w-full">
+                                <Search className="w-5 h-5 text-slate-400 absolute left-4 top-3.5" />
+                                <Input
+                                    placeholder="Qual vaga ou cargo você está procurando? (Ex: Auxiliar de Limpeza)"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="h-12 pl-12 pr-10 border-0 bg-slate-50/80 rounded-2xl text-slate-900 text-sm font-semibold placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-teal-500 w-full"
+                                />
+                                {searchTerm && (
+                                    <button onClick={() => setSearchTerm("")} className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 p-1">
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+
+                            <Button 
+                                type="button"
+                                className="h-12 px-6 rounded-2xl font-black text-xs uppercase tracking-wider bg-teal-600 hover:bg-teal-700 text-white shadow-md w-full sm:w-auto shrink-0"
+                            >
+                                <Search className="w-4 h-4 mr-2" /> Buscar Vagas
+                            </Button>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            {/* MAIN CONTENT AREA */}
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12 relative z-20 pb-16 space-y-8">
+                
+                {/* Stats Highlights Bar */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-md flex items-center gap-4 hover:border-teal-300 transition-all">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
+                            <Zap className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Inscrição Rápida</span>
+                            <span className="text-sm font-black text-slate-800">Sem Cadastro Necessário</span>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-md flex items-center gap-4 hover:border-teal-300 transition-all">
+                        <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 shrink-0">
+                            <ShieldCheck className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Canal Oficial JVS</span>
+                            <span className="text-sm font-black text-slate-800">Processo 100% Seguro</span>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-md flex items-center gap-4 hover:border-teal-300 transition-all">
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 shrink-0">
+                            <UserCheck className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Retorno do RH</span>
+                            <span className="text-sm font-black text-slate-800">Triagem Ágil de Currículos</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Categories & Filter Pills */}
+                <div className="bg-white rounded-3xl border border-slate-200/80 p-4 sm:p-5 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-500 border-b border-slate-100 pb-3">
+                        <span className="flex items-center gap-2 text-slate-800 font-black">
+                            <Filter className="w-4 h-4 text-teal-600" />
+                            Filtrar por Setor ou Categoria:
+                        </span>
+                        <span className="text-slate-400">
+                            Vagas disponíveis: <strong className="text-slate-900">{filteredVacancies.length}</strong>
                         </span>
                     </div>
 
-                    {/* Vacancies Grid */}
-                    {filteredVacancies.length === 0 ? (
-                        <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-3 shadow-sm">
-                            <AlertCircle className="w-12 h-12 text-slate-400 mx-auto" />
-                            <h3 className="text-lg font-bold text-slate-800">Nenhuma vaga encontrada</h3>
-                            <p className="text-xs text-slate-500">Tente ajustar seus termos de busca ou filtros de pesquisa.</p>
-                            <Button variant="outline" onClick={() => { setSearchTerm(""); setSelectedPriorityFilter("ALL"); }} className="rounded-xl text-xs font-bold mt-2">
-                                Limpar Filtros
-                            </Button>
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <button
+                            onClick={() => setSelectedCategory("ALL")}
+                            className={`px-4 py-2 rounded-2xl text-xs font-black transition-all ${selectedCategory === "ALL" ? "bg-teal-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                        >
+                            Todas as Vagas ({initialVacancies.length})
+                        </button>
+
+                        <button
+                            onClick={() => setSelectedCategory("URGENT")}
+                            className={`px-4 py-2 rounded-2xl text-xs font-black transition-all flex items-center gap-1.5 ${selectedCategory === "URGENT" ? "bg-red-600 text-white shadow-sm" : "bg-red-50 text-red-700 hover:bg-red-100 border border-red-200/60"}`}
+                        >
+                            <Flame className="w-3.5 h-3.5 text-amber-300 fill-amber-300 animate-bounce" />
+                            Urgentes ({initialVacancies.filter(v => v.priority === 'URGENTE').length})
+                        </button>
+
+                        {categories.map((cat) => (
+                            <button
+                                key={cat}
+                                onClick={() => setSelectedCategory(cat)}
+                                className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all ${selectedCategory === cat ? "bg-teal-700 text-white shadow-sm" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+                            >
+                                {cat}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* VACANCIES GRID */}
+                {filteredVacancies.length === 0 ? (
+                    <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-4 shadow-sm">
+                        <AlertCircle className="w-14 h-14 text-slate-300 mx-auto" />
+                        <div className="space-y-1">
+                            <h3 className="text-xl font-black text-slate-800">Nenhuma vaga encontrada</h3>
+                            <p className="text-xs text-slate-500">Tente buscar por termos mais genéricos ou limpe os filtros selecionados.</p>
                         </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
-                            {filteredVacancies.map((v) => {
-                                const isUrgent = v.priority === "URGENTE";
+                        <Button variant="outline" onClick={() => { setSearchTerm(""); setSelectedCategory("ALL"); }} className="rounded-2xl text-xs font-bold px-6 h-11">
+                            Limpar Filtros de Busca
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {filteredVacancies.map((v) => {
+                            const isUrgent = v.priority === "URGENTE";
+                            const initialLetter = (v.roleName || v.title).charAt(0).toUpperCase();
 
-                                return (
-                                    <div 
-                                        key={v.id}
-                                        className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-sm hover:shadow-xl hover:border-indigo-300 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between space-y-6 relative overflow-hidden group"
-                                    >
-                                        {/* Top Accent line for urgent */}
-                                        {isUrgent && (
-                                            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500 via-rose-500 to-amber-500" />
-                                        )}
+                            return (
+                                <div 
+                                    key={v.id}
+                                    className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-7 shadow-sm hover:shadow-2xl hover:border-teal-400 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between space-y-6 relative overflow-hidden group"
+                                >
+                                    {/* Top Urgent Strip */}
+                                    {isUrgent && (
+                                        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-500 via-amber-500 to-rose-500 animate-pulse" />
+                                    )}
 
-                                        <div className="space-y-4">
-                                            {/* Top Header: Badge & Date */}
-                                            <div className="flex items-center justify-between gap-2">
-                                                <Badge variant="outline" className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border ${isUrgent ? "bg-red-50 text-red-700 border-red-200 shadow-2xs" : "bg-indigo-50 text-indigo-700 border-indigo-200"}`}>
-                                                    {isUrgent ? "🔥 Urgente" : "Oportunidade"}
-                                                </Badge>
-                                                <span className="text-[11px] text-slate-400 font-medium">
-                                                    Postada em {new Date(v.createdAt).toLocaleDateString('pt-BR')}
-                                                </span>
-                                            </div>
-
-                                            {/* Vacancy Title */}
-                                            <div className="space-y-1.5">
-                                                <h2 className="text-xl sm:text-2xl font-black text-slate-900 group-hover:text-indigo-600 transition-colors leading-snug break-words">
-                                                    {v.title}
-                                                </h2>
-                                                <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-                                                    <span className="inline-flex items-center gap-1.5 text-slate-700 bg-slate-100/80 px-3 py-1 rounded-xl border border-slate-200/60 font-bold">
-                                                        <Briefcase className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                    <div className="space-y-4">
+                                        
+                                        {/* Card Top: Avatar & Badges */}
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="flex items-center gap-3.5">
+                                                {/* Company Avatar */}
+                                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#076477] to-[#043d49] text-white flex items-center justify-center font-black text-lg shadow-md shrink-0 border border-teal-500/30">
+                                                    {initialLetter}
+                                                </div>
+                                                <div>
+                                                    <span className="text-[10px] font-black text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-lg border border-teal-200/60 uppercase tracking-wider block w-fit">
                                                         {v.roleName}
                                                     </span>
-                                                    {v.companyName && (
-                                                        <span className="inline-flex items-center gap-1.5 text-slate-700 bg-slate-100/80 px-3 py-1 rounded-xl border border-slate-200/60 font-semibold">
-                                                            <Building2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                                                            {v.companyName}
-                                                        </span>
-                                                    )}
+                                                    <span className="text-xs font-semibold text-slate-500 mt-0.5 block">
+                                                        {v.companyName || "Grupo JVS Serviços"}
+                                                    </span>
                                                 </div>
                                             </div>
 
-                                            {/* Location & Remuneration Badges */}
-                                            <div className="space-y-2.5 text-xs text-slate-600 pt-3 border-t border-slate-100">
-                                                {v.location && (
-                                                    <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                                                        <MapPin className="w-4 h-4 text-indigo-600 shrink-0" />
-                                                        <span className="truncate">{v.location}</span>
-                                                    </div>
-                                                )}
+                                            {/* Priority Pill */}
+                                            <Badge variant="outline" className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border shrink-0 ${isUrgent ? "bg-red-50 text-red-700 border-red-200 shadow-2xs" : "bg-emerald-50 text-emerald-800 border-emerald-200"}`}>
+                                                {isUrgent ? "🔥 Imadiato" : "Vaga Aberta"}
+                                            </Badge>
+                                        </div>
 
-                                                <div className="flex flex-wrap items-center gap-2 pt-1">
-                                                    {v.baseSalary ? (
-                                                        <span className="bg-emerald-500/10 text-emerald-800 border border-emerald-500/20 px-3 py-1 rounded-xl font-black text-xs flex items-center gap-1">
-                                                            <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-                                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v.baseSalary)}
-                                                        </span>
-                                                    ) : null}
+                                        {/* Title */}
+                                        <h2 className="text-xl sm:text-2xl font-black text-slate-900 group-hover:text-teal-700 transition-colors leading-snug break-words">
+                                            {v.title}
+                                        </h2>
 
-                                                    {v.valeAlimentacao ? (
-                                                        <span className="bg-indigo-50 text-indigo-800 border border-indigo-200/80 px-3 py-1 rounded-xl font-bold">
-                                                            VA: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v.valeAlimentacao)}
-                                                        </span>
-                                                    ) : null}
-
-                                                    {v.valeTransporte ? (
-                                                        <span className="bg-slate-100/90 text-slate-700 px-3 py-1 rounded-xl font-bold border border-slate-200/60">
-                                                            VT Incluído
-                                                        </span>
-                                                    ) : null}
+                                        {/* Location & Remuneration Details */}
+                                        <div className="space-y-3 pt-3 border-t border-slate-100">
+                                            {v.location && (
+                                                <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 bg-slate-50 px-3 py-2 rounded-2xl border border-slate-100">
+                                                    <MapPin className="w-4 h-4 text-teal-600 shrink-0" />
+                                                    <span className="truncate">{v.location}</span>
                                                 </div>
+                                            )}
+
+                                            {/* Perks Badges */}
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                {v.baseSalary ? (
+                                                    <span className="bg-emerald-500/10 text-emerald-800 border border-emerald-500/20 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1 shadow-2xs">
+                                                        <DollarSign className="w-4 h-4 text-emerald-600" />
+                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v.baseSalary)}
+                                                    </span>
+                                                ) : null}
+
+                                                {v.valeAlimentacao ? (
+                                                    <span className="bg-teal-50 text-teal-800 border border-teal-200 px-3 py-1.5 rounded-xl font-bold text-xs">
+                                                        🍔 VA: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v.valeAlimentacao)}
+                                                    </span>
+                                                ) : null}
+
+                                                {v.valeTransporte ? (
+                                                    <span className="bg-slate-100 text-slate-700 border border-slate-200/80 px-3 py-1.5 rounded-xl font-bold text-xs">
+                                                        🚌 VT Incluído
+                                                    </span>
+                                                ) : null}
                                             </div>
                                         </div>
 
-                                        {/* Action Buttons */}
-                                        <div className="grid grid-cols-2 gap-3 pt-3">
-                                            <Button
-                                                variant="outline"
-                                                onClick={() => { setSelectedVacancy(v); setIsDetailsOpen(true); }}
-                                                className="h-11 rounded-2xl text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-2xs"
-                                            >
-                                                Ver Detalhes
-                                            </Button>
-                                            <Button
-                                                onClick={() => handleOpenApply(v)}
-                                                className="h-11 rounded-2xl text-xs font-black bg-gradient-to-r from-indigo-600 via-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white shadow-md shadow-indigo-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                                            >
-                                                Se Candidatar <ArrowRight className="w-3.5 h-3.5" />
-                                            </Button>
-                                        </div>
                                     </div>
-                                );
-                            })}
-                        </div>
-                    )}
 
-                    {/* Footer Trust Seals */}
-                    <footer className="text-center text-xs text-slate-400 pt-10 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-4">
-                        <div className="flex items-center gap-2">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img 
-                                src="https://grupojvsserv.com.br/wp-content/uploads/2023/11/logo-horizontal-300px.png" 
-                                alt="JVS Logo" 
-                                className="h-6 w-auto grayscale opacity-50"
-                            />
-                            <span className="text-[11px] font-semibold text-slate-500">&bull; Grupo JVS Serviços 2026</span>
-                        </div>
+                                    {/* Card Footer Actions */}
+                                    <div className="grid grid-cols-2 gap-3 pt-2">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => { setSelectedVacancy(v); setIsDetailsOpen(true); }}
+                                            className="h-11 rounded-2xl text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-all"
+                                        >
+                                            Ver Requisitos
+                                        </Button>
+                                        <Button
+                                            onClick={() => handleOpenApply(v)}
+                                            className="h-11 rounded-2xl text-xs font-black bg-gradient-to-r from-[#076477] via-[#065868] to-[#043d49] hover:from-[#087389] hover:to-[#054957] text-white shadow-lg shadow-teal-900/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                                        >
+                                            Se Candidatar <ArrowRight className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
 
-                        <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500">
-                            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                            <span>Plataforma Oficial de Recrutamento & Seleção</span>
+                {/* Footer Section */}
+                <footer className="bg-white rounded-3xl border border-slate-200/80 p-8 text-center sm:text-left shadow-sm flex flex-col sm:flex-row items-center justify-between gap-6">
+                    <div className="flex items-center gap-4">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img 
+                            src="https://grupojvsserv.com.br/wp-content/uploads/2023/11/logo-horizontal-300px.png" 
+                            alt="JVS Logo" 
+                            className="h-8 w-auto grayscale opacity-60"
+                        />
+                        <div className="text-xs text-slate-500 font-medium border-l border-slate-200 pl-4">
+                            <p className="font-bold text-slate-800">Grupo JVS Serviços</p>
+                            <p className="text-[11px]">Plataforma Oficial de Recrutamento & Seleção &bull; 2026</p>
                         </div>
-                    </footer>
-                </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-xs text-slate-500 font-semibold">
+                        <span className="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+                            <ShieldCheck className="w-4 h-4 text-teal-600" /> LGPD Garantida
+                        </span>
+                        <span className="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+                            <Award className="w-4 h-4 text-amber-500" /> Empresa Certificada
+                        </span>
+                    </div>
+                </footer>
             </main>
 
             {/* Modal 1: Vacancy Details Modal */}
@@ -485,16 +551,16 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                     {selectedVacancy && (
                         <>
                             <DialogHeader className="space-y-2 border-b pb-4">
-                                <Badge variant="outline" className="w-fit bg-indigo-50 text-indigo-700 border-indigo-200 font-extrabold">
+                                <Badge variant="outline" className="w-fit bg-teal-50 text-teal-800 border-teal-200 font-extrabold">
                                     {selectedVacancy.roleName}
                                 </Badge>
                                 <DialogTitle className="text-xl sm:text-2xl font-black text-slate-900 leading-snug">
                                     {selectedVacancy.title}
                                 </DialogTitle>
                                 <DialogDescription className="text-xs text-slate-500 font-medium flex items-center gap-2">
-                                    <Building2 className="w-3.5 h-3.5 text-indigo-600" /> {selectedVacancy.companyName}
+                                    <Building2 className="w-3.5 h-3.5 text-teal-600" /> {selectedVacancy.companyName}
                                     {selectedVacancy.location && (
-                                        <> &bull; <MapPin className="w-3.5 h-3.5 text-indigo-600" /> {selectedVacancy.location}</>
+                                        <> &bull; <MapPin className="w-3.5 h-3.5 text-teal-600" /> {selectedVacancy.location}</>
                                     )}
                                 </DialogDescription>
                             </DialogHeader>
@@ -502,7 +568,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                             {/* Details Content */}
                             <div className="space-y-4 text-xs">
                                 {/* Remuneração */}
-                                <div className="bg-slate-50/90 p-4 rounded-2xl border border-slate-200/80 space-y-2.5">
+                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Remuneração & Benefícios</span>
                                     <div className="grid grid-cols-2 gap-3 text-slate-800 font-bold">
                                         <div className="bg-white p-3 rounded-xl border border-slate-200/60">
@@ -515,7 +581,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                         </div>
                                         <div className="bg-white p-3 rounded-xl border border-slate-200/60">
                                             <span className="text-[10px] text-slate-500 font-medium block">Vale Alimentação</span>
-                                            <span className="text-indigo-700 text-sm font-black">
+                                            <span className="text-teal-700 text-sm font-black">
                                                 {selectedVacancy.valeAlimentacao 
                                                     ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedVacancy.valeAlimentacao)
                                                     : "Conforme CCT"}
@@ -549,7 +615,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                 {selectedVacancy.description && (
                                     <div className="space-y-1.5">
                                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Descrição da Função</span>
-                                        <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 text-slate-700 leading-relaxed whitespace-pre-wrap font-medium">
+                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-slate-700 leading-relaxed whitespace-pre-wrap font-medium">
                                             {selectedVacancy.description}
                                         </div>
                                     </div>
@@ -559,7 +625,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                             {/* Action */}
                             <Button
                                 onClick={() => { setIsDetailsOpen(false); handleOpenApply(selectedVacancy); }}
-                                className="w-full h-12 rounded-2xl text-sm font-black bg-indigo-600 hover:bg-indigo-700 text-white shadow-md active:scale-[0.98] transition-all"
+                                className="w-full h-12 rounded-2xl text-sm font-black bg-teal-700 hover:bg-teal-800 text-white shadow-md active:scale-[0.98] transition-all"
                             >
                                 Candidatar-se a esta Vaga <ArrowRight className="w-4 h-4 ml-2" />
                             </Button>
@@ -589,7 +655,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                             ) : (
                                 <>
                                     <DialogHeader className="space-y-1.5 border-b pb-4">
-                                        <Badge variant="outline" className="w-fit bg-indigo-50 text-indigo-700 border-indigo-200 font-extrabold">
+                                        <Badge variant="outline" className="w-fit bg-teal-50 text-teal-800 border-teal-200 font-extrabold">
                                             Inscrição Rápida
                                         </Badge>
                                         <DialogTitle className="text-lg font-black text-slate-900 leading-snug">
@@ -640,7 +706,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                             <div 
                                                 onClick={() => !isSubmitting && document.getElementById("portal-cv-upload")?.click()}
                                                 className={`border border-dashed rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
-                                                    fileName ? 'bg-indigo-50 border-indigo-300' : 'bg-slate-50/70 border-slate-200 hover:border-slate-300'
+                                                    fileName ? 'bg-teal-50 border-teal-300' : 'bg-slate-50/70 border-slate-200 hover:border-slate-300'
                                                 }`}
                                             >
                                                 <input
@@ -651,8 +717,8 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                                     onChange={handleFileChange}
                                                 />
                                                 {fileName ? (
-                                                    <div className="flex items-center gap-2 text-indigo-700 font-bold">
-                                                        <FileText className="w-5 h-5 text-indigo-600 shrink-0" />
+                                                    <div className="flex items-center gap-2 text-teal-800 font-bold">
+                                                        <FileText className="w-5 h-5 text-teal-600 shrink-0" />
                                                         <span className="truncate max-w-[200px]">{fileName}</span>
                                                     </div>
                                                 ) : (
@@ -668,7 +734,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                         <Button
                                             type="submit"
                                             disabled={isSubmitting}
-                                            className="w-full h-12 rounded-2xl font-black bg-indigo-600 hover:bg-indigo-700 text-white text-sm shadow-md mt-3 active:scale-[0.98] transition-all"
+                                            className="w-full h-12 rounded-2xl font-black bg-teal-700 hover:bg-teal-800 text-white text-sm shadow-md mt-3 active:scale-[0.98] transition-all"
                                         >
                                             {isSubmitting ? (
                                                 <Loader2 className="w-5 h-5 animate-spin mr-2" />
