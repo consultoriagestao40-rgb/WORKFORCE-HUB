@@ -205,12 +205,12 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                         <span className="hidden sm:inline opacity-30 text-teal-400">|</span>
 
                         <a 
-                            href="mailto:comercial@grupojvsserv.com.br" 
+                            href="mailto:dp@grupojvsserv.com.br" 
                             className="flex items-center gap-1.5 hover:text-cyan-200 transition-all opacity-90 text-[11px] sm:text-xs"
-                            title="Enviar E-mail Comercial"
+                            title="Enviar E-mail para o DP"
                         >
                             <Mail className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                            <span className="truncate">comercial@grupojvsserv.com.br</span>
+                            <span className="truncate">dp@grupojvsserv.com.br</span>
                         </a>
                     </div>
 
