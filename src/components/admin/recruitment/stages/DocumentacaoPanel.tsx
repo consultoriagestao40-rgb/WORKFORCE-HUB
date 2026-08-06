@@ -272,31 +272,28 @@ export function DocumentacaoPanel({
             </div>
 
             {/* Complete Document Upload List */}
-            <div className="border border-slate-200 rounded-xl p-4 bg-white space-y-3 w-full min-w-0 overflow-hidden">
-                <div className="flex items-center justify-between border-b pb-2">
-                    <span className="text-sm font-semibold text-slate-800 flex items-center gap-2 truncate">
+            <div className="border border-slate-200/80 rounded-3xl p-5 bg-white space-y-4 w-full min-w-0 overflow-hidden shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <span className="text-sm font-black text-slate-900 flex items-center gap-2 truncate">
                         <Upload className="w-4 h-4 text-indigo-600 shrink-0" />
-                        <span className="truncate">Relação Completa de Documentos para Admissão</span>
+                        <span className="truncate">2. Anexo dos Documentos Pessoais</span>
                     </span>
-                    <span className="text-xs text-slate-400 shrink-0">PDF ou Imagem</span>
+                    <span className="text-xs text-slate-400 font-medium shrink-0">PDF ou Imagem</span>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 w-full min-w-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full min-w-0">
                     {COMPLETE_DOC_TYPES.map((doc) => {
                         const hasFile = !!docs[doc.key];
                         const isUploading = uploadingDoc === doc.key;
                         return (
-                            <div key={doc.key} className="flex items-center gap-2 min-w-0 w-full">
-                                <div className={`flex-1 min-w-0 flex items-center justify-between px-3 py-2 rounded-lg text-xs border ${hasFile ? "bg-green-50 border-green-200 text-green-900 font-medium" : "bg-slate-50 border-slate-200 text-slate-700"}`}>
-                                    <div className="flex items-center gap-2 truncate min-w-0">
-                                        {hasFile ? (
-                                            <CheckCircle2 className="w-3.5 h-3.5 text-green-600 shrink-0" />
-                                        ) : (
-                                            <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-300 shrink-0" />
-                                        )}
-                                        <span className="truncate">{doc.label}</span>
-                                    </div>
-                                    {hasFile && <Badge className="text-[9px] bg-green-100 text-green-700 border-0 shrink-0">OK</Badge>}
+                            <div key={doc.key} className="grid grid-cols-[1fr_auto] gap-2 items-center min-w-0 w-full">
+                                <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl border text-xs font-bold transition-all min-w-0 ${hasFile ? "bg-green-50/50 border-green-300 text-green-900" : "bg-slate-50/50 border-slate-200 text-slate-800"}`}>
+                                    {hasFile ? (
+                                        <CheckCircle2 className="w-4.5 h-4.5 text-green-600 shrink-0" />
+                                    ) : (
+                                        <div className="w-4.5 h-4.5 rounded-full border-2 border-slate-300 shrink-0" />
+                                    )}
+                                    <span className="truncate">{doc.label}</span>
                                 </div>
                                 <label className="shrink-0">
                                     <input
@@ -312,17 +309,18 @@ export function DocumentacaoPanel({
                                     <Button
                                         size="sm"
                                         variant="outline"
-                                        className="text-xs h-8 w-8 p-0 cursor-pointer"
+                                        className={`h-10 px-3.5 text-xs font-bold rounded-2xl border-slate-200 cursor-pointer shadow-none transition-all ${hasFile ? "bg-green-100 text-green-800 border-green-300" : "bg-white hover:bg-slate-50 text-slate-800"}`}
                                         asChild
                                         disabled={isUploading}
                                         title={`Upload ${doc.label}`}
                                     >
                                         <span>
                                             {isUploading ? (
-                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
                                             ) : (
-                                                <Upload className="w-3.5 h-3.5" />
+                                                <Upload className="w-4 h-4 mr-1.5 text-slate-600" />
                                             )}
+                                            {hasFile ? "Substituir" : "Anexar"}
                                         </span>
                                     </Button>
                                 </label>

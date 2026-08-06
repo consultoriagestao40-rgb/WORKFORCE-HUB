@@ -127,7 +127,7 @@ export function PublicApplicationForm({ vacancyId }: PublicApplicationFormProps)
                             setFileMimeType(null);
                         }}
                         variant="outline"
-                        className="text-xs border-slate-800 bg-slate-900/40 text-slate-300 hover:text-white hover:bg-slate-900 rounded-xl px-4 py-2"
+                        className="text-xs border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl px-4 py-2"
                     >
                         Enviar outra candidatura
                     </Button>
@@ -139,7 +139,7 @@ export function PublicApplicationForm({ vacancyId }: PublicApplicationFormProps)
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-1">
-                <Label htmlFor="name" className="text-slate-400 text-[10px] uppercase font-black tracking-wider">Nome Completo *</Label>
+                <Label htmlFor="name" className="text-slate-500 text-[10px] uppercase font-black tracking-wider">Nome Completo *</Label>
                 <Input
                     id="name"
                     value={formData.name}
@@ -147,12 +147,12 @@ export function PublicApplicationForm({ vacancyId }: PublicApplicationFormProps)
                     placeholder="Ex: João da Silva"
                     required
                     disabled={isLoading}
-                    className="bg-slate-950/40 border-slate-800 text-slate-100 placeholder:text-slate-700 focus:border-indigo-500/60 rounded-xl h-10 text-xs focus:ring-1 focus:ring-indigo-500/30 focus:outline-none transition-all shadow-inner"
+                    className="bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 rounded-2xl h-11 text-xs px-4 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-all"
                 />
             </div>
 
             <div className="grid gap-1">
-                <Label htmlFor="phone" className="text-slate-400 text-[10px] uppercase font-black tracking-wider">Telefone / WhatsApp *</Label>
+                <Label htmlFor="phone" className="text-slate-500 text-[10px] uppercase font-black tracking-wider">Telefone / WhatsApp *</Label>
                 <Input
                     id="phone"
                     value={formData.phone}
@@ -160,12 +160,12 @@ export function PublicApplicationForm({ vacancyId }: PublicApplicationFormProps)
                     placeholder="Ex: (11) 99999-9999"
                     required
                     disabled={isLoading}
-                    className="bg-slate-950/40 border-slate-800 text-slate-100 placeholder:text-slate-700 focus:border-indigo-500/60 rounded-xl h-10 text-xs focus:ring-1 focus:ring-indigo-500/30 focus:outline-none transition-all shadow-inner"
+                    className="bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 rounded-2xl h-11 text-xs px-4 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-all"
                 />
             </div>
 
             <div className="grid gap-1">
-                <Label htmlFor="email" className="text-slate-400 text-[10px] uppercase font-black tracking-wider">E-mail (Opcional)</Label>
+                <Label htmlFor="email" className="text-slate-500 text-[10px] uppercase font-black tracking-wider">E-mail (Opcional)</Label>
                 <Input
                     id="email"
                     type="email"
@@ -173,17 +173,17 @@ export function PublicApplicationForm({ vacancyId }: PublicApplicationFormProps)
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="Ex: joao@email.com"
                     disabled={isLoading}
-                    className="bg-slate-950/40 border-slate-800 text-slate-100 placeholder:text-slate-700 focus:border-indigo-500/60 rounded-xl h-10 text-xs focus:ring-1 focus:ring-indigo-500/30 focus:outline-none transition-all shadow-inner"
+                    className="bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 rounded-2xl h-11 text-xs px-4 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-all"
                 />
             </div>
 
             {/* Upload Area */}
             <div className="grid gap-1 pt-1">
-                <Label className="text-slate-400 text-[10px] uppercase font-black tracking-wider font-semibold">Anexar Currículo (PDF ou Imagem) *</Label>
+                <Label className="text-slate-500 text-[10px] uppercase font-black tracking-wider">Anexar Currículo (PDF ou Imagem) *</Label>
                 <div 
                     onClick={() => !isLoading && document.getElementById("public-cv-upload")?.click()}
-                    className={`border border-dashed rounded-xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 min-h-[110px]
-                        ${fileName ? 'bg-indigo-950/15 border-indigo-500/40' : 'bg-slate-950/20 border-slate-800 hover:border-slate-700'}
+                    className={`border border-dashed rounded-2xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 min-h-[110px]
+                        ${fileName ? 'bg-indigo-50/60 border-indigo-300' : 'bg-slate-50/50 border-slate-200 hover:border-slate-300'}
                         ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}
                     `}
                 >
@@ -198,17 +198,17 @@ export function PublicApplicationForm({ vacancyId }: PublicApplicationFormProps)
                     
                     {fileName ? (
                         <div className="space-y-1.5 flex flex-col items-center">
-                            <div className="p-2 bg-indigo-500/10 rounded-full border border-indigo-500/20">
-                                <FileText className="w-5 h-5 text-indigo-400" />
+                            <div className="p-2 bg-indigo-100/80 rounded-full border border-indigo-200">
+                                <FileText className="w-5 h-5 text-indigo-600" />
                             </div>
-                            <span className="text-xs font-semibold text-slate-200 block truncate max-w-[200px]">{fileName}</span>
-                            <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Alterar currículo</span>
+                            <span className="text-xs font-bold text-slate-800 block truncate max-w-[200px]">{fileName}</span>
+                            <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider">Alterar currículo</span>
                         </div>
                     ) : (
                         <div className="space-y-1.5 flex flex-col items-center">
-                            <Upload className="w-6 h-6 text-slate-500" />
-                            <span className="text-xs font-semibold text-slate-300 block">Clique para selecionar seu currículo</span>
-                            <span className="text-[10px] text-slate-600 block">PDF ou Imagem (Máx: 8MB)</span>
+                            <Upload className="w-6 h-6 text-slate-400" />
+                            <span className="text-xs font-bold text-slate-700 block">Clique para selecionar seu currículo</span>
+                            <span className="text-[10px] text-slate-400 block">PDF ou Imagem (Máx: 8MB)</span>
                         </div>
                     )}
                 </div>
@@ -218,15 +218,18 @@ export function PublicApplicationForm({ vacancyId }: PublicApplicationFormProps)
                 <Button 
                     type="submit" 
                     disabled={isLoading}
-                    className="w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:opacity-95 text-white font-extrabold h-11 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg shadow-indigo-500/10 border-0"
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm h-12 rounded-2xl shadow-md transition-all flex items-center justify-center gap-2"
                 >
                     {isLoading ? (
                         <>
                             <Loader2 className="w-4 h-4 animate-spin" />
-                            Processando Candidatura...
+                            Enviando Candidatura...
                         </>
                     ) : (
-                        "Enviar Candidatura"
+                        <>
+                            <Upload className="w-4 h-4" />
+                            Enviar Candidatura
+                        </>
                     )}
                 </Button>
             </div>
