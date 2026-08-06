@@ -216,43 +216,25 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
 
                     {/* Right: Social Media */}
                     <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-teal-200/60 font-black uppercase tracking-widest hidden md:inline">Siga o Grupo JVS:</span>
-                        <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-teal-200/60 font-black uppercase tracking-widest hidden md:inline">Siga a JVS:</span>
+                        <div className="flex items-center gap-2">
                             <a 
-                                href="https://www.linkedin.com/company/grupo-jvs-servicos/" 
+                                href="https://www.linkedin.com/company/jvs-facilities/" 
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 className="w-7.5 h-7.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
-                                title="LinkedIn"
+                                title="LinkedIn Oficial JVS Facilities"
                             >
                                 <Linkedin className="w-3.5 h-3.5" />
                             </a>
                             <a 
-                                href="https://www.facebook.com/grupojvsservicos" 
+                                href="https://www.instagram.com/jvsfacilities/" 
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 className="w-7.5 h-7.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
-                                title="Facebook"
-                            >
-                                <Facebook className="w-3.5 h-3.5" />
-                            </a>
-                            <a 
-                                href="https://www.instagram.com/grupojvsservicos" 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="w-7.5 h-7.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
-                                title="Instagram"
+                                title="Instagram Oficial JVS Facilities"
                             >
                                 <Instagram className="w-3.5 h-3.5" />
-                            </a>
-                            <a 
-                                href="https://www.youtube.com/@grupojvsservicos" 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="w-7.5 h-7.5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110"
-                                title="YouTube"
-                            >
-                                <Youtube className="w-3.5 h-3.5" />
                             </a>
                         </div>
                     </div>
