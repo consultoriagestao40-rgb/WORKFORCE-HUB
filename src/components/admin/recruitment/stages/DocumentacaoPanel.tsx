@@ -173,7 +173,7 @@ export function DocumentacaoPanel({
                     O candidato acessa este link publicamente pelo celular ou computador para enviar os documentos e dados de uniforme.
                 </p>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 w-full min-w-0 overflow-hidden">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full min-w-0 overflow-hidden">
                     <div className="w-full sm:w-44 shrink-0">
                         <Label className="text-[10px] text-slate-500 uppercase font-bold block mb-1">Prazo de Validade</Label>
                         <Select value={expirationHours} onValueChange={setExpirationHours} disabled={generatingLink}>
@@ -189,12 +189,14 @@ export function DocumentacaoPanel({
                         </Select>
                     </div>
 
-                    <div className="flex-1 min-w-0 w-full">
+                    <div className="flex-1 min-w-0 w-full overflow-hidden">
                         {publicLink ? (
                             <div className="flex items-center gap-2 w-full min-w-0 overflow-hidden">
-                                <div className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 truncate font-mono select-all overflow-hidden">
-                                    {publicLink}
-                                </div>
+                                <input
+                                    readOnly
+                                    value={publicLink}
+                                    className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 font-mono truncate select-all overflow-hidden"
+                                />
                                 <Button size="sm" variant="outline" onClick={handleCopyLink} className="shrink-0 h-8 text-xs">
                                     <Copy className="w-3.5 h-3.5 mr-1" />
                                     Copiar
@@ -281,13 +283,13 @@ export function DocumentacaoPanel({
                     <span className="text-xs text-slate-400 font-medium shrink-0">PDF ou Imagem</span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full min-w-0">
+                <div className="grid grid-cols-1 gap-2.5 w-full min-w-0">
                     {COMPLETE_DOC_TYPES.map((doc) => {
                         const hasFile = !!docs[doc.key];
                         const isUploading = uploadingDoc === doc.key;
                         return (
-                            <div key={doc.key} className="grid grid-cols-[1fr_auto] gap-2 items-center min-w-0 w-full">
-                                <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl border text-xs font-bold transition-all min-w-0 ${hasFile ? "bg-green-50/50 border-green-300 text-green-900" : "bg-slate-50/50 border-slate-200 text-slate-800"}`}>
+                            <div key={doc.key} className="grid grid-cols-[1fr_auto] gap-2.5 items-center min-w-0 w-full">
+                                <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl border text-xs font-bold transition-all min-w-0 overflow-hidden ${hasFile ? "bg-green-50/50 border-green-300 text-green-900" : "bg-slate-50/50 border-slate-200 text-slate-800"}`}>
                                     {hasFile ? (
                                         <CheckCircle2 className="w-4.5 h-4.5 text-green-600 shrink-0" />
                                     ) : (
