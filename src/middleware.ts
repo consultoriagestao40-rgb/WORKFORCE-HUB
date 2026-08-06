@@ -11,6 +11,7 @@ export function middleware(request: NextRequest) {
         pathname.startsWith("/static") ||
         pathname.includes(".") ||
         pathname === "/login" ||
+        pathname.startsWith("/vagas") ||
         pathname.startsWith("/candidatar") ||
         pathname.startsWith("/candidatodoc") ||
         pathname.startsWith("/disciplinary-upload") ||
