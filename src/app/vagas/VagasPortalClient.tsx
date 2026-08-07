@@ -474,9 +474,9 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                         <Button
                                             variant="outline"
                                             onClick={() => { setSelectedVacancy(v); setIsDetailsOpen(true); }}
-                                            className="flex-1 h-11 px-2 text-[11px] sm:text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-all truncate"
+                                            className="flex-1 h-11 px-1.5 sm:px-3 text-[11px] sm:text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-all shrink-0"
                                         >
-                                            Ver Requisitos
+                                            Requisitos
                                         </Button>
 
                                         <button
@@ -489,7 +489,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
 
                                         <Button
                                             onClick={() => handleOpenApply(v)}
-                                            className="flex-1 h-11 px-2 text-[11px] sm:text-xs font-black bg-gradient-to-r from-[#076477] via-[#065868] to-[#043d49] hover:from-[#087389] hover:to-[#054957] text-white shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-1 truncate"
+                                            className="flex-[1.3] h-11 px-1.5 sm:px-3 text-[11px] sm:text-xs font-black bg-gradient-to-r from-[#076477] via-[#065868] to-[#043d49] hover:from-[#087389] hover:to-[#054957] text-white shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-1 shrink-0 whitespace-nowrap"
                                         >
                                             Se Candidatar <ArrowRight className="w-3.5 h-3.5 shrink-0" />
                                         </Button>
