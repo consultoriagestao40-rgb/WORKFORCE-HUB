@@ -502,7 +502,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                             <img 
                                 src="https://grupojvsserv.com.br/wp-content/uploads/2023/11/logo-horizontal-300px.png" 
                                 alt="JVS Logo" 
-                                className="h-8 w-auto grayscale opacity-70"
+                                className="h-9 sm:h-10 w-auto object-contain"
                             />
                             <div className="text-xs text-slate-500 font-medium border-l border-slate-200 pl-4 text-left">
                                 <p className="font-bold text-slate-800">Grupo JVS Serviços</p>
