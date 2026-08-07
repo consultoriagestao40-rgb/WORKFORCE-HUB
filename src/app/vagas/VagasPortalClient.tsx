@@ -418,19 +418,10 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                                 </div>
                                             </div>
 
-                                            {/* Priority Pill & Airplane Share Button */}
-                                            <div className="flex items-center gap-1.5 shrink-0">
-                                                <Badge variant="outline" className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border ${isUrgent ? "bg-red-50 text-red-700 border-red-200 shadow-2xs" : "bg-emerald-50 text-emerald-800 border-emerald-200"}`}>
-                                                    {isUrgent ? "🔥 Imediato" : "Vaga Aberta"}
-                                                </Badge>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); handleShareVacancy(v); }}
-                                                    className="h-8 w-8 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-2xs"
-                                                    title="Enviar vaga no WhatsApp (Aviãozinho)"
-                                                >
-                                                    <Send className="w-3.5 h-3.5 text-emerald-600 -rotate-12 translate-x-0.5" />
-                                                </button>
-                                            </div>
+                                            {/* Priority Pill */}
+                                            <Badge variant="outline" className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border shrink-0 ${isUrgent ? "bg-red-50 text-red-700 border-red-200 shadow-2xs" : "bg-emerald-50 text-emerald-800 border-emerald-200"}`}>
+                                                {isUrgent ? "🔥 Imediato" : "Vaga Aberta"}
+                                            </Badge>
                                         </div>
 
                                         {/* Title */}
@@ -472,20 +463,29 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
 
                                     </div>
 
-                                    {/* Card Footer Actions */}
-                                    <div className="grid grid-cols-2 gap-2.5 pt-2">
+                                    {/* Card Footer Actions - Single line 3-item flexbox */}
+                                    <div className="flex items-center gap-1.5 sm:gap-2 pt-2 border-t border-slate-100 w-full">
                                         <Button
                                             variant="outline"
                                             onClick={() => { setSelectedVacancy(v); setIsDetailsOpen(true); }}
-                                            className="h-11 rounded-2xl text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-all"
+                                            className="flex-1 h-11 px-2 text-[11px] sm:text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-all truncate"
                                         >
                                             Ver Requisitos
                                         </Button>
+
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleShareVacancy(v); }}
+                                            className="h-11 w-11 shrink-0 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-2xs"
+                                            title="Enviar vaga no WhatsApp (Aviãozinho)"
+                                        >
+                                            <Send className="w-4 h-4 text-emerald-600 -rotate-12 translate-x-0.5" />
+                                        </button>
+
                                         <Button
                                             onClick={() => handleOpenApply(v)}
-                                            className="h-11 rounded-2xl text-xs font-black bg-gradient-to-r from-[#076477] via-[#065868] to-[#043d49] hover:from-[#087389] hover:to-[#054957] text-white shadow-lg shadow-teal-900/20 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5"
+                                            className="flex-1 h-11 px-2 text-[11px] sm:text-xs font-black bg-gradient-to-r from-[#076477] via-[#065868] to-[#043d49] hover:from-[#087389] hover:to-[#054957] text-white shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-1 truncate"
                                         >
-                                            Se Candidatar <ArrowRight className="w-4 h-4" />
+                                            Se Candidatar <ArrowRight className="w-3.5 h-3.5 shrink-0" />
                                         </Button>
                                     </div>
                                 </div>
