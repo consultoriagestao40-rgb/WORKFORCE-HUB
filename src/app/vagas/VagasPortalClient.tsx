@@ -562,15 +562,15 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
 
             {/* Modal 1: Vacancy Details Modal */}
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-                <DialogContent className="w-[92vw] max-w-lg rounded-3xl p-4 sm:p-7 space-y-4 max-h-[85vh] overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y shadow-2xl min-w-0">
+                <DialogContent className="w-[90vw] sm:w-full max-w-lg rounded-3xl p-4 sm:p-6 max-h-[85vh] overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y shadow-2xl">
                     {selectedVacancy && (
-                        <>
-                            <DialogHeader className="space-y-2 border-b pb-4 text-left min-w-0">
+                        <div className="space-y-4 w-full max-w-full box-border overflow-hidden">
+                            <DialogHeader className="space-y-2 border-b pb-4 text-left w-full">
                                 <DialogTitle className="text-lg sm:text-2xl font-black text-slate-900 leading-snug break-words pr-6">
                                     {selectedVacancy.title}
                                 </DialogTitle>
                                 <DialogDescription asChild>
-                                    <div className="space-y-1.5 text-xs text-slate-600 font-medium pt-1 min-w-0">
+                                    <div className="space-y-1.5 text-xs text-slate-600 font-medium pt-1 w-full">
                                         <div className="flex items-center gap-1.5 font-bold text-slate-800">
                                             <Building2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
                                             <span className="truncate">{selectedVacancy.companyName || "Grupo JVS Serviços"}</span>
@@ -586,12 +586,12 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                             </DialogHeader>
 
                             {/* Details Content */}
-                            <div className="space-y-4 text-xs min-w-0">
+                            <div className="space-y-4 text-xs w-full box-border">
                                 {/* Remuneração */}
-                                <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 space-y-2.5 min-w-0">
+                                <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 space-y-2.5 w-full box-border">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Remuneração & Benefícios</span>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-slate-800 font-bold min-w-0">
-                                        <div className="bg-white p-3 rounded-xl border border-slate-200/60 min-w-0">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-slate-800 font-bold w-full">
+                                        <div className="bg-white p-3 rounded-xl border border-slate-200/60 w-full box-border">
                                             <span className="text-[10px] text-slate-500 font-medium block">Salário Base</span>
                                             <span className="text-emerald-700 text-sm font-black break-words block">
                                                 {selectedVacancy.baseSalary 
@@ -599,7 +599,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                                     : "A Combinar"}
                                             </span>
                                         </div>
-                                        <div className="bg-white p-3 rounded-xl border border-slate-200/60 min-w-0">
+                                        <div className="bg-white p-3 rounded-xl border border-slate-200/60 w-full box-border">
                                             <span className="text-[10px] text-slate-500 font-medium block">Vale Alimentação</span>
                                             <span className="text-teal-700 text-sm font-black break-words block">
                                                 {selectedVacancy.valeAlimentacao 
@@ -617,14 +617,14 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                 </div>
 
                                 {/* Requisitos */}
-                                <div className="space-y-2 min-w-0">
+                                <div className="space-y-2 w-full box-border">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Requisitos da Vaga</span>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 min-w-0">
-                                        <div className="bg-white border border-slate-200/80 rounded-xl p-3 min-w-0">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full">
+                                        <div className="bg-white border border-slate-200/80 rounded-xl p-3 w-full box-border">
                                             <span className="text-[10px] text-slate-400 font-bold block">Gênero</span>
                                             <span className="font-bold text-slate-800 text-xs break-words block mt-0.5">{selectedVacancy.reqGender || "Indiferente"}</span>
                                         </div>
-                                        <div className="bg-white border border-slate-200/80 rounded-xl p-3 min-w-0">
+                                        <div className="bg-white border border-slate-200/80 rounded-xl p-3 w-full box-border">
                                             <span className="text-[10px] text-slate-400 font-bold block">Experiência</span>
                                             <span className="font-bold text-slate-800 text-xs break-words block mt-0.5">{selectedVacancy.reqExperience || "Não exigida"}</span>
                                         </div>
@@ -633,9 +633,9 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
 
                                 {/* Descrição */}
                                 {selectedVacancy.description && (
-                                    <div className="space-y-1.5 min-w-0">
+                                    <div className="space-y-1.5 w-full box-border">
                                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Descrição da Função</span>
-                                        <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 text-slate-700 leading-relaxed whitespace-pre-wrap font-medium break-words min-w-0">
+                                        <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 text-slate-700 leading-relaxed whitespace-pre-wrap font-medium break-words w-full box-border">
                                             {selectedVacancy.description}
                                         </div>
                                     </div>
@@ -643,7 +643,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                             </div>
 
                             {/* Action */}
-                            <div className="flex items-center gap-2 pt-1">
+                            <div className="flex items-center gap-2 pt-1 w-full">
                                 <Button
                                     onClick={() => { setIsDetailsOpen(false); handleOpenApply(selectedVacancy); }}
                                     className="flex-1 h-12 rounded-2xl text-xs sm:text-sm font-black bg-teal-700 hover:bg-teal-800 text-white shadow-md active:scale-[0.98] transition-all"
@@ -659,14 +659,14 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                     <span className="hidden sm:inline">Compartilhar</span>
                                 </button>
                             </div>
-                        </>
+                        </div>
                     )}
                 </DialogContent>
             </Dialog>
 
             {/* Modal 2: Direct Candidate Application Modal */}
             <Dialog open={isApplyOpen} onOpenChange={setIsApplyOpen}>
-                <DialogContent className="w-[94%] max-w-md rounded-3xl p-5 sm:p-7 space-y-4 max-h-[85vh] overflow-y-auto overscroll-contain touch-pan-y shadow-2xl">
+                <DialogContent className="w-[90vw] sm:w-full max-w-md rounded-3xl p-4 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y shadow-2xl">
                     {applyingVacancy && (
                         <>
                             {submitSuccess ? (
