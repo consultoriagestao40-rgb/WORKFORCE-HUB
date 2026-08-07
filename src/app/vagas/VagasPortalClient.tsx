@@ -405,21 +405,15 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                     )}
 
                                     <div className="space-y-4">
-                                                        {/* Card Top: Avatar & Company Info */}
+                                                        {/* Card Top: Company Info */}
                                         <div className="flex items-center justify-between gap-3">
-                                            <div className="flex items-center gap-3">
-                                                {/* Company Avatar */}
-                                                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#076477] to-[#043d49] text-white flex items-center justify-center font-black text-base shadow-sm shrink-0 border border-teal-500/30">
-                                                    {initialLetter}
-                                                </div>
-                                                <div>
-                                                    <span className="text-xs sm:text-sm font-extrabold text-slate-800 block leading-tight">
-                                                        {v.companyName || "Grupo JVS Serviços"}
-                                                    </span>
-                                                    <span className="text-[11px] font-medium text-slate-400 block mt-0.5">
-                                                        Oportunidade Oficial JVS
-                                                    </span>
-                                                </div>
+                                            <div>
+                                                <span className="text-xs sm:text-sm font-extrabold text-slate-800 block leading-tight">
+                                                    {v.companyName || "Grupo JVS Serviços"}
+                                                </span>
+                                                <span className="text-[11px] font-medium text-slate-400 block mt-0.5">
+                                                    Oportunidade Oficial JVS
+                                                </span>
                                             </div>
 
                                             {/* Priority Pill - Only if Urgent */}
