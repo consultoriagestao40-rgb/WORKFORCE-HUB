@@ -727,24 +727,26 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                 </DialogContent>
             </Dialog>
 
-            {/* Floating WhatsApp Action Button */}
+            {/* Floating WhatsApp Action Button - Pure Circle FAB */}
             <a
                 href="https://wa.me/554135030020?text=Ol%C3%A1!%20Gostaria%20de%20informa%C3%A7%C3%B5es%20sobre%20as%20vagas%20do%20Grupo%20JVS."
                 target="_blank"
                 rel="noopener noreferrer"
-                className="fixed bottom-5 right-5 z-50 group flex items-center gap-2.5 bg-[#25D366] hover:bg-[#20ba5a] text-white p-3.5 sm:px-5 sm:py-3.5 rounded-full shadow-2xl shadow-emerald-600/40 hover:scale-105 active:scale-95 transition-all border-2 border-white/90"
+                className="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full bg-[#25D366] hover:bg-[#20ba5a] text-white flex items-center justify-center shadow-2xl shadow-emerald-600/50 hover:scale-110 active:scale-95 transition-all border-2 border-white"
                 title="Falar no WhatsApp com o Grupo JVS"
             >
                 <div className="relative flex items-center justify-center">
-                    <WhatsAppIcon className="w-6 h-6 text-white shrink-0" />
-                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img 
+                        src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" 
+                        alt="WhatsApp" 
+                        className="w-8 h-8 shrink-0 drop-shadow-sm" 
+                    />
+                    <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-80"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-300"></span>
+                        <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-300"></span>
                     </span>
                 </div>
-                <span className="hidden sm:inline font-extrabold text-xs tracking-wide">
-                    Dúvidas? Fale no WhatsApp
-                </span>
             </a>
         </div>
     );
