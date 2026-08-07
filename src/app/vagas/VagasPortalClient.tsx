@@ -120,11 +120,14 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
         toast.success("WhatsApp aberto! O link individual desta vaga foi preparado para seu amigo.");
     };
 
+    const vacanciesList = Array.isArray(initialVacancies) ? initialVacancies : [];
+
     // Extract unique categories (roles) for quick filtering
-    const categories = Array.from(new Set(initialVacancies.map(v => v.roleName))).filter(Boolean);
+    const categories = Array.from(new Set(vacanciesList.map(v => v?.roleName))).filter((b): b is string => Boolean(b));
 
     // Filter vacancies based on search term & category/priority
-    const filteredVacancies = initialVacancies.filter(v => {
+    const filteredVacancies = vacanciesList.filter(v => {
+        if (!v) return false;
         if (selectedCategory === "URGENT" && v.priority !== "URGENTE") {
             return false;
         }
@@ -137,9 +140,9 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
 
         const term = searchTerm.toLowerCase();
         return (
-            v.title.toLowerCase().includes(term) ||
-            v.roleName.toLowerCase().includes(term) ||
-            v.companyName.toLowerCase().includes(term) ||
+            (v.title || "").toLowerCase().includes(term) ||
+            (v.roleName || "").toLowerCase().includes(term) ||
+            (v.companyName || "").toLowerCase().includes(term) ||
             (v.clientName && v.clientName.toLowerCase().includes(term)) ||
             (v.location && v.location.toLowerCase().includes(term))
         );
@@ -385,9 +388,11 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {filteredVacancies.map((v) => {
+                        {(filteredVacancies || []).map((v) => {
+                            if (!v) return null;
                             const isUrgent = v.priority === "URGENTE";
-                            const initialLetter = (v.roleName || v.title).charAt(0).toUpperCase();
+                            const roleOrTitle = v.roleName || v.title || "JVS";
+                            const initialLetter = roleOrTitle.charAt(0).toUpperCase();
 
                             return (
                                 <div 
