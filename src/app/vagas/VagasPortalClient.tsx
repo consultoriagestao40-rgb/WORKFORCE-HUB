@@ -242,7 +242,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
     };
 
     return (
-        <div className="min-h-screen bg-[#f8fafc] font-sans antialiased text-slate-900 selection:bg-teal-500 selection:text-white">
+        <div className="min-h-screen bg-[#f8fafc] font-sans antialiased text-slate-900 selection:bg-teal-500 selection:text-white overflow-x-hidden w-full max-w-full">
             
             {/* Top Teal Luxury Header */}
             <header className="bg-[#042d36] text-white py-2.5 px-4 sm:px-8 border-b border-teal-800/40 sticky top-0 z-40 backdrop-blur-xl bg-opacity-95 shadow-md">
@@ -562,23 +562,23 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
 
             {/* Modal 1: Vacancy Details Modal */}
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-                <DialogContent className="w-[94%] max-w-lg rounded-3xl p-5 sm:p-7 space-y-4 max-h-[85vh] overflow-y-auto overscroll-contain touch-pan-y shadow-2xl">
+                <DialogContent className="w-[92vw] max-w-lg rounded-3xl p-4 sm:p-7 space-y-4 max-h-[85vh] overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y shadow-2xl min-w-0">
                     {selectedVacancy && (
                         <>
-                            <DialogHeader className="space-y-2 border-b pb-4 text-left">
+                            <DialogHeader className="space-y-2 border-b pb-4 text-left min-w-0">
                                 <DialogTitle className="text-lg sm:text-2xl font-black text-slate-900 leading-snug break-words pr-6">
                                     {selectedVacancy.title}
                                 </DialogTitle>
                                 <DialogDescription asChild>
-                                    <div className="space-y-1.5 text-xs text-slate-600 font-medium pt-1">
+                                    <div className="space-y-1.5 text-xs text-slate-600 font-medium pt-1 min-w-0">
                                         <div className="flex items-center gap-1.5 font-bold text-slate-800">
                                             <Building2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                                            <span>{selectedVacancy.companyName || "Grupo JVS Serviços"}</span>
+                                            <span className="truncate">{selectedVacancy.companyName || "Grupo JVS Serviços"}</span>
                                         </div>
                                         {selectedVacancy.location && (
                                             <div className="flex items-start gap-1.5 text-slate-600 leading-relaxed break-words">
                                                 <MapPin className="w-3.5 h-3.5 text-teal-600 shrink-0 mt-0.5" />
-                                                <span className="font-semibold text-slate-700">{selectedVacancy.location}</span>
+                                                <span className="font-semibold text-slate-700 break-words">{selectedVacancy.location}</span>
                                             </div>
                                         )}
                                     </div>
@@ -586,22 +586,22 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                             </DialogHeader>
 
                             {/* Details Content */}
-                            <div className="space-y-4 text-xs">
+                            <div className="space-y-4 text-xs min-w-0">
                                 {/* Remuneração */}
-                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
+                                <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 space-y-2.5 min-w-0">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Remuneração & Benefícios</span>
-                                    <div className="grid grid-cols-2 gap-3 text-slate-800 font-bold">
-                                        <div className="bg-white p-3 rounded-xl border border-slate-200/60">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-slate-800 font-bold min-w-0">
+                                        <div className="bg-white p-3 rounded-xl border border-slate-200/60 min-w-0">
                                             <span className="text-[10px] text-slate-500 font-medium block">Salário Base</span>
-                                            <span className="text-emerald-700 text-sm font-black">
+                                            <span className="text-emerald-700 text-sm font-black break-words block">
                                                 {selectedVacancy.baseSalary 
                                                     ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedVacancy.baseSalary)
                                                     : "A Combinar"}
                                             </span>
                                         </div>
-                                        <div className="bg-white p-3 rounded-xl border border-slate-200/60">
+                                        <div className="bg-white p-3 rounded-xl border border-slate-200/60 min-w-0">
                                             <span className="text-[10px] text-slate-500 font-medium block">Vale Alimentação</span>
-                                            <span className="text-teal-700 text-sm font-black">
+                                            <span className="text-teal-700 text-sm font-black break-words block">
                                                 {selectedVacancy.valeAlimentacao 
                                                     ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedVacancy.valeAlimentacao)
                                                     : "Conforme CCT"}
@@ -609,7 +609,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                         </div>
                                     </div>
                                     {selectedVacancy.schedule && (
-                                        <div className="pt-2 border-t border-slate-200/60 text-slate-600 font-medium">
+                                        <div className="pt-2 border-t border-slate-200/60 text-slate-600 font-medium break-words">
                                             <span className="font-bold text-slate-800">Escala: </span>
                                             {selectedVacancy.schedule}
                                         </div>
@@ -617,25 +617,25 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                 </div>
 
                                 {/* Requisitos */}
-                                <div className="space-y-2">
+                                <div className="space-y-2 min-w-0">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Requisitos da Vaga</span>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div className="bg-white border rounded-xl p-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 min-w-0">
+                                        <div className="bg-white border border-slate-200/80 rounded-xl p-3 min-w-0">
                                             <span className="text-[10px] text-slate-400 font-bold block">Gênero</span>
-                                            <span className="font-bold text-slate-800">{selectedVacancy.reqGender || "Indiferente"}</span>
+                                            <span className="font-bold text-slate-800 text-xs break-words block mt-0.5">{selectedVacancy.reqGender || "Indiferente"}</span>
                                         </div>
-                                        <div className="bg-white border rounded-xl p-3">
+                                        <div className="bg-white border border-slate-200/80 rounded-xl p-3 min-w-0">
                                             <span className="text-[10px] text-slate-400 font-bold block">Experiência</span>
-                                            <span className="font-bold text-slate-800">{selectedVacancy.reqExperience || "Não exigida"}</span>
+                                            <span className="font-bold text-slate-800 text-xs break-words block mt-0.5">{selectedVacancy.reqExperience || "Não exigida"}</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Descrição */}
                                 {selectedVacancy.description && (
-                                    <div className="space-y-1.5">
+                                    <div className="space-y-1.5 min-w-0">
                                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Descrição da Função</span>
-                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-slate-700 leading-relaxed whitespace-pre-wrap font-medium">
+                                        <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 text-slate-700 leading-relaxed whitespace-pre-wrap font-medium break-words min-w-0">
                                             {selectedVacancy.description}
                                         </div>
                                     </div>
