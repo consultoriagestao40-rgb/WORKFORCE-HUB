@@ -43,6 +43,7 @@ interface VacancyItem {
     reqAgeMax?: number | null;
     customRequirements?: any;
     createdAt: string;
+    candidateCount?: number;
 }
 
 interface VagasPortalClientProps {
@@ -230,6 +231,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
 
             if (res.success) {
                 setSubmitSuccess(true);
+                applyingVacancy.candidateCount = (applyingVacancy.candidateCount || 0) + 1;
                 toast.success("Candidatura enviada com sucesso!");
             } else {
                 toast.error("Erro ao enviar candidatura. Tente novamente.");
@@ -405,8 +407,8 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                     )}
 
                                     <div className="space-y-4">
-                                                        {/* Card Top: Company Info */}
-                                        <div className="flex items-center justify-between gap-3">
+                                                        {/* Card Top: Company Info & Candidate Count */}
+                                        <div className="flex flex-wrap items-center justify-between gap-2.5">
                                             <div>
                                                 <span className="text-xs sm:text-sm font-extrabold text-slate-800 block leading-tight">
                                                     {v.companyName || "Grupo JVS Serviços"}
@@ -416,12 +418,26 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                                 </span>
                                             </div>
 
-                                            {/* Priority Pill - Only if Urgent */}
-                                            {isUrgent && (
-                                                <Badge variant="outline" className="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border bg-red-50 text-red-700 border-red-200 shadow-2xs shrink-0">
-                                                    🔥 Imediato
-                                                </Badge>
-                                            )}
+                                            {/* Badges Container */}
+                                            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                                                {isUrgent && (
+                                                    <Badge variant="outline" className="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border bg-red-50 text-red-700 border-red-200 shadow-2xs shrink-0">
+                                                        🔥 Imediato
+                                                    </Badge>
+                                                )}
+
+                                                {v.candidateCount && v.candidateCount > 0 ? (
+                                                    <span className="bg-teal-50 text-teal-800 border border-teal-200/80 px-2.5 py-1 rounded-xl text-[10px] font-black tracking-wider flex items-center gap-1.5 shrink-0 shadow-2xs">
+                                                        <UserCheck className="w-3.5 h-3.5 text-teal-600" />
+                                                        <span>{v.candidateCount} {v.candidateCount === 1 ? 'candidatura' : 'candidaturas'}</span>
+                                                    </span>
+                                                ) : (
+                                                    <span className="bg-amber-50/90 text-amber-900 border border-amber-200/90 px-2.5 py-1 rounded-xl text-[10px] font-black tracking-wider flex items-center gap-1.5 shrink-0 shadow-2xs">
+                                                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                                                        <span>Seja o primeiro a se candidatar</span>
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
 
                                         {/* Title */}

@@ -2153,6 +2153,7 @@ export async function getPublicPortalVacancies() {
             reqAgeMax: v.reqAgeMax,
             customRequirements: v.customRequirements,
             createdAt: v.createdAt.toISOString(),
+            candidateCount: v.candidates ? v.candidates.length : 0,
         }));
     } catch (error) {
         console.error("Error in getPublicPortalVacancies:", error);
