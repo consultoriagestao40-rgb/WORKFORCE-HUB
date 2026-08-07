@@ -242,10 +242,10 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
     };
 
     return (
-        <div className="min-h-screen bg-[#f8fafc] font-sans antialiased text-slate-900 selection:bg-teal-500 selection:text-white overflow-x-hidden w-full max-w-full">
+        <div className="min-h-screen bg-[#f8fafc] font-sans antialiased text-slate-900 selection:bg-teal-500 selection:text-white w-full">
             
-            {/* Top Teal Luxury Header */}
-            <header className="bg-[#042d36] text-white py-2.5 px-4 sm:px-8 border-b border-teal-800/40 sticky top-0 z-40 backdrop-blur-xl bg-opacity-95 shadow-md">
+            {/* Top Teal Luxury Header - Frozen/Sticky at Top */}
+            <header className="bg-[#042d36] text-white py-2.5 px-4 sm:px-8 border-b border-teal-800/40 sticky top-0 z-50 shadow-md">
                 <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-xs">
                     
                     {/* Far Left: JVS Logo with Transparent Background */}
