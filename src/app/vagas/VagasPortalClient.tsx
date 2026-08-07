@@ -400,28 +400,29 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                     )}
 
                                     <div className="space-y-4">
-                                        
-                                        {/* Card Top: Avatar & Badges */}
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="flex items-center gap-3.5">
+                                                        {/* Card Top: Avatar & Company Info */}
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3">
                                                 {/* Company Avatar */}
-                                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#076477] to-[#043d49] text-white flex items-center justify-center font-black text-lg shadow-md shrink-0 border border-teal-500/30">
+                                                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#076477] to-[#043d49] text-white flex items-center justify-center font-black text-base shadow-sm shrink-0 border border-teal-500/30">
                                                     {initialLetter}
                                                 </div>
                                                 <div>
-                                                    <span className="text-[10px] font-black text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-lg border border-teal-200/60 uppercase tracking-wider block w-fit">
-                                                        {v.roleName}
-                                                    </span>
-                                                    <span className="text-xs font-semibold text-slate-500 mt-0.5 block">
+                                                    <span className="text-xs sm:text-sm font-extrabold text-slate-800 block leading-tight">
                                                         {v.companyName || "Grupo JVS Serviços"}
+                                                    </span>
+                                                    <span className="text-[11px] font-medium text-slate-400 block mt-0.5">
+                                                        Oportunidade Oficial JVS
                                                     </span>
                                                 </div>
                                             </div>
 
-                                            {/* Priority Pill */}
-                                            <Badge variant="outline" className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border shrink-0 ${isUrgent ? "bg-red-50 text-red-700 border-red-200 shadow-2xs" : "bg-emerald-50 text-emerald-800 border-emerald-200"}`}>
-                                                {isUrgent ? "🔥 Imediato" : "Vaga Aberta"}
-                                            </Badge>
+                                            {/* Priority Pill - Only if Urgent */}
+                                            {isUrgent && (
+                                                <Badge variant="outline" className="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border bg-red-50 text-red-700 border-red-200 shadow-2xs shrink-0">
+                                                    🔥 Imediato
+                                                </Badge>
+                                            )}
                                         </div>
 
                                         {/* Title */}
