@@ -82,22 +82,40 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                 if (found) {
                     setSelectedVacancy(found);
                     setIsDetailsOpen(true);
+                    setTimeout(() => {
+                        const el = document.getElementById(`vaga-card-${vagaId}`);
+                        if (el) {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }, 350);
                 }
             }
         }
     }, [initialVacancies]);
 
-    // Share individual vacancy link on WhatsApp (Paper Airplane Feature)
-    const handleShareVacancy = (v: VacancyItem) => {
+    // Share individual vacancy link on WhatsApp or native Share API
+    const handleShareVacancy = async (v: VacancyItem) => {
         const pageUrl = `${window.location.origin}/vagas?vaga=${v.id}`;
         const text = `*Vaga de Emprego no Grupo JVS* 🏢\n\n📌 *${v.title}*\n🏢 Empresa: ${v.companyName}\n📍 Local: ${v.location || "Curitiba e Região"}\n💰 Salário: ${v.baseSalary ? `R$ ${v.baseSalary.toLocaleString('pt-BR')}` : 'A combinar'}\n\nConfira os detalhes e candidate-se direto pelo link abaixo 👇\n${pageUrl}`;
         
+        if (typeof navigator !== "undefined" && navigator.share) {
+            try {
+                await navigator.share({
+                    title: `Vaga: ${v.title} - Grupo JVS`,
+                    text: text,
+                    url: pageUrl
+                });
+                toast.success("Vaga compartilhada com sucesso!");
+                return;
+            } catch (e) {
+                // User cancelled or native share fallback
+            }
+        }
+
         const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-        
         if (typeof navigator !== "undefined" && navigator.clipboard) {
             navigator.clipboard.writeText(pageUrl).catch(() => {});
         }
-        
         window.open(whatsappUrl, "_blank");
         toast.success("WhatsApp aberto! O link individual desta vaga foi preparado para seu amigo.");
     };
@@ -513,7 +531,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
 
             {/* Modal 1: Vacancy Details Modal */}
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-                <DialogContent className="max-w-lg rounded-3xl p-6 sm:p-7 space-y-5 max-h-[90vh] overflow-y-auto">
+                <DialogContent className="w-[94%] max-w-lg rounded-3xl p-5 sm:p-7 space-y-4 max-h-[85vh] overflow-y-auto overscroll-contain touch-pan-y shadow-2xl">
                     {selectedVacancy && (
                         <>
                             <DialogHeader className="space-y-2 border-b pb-4">
@@ -612,7 +630,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
 
             {/* Modal 2: Direct Candidate Application Modal */}
             <Dialog open={isApplyOpen} onOpenChange={setIsApplyOpen}>
-                <DialogContent className="max-w-md rounded-3xl p-6 sm:p-7 space-y-4">
+                <DialogContent className="w-[94%] max-w-md rounded-3xl p-5 sm:p-7 space-y-4 max-h-[85vh] overflow-y-auto overscroll-contain touch-pan-y shadow-2xl">
                     {applyingVacancy && (
                         <>
                             {submitSuccess ? (
@@ -650,7 +668,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                                 value={applicantName}
                                                 onChange={(e) => setApplicantName(e.target.value)}
                                                 required
-                                                className="h-11 rounded-2xl border-slate-200 px-4 bg-white shadow-2xs text-xs sm:text-sm"
+                                                className="h-12 rounded-2xl border-slate-200 px-4 bg-slate-50/70 focus:bg-white text-base sm:text-sm font-semibold transition-all"
                                             />
                                         </div>
 
@@ -661,7 +679,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                                 value={applicantPhone}
                                                 onChange={handlePhoneChange}
                                                 required
-                                                className="h-11 rounded-2xl border-slate-200 px-4 bg-white shadow-2xs text-xs sm:text-sm"
+                                                className="h-12 rounded-2xl border-slate-200 px-4 bg-slate-50/70 focus:bg-white text-base sm:text-sm font-semibold transition-all"
                                             />
                                         </div>
 
@@ -672,7 +690,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                                 placeholder="seu.email@exemplo.com"
                                                 value={applicantEmail}
                                                 onChange={(e) => setApplicantEmail(e.target.value)}
-                                                className="h-11 rounded-2xl border-slate-200 px-4 bg-white shadow-2xs text-xs sm:text-sm"
+                                                className="h-12 rounded-2xl border-slate-200 px-4 bg-slate-50/70 focus:bg-white text-base sm:text-sm font-semibold transition-all"
                                             />
                                         </div>
 
