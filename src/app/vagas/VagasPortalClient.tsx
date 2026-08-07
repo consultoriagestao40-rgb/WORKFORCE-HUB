@@ -643,20 +643,20 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                             </div>
 
                             {/* Action */}
-                            <div className="flex items-center gap-2 pt-1 w-full">
+                            <div className="flex items-center gap-2 pt-2 border-t border-slate-100 w-full min-w-0">
                                 <Button
                                     onClick={() => { setIsDetailsOpen(false); handleOpenApply(selectedVacancy); }}
-                                    className="flex-1 h-12 rounded-2xl text-xs sm:text-sm font-black bg-teal-700 hover:bg-teal-800 text-white shadow-md active:scale-[0.98] transition-all"
+                                    className="flex-1 h-12 rounded-2xl text-xs sm:text-sm font-black bg-gradient-to-r from-[#076477] via-[#065868] to-[#043d49] hover:from-[#087389] hover:to-[#054957] text-white shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 min-w-0"
                                 >
-                                    Candidatar-se a esta Vaga <ArrowRight className="w-4 h-4 ml-1.5" />
+                                    <span>Candidatar-se</span>
+                                    <ArrowRight className="w-4 h-4 shrink-0" />
                                 </Button>
                                 <button
                                     onClick={() => handleShareVacancy(selectedVacancy)}
-                                    className="h-12 px-4 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold border border-emerald-200/80 flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-xs text-xs"
+                                    className="h-12 w-12 shrink-0 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold border border-emerald-200/80 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-xs"
                                     title="Enviar vaga no WhatsApp (Aviãozinho)"
                                 >
-                                    <Send className="w-4 h-4 text-emerald-600 -rotate-12" />
-                                    <span className="hidden sm:inline">Compartilhar</span>
+                                    <Send className="w-4 h-4 text-emerald-600 -rotate-12 translate-x-0.5" />
                                 </button>
                             </div>
                         </div>
