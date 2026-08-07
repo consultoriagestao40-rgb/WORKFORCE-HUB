@@ -565,18 +565,23 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                 <DialogContent className="w-[94%] max-w-lg rounded-3xl p-5 sm:p-7 space-y-4 max-h-[85vh] overflow-y-auto overscroll-contain touch-pan-y shadow-2xl">
                     {selectedVacancy && (
                         <>
-                            <DialogHeader className="space-y-2 border-b pb-4">
-                                <Badge variant="outline" className="w-fit bg-teal-50 text-teal-800 border-teal-200 font-extrabold">
-                                    {selectedVacancy.roleName}
-                                </Badge>
-                                <DialogTitle className="text-xl sm:text-2xl font-black text-slate-900 leading-snug">
+                            <DialogHeader className="space-y-2 border-b pb-4 text-left">
+                                <DialogTitle className="text-lg sm:text-2xl font-black text-slate-900 leading-snug break-words pr-6">
                                     {selectedVacancy.title}
                                 </DialogTitle>
-                                <DialogDescription className="text-xs text-slate-500 font-medium flex items-center gap-2">
-                                    <Building2 className="w-3.5 h-3.5 text-teal-600" /> {selectedVacancy.companyName}
-                                    {selectedVacancy.location && (
-                                        <> &bull; <MapPin className="w-3.5 h-3.5 text-teal-600" /> {selectedVacancy.location}</>
-                                    )}
+                                <DialogDescription asChild>
+                                    <div className="space-y-1.5 text-xs text-slate-600 font-medium pt-1">
+                                        <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                                            <Building2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                                            <span>{selectedVacancy.companyName || "Grupo JVS Serviços"}</span>
+                                        </div>
+                                        {selectedVacancy.location && (
+                                            <div className="flex items-start gap-1.5 text-slate-600 leading-relaxed break-words">
+                                                <MapPin className="w-3.5 h-3.5 text-teal-600 shrink-0 mt-0.5" />
+                                                <span className="font-semibold text-slate-700">{selectedVacancy.location}</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </DialogDescription>
                             </DialogHeader>
 
@@ -683,7 +688,7 @@ export function VagasPortalClient({ initialVacancies }: VagasPortalClientProps) 
                                         <Badge variant="outline" className="w-fit bg-teal-50 text-teal-800 border-teal-200 font-extrabold">
                                             Inscrição Rápida
                                         </Badge>
-                                        <DialogTitle className="text-lg font-black text-slate-900 leading-snug">
+                                        <DialogTitle className="text-lg font-black text-slate-900 leading-snug break-words pr-6">
                                             {applyingVacancy.title}
                                         </DialogTitle>
                                         <DialogDescription className="text-xs text-slate-500 font-medium">
