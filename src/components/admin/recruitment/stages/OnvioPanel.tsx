@@ -20,9 +20,11 @@ interface OnvioPanelProps {
     address?: string;
     rg?: string;
     roleTitle?: string;
+    roleId?: string;
     salary?: string | number;
     startDate?: string;
     companyName?: string;
+    companyId?: string;
     postoId?: string;
     extraFields?: any;
     onvioLaunched?: boolean;
@@ -41,9 +43,11 @@ export function OnvioPanel({
     address = "",
     rg = "",
     roleTitle = "",
+    roleId = "",
     salary = "",
     startDate = "",
     companyName = "",
+    companyId = "",
     postoId = "",
     extraFields = {},
     onvioLaunched,
@@ -137,27 +141,43 @@ Empresa: ${companyName || ""}
         });
     }, []);
 
+    const sanitizeCpf = (c?: string) => {
+        if (!c || c.includes("000.000.000")) return "";
+        return c;
+    };
+
+    const sanitizePhone = (p?: string) => {
+        if (!p || p.includes("(00)")) return "";
+        return p;
+    };
+
     const wizardInitialData = {
         name: candidateName || "",
         email: email || extraFields?.email || "",
-        phone: phone || extraFields?.phone || "",
-        cpf: cpf || extraFields?.cpf || extraFields?.cpfNumero || extraFields?.cpf_numero || "",
+        phone: sanitizePhone(phone || extraFields?.phone || extraFields?.whatsapp),
+        cpf: sanitizeCpf(cpf || extraFields?.cpf || extraFields?.cpfNumero || extraFields?.cpf_numero),
         birthDate: birthDate || extraFields?.birthDate || extraFields?.dataNascimento || extraFields?.birth_date || "",
         gender: gender || extraFields?.gender || extraFields?.genero || "",
         address: address || extraFields?.address || extraFields?.endereco || "",
         rg: rg || extraFields?.rg || extraFields?.rgNumero || extraFields?.rg_numero || "",
+        roleId: roleId || extraFields?.roleId || "",
         salary: salary ? String(salary) : (extraFields?.salary || "0"),
         admissionDate: startDate || extraFields?.startDate || new Date().toISOString().split('T')[0],
+        companyId: companyId || extraFields?.companyId || "",
+        companyName: companyName || extraFields?.companyName || "",
         postoId: postoId || extraFields?.postoId || "",
         extraFields: {
             ...extraFields,
-            cpf: cpf || extraFields?.cpf || extraFields?.cpfNumero || extraFields?.cpf_numero,
+            roleId: roleId || extraFields?.roleId,
+            companyId: companyId || extraFields?.companyId,
+            companyName: companyName || extraFields?.companyName,
+            cpf: sanitizeCpf(cpf || extraFields?.cpf || extraFields?.cpfNumero || extraFields?.cpf_numero),
             rg: rg || extraFields?.rg || extraFields?.rgNumero || extraFields?.rg_numero,
             rgNumero: rg || extraFields?.rgNumero || extraFields?.rg || extraFields?.rg_numero,
             birthDate: birthDate || extraFields?.birthDate || extraFields?.dataNascimento || extraFields?.birth_date,
             gender: gender || extraFields?.gender || extraFields?.genero,
             address: address || extraFields?.address || extraFields?.endereco,
-            phone: phone || extraFields?.phone,
+            phone: sanitizePhone(phone || extraFields?.phone || extraFields?.whatsapp),
             email: email || extraFields?.email,
         }
     };
