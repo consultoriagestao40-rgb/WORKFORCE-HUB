@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { CheckCircle2, Loader2, Calendar, Zap, Bot, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { confirmOnvio, getEmployeeFormData } from "@/actions/recruitment";
+import { confirmOnvio, getEmployeeFormData, extractDataFromDocumentImages } from "@/actions/recruitment";
 import { sendCandidateToOnvioRpa } from "@/actions/onvio-rpa";
 import { getWizardDropdowns } from "@/app/actions";
 import { EmployeeOnvioWizard } from "@/components/admin/EmployeeOnvioWizard";
@@ -140,6 +140,18 @@ Empresa: ${companyName || ""}
             });
         });
     }, []);
+
+    // Auto-extração por IA Gemini caso o candidato tenha documentos anexados mas CPF/RG ainda não tenham sido extraídos
+    useEffect(() => {
+        if ((!extraFields?.cpf || !extraFields?.rgNumero) && candidateId) {
+            extractDataFromDocumentImages(candidateId).then(res => {
+                if (res.success && onUpdate) {
+                    toast.success("IA Gemini leu os documentos anexados e preencheu a ficha de admissão!");
+                    onUpdate();
+                }
+            }).catch(() => {});
+        }
+    }, [candidateId, extraFields?.cpf, extraFields?.rgNumero]);
 
     const sanitizeCpf = (c?: string) => {
         if (!c || c.includes("000.000.000")) return "";
