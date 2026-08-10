@@ -14,6 +14,17 @@ const nextConfig: NextConfig = {
     },
   },
   turbopack: {},
+
+  // playwright só existe localmente — excluir do bundle serverless da Vercel
+  serverExternalPackages: ["playwright", "playwright-core", "playwright-chromium"],
+
+  // Webpack: marcar playwright como externo em produção (não disponível na Vercel)
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals = [...(config.externals || []), "playwright", "playwright-core"];
+    }
+    return config;
+  },
 };
 
 export default withSerwist(nextConfig);

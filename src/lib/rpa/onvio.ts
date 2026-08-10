@@ -1,5 +1,7 @@
-import { chromium } from "playwright";
+// playwright é importado dinamicamente em runtime — não existe na Vercel (só local)
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 import path from "path";
+
 
 export interface OnvioDependente {
     nome: string;
@@ -58,6 +60,9 @@ export async function transmitCandidateToOnvio(payload: OnvioCandidatePayload) {
 
     let browser: any;
     try {
+        // Import dinâmico: playwright só está instalado localmente, não na Vercel
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { chromium } = require("playwright");
         browser = await chromium.launch({
             headless: false,
             args: ["--no-sandbox", "--disable-setuid-sandbox"]
