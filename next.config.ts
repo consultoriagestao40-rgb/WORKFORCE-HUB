@@ -15,16 +15,8 @@ const nextConfig: NextConfig = {
   },
   turbopack: {},
 
-  // playwright e sparticuz/chromium tratados como externos no servidor Vercel
-  serverExternalPackages: ["playwright", "playwright-core", "playwright-chromium", "@sparticuz/chromium"],
-
-  // Webpack: marcar pacotes pesados como externos no servidor
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.externals = [...(config.externals || []), "playwright", "playwright-core", "@sparticuz/chromium"];
-    }
-    return config;
-  },
+  // Apenas sparticuz/chromium e playwright-core como serverExternalPackages para a Vercel
+  serverExternalPackages: ["@sparticuz/chromium", "playwright-core"],
 };
 
 export default withSerwist(nextConfig);
