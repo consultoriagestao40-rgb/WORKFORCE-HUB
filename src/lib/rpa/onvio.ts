@@ -138,15 +138,26 @@ export async function transmitCandidateToOnvio(payload: OnvioCandidatePayload) {
         try {
             const targetComp = payload.companyName || "JVS FACILITIES";
             console.log(`[RPA ONVIO] Verificando empresa ativa no portal (Alvo: ${targetComp})...`);
-            const companyDropdown = page.locator('button:has-text("CLEAN TECH"), [class*="company"] button, div:has-text("EMPRESA") + *').first();
+
+            const companyDropdown = page.locator('bm-linked-account-selector, .header-firm-name, [data-qe-id*="company"], div:has-text("EMPRESA") + *, *:has-text("CLEAN TECH")').first();
+            await companyDropdown.waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+
             if (await companyDropdown.isVisible()) {
-                await companyDropdown.click();
+                console.log("[RPA ONVIO] Clicando no menu de seleção de empresa...");
+                await companyDropdown.click({ force: true });
                 await page.waitForTimeout(1500);
 
-                const jvsOption = page.locator('*:has-text("JVS FACILITIES LTDA"), *:has-text("JVS FACILITIES")').last();
+                const jvsOption = page.locator('*:has-text("JVS FACILITIES LTDA"), *:has-text("JVS FACILITIES")').first();
+                await jvsOption.waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
+
                 if (await jvsOption.isVisible()) {
                     console.log("[RPA ONVIO] Alterando empresa ativa para JVS FACILITIES LTDA...");
-                    await jvsOption.click();
+                    await jvsOption.click({ force: true });
+                    await page.waitForTimeout(4000);
+
+                    // Recarregar formulário /add no novo contexto de empresa
+                    console.log("[RPA ONVIO] Recarregando formulário para o contexto da JVS FACILITIES LTDA...");
+                    await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration/add", { waitUntil: "domcontentloaded", timeout: 30000 });
                     await page.waitForTimeout(3000);
                 }
             }
@@ -154,11 +165,11 @@ export async function transmitCandidateToOnvio(payload: OnvioCandidatePayload) {
             console.log("[RPA ONVIO] Seleção de empresa concluída.");
         }
 
-        // 3. Clicar no botão ➕ Adicionar para abrir a ficha
+        // 3. Clicar no botão ➕ Adicionar para abrir a ficha se necessário
         const addBtn = page.locator('button:has-text("Adicionar"), a:has-text("Adicionar"), span:has-text("Adicionar")').first();
         if (await addBtn.isVisible()) {
             console.log("[RPA ONVIO] Clicando no botão ➕ Adicionar para abrir a ficha...");
-            await addBtn.click();
+            await addBtn.click({ force: true });
             await page.waitForTimeout(4000);
         }
 
