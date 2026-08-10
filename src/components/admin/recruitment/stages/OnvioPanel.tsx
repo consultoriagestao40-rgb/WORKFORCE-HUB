@@ -90,10 +90,63 @@ Empresa: ${companyName || ""}
             if (res.success) {
                 toast.success(res.message || "Robô RPA executou com sucesso no portal Onvio!");
                 onUpdate();
-            } else {
-                toast.error(res.error || "Erro ao conectar com o robô RPA Onvio.");
+                return;
             }
+
+            // Se for execução na Vercel (onde Playwright não existe no servidor cloud), dispara ponte para a máquina local:
+            if (res.requireLocalBridge || (res.error && res.error.includes("playwright"))) {
+                toast.info("Conectando ao Robô RPA no seu computador local...");
+                try {
+                    const localBridgeRes = await fetch("http://localhost:3000/api/rpa/onvio", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            candidateId,
+                            payload: res.payload
+                        })
+                    });
+
+                    const localData = await localBridgeRes.json();
+                    if (localData.success) {
+                        toast.success(localData.message || "Robô RPA executou no seu Mac! Janela do Chrome aberta.");
+                        onUpdate();
+                    } else {
+                        toast.error(localData.error || "Erro no robô local.");
+                    }
+                } catch (localErr) {
+                    toast.error(
+                        "O Robô RPA precisa rodar no seu computador para abrir o Chrome. Certifique-se de que 'npm run dev' esteja rodando no terminal do Mac (http://localhost:3000).",
+                        { duration: 8000 }
+                    );
+                }
+                return;
+            }
+
+            toast.error(res.error || "Erro ao conectar com o robô RPA Onvio.");
         } catch (e: any) {
+            // Em caso de erro não tratado contendo playwright:
+            if (e?.message?.includes("playwright")) {
+                try {
+                    toast.info("Conectando ao Robô RPA no seu computador local...");
+                    const localBridgeRes = await fetch("http://localhost:3000/api/rpa/onvio", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ candidateId })
+                    });
+                    const localData = await localBridgeRes.json();
+                    if (localData.success) {
+                        toast.success(localData.message || "Robô RPA executou no seu Mac! Janela do Chrome aberta.");
+                        onUpdate();
+                        return;
+                    }
+                } catch (localErr) {
+                    toast.error(
+                        "O Robô RPA precisa rodar no seu Mac para abrir o navegador. Digite 'npm run dev' no terminal.",
+                        { duration: 8000 }
+                    );
+                    return;
+                }
+            }
             toast.error(e.message || "Erro durante o disparo do robô RPA.");
         } finally {
             setSendingRpa(false);

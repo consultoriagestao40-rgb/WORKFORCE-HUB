@@ -79,21 +79,33 @@ export async function sendCandidateToOnvioRpa(candidateId: string) {
             pixTipoChave: extra.pixTipoChave || (extra.uniformData?.pixKey ? "Outro" : "CPF"),
         };
 
-        const result = await transmitCandidateToOnvio(payload);
+        try {
+            const result = await transmitCandidateToOnvio(payload);
+            if (result.success) {
+                await prisma.recruitmentCandidate.update({
+                    where: { id: candidateId },
+                    data: {
+                        onvioLaunched: true,
+                        onvioConfirmedAt: new Date()
+                    }
+                });
 
-        if (result.success) {
-            await prisma.recruitmentCandidate.update({
-                where: { id: candidateId },
-                data: {
-                    onvioLaunched: true,
-                    onvioConfirmedAt: new Date()
-                }
-            });
-
-            revalidatePath("/admin/recrutamento");
-            return { success: true, message: result.message };
-        } else {
-            return { success: false, error: result.error };
+                revalidatePath("/admin/recrutamento");
+                return { success: true, message: result.message };
+            } else {
+                return { success: false, error: result.error };
+            }
+        } catch (rpaErr: any) {
+            // Se falhou por causa da falta de Playwright no Vercel (ambiente serverless da nuvem):
+            if (rpaErr?.message?.includes("playwright") || rpaErr?.code === "MODULE_NOT_FOUND") {
+                return {
+                    success: false,
+                    requireLocalBridge: true,
+                    payload,
+                    candidateId
+                };
+            }
+            throw rpaErr;
         }
     } catch (error: any) {
         console.error("Error in sendCandidateToOnvioRpa:", error);
