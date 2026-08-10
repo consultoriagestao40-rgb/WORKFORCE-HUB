@@ -758,9 +758,13 @@ async function transmitCandidateToOnvioCloud(payload: OnvioCandidatePayload) {
         if (companyClickable) {
             await companyClickable.click().catch(() => {});
             await new Promise(r => setTimeout(r, 1500));
-            const jvsOpt = await page.$('xpath///span[contains(text(), "JVS FACILITIES")] | //div[contains(text(), "JVS FACILITIES")]');
-            if (jvsOpt) {
-                await jvsOpt.click().catch(() => {});
+            // Puppeteer: busca elemento pelo texto usando evaluate
+            const jvsOpt = await page.evaluateHandle(() => {
+                const els = Array.from(document.querySelectorAll('span, div, li, option'));
+                return els.find(el => el.textContent?.includes('JVS FACILITIES')) || null;
+            });
+            if (jvsOpt && (jvsOpt as any).asElement()) {
+                await ((jvsOpt as any).asElement() as any).click().catch(() => {});
                 await new Promise(r => setTimeout(r, 3500));
             }
         }
@@ -820,11 +824,18 @@ async function transmitCandidateToOnvioCloud(payload: OnvioCandidatePayload) {
             await fillInput("identityCardIssuingDate", dtFmt);
         }
 
-        // Salvar formulário na Nuvem
+        // Salvar formulário na Nuvem — puppeteer não suporta :has-text(), buscar pelo texto
         console.log("[RPA ONVIO Cloud] Enviando e salvando formulário no Onvio...");
-        const saveBtn = await page.$('button.btn-primary, button:has-text("SALVAR"), button:has-text("Salvar e Enviar")');
-        if (saveBtn) {
-            await saveBtn.click().catch(() => {});
+        const savedViaClick = await page.evaluate(() => {
+            const btns = Array.from(document.querySelectorAll('button'));
+            const saveBtn = btns.find(b => {
+                const t = b.textContent?.toUpperCase() || '';
+                return t.includes('SALVAR') || t.includes('ENVIAR') || b.classList.contains('btn-primary');
+            });
+            if (saveBtn) { saveBtn.click(); return true; }
+            return false;
+        });
+        if (savedViaClick) {
             await new Promise(r => setTimeout(r, 4000));
         }
 
