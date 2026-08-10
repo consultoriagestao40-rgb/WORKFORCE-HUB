@@ -27,3 +27,4 @@ ts-debug.log*
 .env*.local
 .env
 .env*
+.onvio-session/
