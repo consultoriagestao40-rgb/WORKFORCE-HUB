@@ -1485,7 +1485,7 @@ Retorne EXCLUSIVAMENTE um objeto JSON puro, sem markdown ou texto extra, neste f
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("Chave Gemini não configurada");
 
-    const models = ["gemini-2.0-flash", "gemini-2.5-flash-lite", "gemini-3.5-flash", "gemini-1.5-flash"];
+    const models = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash-exp"];
     let response = null;
     let lastError = "";
 
@@ -1755,7 +1755,16 @@ export async function getVacancyCandidates(vacancyId: string) {
 
     const candidates = await prisma.recruitmentCandidate.findMany({
         where: { vacancyId },
-        include: { stage: true }
+        include: {
+            stage: true,
+            vacancy: {
+                include: {
+                    posto: { include: { client: true } },
+                    company: true,
+                    role: true,
+                }
+            }
+        }
     });
 
     return candidates.sort((a, b) => {
@@ -1780,12 +1789,16 @@ export async function generateDocumentationLink(candidateId: string, hoursValid:
     const token = `doc-${candidateId}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     const expiresAt = hoursValid > 0 ? new Date(Date.now() + hoursValid * 60 * 60 * 1000) : null;
     
+    const existingCandidate = await prisma.recruitmentCandidate.findUnique({ where: { id: candidateId } });
+    const existingExtra = (existingCandidate?.extraFields as Record<string, any>) || {};
+    
     await prisma.recruitmentCandidate.update({
         where: { id: candidateId },
         data: { 
             documentationLinkToken: token, 
             documentationStatus: 'PENDING',
             extraFields: {
+                ...existingExtra,
                 linkExpiresAt: expiresAt?.toISOString() || null,
             }
         }
@@ -1902,6 +1915,128 @@ export async function uploadCandidateDocuments(
     
     revalidatePath('/admin/recrutamento');
     return { success: true };
+}
+
+export async function extractDataFromDocumentImages(candidateId: string) {
+    const candidate = await prisma.recruitmentCandidate.findUnique({ where: { id: candidateId } });
+    if (!candidate) throw new Error("Candidato não encontrado.");
+
+    const docFiles = (candidate.documentationFiles as Record<string, string>) || {};
+    const fileEntries = Object.entries(docFiles).filter(([_, val]) => val && typeof val === 'string');
+
+    if (fileEntries.length === 0) {
+        return { success: false, error: "Nenhum documento anexado para leitura." };
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error("Chave Gemini não configurada");
+
+    const parts: any[] = [
+        {
+            text: `Você é um leitor OCR especialista em extrair dados de documentos de identificação brasileiros (RG, CPF, CNH, Carteira de Trabalho CTPS, Certidões, Comprovante de Residência).
+Analise as imagens enviadas dos documentos do candidato "${candidate.name}" e extraia com 100% de precisão todos os campos legíveis disponíveis.
+
+Responda ESTRITAMENTE em formato JSON valido no seguinte schema:
+{
+  "cpf": "000.000.000-00",
+  "rgNumero": "12.345.678-9",
+  "rgOrgaoEmissor": "SSP",
+  "rgUf": "PR",
+  "rgDataEmissao": "YYYY-MM-DD",
+  "birthDate": "YYYY-MM-DD",
+  "gender": "Masculino/Feminino",
+  "address": "Rua, numero, bairro, cidade - UF",
+  "nomeMae": "Nome Completo da Mae",
+  "nomePai": "Nome Completo do Pai",
+  "ctpsNumero": "1234567",
+  "ctpsSerie": "0010",
+  "ctpsUf": "PR",
+  "ctpsDataEmissao": "YYYY-MM-DD",
+  "pisNumero": "000.00000.00-0",
+  "estadoCivil": "Solteiro(a)/Casado(a)",
+  "grauInstrucao": "Ensino Medio/Superior/...",
+  "naturalidadeCidade": "Curitiba",
+  "naturalidadeUf": "PR"
+}`
+        }
+    ];
+
+    for (const [key, val] of fileEntries) {
+        if (val.startsWith("data:")) {
+            const matches = val.match(/^data:(.+?);base64,(.+)$/);
+            if (matches && matches.length === 3) {
+                const mimeType = matches[1];
+                const base64Data = matches[2];
+                if (mimeType.startsWith("image/") || mimeType === "application/pdf") {
+                    parts.push({
+                        inline_data: {
+                            mime_type: mimeType,
+                            data: base64Data
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+    if (parts.length <= 1) {
+        return { success: false, error: "Nenhum arquivo legível encontrado nos anexos." };
+    }
+
+    const models = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash-exp"];
+    let response = null;
+    let lastError = "";
+
+    for (const model of models) {
+        try {
+            const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+            const res = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contents: [{ parts }] })
+            });
+
+            if (res.ok) {
+                response = res;
+                break;
+            } else {
+                const errText = await res.text();
+                lastError = `Model ${model} failed with ${res.status}: ${errText}`;
+            }
+        } catch (e: any) {
+            lastError = e?.message || String(e);
+        }
+    }
+
+    if (!response) {
+        throw new Error(`Erro ao conectar com Gemini OCR: ${lastError}`);
+    }
+
+    const json = await response.json();
+    const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) throw new Error("Resposta da IA vazia");
+
+    const cleaned = cleanJsonResponse(rawText);
+    const extractedData = JSON.parse(cleaned);
+
+    const existingExtra = (candidate.extraFields as Record<string, any>) || {};
+    const mergedExtra = { ...existingExtra };
+    Object.entries(extractedData).forEach(([k, v]) => {
+        if (v && typeof v === 'string' && v.trim() !== '') {
+            mergedExtra[k] = v;
+        }
+    });
+
+    await prisma.recruitmentCandidate.update({
+        where: { id: candidateId },
+        data: {
+            extraFields: mergedExtra,
+            email: mergedExtra.email || candidate.email,
+        }
+    });
+
+    revalidatePath('/admin/recrutamento');
+    return { success: true, extractedData: mergedExtra };
 }
 
 export async function approveDocumentation(candidateId: string) {

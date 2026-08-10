@@ -1,19 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Link2, Upload, CheckCircle2, Clock, Copy, Loader2, Shirt, Footprints, CreditCard, ShieldAlert } from "lucide-react";
+import { FileText, Link2, Upload, CheckCircle2, Clock, Copy, Loader2, Shirt, Footprints, CreditCard, ShieldAlert, Sparkles, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { generateDocumentationLink, uploadCandidateDocuments, approveDocumentation } from "@/actions/recruitment";
+import { generateDocumentationLink, uploadCandidateDocuments, approveDocumentation, extractDataFromDocumentImages } from "@/actions/recruitment";
 
 export const COMPLETE_DOC_TYPES = [
     { key: "rg", label: "RG (frente e verso)" },
     { key: "cpf", label: "CPF" },
     { key: "ctps", label: "Carteira de Trabalho (CTPS)" },
+    { key: "pisPasep", label: "Comprovante PIS / PASEP / NIT" },
     { key: "comprResid", label: "Comprovante de Residência" },
     { key: "foto", label: "Foto 3x4" },
     { key: "certNasc", label: "Certidão de Nascimento / Casamento" },
@@ -84,6 +85,26 @@ export function DocumentacaoPanel({
         }
     }
 
+    const [extractingWithAi, setExtractingWithAi] = useState(false);
+
+    async function handleAiExtract() {
+        setExtractingWithAi(true);
+        toast.info("Lendo imagens dos documentos com IA Gemini...");
+        try {
+            const res = await extractDataFromDocumentImages(candidateId);
+            if (res.success) {
+                toast.success("Dados extraídos dos documentos com sucesso! O formulário de Admissão foi preenchido.");
+                if (onUpdate) onUpdate();
+            } else {
+                toast.error(res.error || "Erro ao extrair dados dos documentos.");
+            }
+        } catch (e: any) {
+            toast.error(e.message || "Falha na leitura dos documentos via IA.");
+        } finally {
+            setExtractingWithAi(false);
+        }
+    }
+
     async function handleFileUpload(docKey: string, file: File) {
         setUploadingDoc(docKey);
         try {
@@ -93,6 +114,15 @@ export function DocumentacaoPanel({
                 await uploadCandidateDocuments(candidateId, { [docKey]: dataUrl }, { shoeSize, pantsSize, shirtSize, pixKey });
                 setLocalDocs((prev) => ({ ...prev, [docKey]: dataUrl }));
                 toast.success("Documento anexado com sucesso!");
+                
+                // Dispara a leitura OCR com IA em segundo plano
+                extractDataFromDocumentImages(candidateId).then((res) => {
+                    if (res.success) {
+                        toast.success("Dados extraídos do documento e preenchidos no formulário!");
+                    }
+                    if (onUpdate) onUpdate();
+                }).catch(() => {});
+
                 if (onUpdate) onUpdate();
                 setUploadingDoc(null);
             };
@@ -277,12 +307,30 @@ export function DocumentacaoPanel({
 
             {/* Complete Document Upload List */}
             <div className="border border-slate-200/80 rounded-3xl p-5 bg-white space-y-4 w-full min-w-0 overflow-hidden shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
                     <span className="text-sm font-black text-slate-900 flex items-center gap-2 truncate">
                         <Upload className="w-4 h-4 text-indigo-600 shrink-0" />
                         <span className="truncate">2. Anexo dos Documentos Pessoais</span>
                     </span>
-                    <span className="text-xs text-slate-400 font-medium shrink-0">PDF ou Imagem</span>
+                    
+                    <Button
+                        type="button"
+                        onClick={handleAiExtract}
+                        disabled={extractingWithAi || submittedCount === 0}
+                        className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs h-8 rounded-xl flex items-center gap-1.5 px-3 shadow"
+                    >
+                        {extractingWithAi ? (
+                            <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-200" />
+                                <span>IA Lendo Documentos...</span>
+                            </>
+                        ) : (
+                            <>
+                                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                                <span>✨ Extrair Dados dos Documentos via IA</span>
+                            </>
+                        )}
+                    </Button>
                 </div>
 
                 <div className="grid grid-cols-1 gap-2.5 w-full min-w-0">
@@ -299,35 +347,63 @@ export function DocumentacaoPanel({
                                     )}
                                     <span className="break-words whitespace-normal leading-tight text-left text-xs font-bold">{doc.label}</span>
                                 </div>
-                                <label className="shrink-0">
-                                    <input
-                                        type="file"
-                                        accept=".pdf,.jpg,.jpeg,.png"
-                                        className="hidden"
-                                        onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) handleFileUpload(doc.key, file);
-                                        }}
-                                        disabled={isUploading}
-                                    />
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className={`h-10 px-3.5 text-xs font-bold rounded-2xl border-slate-200 cursor-pointer shadow-none transition-all ${hasFile ? "bg-green-100 text-green-800 border-green-300" : "bg-white hover:bg-slate-50 text-slate-800"}`}
-                                        asChild
-                                        disabled={isUploading}
-                                        title={`Upload ${doc.label}`}
-                                    >
-                                        <span>
-                                            {isUploading ? (
-                                                <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
-                                            ) : (
-                                                <Upload className="w-4 h-4 mr-1.5 text-slate-600" />
-                                            )}
-                                            {hasFile ? "Substituir" : "Anexar"}
-                                        </span>
-                                    </Button>
-                                </label>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                    {hasFile && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            type="button"
+                                            className="h-10 px-3 text-xs font-bold rounded-2xl border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100 text-indigo-700 shadow-none cursor-pointer"
+                                            onClick={() => {
+                                                const fileUrl = localDocs[doc.key];
+                                                if (fileUrl) {
+                                                    const win = window.open();
+                                                    if (win) {
+                                                        if (fileUrl.startsWith("data:image/")) {
+                                                            win.document.write(`<img src="${fileUrl}" style="max-width:100%; height:auto; margin:20px auto; display:block; shadow:0 4px 6px -1px rgba(0,0,0,0.1);" />`);
+                                                        } else {
+                                                            win.document.write(`<iframe src="${fileUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100vh;" allowfullscreen></iframe>`);
+                                                        }
+                                                    }
+                                                }
+                                            }}
+                                            title={`Visualizar / Baixar ${doc.label}`}
+                                        >
+                                            <Eye className="w-4 h-4 mr-1 text-indigo-600" />
+                                            Ver Documento
+                                        </Button>
+                                    )}
+
+                                    <label className="shrink-0">
+                                        <input
+                                            type="file"
+                                            accept=".pdf,.jpg,.jpeg,.png"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) handleFileUpload(doc.key, file);
+                                            }}
+                                            disabled={isUploading}
+                                        />
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className={`h-10 px-3.5 text-xs font-bold rounded-2xl border-slate-200 cursor-pointer shadow-none transition-all ${hasFile ? "bg-green-100 text-green-800 border-green-300" : "bg-white hover:bg-slate-50 text-slate-800"}`}
+                                            asChild
+                                            disabled={isUploading}
+                                            title={`Upload ${doc.label}`}
+                                        >
+                                            <span>
+                                                {isUploading ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                                                ) : (
+                                                    <Upload className="w-4 h-4 mr-1.5 text-slate-600" />
+                                                )}
+                                                {hasFile ? "Substituir" : "Anexar"}
+                                            </span>
+                                        </Button>
+                                    </label>
+                                </div>
                             </div>
                         );
                     })}

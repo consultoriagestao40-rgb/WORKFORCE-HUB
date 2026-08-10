@@ -321,47 +321,31 @@ export function EmployeeOnvioWizard({
         if (currentPostoId && postos && postos.length > 0) {
             const selectedPosto = postos.find(p => p.id === currentPostoId);
             if (selectedPosto) {
-                // Sincroniza apenas se estiver vazio ou com o valor padrão para não sobrescrever edições salvas
-                if (!salary || salary === "0") {
-                    setSalary(String(selectedPosto.baseSalary || 0));
+                // Sincroniza valores do posto de trabalho
+                setSalary(String(selectedPosto.baseSalary || 0));
+                setInsalubridade(String(selectedPosto.insalubridade || 0));
+                setPericulosidade(String(selectedPosto.periculosidade || 0));
+                setGratificacao(String(selectedPosto.gratificacao || 0));
+                setOutrosAdicionais(String(selectedPosto.outrosAdicionais || 0));
+                setValeAlimentacao(String(selectedPosto.valeAlimentacao || 0));
+                setValeTransporte(String(selectedPosto.valeTransporte || 0));
+                if (selectedPosto.valeTransporte2) {
+                    setValeTransporte2(String(selectedPosto.valeTransporte2));
                 }
-                if (!insalubridade || insalubridade === "0") {
-                    setInsalubridade(String(selectedPosto.insalubridade || 0));
+                if (selectedPosto.vtPaymentMethod2) {
+                    setVtPaymentMethod2(selectedPosto.vtPaymentMethod2);
                 }
-                if (!periculosidade || periculosidade === "0") {
-                    setPericulosidade(String(selectedPosto.periculosidade || 0));
+                setWorkload(String(selectedPosto.requiredWorkload || 220));
+                if (selectedPosto.roleId) {
+                    setRoleId(selectedPosto.roleId);
                 }
-                if (!gratificacao || gratificacao === "0") {
-                    setGratificacao(String(selectedPosto.gratificacao || 0));
+                if (selectedPosto.schedule) {
+                    setEscalaHorario(selectedPosto.schedule);
                 }
-                if (!outrosAdicionais || outrosAdicionais === "0") {
-                    setOutrosAdicionais(String(selectedPosto.outrosAdicionais || 0));
-                }
-                if (!valeAlimentacao || valeAlimentacao === "0") {
-                    setValeAlimentacao(String(selectedPosto.valeAlimentacao || 0));
-                }
-                if (!valeTransporte || valeTransporte === "0") {
-                    setValeTransporte(String(selectedPosto.valeTransporte || 0));
-                }
-                if (!valeTransporte2 || valeTransporte2 === "0") {
-                    setValeTransporte2(String(selectedPosto.valeTransporte2 || 0));
-                    if (selectedPosto.vtPaymentMethod2) {
-                        setVtPaymentMethod2(selectedPosto.vtPaymentMethod2);
-                    }
-                }
-                if (!workload || workload === "220") {
-                    setWorkload(String(selectedPosto.requiredWorkload || 220));
-                }
-                if (!roleId) {
-                    setRoleId(selectedPosto.roleId || "");
-                }
-                if (!escalaHorario) {
-                    setEscalaHorario(selectedPosto.schedule || "");
-                }
-                if (!jornadaHoras) {
-                    const hoursStr = (selectedPosto.startTime && selectedPosto.endTime) 
-                        ? `${selectedPosto.startTime} - ${selectedPosto.endTime}` 
-                        : "";
+                const hoursStr = (selectedPosto.startTime && selectedPosto.endTime) 
+                    ? `${selectedPosto.startTime} às ${selectedPosto.endTime}` 
+                    : (selectedPosto.startTime || selectedPosto.endTime || "");
+                if (hoursStr) {
                     setJornadaHoras(hoursStr);
                 }
             }
@@ -490,18 +474,27 @@ export function EmployeeOnvioWizard({
             setExperienciaDias1(extra.experienciaDias1 || "45");
             setExperienciaDias2(extra.experienciaDias2 || "45");
 
-            setEscalaHorario(extra.escalaHorario || (selectedPosto ? (selectedPosto.schedule || "") : ""));
-            const resolvedJornada = extra.jornadaHoras || 
-                (selectedPosto && selectedPosto.startTime && selectedPosto.endTime 
-                    ? `${selectedPosto.startTime} - ${selectedPosto.endTime}` 
-                    : "");
+            const activePosto = postos.find(p => p.id === currentPostoId) || postos.find(p => p.id === initialData?.postoId);
+
+            const resolvedEscala = extra.escalaHorario || extra.escala || (activePosto ? (activePosto.schedule || "") : "");
+            setEscalaHorario(resolvedEscala);
+
+            const resolvedJornada = extra.jornadaHoras || extra.jornada || 
+                (activePosto && activePosto.startTime && activePosto.endTime 
+                    ? `${activePosto.startTime} às ${activePosto.endTime}` 
+                    : (activePosto ? (activePosto.startTime || activePosto.endTime || "") : ""));
             setJornadaHoras(resolvedJornada);
 
-            setCtpsNumero(extra.ctpsNumero || "");
-            setCtpsSerie(extra.ctpsSerie || "");
-            setCtpsUf(extra.ctpsUf || "");
-            setCtpsDataEmissao(safeFormatDate(extra.ctpsDataEmissao));
-            setPisNumero(extra.pisNumero || "");
+            const rawCpf = cpf || initialData?.cpf || extra.cpf || extra.cpfNumero || "";
+            const cpfClean = rawCpf.replace(/\D/g, "");
+            const digitalCtpsNum = cpfClean.length >= 7 ? cpfClean.slice(0, 7) : "";
+            const digitalCtpsSerie = cpfClean.length >= 11 ? cpfClean.slice(7, 11) : (cpfClean.length >= 4 ? cpfClean.slice(-4) : "");
+
+            setCtpsNumero(extra.ctpsNumero || extra.ctps || extra.numeroCtps || extra.ctps_numero || digitalCtpsNum);
+            setCtpsSerie(extra.ctpsSerie || extra.serie || extra.ctps_serie || digitalCtpsSerie);
+            setCtpsUf(extra.ctpsUf || extra.ufCtps || extra.ctps_uf || extra.rgUf || "PR");
+            setCtpsDataEmissao(safeFormatDate(extra.ctpsDataEmissao || extra.dataEmissaoCtps || extra.ctps_data_emissao));
+            setPisNumero(extra.pisNumero || extra.pis || extra.pisPasep || extra.pis_pasep || (cpfClean ? rawCpf : ""));
 
             setFgtsOpcao(extra.fgtsOpcao || "Sim");
             setFgtsDataOpcao(safeFormatDate(extra.fgtsDataOpcao));
@@ -520,10 +513,10 @@ export function EmployeeOnvioWizard({
             setNaturalidadeCidade(extra.naturalidadeCidade || extra.cidadeNatal || "");
             setNaturalidadeUf(extra.naturalidadeUf || extra.ufNatal || "");
 
-            setRgNumero(extra.rgNumero || extra.rg || initialData.rg || "");
-            setRgOrgaoEmissor(extra.rgOrgaoEmissor || "");
-            setRgDataEmissao(safeFormatDate(extra.rgDataEmissao));
-            setRgUf(extra.rgUf || "");
+            setRgNumero(extra.rgNumero || extra.rg || extra.numeroRg || extra.rg_numero || initialData.rg || "");
+            setRgOrgaoEmissor(extra.rgOrgaoEmissor || extra.orgaoEmissor || extra.rg_orgao_emissor || extra.orgaoExpedidor || "");
+            setRgDataEmissao(safeFormatDate(extra.rgDataEmissao || extra.dataEmissaoRg || extra.rg_data_emissao || extra.dataExpedicao));
+            setRgUf(extra.rgUf || extra.ufEmissao || extra.rg_uf || extra.ufRg || "");
 
             setCnhNumero(extra.cnhNumero || "");
             setCnhCategoria(extra.cnhCategoria || "");

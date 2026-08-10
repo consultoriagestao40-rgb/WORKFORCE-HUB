@@ -252,6 +252,19 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
         }
     };
 
+    const handleModalRefresh = async () => {
+        router.refresh();
+        const vacId = candidate?.realId || candidate?.id?.replace('VAC-', '');
+        if (vacId) {
+            try {
+                const updated = await getVacancyCandidates(vacId);
+                setRankedCandidates(updated);
+            } catch (e) {
+                console.error("Error refreshing candidates:", e);
+            }
+        }
+    };
+
     useEffect(() => {
         if (open && candidate) {
             setReqGender(candidate.vacancy?.reqGender || "Ambos");
@@ -1358,7 +1371,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                     documentationFiles={activeCand.documentationFiles}
                                     documentationStatus={activeCand.documentationStatus}
                                     extraFields={activeCand.extraFields}
-                                    onUpdate={() => router.refresh()}
+                                    onUpdate={handleModalRefresh}
                                 />
                             ) : (
                                 <p className="text-xs text-slate-500 py-4 text-center">Nenhum candidato selecionado.</p>
@@ -1390,7 +1403,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                     candidateName={activeCand.name}
                                     asoFile={activeCand.asoFile}
                                     asoStatus={activeCand.asoStatus}
-                                    onUpdate={() => router.refresh()}
+                                    onUpdate={handleModalRefresh}
                                 />
                             ) : (
                                 <p className="text-xs text-slate-500 py-4 text-center">Nenhum candidato selecionado.</p>
@@ -1420,21 +1433,22 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                 <OnvioPanel
                                     candidateId={activeCand.id}
                                     candidateName={activeCand.name}
-                                    email={activeCand.email}
-                                    phone={activeCand.phone}
-                                    cpf={activeCand.extraFields?.cpf}
+                                    email={activeCand.email || activeCand.extraFields?.email}
+                                    phone={activeCand.phone || activeCand.extraFields?.phone}
+                                    cpf={activeCand.extraFields?.cpf || (activeCand as any).cpf}
                                     birthDate={activeCand.extraFields?.birthDate}
                                     gender={activeCand.extraFields?.gender}
                                     address={activeCand.extraFields?.address}
                                     rg={activeCand.extraFields?.rg}
-                                    roleTitle={activeCand.vacancy?.title || candidate.vacancy?.title}
-                                    salary={activeCand.vacancy?.salary || candidate.vacancy?.salary}
+                                    postoId={activeCand.vacancy?.postoId || candidate.vacancy?.postoId}
+                                    roleTitle={activeCand.vacancy?.role?.name || activeCand.vacancy?.title || candidate.vacancy?.role?.name || candidate.vacancy?.title}
+                                    salary={activeCand.vacancy?.posto?.baseSalary || activeCand.vacancy?.baseSalary || activeCand.vacancy?.salary || candidate.vacancy?.posto?.baseSalary || candidate.vacancy?.salary}
                                     startDate={activeCand.vacancy?.plannedStartDate ? new Date(activeCand.vacancy.plannedStartDate).toLocaleDateString('pt-BR') : ''}
-                                    companyName={activeCand.vacancy?.company?.name || activeCand.vacancy?.posto?.client?.name}
+                                    companyName={activeCand.vacancy?.company?.name || activeCand.vacancy?.posto?.client?.name || candidate.vacancy?.company?.name}
                                     extraFields={activeCand.extraFields}
                                     onvioLaunched={activeCand.onvioLaunched}
                                     onvioConfirmedAt={activeCand.onvioConfirmedAt}
-                                    onUpdate={() => router.refresh()}
+                                    onUpdate={handleModalRefresh}
                                 />
                             ) : (
                                 <p className="text-xs text-slate-500 py-4 text-center">Nenhum candidato selecionado.</p>
@@ -1467,7 +1481,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                     metocarRegistered={activeCand.metocarRegistered}
                                     urbisRegistered={activeCand.urbisRegistered}
                                     benefitsCompletedAt={activeCand.benefitsCompletedAt}
-                                    onUpdate={() => router.refresh()}
+                                    onUpdate={handleModalRefresh}
                                 />
                             ) : (
                                 <p className="text-xs text-slate-500 py-4 text-center">Nenhum candidato selecionado.</p>
