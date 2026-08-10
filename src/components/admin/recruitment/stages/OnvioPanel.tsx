@@ -264,16 +264,6 @@ Empresa: ${companyName || ""}
                         )}
                     </Button>
 
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleOpenOnvioForm}
-                        className="flex-1 border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2"
-                    >
-                        <ExternalLink className="w-4 h-4 text-blue-600" />
-                        <span>↗️ Abrir Portal Onvio (Manual)</span>
-                    </Button>
-
                     {!onvioLaunched && (
                         <Button
                             className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2 shadow"

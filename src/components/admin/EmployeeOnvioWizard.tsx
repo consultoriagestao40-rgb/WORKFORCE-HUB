@@ -425,10 +425,30 @@ export function EmployeeOnvioWizard({
                 return "";
             };
 
-            if (initialData.name) setName(initialData.name);
-            if (initialData.cpf) setCpf(initialData.cpf);
+            // Load extraFields from JSON
+            const extra = initialData.extraFields || {};
+
+            const safeStr = (v: any) => (v !== null && v !== undefined && v !== "undefined" && v !== "null") ? String(v) : "";
+
+            const resolvedName = safeStr(initialData.name || extra.name || extra.nome);
+            if (resolvedName) setName(resolvedName);
+
+            const rawCpf = safeStr(initialData.cpf || extra.cpf || extra.cpfNumero || extra.cpf_numero);
+            if (rawCpf) setCpf(rawCpf);
+
             if (initialData.roleId) setRoleId(initialData.roleId);
-            if (initialData.companyId) setCompanyId(initialData.companyId);
+            
+            // Resolver Empresa / Serviço (Company)
+            if (initialData.companyId) {
+                setCompanyId(initialData.companyId);
+            } else if (initialData.companyName && companies && companies.length > 0) {
+                const foundComp = companies.find(c => 
+                    c.name.toLowerCase().includes(initialData.companyName.toLowerCase()) || 
+                    initialData.companyName.toLowerCase().includes(c.name.toLowerCase())
+                );
+                if (foundComp) setCompanyId(foundComp.id);
+            }
+
             if (initialData.type) setType(initialData.type);
             if (initialData.status) setStatus(initialData.status);
             if (initialData.situationId) setSituationId(initialData.situationId);
@@ -449,19 +469,24 @@ export function EmployeeOnvioWizard({
             setValeTransporte(initialData.valeTransporte ? String(initialData.valeTransporte) : (selectedPosto ? String(selectedPosto.valeTransporte || 0) : "0"));
             setWorkload(initialData.workload ? String(initialData.workload) : (selectedPosto ? String(selectedPosto.requiredWorkload || 220) : "220"));
 
-            if (initialData.birthDate) {
-                setBirthDate(safeFormatDate(initialData.birthDate));
-            }
-            setGender(initialData.gender || "");
-            setAddress(initialData.address || "");
-            setPhone(initialData.phone || "");
-            setEmail(initialData.email || "");
+            const resolvedBirth = safeStr(initialData.birthDate || extra.birthDate || extra.dataNascimento || extra.birth_date);
+            if (resolvedBirth) setBirthDate(safeFormatDate(resolvedBirth));
 
-            // Load extraFields from JSON
-            const extra = initialData.extraFields || {};
-            setNomeSocial(extra.nomeSocial || "");
-            setMatrícula(extra.matricula || "");
-            setFuncao(extra.funcao || "");
+            const resolvedGender = safeStr(initialData.gender || extra.gender || extra.genero);
+            if (resolvedGender) setGender(resolvedGender);
+
+            const resolvedAddress = safeStr(initialData.address || extra.address || extra.endereco);
+            if (resolvedAddress) setAddress(resolvedAddress);
+
+            const resolvedPhone = safeStr(initialData.phone || extra.phone || extra.whatsapp || extra.celular);
+            if (resolvedPhone) setPhone(resolvedPhone);
+
+            const resolvedEmail = safeStr(initialData.email || extra.email);
+            if (resolvedEmail) setEmail(resolvedEmail);
+
+            setNomeSocial(safeStr(extra.nomeSocial));
+            setMatrícula(safeStr(extra.matricula));
+            setFuncao(safeStr(extra.funcao));
             
             setDepartamento(extra.departamento || "Geral");
             setCentroCusto(extra.centroCusto || "Geral");
@@ -485,8 +510,7 @@ export function EmployeeOnvioWizard({
                     : (activePosto ? (activePosto.startTime || activePosto.endTime || "") : ""));
             setJornadaHoras(resolvedJornada);
 
-            const rawCpf = cpf || initialData?.cpf || extra.cpf || extra.cpfNumero || "";
-            const cpfClean = rawCpf.replace(/\D/g, "");
+            const cpfClean = (rawCpf || "").replace(/\D/g, "");
             const digitalCtpsNum = cpfClean.length >= 7 ? cpfClean.slice(0, 7) : "";
             const digitalCtpsSerie = cpfClean.length >= 11 ? cpfClean.slice(7, 11) : (cpfClean.length >= 4 ? cpfClean.slice(-4) : "");
 
@@ -507,13 +531,15 @@ export function EmployeeOnvioWizard({
 
             setEstadoCivil(extra.estadoCivil || extra.estado_civil || "");
             setGrauInstrucao(extra.grauInstrucao || extra.escolaridade || "");
-            setNomePai(extra.nomePai || extra.pai || "");
-            setNomeMae(extra.nomeMae || extra.mae || "");
+            setNomePai(safeStr(extra.nomePai || extra.pai || extra.fatherName));
+            setNomeMae(safeStr(extra.nomeMae || extra.mae || extra.motherName));
             setNacionalidade(extra.nacionalidade || "Brasileira");
             setNaturalidadeCidade(extra.naturalidadeCidade || extra.cidadeNatal || "");
             setNaturalidadeUf(extra.naturalidadeUf || extra.ufNatal || "");
 
-            setRgNumero(extra.rgNumero || extra.rg || extra.numeroRg || extra.rg_numero || initialData.rg || "");
+            const resolvedRgVal = safeStr(extra.rgNumero || extra.rg || extra.numeroRg || extra.rg_numero || initialData.rg);
+            if (resolvedRgVal) setRgNumero(resolvedRgVal);
+
             setRgOrgaoEmissor(extra.rgOrgaoEmissor || extra.orgaoEmissor || extra.rg_orgao_emissor || extra.orgaoExpedidor || "");
             setRgDataEmissao(safeFormatDate(extra.rgDataEmissao || extra.dataEmissaoRg || extra.rg_data_emissao || extra.dataExpedicao));
             setRgUf(extra.rgUf || extra.ufEmissao || extra.rg_uf || extra.ufRg || "");
