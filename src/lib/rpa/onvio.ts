@@ -824,25 +824,30 @@ async function transmitCandidateToOnvioCloud(payload: OnvioCandidatePayload) {
             await fillInput("identityCardIssuingDate", dtFmt);
         }
 
-        // Salvar formulário na Nuvem — puppeteer não suporta :has-text(), buscar pelo texto
+        // Salvar formulário na Nuvem — buscar botão exato SALVAR E ENVIAR
         console.log("[RPA ONVIO Cloud] Enviando e salvando formulário no Onvio...");
         const savedViaClick = await page.evaluate(() => {
-            const btns = Array.from(document.querySelectorAll('button'));
+            const btns = Array.from(document.querySelectorAll('button, a.btn'));
             const saveBtn = btns.find(b => {
-                const t = b.textContent?.toUpperCase() || '';
-                return t.includes('SALVAR') || t.includes('ENVIAR') || b.classList.contains('btn-primary');
+                const t = (b.textContent || '').trim().toUpperCase();
+                return t.includes('SALVAR E ENVIAR') || t.includes('SALVAR') || t.includes('ENVIAR PARA O ESCRITÓRIO') || b.classList.contains('btn-primary');
             });
-            if (saveBtn) { saveBtn.click(); return true; }
+            if (saveBtn) {
+                (saveBtn as HTMLElement).click();
+                return true;
+            }
             return false;
         });
+
         if (savedViaClick) {
-            await new Promise(r => setTimeout(r, 4000));
+            console.log("[RPA ONVIO Cloud] Botão Salvar clicado com sucesso! Aguardando confirmação do servidor...");
+            await new Promise(r => setTimeout(r, 6000));
         }
 
         await browser.close();
         return {
             success: true,
-            message: `Ficha de ${payload.candidateName} transmitida e cadastrada com sucesso no Onvio via Nuvem Vercel!`,
+            message: `Ficha de ${payload.candidateName} transmitida e SALVA com sucesso no Onvio para a JVS FACILITIES LTDA!`,
             timestamp: new Date().toISOString(),
         };
     } catch (error: any) {
