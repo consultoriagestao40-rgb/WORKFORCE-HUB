@@ -145,21 +145,33 @@ export async function transmitCandidateToOnvio(payload: OnvioCandidatePayload) {
                 await page.waitForTimeout(2000);
             }
 
-            const companyDropdown = page.locator('bm-linked-account-selector, .header-firm-name, [data-qe-id*="company"], div:has-text("EMPRESA") + *, *:has-text("CLEAN TECH")').first();
-            await companyDropdown.waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+            // Tentar localizar e clicar no seletor de empresa (componente bm-linked-account-selector do Onvio)
+            const companyDropdown = page.locator('bm-linked-account-selector, [data-qe-id*="account"], .header-firm-name, span:has-text("CLEAN TECH"), div:has-text("CLEAN TECH")').last();
 
-            if (await companyDropdown.isVisible()) {
+            if (await companyDropdown.count() > 0) {
                 console.log("[RPA ONVIO] Clicando no menu de seleção de empresa...");
-                await companyDropdown.click({ force: true });
+                await companyDropdown.click({ force: true }).catch(() => {});
                 await page.waitForTimeout(1500);
 
-                const jvsOption = page.locator('*:has-text("JVS FACILITIES LTDA"), *:has-text("JVS FACILITIES")').first();
+                const jvsOption = page.locator('*:has-text("JVS FACILITIES LTDA"), *:has-text("JVS FACILITIES")').last();
                 await jvsOption.waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
 
                 if (await jvsOption.isVisible()) {
                     console.log("[RPA ONVIO] Alterando empresa ativa para JVS FACILITIES LTDA...");
                     await jvsOption.click({ force: true });
                     await page.waitForTimeout(4000);
+                } else {
+                    // Fallback: tenta clicar diretamente no elemento de texto da empresa na barra lateral
+                    const sidebarComp = page.locator('aside, .sidebar, header, bm-linked-account-selector').locator('*:has-text("CLEAN TECH")').last();
+                    if (await sidebarComp.isVisible()) {
+                        await sidebarComp.click({ force: true });
+                        await page.waitForTimeout(1500);
+                        const jvsRetry = page.locator('*:has-text("JVS FACILITIES LTDA"), *:has-text("JVS FACILITIES")').last();
+                        if (await jvsRetry.isVisible()) {
+                            await jvsRetry.click({ force: true });
+                            await page.waitForTimeout(4000);
+                        }
+                    }
                 }
             }
         } catch (e) {
