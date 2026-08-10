@@ -93,11 +93,12 @@ Empresa: ${companyName || ""}
                 return;
             }
 
-            // Se for execução na Vercel (onde Playwright não existe no servidor cloud), dispara ponte para a máquina local:
+            // Se for execução na Vercel (onde Playwright não existe no servidor cloud), dispara ponte para a máquina local ou IP configurado:
             if (res.requireLocalBridge || (res.error && res.error.includes("playwright"))) {
-                toast.info("Conectando ao Robô RPA no seu computador local...");
+                toast.info("Conectando ao Robô RPA...");
+                const bridgeUrl = process.env.NEXT_PUBLIC_RPA_BRIDGE_URL || "http://localhost:3000/api/rpa/onvio";
                 try {
-                    const localBridgeRes = await fetch("http://localhost:3000/api/rpa/onvio", {
+                    const localBridgeRes = await fetch(bridgeUrl, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -108,14 +109,14 @@ Empresa: ${companyName || ""}
 
                     const localData = await localBridgeRes.json();
                     if (localData.success) {
-                        toast.success(localData.message || "Robô RPA executou no seu Mac! Janela do Chrome aberta.");
+                        toast.success(localData.message || "Robô RPA executou com sucesso! Janela do Chrome aberta.");
                         onUpdate();
                     } else {
                         toast.error(localData.error || "Erro no robô local.");
                     }
                 } catch (localErr) {
                     toast.error(
-                        "O Robô RPA precisa rodar no seu computador para abrir o Chrome. Certifique-se de que 'npm run dev' esteja rodando no terminal do Mac (http://localhost:3000).",
+                        "O Robô RPA precisa do servidor de automação rodando no computador (npm run dev). Certifique-se de que o terminal esteja ativo.",
                         { duration: 8000 }
                     );
                 }
@@ -126,22 +127,23 @@ Empresa: ${companyName || ""}
         } catch (e: any) {
             // Em caso de erro não tratado contendo playwright:
             if (e?.message?.includes("playwright")) {
+                const bridgeUrl = process.env.NEXT_PUBLIC_RPA_BRIDGE_URL || "http://localhost:3000/api/rpa/onvio";
                 try {
-                    toast.info("Conectando ao Robô RPA no seu computador local...");
-                    const localBridgeRes = await fetch("http://localhost:3000/api/rpa/onvio", {
+                    toast.info("Conectando ao Robô RPA...");
+                    const localBridgeRes = await fetch(bridgeUrl, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ candidateId })
                     });
                     const localData = await localBridgeRes.json();
                     if (localData.success) {
-                        toast.success(localData.message || "Robô RPA executou no seu Mac! Janela do Chrome aberta.");
+                        toast.success(localData.message || "Robô RPA executou com sucesso! Janela do Chrome aberta.");
                         onUpdate();
                         return;
                     }
                 } catch (localErr) {
                     toast.error(
-                        "O Robô RPA precisa rodar no seu Mac para abrir o navegador. Digite 'npm run dev' no terminal.",
+                        "O Robô RPA precisa do servidor de automação rodando no computador (npm run dev).",
                         { duration: 8000 }
                     );
                     return;
