@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { transmitCandidateToOnvio, OnvioCandidatePayload } from "@/lib/rpa/onvio";
 import { prisma } from "@/lib/db";
 
+export const maxDuration = 60; // 60 segundos para execução na nuvem Vercel
+export const dynamic = 'force-dynamic';
+
 // Permitir requisições CORS de origens confiáveis (ex: Vercel app) para disparar o robô localmente
 function getCorsHeaders() {
     return {

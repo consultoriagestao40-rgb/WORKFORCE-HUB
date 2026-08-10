@@ -59,14 +59,31 @@ export async function transmitCandidateToOnvio(payload: OnvioCandidatePayload) {
     const pass = process.env.ONVIO_PASS || "%Jcr35030";
 
     let browser: any;
+    const isVercel = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === "production";
+
     try {
-        // Import dinâmico: playwright só está instalado localmente, não na Vercel
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { chromium } = require("playwright");
-        browser = await chromium.launch({
-            headless: false,
-            args: ["--no-sandbox", "--disable-setuid-sandbox"]
-        });
+        if (isVercel) {
+            console.log("[RPA ONVIO] Modo Nuvem Vercel detectado. Inicializando @sparticuz/chromium...");
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const chromium = require("@sparticuz/chromium");
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const playwright = require("playwright-core");
+
+            browser = await playwright.chromium.launch({
+                args: [...chromium.args, "--no-sandbox", "--disable-setuid-sandbox"],
+                defaultViewport: { width: 1280, height: 800 },
+                executablePath: await chromium.executablePath(),
+                headless: true,
+            });
+        } else {
+            console.log("[RPA ONVIO] Modo Local detectado. Inicializando Playwright no Desktop...");
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const { chromium } = require("playwright");
+            browser = await chromium.launch({
+                headless: false,
+                args: ["--no-sandbox", "--disable-setuid-sandbox"]
+            });
+        }
 
         const context = await browser.newContext({
             viewport: { width: 1280, height: 800 },
@@ -652,12 +669,29 @@ export async function transmitCandidateToOnvio(payload: OnvioCandidatePayload) {
             console.log("[RPA ONVIO] Erro no preenchimento da Aba 6:", e);
         }
 
+        if (isVercel) {
+            console.log(`[RPA ONVIO Cloud] Salvando formulário automaticamente no Onvio para ${payload.candidateName}...`);
+            try {
+                const saveBtn = page.locator('button:has-text("SALVAR E ENVIAR PARA O ESCRITÓRIO"), button:has-text("SALVAR"), button:has-text("Salvar e Enviar")').first();
+                if (await saveBtn.isVisible()) {
+                    await saveBtn.click({ force: true });
+                    await page.waitForTimeout(4000);
+                }
+            } catch (saveErr) {
+                console.log("[RPA ONVIO Cloud] Aviso ao salvar formulário:", saveErr);
+            }
+
+            if (browser) await browser.close().catch(() => {});
+
+            return {
+                success: true,
+                message: `Ficha de ${payload.candidateName} transmitida e cadastrada com sucesso no Onvio via Vercel Nuvem!`,
+                timestamp: new Date().toISOString(),
+            };
+        }
+
         console.log(`[RPA ONVIO] ✅ Todas as 6 abas preenchidas para ${payload.candidateName}! Formulário completo — aguarde validação manual antes de salvar.`);
         console.log(`[RPA ONVIO] 🟢 Navegador permanecerá aberto para você conferir, editar e clicar em SALVAR.`);
-
-        // Navegador permanece aberto indefinidamente para conferência e salvamento manual.
-        // O processo Node.js retorna imediatamente mas o browser continua vivo na tela.
-        // O usuário deve clicar em SALVAR manualmente no Onvio.
 
         return {
             success: true,

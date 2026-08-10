@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { transmitCandidateToOnvio, OnvioCandidatePayload } from "@/lib/rpa/onvio";
 import { revalidatePath } from "next/cache";
 
+export const maxDuration = 60;
+
 export async function sendCandidateToOnvioRpa(candidateId: string) {
     try {
         const candidate = await prisma.recruitmentCandidate.findUnique({
