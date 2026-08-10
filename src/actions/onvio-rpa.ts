@@ -97,16 +97,11 @@ export async function sendCandidateToOnvioRpa(candidateId: string) {
                 return { success: false, error: result.error };
             }
         } catch (rpaErr: any) {
-            // Se falhou por causa da falta de Playwright no Vercel (ambiente serverless da nuvem):
-            if (rpaErr?.message?.includes("playwright") || rpaErr?.code === "MODULE_NOT_FOUND") {
-                return {
-                    success: false,
-                    requireLocalBridge: true,
-                    payload,
-                    candidateId
-                };
-            }
-            throw rpaErr;
+            console.error("[RPA Server Action Error]:", rpaErr);
+            return {
+                success: false,
+                error: rpaErr?.message || "Ocorreu um erro durante a execução do robô RPA no servidor."
+            };
         }
     } catch (error: any) {
         console.error("Error in sendCandidateToOnvioRpa:", error);
