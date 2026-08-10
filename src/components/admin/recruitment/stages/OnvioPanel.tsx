@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CheckCircle2, Loader2, Calendar, Zap, Bot } from "lucide-react";
+import { CheckCircle2, Loader2, Calendar, Zap, Bot, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { confirmOnvio, getEmployeeFormData } from "@/actions/recruitment";
@@ -242,7 +242,7 @@ Empresa: ${companyName || ""}
                 />
             </div>
 
-            {/* Ações: Robô RPA Onvio e Confirmação */}
+            {/* Ações: Robô RPA Onvio, Abrir Portal Onvio e Confirmação */}
             <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
                 <div className="flex flex-col sm:flex-row gap-3">
                     <Button
@@ -264,6 +264,16 @@ Empresa: ${companyName || ""}
                         )}
                     </Button>
 
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleOpenOnvioForm}
+                        className="flex-1 border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2"
+                    >
+                        <ExternalLink className="w-4 h-4 text-blue-600" />
+                        <span>↗️ Abrir Portal Onvio (Manual)</span>
+                    </Button>
+
                     {!onvioLaunched && (
                         <Button
                             className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2 shadow"
@@ -275,7 +285,7 @@ Empresa: ${companyName || ""}
                             ) : (
                                 <CheckCircle2 className="w-4 h-4" />
                             )}
-                            <span>Confirmar Lançamento e Avançar</span>
+                            <span>Confirmar Lançamento</span>
                         </Button>
                     )}
                 </div>
