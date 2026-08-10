@@ -274,7 +274,7 @@ Empresa: ${companyName || ""}
                 />
             </div>
 
-            {/* Ações: Robô RPA Onvio, Abrir Portal Onvio e Confirmação */}
+            {/* Ações: Robô RPA Onvio, Executável Windows e Confirmação */}
             <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
                 <div className="flex flex-col sm:flex-row gap-3">
                     <Button
@@ -295,6 +295,14 @@ Empresa: ${companyName || ""}
                             </>
                         )}
                     </Button>
+
+                    <a
+                        href="/downloads/Robo-Onvio-RH.exe"
+                        download="Robo-Onvio-RH.exe"
+                        className="flex-1 border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm bg-white"
+                    >
+                        <span>💻 Baixar Executável Windows (Robo-Onvio-RH.exe)</span>
+                    </a>
 
                     {!onvioLaunched && (
                         <Button
