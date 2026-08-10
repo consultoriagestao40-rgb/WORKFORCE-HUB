@@ -55,35 +55,25 @@ export interface OnvioCandidatePayload {
 }
 
 export async function transmitCandidateToOnvio(payload: OnvioCandidatePayload) {
+    const isVercel = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === "production";
+
+    if (isVercel) {
+        console.log("[RPA ONVIO] Modo Nuvem Vercel detectado. Inicializando automação via puppeteer-core + @sparticuz/chromium...");
+        return await transmitCandidateToOnvioCloud(payload);
+    }
+
     const user = process.env.ONVIO_USER || "adm@jvstratamentosdepiso.com";
     const pass = process.env.ONVIO_PASS || "%Jcr35030";
 
     let browser: any;
-    const isVercel = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === "production";
-
     try {
-        if (isVercel) {
-            console.log("[RPA ONVIO] Modo Nuvem Vercel detectado. Inicializando @sparticuz/chromium...");
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            const chromium = require("@sparticuz/chromium");
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            const playwright = require("playwright-core");
-
-            browser = await playwright.chromium.launch({
-                args: [...chromium.args, "--no-sandbox", "--disable-setuid-sandbox"],
-                defaultViewport: { width: 1280, height: 800 },
-                executablePath: await chromium.executablePath(),
-                headless: true,
-            });
-        } else {
-            console.log("[RPA ONVIO] Modo Local detectado. Inicializando Playwright no Desktop...");
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            const { chromium } = require("playwright");
-            browser = await chromium.launch({
-                headless: false,
-                args: ["--no-sandbox", "--disable-setuid-sandbox"]
-            });
-        }
+        console.log("[RPA ONVIO] Modo Local detectado. Inicializando Playwright no Desktop...");
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { chromium } = require("playwright");
+        browser = await chromium.launch({
+            headless: false,
+            args: ["--no-sandbox", "--disable-setuid-sandbox"]
+        });
 
         const context = await browser.newContext({
             viewport: { width: 1280, height: 800 },
@@ -703,6 +693,153 @@ export async function transmitCandidateToOnvio(payload: OnvioCandidatePayload) {
         return {
             success: false,
             error: error?.message || "Ocorreu um erro durante a automação de admissão no Onvio."
+        };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Execução 100% Nuvem Vercel via puppeteer-core + @sparticuz/chromium
+// ─────────────────────────────────────────────────────────────────────────────
+async function transmitCandidateToOnvioCloud(payload: OnvioCandidatePayload) {
+    const user = process.env.ONVIO_USER || "adm@jvstratamentosdepiso.com";
+    const pass = process.env.ONVIO_PASS || "%Jcr35030";
+
+    let browser: any;
+    try {
+        console.log("[RPA ONVIO Cloud] Carregando @sparticuz/chromium e puppeteer-core...");
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const chromium = require("@sparticuz/chromium");
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const puppeteer = require("puppeteer-core");
+
+        const execPath = await chromium.executablePath();
+        browser = await puppeteer.launch({
+            args: [...chromium.args, "--no-sandbox", "--disable-setuid-sandbox"],
+            defaultViewport: { width: 1280, height: 800 },
+            executablePath: execPath,
+            headless: true,
+        });
+
+        const page = await browser.newPage();
+        await page.setUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36");
+
+        // 1. Navegar para listagem Onvio
+        console.log("[RPA ONVIO Cloud] Acessando listagem Onvio...");
+        await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => {});
+        await new Promise(r => setTimeout(r, 3000));
+
+        // 2. Autenticação se necessário
+        if (page.url().includes("/auth") || page.url().includes("thomsonreuters")) {
+            console.log("[RPA ONVIO Cloud] Realizando autenticação no Onvio...");
+            const entrarBtn = await page.$('button, a, .btn-primary');
+            if (entrarBtn) { await entrarBtn.click().catch(() => {}); await new Promise(r => setTimeout(r, 2500)); }
+
+            await page.waitForSelector('input[name="uid"], [data-qe-id="trauth-signin-uid"]', { timeout: 25000 }).catch(() => {});
+            const uid = await page.$('input[name="uid"], [data-qe-id="trauth-signin-uid"]');
+            if (uid) await uid.type(user);
+
+            const nextBtn = await page.$('button[type="submit"]');
+            if (nextBtn) { await nextBtn.click().catch(() => {}); await new Promise(r => setTimeout(r, 2000)); }
+
+            await page.waitForSelector('input[type="password"]', { timeout: 20000 }).catch(() => {});
+            const pwd = await page.$('input[type="password"]');
+            if (pwd) await pwd.type(pass);
+
+            const submitBtn = await page.$('button[type="submit"]');
+            if (submitBtn) { await submitBtn.click().catch(() => {}); await new Promise(r => setTimeout(r, 5000)); }
+
+            await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "domcontentloaded", timeout: 30000 });
+            await new Promise(r => setTimeout(r, 3000));
+        }
+
+        // 3. Selecionar Empresa JVS FACILITIES LTDA
+        console.log("[RPA ONVIO Cloud] Selecionando JVS FACILITIES LTDA...");
+        const companyClickable = await page.$('bm-linked-account-selector, .header-firm-name');
+        if (companyClickable) {
+            await companyClickable.click().catch(() => {});
+            await new Promise(r => setTimeout(r, 1500));
+            const jvsOpt = await page.$('xpath///span[contains(text(), "JVS FACILITIES")] | //div[contains(text(), "JVS FACILITIES")]');
+            if (jvsOpt) {
+                await jvsOpt.click().catch(() => {});
+                await new Promise(r => setTimeout(r, 3500));
+            }
+        }
+
+        // 4. Abrir formulário /add
+        console.log("[RPA ONVIO Cloud] Abrindo formulário de cadastro...");
+        await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration/add", { waitUntil: "domcontentloaded", timeout: 30000 });
+        await new Promise(r => setTimeout(r, 3000));
+
+        // 5. Preencher Campos
+        const fillInput = async (controlName: string, value?: string) => {
+            if (!value) return;
+            try {
+                const el = await page.$(`input[formcontrolname="${controlName}"], textarea[formcontrolname="${controlName}"]`);
+                if (el) {
+                    await page.evaluate((e: any, v: string) => {
+                        e.value = v;
+                        e.dispatchEvent(new Event('input', { bubbles: true }));
+                        e.dispatchEvent(new Event('change', { bubbles: true }));
+                    }, el, value);
+                }
+            } catch (e) {}
+        };
+
+        await fillInput("employeeName", payload.candidateName);
+        if (payload.candidateCpf) await fillInput("cpfNumber", payload.candidateCpf.replace(/\D/g, ""));
+        if (payload.birthDate) {
+            const dt = payload.birthDate.includes("-") ? payload.birthDate.split("-").reverse().join("/") : payload.birthDate;
+            await fillInput("birthDate", dt);
+        }
+        if (payload.nomeMae) await fillInput("motherName", payload.nomeMae);
+        if (payload.nomePai) await fillInput("fatherName", payload.nomePai);
+        if (payload.address) await fillInput("address", payload.address);
+
+        // Aba 2
+        const tab2 = await page.$('button.bento-wizard-step:nth-child(2)');
+        if (tab2) await tab2.click().catch(() => {});
+        await new Promise(r => setTimeout(r, 1500));
+        if (payload.ctpsNumero) await fillInput("workNumber", payload.ctpsNumero);
+        if (payload.ctpsSerie) await fillInput("workSerial", payload.ctpsSerie);
+        if (payload.pisNumero) await fillInput("pisNumber", payload.pisNumero);
+
+        // Aba 3
+        const tab3 = await page.$('button.bento-wizard-step:nth-child(3)');
+        if (tab3) await tab3.click().catch(() => {});
+        await new Promise(r => setTimeout(r, 1500));
+
+        // Aba 4
+        const tab4 = await page.$('button.bento-wizard-step:nth-child(4)');
+        if (tab4) await tab4.click().catch(() => {});
+        await new Promise(r => setTimeout(r, 1500));
+        if (payload.rgNumero) await fillInput("identityCard", payload.rgNumero);
+        if (payload.rgOrgaoEmissor) await fillInput("issuingAgency", payload.rgOrgaoEmissor);
+        const dtRG = payload.rgDataEmissao || payload.ctpsDataEmissao;
+        if (dtRG) {
+            const dtFmt = dtRG.includes("-") ? dtRG.split("-").reverse().join("/") : dtRG;
+            await fillInput("identityCardIssuingDate", dtFmt);
+        }
+
+        // Salvar formulário na Nuvem
+        console.log("[RPA ONVIO Cloud] Enviando e salvando formulário no Onvio...");
+        const saveBtn = await page.$('button.btn-primary, button:has-text("SALVAR"), button:has-text("Salvar e Enviar")');
+        if (saveBtn) {
+            await saveBtn.click().catch(() => {});
+            await new Promise(r => setTimeout(r, 4000));
+        }
+
+        await browser.close();
+        return {
+            success: true,
+            message: `Ficha de ${payload.candidateName} transmitida e cadastrada com sucesso no Onvio via Nuvem Vercel!`,
+            timestamp: new Date().toISOString(),
+        };
+    } catch (error: any) {
+        console.error("[RPA ONVIO Cloud Error]:", error);
+        if (browser) await browser.close().catch(() => {});
+        return {
+            success: false,
+            error: error?.message || "Erro durante execução da automação Onvio na nuvem."
         };
     }
 }

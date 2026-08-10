@@ -15,8 +15,8 @@ const nextConfig: NextConfig = {
   },
   turbopack: {},
 
-  // Apenas sparticuz/chromium e playwright-core como serverExternalPackages para a Vercel
-  serverExternalPackages: ["@sparticuz/chromium", "playwright-core"],
+  // puppeteer-core e @sparticuz/chromium para automacao em nuvem na Vercel
+  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
 };
 
 export default withSerwist(nextConfig);
