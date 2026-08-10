@@ -75,10 +75,10 @@ export async function transmitCandidateToOnvio(payload: OnvioCandidatePayload) {
 
         const page = await context.newPage();
 
-        // 1. Navegar para o portal Onvio com timeout resiliente de 60s
+        // 1. Navegar para a lista principal do portal Onvio (NÃO abrir /add direto para evitar prender contexto de empresa errada)
         console.log("[RPA ONVIO] Acessando portal Onvio visivelmente no desktop...");
         try {
-            await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration/add", { waitUntil: "commit", timeout: 60000 });
+            await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "commit", timeout: 60000 });
         } catch (e) {
             console.log("[RPA ONVIO] Re-tentando conexão com portal Onvio...");
             await page.goto("https://onvio.com.br/clientcenter", { waitUntil: "commit", timeout: 60000 });
@@ -129,15 +129,21 @@ export async function transmitCandidateToOnvio(payload: OnvioCandidatePayload) {
                 await page.waitForTimeout(5000);
             }
 
-            console.log("[RPA ONVIO] Retornando ao formulário de admissão após login...");
-            await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration/add", { waitUntil: "domcontentloaded", timeout: 30000 });
+            console.log("[RPA ONVIO] Retornando ao portal após login...");
+            await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "domcontentloaded", timeout: 30000 });
             await page.waitForTimeout(3000);
         }
 
-        // 2.1 Selecionar a Empresa correta (ex: JVS FACILITIES LTDA) no menu suspenso superior
+        // 2. Selecionar obrigatoriamente JVS FACILITIES LTDA na página de listagem antes de abrir a ficha
         try {
             const targetComp = payload.companyName || "JVS FACILITIES";
             console.log(`[RPA ONVIO] Verificando empresa ativa no portal (Alvo: ${targetComp})...`);
+
+            // Se o formulário /add já estiver aberto por cache anterior, fecha primeiro para liberar a troca de empresa
+            if (page.url().includes("/add")) {
+                await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "domcontentloaded", timeout: 30000 });
+                await page.waitForTimeout(2000);
+            }
 
             const companyDropdown = page.locator('bm-linked-account-selector, .header-firm-name, [data-qe-id*="company"], div:has-text("EMPRESA") + *, *:has-text("CLEAN TECH")').first();
             await companyDropdown.waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
@@ -154,24 +160,16 @@ export async function transmitCandidateToOnvio(payload: OnvioCandidatePayload) {
                     console.log("[RPA ONVIO] Alterando empresa ativa para JVS FACILITIES LTDA...");
                     await jvsOption.click({ force: true });
                     await page.waitForTimeout(4000);
-
-                    // Recarregar formulário /add no novo contexto de empresa
-                    console.log("[RPA ONVIO] Recarregando formulário para o contexto da JVS FACILITIES LTDA...");
-                    await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration/add", { waitUntil: "domcontentloaded", timeout: 30000 });
-                    await page.waitForTimeout(3000);
                 }
             }
         } catch (e) {
             console.log("[RPA ONVIO] Seleção de empresa concluída.");
         }
 
-        // 3. Clicar no botão ➕ Adicionar para abrir a ficha se necessário
-        const addBtn = page.locator('button:has-text("Adicionar"), a:has-text("Adicionar"), span:has-text("Adicionar")').first();
-        if (await addBtn.isVisible()) {
-            console.log("[RPA ONVIO] Clicando no botão ➕ Adicionar para abrir a ficha...");
-            await addBtn.click({ force: true });
-            await page.waitForTimeout(4000);
-        }
+        // 3. Abrir formulário /add com garantia de estar sob a empresa JVS FACILITIES LTDA
+        console.log("[RPA ONVIO] Abrindo ficha de admissão para JVS FACILITIES LTDA...");
+        await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration/add", { waitUntil: "domcontentloaded", timeout: 30000 });
+        await page.waitForTimeout(3000);
 
         // 4. Preencher Aba 1 (Geral) e Avançar via Botão Laranja "PRÓXIMA ETAPA"
         console.log("[RPA ONVIO] Preenchendo 100% dos campos da Aba 1 (Geral)...");
