@@ -39,6 +39,15 @@ model User {
   supervisedMeasures         DisciplinaryMeasure[] @relation("DisciplinarySupervisor")
   createdMeasures            DisciplinaryMeasure[] @relation("DisciplinaryCreator")
   epiDeliveries              EpiDelivery[]
+  // Central de Atendimento RH
+  hrAccessPermission         HrAccessPermission?
+  hrAssignedTickets          HrTicket[]            @relation("HrTicketAssignee")
+  hrTicketNotes              HrTicketNote[]        @relation("HrTicketNoteAuthor")
+  hrTicketAttachments        HrTicketAttachment[]  @relation("HrTicketAttachmentUploader")
+  hrTicketActivities         HrTicketActivity[]    @relation("HrTicketActivityAssignee")
+  hrTicketTransfersFrom      HrTicketTransfer[]    @relation("HrTicketTransferFrom")
+  hrTicketTransfersTo        HrTicketTransfer[]    @relation("HrTicketTransferTo")
+  hrScheduledMessages        HrScheduledMessage[]  @relation("HrScheduledMessageCreator")
 }
 
 model Log {
@@ -256,6 +265,7 @@ model Employee {
   benefitPayments        BenefitsPayment[]
   extraFields            Json?
   epiDeliveries          EpiDelivery[]
+  hrTickets              HrTicket[]
 }
 
 model BenefitsConfig {
@@ -975,5 +985,200 @@ model RecruitmentWhatsAppMessage {
   @@index([candidateId])
   @@index([createdAt])
 }
+
+// ============================================================
+// CENTRAL DE ATENDIMENTO RH — WhatsApp ao Vivo
+// ============================================================
+
+// Permissão de acesso ao módulo de Atendimento RH
+model HrAccessPermission {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// Etapas do Pipeline (global, configurável pelos ADMIN/COORD_RH)
+model HrPipelineStage {
+  id        String    @id @default(uuid())
+  name      String
+  color     String    @default("#6366f1")
+  order     Int       @default(0)
+  isDefault Boolean   @default(false) // Etapa padrão para novos tickets
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  tickets   HrTicket[]
+
+  @@index([order])
+}
+
+// Etiquetas personalizáveis com nome e cor
+model HrTicketLabel {
+  id        String     @id @default(uuid())
+  name      String
+  color     String     @default("#10b981")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  tickets   HrTicket[] @relation("HrTicketLabels")
+
+  @@index([name])
+}
+
+// Ticket de Atendimento — uma conversa com um funcionário
+model HrTicket {
+  id              String          @id @default(uuid())
+  title           String          // Nome do atendimento (ex: "Solicitação de Vale Transporte")
+  
+  // Funcionário (pode ser nulo se for número desconhecido)
+  employeeId      String?
+  employee        Employee?       @relation(fields: [employeeId], references: [id])
+  contactPhone    String          // Número do WhatsApp (sempre preenchido)
+  contactName     String          // Nome do contato (funcionário ou "Desconhecido")
+  contactPhotoUrl String?         // Foto de perfil do WhatsApp (Z-API)
+
+  // Etapa do Pipeline
+  stageId         String
+  stage           HrPipelineStage @relation(fields: [stageId], references: [id])
+  
+  // Atendente Responsável (null = disponível para todos)
+  assigneeId      String?
+  assignee        User?           @relation("HrTicketAssignee", fields: [assigneeId], references: [id])
+  
+  // Participantes adicionais
+  participantIds  String[]        @default([])
+  
+  // Status e visibilidade
+  status          String          @default("OPEN") // "OPEN" | "CLOSED" | "TRANSFERRED"
+  isPrivate       Boolean         @default(false)  // true = apenas atendente responsável vê
+  
+  // Mensagens não lidas pelo atendente
+  unreadCount     Int             @default(0)
+  
+  // Carimbo do atendente nas mensagens (salvo por ticket)
+  attendantStamp  String?
+  
+  // Relacionamentos
+  labels          HrTicketLabel[] @relation("HrTicketLabels")
+  messages        HrTicketMessage[]
+  notes           HrTicketNote[]
+  attachments     HrTicketAttachment[]
+  activities      HrTicketActivity[]
+  transfers       HrTicketTransfer[]
+  scheduledMsgs   HrScheduledMessage[]
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  closedAt        DateTime?
+  
+  @@index([stageId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([contactPhone])
+  @@index([employeeId])
+}
+
+// Mensagens do WhatsApp vinculadas ao ticket
+model HrTicketMessage {
+  id            String   @id @default(uuid())
+  ticketId      String
+  ticket        HrTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderType    String   // "ATTENDANT" | "EMPLOYEE" | "SYSTEM"
+  senderName    String?
+  messageType   String   @default("TEXT") // "TEXT" | "IMAGE" | "DOCUMENT" | "AUDIO" | "VIDEO"
+  content       String
+  mediaUrl      String?
+  mediaFileName String?
+  mediaMimeType String?
+  status        String   @default("SENT") // "SENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED"
+  zapiMessageId String?
+  createdAt     DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([createdAt])
+}
+
+// Anotações internas (invisíveis para o funcionário)
+model HrTicketNote {
+  id        String   @id @default(uuid())
+  ticketId  String
+  ticket    HrTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  content   String
+  authorId  String?
+  author    User?    @relation("HrTicketNoteAuthor", fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+// Documentos e arquivos anexados ao ticket
+model HrTicketAttachment {
+  id           String   @id @default(uuid())
+  ticketId     String
+  ticket       HrTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fileName     String
+  fileUrl      String
+  mimeType     String?
+  uploadedById String?
+  uploadedBy   User?    @relation("HrTicketAttachmentUploader", fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+// Atividades agendadas (e.g., "Dar retorno sobre pedido de VT em 3 dias")
+model HrTicketActivity {
+  id           String    @id @default(uuid())
+  ticketId     String
+  ticket       HrTicket  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  title        String    // Ex: "Dar retorno sobre pedido de VT"
+  description  String?
+  dueAt        DateTime
+  completedAt  DateTime?
+  assigneeId   String?
+  assignee     User?     @relation("HrTicketActivityAssignee", fields: [assigneeId], references: [id])
+  createdAt    DateTime  @default(now())
+
+  @@index([ticketId])
+  @@index([dueAt])
+}
+
+// Histórico de transferências de ticket entre atendentes
+model HrTicketTransfer {
+  id           String   @id @default(uuid())
+  ticketId     String
+  ticket       HrTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromUserId   String?
+  fromUser     User?    @relation("HrTicketTransferFrom", fields: [fromUserId], references: [id])
+  toUserId     String
+  toUser       User     @relation("HrTicketTransferTo", fields: [toUserId], references: [id])
+  reason       String?
+  createdAt    DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+// Mensagens agendadas (ex: Feliz Aniversário, retorno automático)
+model HrScheduledMessage {
+  id          String    @id @default(uuid())
+  ticketId    String?
+  ticket      HrTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  phone       String    // Número de destino
+  message     String
+  scheduledAt DateTime
+  status      String    @default("PENDING") // "PENDING" | "SENT" | "FAILED" | "CANCELLED"
+  sentAt      DateTime?
+  createdById String?
+  createdBy   User?     @relation("HrScheduledMessageCreator", fields: [createdById], references: [id])
+  isRecurring Boolean   @default(false)
+  recurrenceRule String? // e.g., "BIRTHDAY" | "ANNUAL" | "MONTHLY"
+  createdAt   DateTime  @default(now())
+
+  @@index([scheduledAt, status])
+  @@index([phone])
+}
+
 
 

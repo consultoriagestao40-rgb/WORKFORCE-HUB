@@ -84,6 +84,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
                 <SectionHeader title="Operação" />
 
                 <NavLink href="/admin/operations" icon={Clock} label="Mesa de Operações" colorClass="text-indigo-400" />
+                <NavLink href="/admin/atendimento" icon={Inbox} label="Atendimento RH" colorClass="text-emerald-400" />
                 <NavLink href="/admin/disciplinary" icon={Scale} label="Gestão de Medidas" colorClass="text-rose-500" />
                 <NavLink href="/admin/epi" icon={Shirt} label="EPIs & Uniformes" colorClass="text-amber-400" />
                 <NavLink href="/admin/requests" icon={Inbox} label="Central de Solicitações" colorClass="text-orange-400" />
