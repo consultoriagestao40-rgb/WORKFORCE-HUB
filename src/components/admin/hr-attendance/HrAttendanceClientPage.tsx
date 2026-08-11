@@ -109,15 +109,6 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                         className="text-xs h-8 w-60 bg-slate-50"
                     />
 
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-xs gap-1 border-slate-300"
-                        onClick={() => setShowPipelineEditor(true)}
-                    >
-                        <span>⚙️</span> Etapas
-                    </Button>
-
                     {currentUser?.role === "ADMIN" && (
                         <Button
                             variant="outline"
@@ -129,6 +120,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                         </Button>
                     )}
                 </div>
+
             </div>
 
             {/* View Render */}
@@ -141,8 +133,9 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                     stages={stages}
                     tickets={tickets}
                     onSelectTicket={setSelectedTicketId}
-                    onOpenPipelineEditor={() => setShowPipelineEditor(true)}
+                    onStagesUpdated={loadData}
                 />
+
             ) : viewMode === "labels" ? (
                 <HrLabelView
                     labels={labels}
