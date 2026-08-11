@@ -90,12 +90,47 @@ Empresa: ${companyName || ""}
     async function handleRpaTransmit() {
         setSendingRpa(true);
         try {
-            const res = await sendCandidateToOnvioRpa(candidateId);
-            if (res.success) {
-                toast.success(res.message || "Robô RPA executou com sucesso no portal Onvio!");
-                onUpdate();
-            } else {
-                toast.error(res.error || "Erro ao executar o robô RPA no Onvio.");
+            // 1. Tentar comunicar primeiro com o Robô Local no computador do usuário (portas 3000 ou ponte configurada)
+            const bridgeUrl = process.env.NEXT_PUBLIC_RPA_BRIDGE_URL || "http://localhost:3000/api/rpa/onvio";
+            
+            let localBridgeSuccess = false;
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+                const localBridgeRes = await fetch(bridgeUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        candidateId,
+                        payload: wizardInitialData
+                    }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (localBridgeRes.ok) {
+                    const localData = await localBridgeRes.json();
+                    if (localData.success) {
+                        localBridgeSuccess = true;
+                        toast.success(localData.message || "Robô RPA abriu o Chrome na sua tela com todas as 6 abas preenchidas!");
+                        onUpdate();
+                        return;
+                    }
+                }
+            } catch (localErr) {
+                // Robô local não atendeu no localhost:3000
+            }
+
+            // 2. Se não houver robô local ativo no PC, executa no servidor de nuvem Vercel
+            if (!localBridgeSuccess) {
+                const res = await sendCandidateToOnvioRpa(candidateId);
+                if (res.success) {
+                    toast.success(res.message || "Robô RPA executou com sucesso no portal Onvio!");
+                    onUpdate();
+                } else {
+                    toast.error(res.error || "Erro ao executar o robô RPA no Onvio.");
+                }
             }
         } catch (e: any) {
             toast.error(e.message || "Erro durante o disparo do robô RPA.");
