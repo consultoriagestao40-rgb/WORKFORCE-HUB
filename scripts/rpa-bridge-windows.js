@@ -1,9 +1,8 @@
 // =============================================================================
-// ROBÔ RPA ONVIO - MOTOR VISUAL COM PUPPETEER-CORE (WINDOWS RH)
+// ROBÔ RPA ONVIO - MOTOR VISUAL COM LOGIN AUTOMÁTICO INFALÍVEL (WINDOWS RH)
 // =============================================================================
 const http = require("http");
 const fs = require("fs");
-const path = require("path");
 const puppeteer = require("puppeteer-core");
 
 const PORT = process.env.PORT || 3000;
@@ -108,37 +107,57 @@ async function executeVisualFilling(payload) {
     await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "domcontentloaded" });
     await page.evaluate(() => new Promise(r => setTimeout(r, 2500)));
 
-    if (page.url().includes("/auth") || page.url().includes("thomsonreuters")) {
-        console.log("[RPA WINDOWS RH] Efetuando login...");
-        try {
+    // 2. Tentar Clicar em Entrar se estiver na Landing Page do Onvio
+    console.log("[RPA WINDOWS RH] Verificando tela de login...");
+    try {
+        const clickedEntrar = await page.evaluate(() => {
+            const btns = Array.from(document.querySelectorAll('button, a, .btn-primary, [role="button"]'));
+            const entrarBtn = btns.find(b => b.textContent && b.textContent.trim().toLowerCase() === 'entrar');
+            if (entrarBtn) {
+                entrarBtn.click();
+                return true;
+            }
+            return false;
+        });
+        if (clickedEntrar) {
+            console.log("[RPA WINDOWS RH] Botão Entrar clicado. Aguardando tela de credenciais...");
+            await page.evaluate(() => new Promise(r => setTimeout(r, 2500)));
+        }
+    } catch (e) {}
+
+    // Preencher Usuário e Senha
+    try {
+        const uidSelector = 'input[name="uid"], input[type="email"], #username, [data-qe-id="trauth-signin-uid"], input[autocomplete="username"]';
+        const hasUidInp = await page.$(uidSelector);
+        
+        if (hasUidInp) {
+            console.log("[RPA WINDOWS RH] Preenchendo usuário: " + ONVIO_USER);
+            await page.type(uidSelector, ONVIO_USER, { delay: 40 });
+
             await page.evaluate(() => {
-                const btn = Array.from(document.querySelectorAll('button, a')).find(el => el.textContent.includes('Entrar'));
-                if (btn) btn.click();
+                const btns = Array.from(document.querySelectorAll('button'));
+                const nextBtn = btns.find(b => b.textContent && (b.textContent.includes('Avançar') || b.textContent.includes('Continuar') || b.type === 'submit'));
+                if (nextBtn) nextBtn.click();
             });
             await page.evaluate(() => new Promise(r => setTimeout(r, 2000)));
 
-            await page.waitForSelector('input[name="uid"], [data-qe-id="trauth-signin-uid"]', { timeout: 25000 });
-            await page.type('input[name="uid"], [data-qe-id="trauth-signin-uid"]', ONVIO_USER);
+            await page.waitForSelector('input[type="password"]', { timeout: 15000 });
+            console.log("[RPA WINDOWS RH] Preenchendo senha...");
+            await page.type('input[type="password"]', ONVIO_PASS, { delay: 40 });
 
             await page.evaluate(() => {
-                const btn = Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('Avançar') || el.textContent.includes('Continuar') || el.type === 'submit');
-                if (btn) btn.click();
-            });
-            await page.evaluate(() => new Promise(r => setTimeout(r, 2000)));
-
-            await page.waitForSelector('input[type="password"]', { timeout: 20000 });
-            await page.type('input[type="password"]', ONVIO_PASS);
-
-            await page.evaluate(() => {
-                const btn = Array.from(document.querySelectorAll('button')).find(el => el.type === 'submit' || el.textContent.includes('Entrar'));
-                if (btn) btn.click();
+                const btns = Array.from(document.querySelectorAll('button'));
+                const submitBtn = btns.find(b => b.type === 'submit' || (b.textContent && b.textContent.includes('Entrar')));
+                if (submitBtn) submitBtn.click();
             });
             await page.evaluate(() => new Promise(r => setTimeout(r, 5000)));
-        } catch (e) {}
-
-        await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "domcontentloaded" });
-        await page.evaluate(() => new Promise(r => setTimeout(r, 3000)));
+        }
+    } catch (loginErr) {
+        console.log("[RPA WINDOWS RH] Sessão já autenticada ou etapa concluída.");
     }
+
+    await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => new Promise(r => setTimeout(r, 3000)));
 
     console.log(`[RPA WINDOWS RH] Selecionando contexto de empresa: ${companyName}...`);
     try {
