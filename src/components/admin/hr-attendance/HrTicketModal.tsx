@@ -7,8 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import {
     Phone, Video, Search, MoreVertical, Paperclip, Smile, Mic, Send,
-    Calendar, StickyNote, Tag, UserCheck, ArrowRightLeft, CheckCheck, Clock, ShieldCheck
+    Calendar, StickyNote, Tag, UserCheck, ArrowRightLeft, CheckCheck, Clock, ShieldCheck, X
 } from "lucide-react";
+
 import {
     getHrTicketDetail,
     sendHrWhatsAppMessage,
@@ -445,28 +446,40 @@ export function HrTicketModal({ ticketId, onClose, onUpdated, availableUsers = [
                                     </div>
                                 </div>
 
-                                {/* Abas de navegação (Chat, Anotações, Atividades, Documentos) */}
-                                <div className="flex bg-slate-200/80 p-1 rounded-xl gap-1">
+                                {/* Abas de navegação + Botão Fechar X */}
+                                <div className="flex items-center gap-2">
+                                    <div className="flex bg-slate-200/80 p-1 rounded-xl gap-1">
+                                        <button
+                                            onClick={() => setActiveTab("chat")}
+                                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${activeTab === "chat" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                                        >
+                                            💬 Chat ({ticket.messages?.length || 0})
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveTab("notes")}
+                                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${activeTab === "notes" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                                        >
+                                            📝 Notas ({ticket.notes?.length || 0})
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveTab("activities")}
+                                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${activeTab === "activities" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                                        >
+                                            📌 Tarefas ({ticket.activities?.length || 0})
+                                        </button>
+                                    </div>
+
+                                    {/* Botão Fechar X bem destacado */}
                                     <button
-                                        onClick={() => setActiveTab("chat")}
-                                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${activeTab === "chat" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                                        onClick={onClose}
+                                        className="w-8 h-8 rounded-full bg-slate-300/70 hover:bg-red-500 hover:text-white text-slate-700 flex items-center justify-center transition shadow-sm font-bold ml-2 cursor-pointer"
+                                        title="Fechar Atendimento (ESC)"
                                     >
-                                        💬 Chat ({ticket.messages?.length || 0})
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveTab("notes")}
-                                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${activeTab === "notes" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
-                                    >
-                                        📝 Notas ({ticket.notes?.length || 0})
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveTab("activities")}
-                                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${activeTab === "activities" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
-                                    >
-                                        📌 Tarefas ({ticket.activities?.length || 0})
+                                        <X className="w-4 h-4" />
                                     </button>
                                 </div>
                             </div>
+
 
                             {/* TAB: CHAT WHATSAPP REAL */}
                             {activeTab === "chat" && (
