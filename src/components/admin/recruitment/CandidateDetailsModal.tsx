@@ -389,10 +389,40 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                     <Mail className="w-4 h-4 text-slate-400" />
                                                     <span>{candidate.email || "Não informado"}</span>
                                                 </div>
-                                                <div className="flex items-center gap-2 text-slate-700">
-                                                    <Phone className="w-4 h-4 text-slate-400" />
-                                                    <span>{candidate.phone || "Não informado"}</span>
-                                                </div>
+                                                {(() => {
+                                                    const rawPhone = candidate.phone || (candidate as any).extraFields?.phone || (candidate as any).extraFields?.whatsapp || "";
+                                                    const phoneDigits = rawPhone.replace(/\D/g, "");
+                                                    
+                                                    if (!phoneDigits) {
+                                                        return (
+                                                            <div className="flex items-center gap-2 text-slate-700">
+                                                                <Phone className="w-4 h-4 text-slate-400" />
+                                                                <span className="text-slate-400 italic">Não informado</span>
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    const formattedWa = phoneDigits.startsWith("55") ? phoneDigits : `55${phoneDigits}`;
+                                                    const waUrl = `https://wa.me/${formattedWa}?text=${encodeURIComponent(`Olá ${candidate.name}, referente à sua candidatura no sistema Workforce Hub...`)}`;
+
+                                                    return (
+                                                        <div className="flex items-center justify-between gap-2 text-slate-700 bg-emerald-50/80 p-2.5 rounded-xl border border-emerald-200">
+                                                            <div className="flex items-center gap-2">
+                                                                <Phone className="w-4 h-4 text-emerald-600" />
+                                                                <span className="font-bold text-emerald-950 text-sm">{rawPhone}</span>
+                                                            </div>
+                                                            <a
+                                                                href={waUrl}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all shrink-0 active:scale-95"
+                                                            >
+                                                                <MessageSquare className="w-3.5 h-3.5 fill-current" />
+                                                                <span>Abrir WhatsApp</span>
+                                                            </a>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                             <div>
                                                 <label className="text-xs font-medium text-slate-500 uppercase">Data de Inscrição</label>
@@ -955,9 +985,36 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                     >
                                                                         <span className="font-black text-slate-400 text-xs w-6">#{idx+1}</span>
                                                                         <div>
-                                                                            <span className="font-semibold text-slate-800 text-sm block">{cand.name}</span>
-                                                                            <span className="text-[10px] text-slate-400 uppercase tracking-wide">{cand.stage?.name || 'Inscrição'}</span>
-                                                                        </div>
+                                                                             <div className="flex items-center gap-2">
+                                                                                 <span className="font-semibold text-slate-800 text-sm block">{cand.name}</span>
+                                                                                 {(() => {
+                                                                                     const rawPhone = cand.phone || cand.extraFields?.phone || cand.extraFields?.whatsapp || "";
+                                                                                     const phoneDigits = rawPhone.replace(/\D/g, "");
+                                                                                     if (!phoneDigits) return null;
+                                                                                     const formattedWa = phoneDigits.startsWith("55") ? phoneDigits : `55${phoneDigits}`;
+                                                                                     const waUrl = `https://wa.me/${formattedWa}?text=${encodeURIComponent(`Olá ${cand.name}, referente à sua candidatura no sistema Workforce Hub...`)}`;
+                                                                                     return (
+                                                                                         <a
+                                                                                             href={waUrl}
+                                                                                             target="_blank"
+                                                                                             rel="noopener noreferrer"
+                                                                                             onClick={(e) => e.stopPropagation()}
+                                                                                             className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] shadow-sm hover:shadow transition-all shrink-0 active:scale-95 ml-1"
+                                                                                             title={`Abrir WhatsApp com ${cand.name} (${rawPhone})`}
+                                                                                         >
+                                                                                             <MessageSquare className="w-3 h-3 fill-current" />
+                                                                                             <span>WhatsApp</span>
+                                                                                         </a>
+                                                                                     );
+                                                                                 })()}
+                                                                             </div>
+                                                                             <span className="text-[10px] text-slate-400 uppercase tracking-wide flex items-center gap-2">
+                                                                                 <span>{cand.stage?.name || 'Inscrição'}</span>
+                                                                                 {(cand.phone || cand.extraFields?.phone) && (
+                                                                                     <span className="text-emerald-700 font-semibold font-mono text-[10px]">({cand.phone || cand.extraFields?.phone})</span>
+                                                                                 )}
+                                                                             </span>
+                                                                         </div>
                                                                     </div>
                                                                     <div className="flex items-center gap-2 shrink-0">
                                                                         {isDisqualified ? (

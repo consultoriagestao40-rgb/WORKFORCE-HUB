@@ -7,7 +7,7 @@ import { VacancyModal } from "@/components/admin/recruitment/VacancyModal";
 import { CandidateModal } from "@/components/admin/recruitment/CandidateModal";
 import { CandidateDetailsModal } from "@/components/admin/recruitment/CandidateDetailsModal";
 import { Button } from "@/components/ui/button";
-import { Plus, UserPlus, Search, User, Filter, AlertCircle, FileText, CheckCircle2, XCircle, Briefcase, Globe } from "lucide-react";
+import { Plus, UserPlus, Search, User, Filter, AlertCircle, FileText, CheckCircle2, XCircle, Briefcase, Globe, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -540,7 +540,30 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
                                                     {/* Candidato Name & Contact */}
                                                     <td className="py-4 px-4">
                                                         <div className="flex flex-col">
-                                                            <span className="font-bold text-slate-900 text-sm">{cand.name}</span>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-bold text-slate-900 text-sm">{cand.name}</span>
+                                                                {(() => {
+                                                                    const rawPhone = cand.phone || (cand as any).extraFields?.phone || (cand as any).extraFields?.whatsapp || "";
+                                                                    if (!rawPhone) return null;
+                                                                    const phoneDigits = rawPhone.replace(/\D/g, "");
+                                                                    if (!phoneDigits) return null;
+                                                                    const formattedWa = phoneDigits.startsWith("55") ? phoneDigits : `55${phoneDigits}`;
+                                                                    const waUrl = `https://wa.me/${formattedWa}?text=${encodeURIComponent(`Olá ${cand.name}, referente à sua candidatura para a vaga no sistema Workforce Hub...`)}`;
+                                                                    return (
+                                                                        <a
+                                                                            href={waUrl}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] shadow-2xs hover:shadow transition-all shrink-0"
+                                                                            title={`Abrir WhatsApp com ${cand.name} (${rawPhone})`}
+                                                                        >
+                                                                            <MessageSquare className="w-3 h-3 fill-current" />
+                                                                            <span>WhatsApp</span>
+                                                                        </a>
+                                                                    );
+                                                                })()}
+                                                            </div>
                                                             <span className="text-[10px] text-slate-400 mt-0.5">{cand.email || "Sem e-mail"} | {cand.phone || "Sem telefone"}</span>
                                                         </div>
                                                     </td>
