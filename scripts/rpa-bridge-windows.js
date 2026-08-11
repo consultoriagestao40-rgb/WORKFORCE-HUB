@@ -1,5 +1,5 @@
 // =============================================================================
-// ROBÔ RPA ONVIO - MOTOR ULTRA-ROBUSTO DE PREENCHIMENTO VISUAL (WINDOWS RH)
+// ROBÔ RPA ONVIO - MOTOR VISUAL DE ALTISSIMA ESTABILIDADE PARA WINDOWS (RH)
 // =============================================================================
 const http = require("http");
 const { chromium } = require("playwright");
@@ -8,9 +8,13 @@ const PORT = process.env.PORT || 3000;
 const ONVIO_USER = process.env.ONVIO_USER || "adm@jvstratamentosdepiso.com";
 const ONVIO_PASS = process.env.ONVIO_PASS || "%Jcr35030";
 
-console.log("============================================================");
-console.log("  🤖 INICIANDO PONTE LOCAL DO ROBÔ RPA ONVIO - WINDOWS RH  ");
-console.log("============================================================");
+process.on("uncaughtException", (err) => {
+    console.error("\n[ERRO CAPTURADO NO ROBÔ]:", err.message || err);
+});
+
+process.on("unhandledRejection", (reason) => {
+    console.error("\n[PROMESSA REJEITADA NO ROBÔ]:", reason);
+});
 
 let activeBrowser = null;
 
@@ -72,10 +76,10 @@ const server = http.createServer(async (req, res) => {
                 const rgDtRaw = extra.rgDataEmissao || extra.dataEmissaoRg || "";
                 const rgDtDigits = formatDateDigits(rgDtRaw);
 
-                console.log(`\n[RPA WINDOWS RH] 🚀 Iniciando preenchimento visual completo para: ${candidateName}`);
-                console.log(`[RPA WINDOWS RH] CPF: ${cpfDigits} | Nascimento: ${birthDateDigits} | Cargo: ${roleTitle} | Empresa Contratante (Serviço): ${companyName}`);
+                console.log(`\n[RPA WINDOWS RH] 🚀 Iniciando preenchimento no Chrome para: ${candidateName}`);
+                console.log(`[RPA WINDOWS RH] CPF: ${cpfDigits} | Nascimento: ${birthDateDigits} | Cargo: ${roleTitle} | Empresa: ${companyName}`);
 
-                // Fechar janela anterior do Chrome se já houver uma aberta
+                // Fechar janela anterior se já houver uma aberta
                 if (activeBrowser) {
                     console.log("[RPA WINDOWS RH] Fechando janela anterior do Chrome...");
                     try {
@@ -84,12 +88,30 @@ const server = http.createServer(async (req, res) => {
                     activeBrowser = null;
                 }
 
-                activeBrowser = await chromium.launch({
-                    headless: false,
-                    args: ["--start-maximized", "--no-sandbox"]
-                });
+                // Lançar navegador (Tenta Chrome nativo -> Edge nativo -> Chromium embutido)
+                let browser = null;
+                try {
+                    browser = await chromium.launch({
+                        channel: "chrome",
+                        headless: false,
+                        args: ["--start-maximized", "--no-sandbox"]
+                    });
+                } catch (e1) {
+                    try {
+                        browser = await chromium.launch({
+                            channel: "msedge",
+                            headless: false,
+                            args: ["--start-maximized", "--no-sandbox"]
+                        });
+                    } catch (e2) {
+                        browser = await chromium.launch({
+                            headless: false,
+                            args: ["--start-maximized", "--no-sandbox"]
+                        });
+                    }
+                }
 
-                const browser = activeBrowser;
+                activeBrowser = browser;
                 const context = await browser.newContext({ viewport: null });
                 const page = await context.newPage();
 
@@ -100,7 +122,7 @@ const server = http.createServer(async (req, res) => {
 
                 // 2. Login se necessário
                 if (page.url().includes("/auth") || page.url().includes("thomsonreuters")) {
-                    console.log("[RPA WINDOWS RH] Efetuando login...");
+                    console.log("[RPA WINDOWS RH] Efetuando login de acesso...");
                     const entrarBtn = page.locator('button:has-text("Entrar"), a:has-text("Entrar"), .btn-primary').first();
                     if (await entrarBtn.isVisible()) {
                         await entrarBtn.click();
@@ -336,13 +358,13 @@ const server = http.createServer(async (req, res) => {
                 const tab1 = page.locator('button.bento-wizard-step:nth-child(1), button:has-text("Geral")').first();
                 if (await tab1.isVisible()) await tab1.click({ force: true });
 
-                console.log(`[RPA WINDOWS RH] ✅ PREENCHIMENTO VISUAL ULTRA-ROBUSTO CONCLUÍDO PARA ${candidateName}!`);
+                console.log(`[RPA WINDOWS RH] ✅ PREENCHIMENTO VISUAL CONCLUÍDO PARA ${candidateName}!`);
                 console.log("[RPA WINDOWS RH] 🟢 O Chrome PERMANECE ABERTO na tela do RH para revisão e salvamento.");
 
                 res.writeHead(200, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({
                     success: true,
-                    message: `Chrome aberto na sua tela com todas as abas (Serviço: ${companyName}, Nome, CPF, Data DD/MM/AAAA, PIX, RG) preenchidas para ${candidateName}!`
+                    message: `Chrome aberto na sua tela com todas as abas preenchidas para ${candidateName}!`
                 }));
             } catch (err) {
                 console.error("[RPA WINDOWS RH Error]:", err);
@@ -357,7 +379,13 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`[✓] Servidor da Ponte RPA rodando no RH na porta ${PORT}`);
-    console.log(`[✓] Aguardando disparos do Workforce Hub...`);
+    console.log("============================================================");
+    console.log(` [✓] SERVIDOR DO ROBÔ RPA ATIVO NA PORTA ${PORT}`);
+    console.log(` [✓] O Robô usará o Google Chrome instalado no seu Windows.`);
+    console.log(` [✓] Mantenha esta janela aberta enquanto utiliza o sistema.`);
     console.log("============================================================\n");
 });
+
+// Impedir que o processo Node.js encerre no Windows
+process.stdin.resume();
+setInterval(() => {}, 100000);
