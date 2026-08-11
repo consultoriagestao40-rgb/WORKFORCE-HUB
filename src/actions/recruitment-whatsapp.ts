@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
-const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3B3060E58F49F09E0D3396825B9A6B2F";
+const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3F1993DFB59E83474F059E648AE68DF9";
 const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "B7D14605963E820FEE720C73";
 const ZAPI_CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN || "F75962b9f8d1a49f5ad38ea822ef4a44bS";
 
