@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState, useEffect } from "react";
 import { ApprovalModal } from "./ApprovalModal";
 import { AdmissionWorkflow } from "./admission/AdmissionWorkflow";
+import { WhatsAppChatModal } from "./WhatsAppChatModal";
 import { useRouter } from "next/navigation";
 
 interface CandidateDetailsModalProps {
@@ -70,6 +71,23 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
     const [notes, setNotes] = useState("");
     const [isVacancyReqsExpanded, setIsVacancyReqsExpanded] = useState(false);
     const [isReevaluatingAi, setIsReevaluatingAi] = useState(false);
+
+    // WhatsApp Chat Modal State
+    const [waCandidate, setWaCandidate] = useState<any | null>(null);
+    const [waModalOpen, setWaModalOpen] = useState(false);
+
+    function handleOpenWhatsAppChat(cand: any) {
+        setWaCandidate({
+            id: cand.id,
+            name: cand.name,
+            phone: cand.phone || cand.extraFields?.phone || cand.extraFields?.whatsapp || "",
+            email: cand.email,
+            vacancyTitle: candidate?.vacancy?.role?.name || candidate?.vacancy?.title || "",
+            companyName: candidate?.vacancy?.company?.name || "",
+            extraFields: cand.extraFields
+        });
+        setWaModalOpen(true);
+    }
 
 
     const handleSaveRequirements = async () => {
@@ -411,15 +429,14 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                 <Phone className="w-4 h-4 text-emerald-600" />
                                                                 <span className="font-bold text-emerald-950 text-sm">{rawPhone}</span>
                                                             </div>
-                                                            <a
-                                                                href={waUrl}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all shrink-0 active:scale-95"
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenWhatsAppChat(candidate)}
+                                                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all shrink-0 active:scale-95 cursor-pointer"
                                                             >
                                                                 <MessageSquare className="w-3.5 h-3.5 fill-current" />
-                                                                <span>Abrir WhatsApp</span>
-                                                            </a>
+                                                                <span>Abrir Chat WhatsApp</span>
+                                                            </button>
                                                         </div>
                                                     );
                                                 })()}
@@ -991,20 +1008,19 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                                      const rawPhone = cand.phone || cand.extraFields?.phone || cand.extraFields?.whatsapp || "";
                                                                                      const phoneDigits = rawPhone.replace(/\D/g, "");
                                                                                      if (!phoneDigits) return null;
-                                                                                     const formattedWa = phoneDigits.startsWith("55") ? phoneDigits : `55${phoneDigits}`;
-                                                                                     const waUrl = `https://wa.me/${formattedWa}?text=${encodeURIComponent(`Olá ${cand.name}, referente à sua candidatura no sistema Workforce Hub...`)}`;
                                                                                      return (
-                                                                                         <a
-                                                                                             href={waUrl}
-                                                                                             target="_blank"
-                                                                                             rel="noopener noreferrer"
-                                                                                             onClick={(e) => e.stopPropagation()}
-                                                                                             className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] shadow-sm hover:shadow transition-all shrink-0 active:scale-95 ml-1"
-                                                                                             title={`Abrir WhatsApp com ${cand.name} (${rawPhone})`}
-                                                                                         >
-                                                                                             <MessageSquare className="w-3 h-3 fill-current" />
-                                                                                             <span>WhatsApp</span>
-                                                                                         </a>
+                                                                                         <button
+                                                                                            type="button"
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                handleOpenWhatsAppChat(cand);
+                                                                                            }}
+                                                                                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] shadow-sm hover:shadow transition-all shrink-0 active:scale-95 ml-1 cursor-pointer"
+                                                                                            title={`Abrir Chat WhatsApp com ${cand.name}`}
+                                                                                        >
+                                                                                            <MessageSquare className="w-3 h-3 fill-current" />
+                                                                                            <span>WhatsApp</span>
+                                                                                        </button>
                                                                                      );
                                                                                  })()}
                                                                              </div>
@@ -1715,6 +1731,12 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                 action={approvalAction}
                 candidateName={candidate.name}
                 onConfirm={handleConfirmApproval}
+            />
+
+            <WhatsAppChatModal
+                open={waModalOpen}
+                onClose={() => setWaModalOpen(false)}
+                candidate={waCandidate}
             />
         </>
     );

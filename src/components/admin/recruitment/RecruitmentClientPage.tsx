@@ -6,6 +6,7 @@ import { NotificationCenter } from "@/components/admin/notifications/Notificatio
 import { VacancyModal } from "@/components/admin/recruitment/VacancyModal";
 import { CandidateModal } from "@/components/admin/recruitment/CandidateModal";
 import { CandidateDetailsModal } from "@/components/admin/recruitment/CandidateDetailsModal";
+import { WhatsAppChatModal } from "@/components/admin/recruitment/WhatsAppChatModal";
 import { Button } from "@/components/ui/button";
 import { Plus, UserPlus, Search, User, Filter, AlertCircle, FileText, CheckCircle2, XCircle, Briefcase, Globe, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,23 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
     // Modal state for Banco de Talentos candidates
     const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+
+    // WhatsApp Chat Modal State
+    const [waCandidate, setWaCandidate] = useState<any | null>(null);
+    const [waModalOpen, setWaModalOpen] = useState(false);
+
+    function handleOpenWhatsAppChat(cand: any) {
+        setWaCandidate({
+            id: cand.id,
+            name: cand.name,
+            phone: cand.phone || cand.extraFields?.phone || cand.extraFields?.whatsapp || "",
+            email: cand.email,
+            vacancyTitle: cand.vacancy?.title || cand.vacancy?.role?.name || "",
+            companyName: cand.vacancy?.company?.name || "",
+            extraFields: cand.extraFields
+        });
+        setWaModalOpen(true);
+    }
 
     // Vacation Filter state
     const [vacationFilter, setVacationFilter] = useState<"ALL" | "VACATION" | "NO_VACATION">("ALL");
@@ -547,20 +565,19 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
                                                                     if (!rawPhone) return null;
                                                                     const phoneDigits = rawPhone.replace(/\D/g, "");
                                                                     if (!phoneDigits) return null;
-                                                                    const formattedWa = phoneDigits.startsWith("55") ? phoneDigits : `55${phoneDigits}`;
-                                                                    const waUrl = `https://wa.me/${formattedWa}?text=${encodeURIComponent(`Olá ${cand.name}, referente à sua candidatura para a vaga no sistema Workforce Hub...`)}`;
                                                                     return (
-                                                                        <a
-                                                                            href={waUrl}
-                                                                            target="_blank"
-                                                                            rel="noopener noreferrer"
-                                                                            onClick={(e) => e.stopPropagation()}
-                                                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] shadow-2xs hover:shadow transition-all shrink-0"
-                                                                            title={`Abrir WhatsApp com ${cand.name} (${rawPhone})`}
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleOpenWhatsAppChat(cand);
+                                                                            }}
+                                                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] shadow-2xs hover:shadow transition-all shrink-0 cursor-pointer"
+                                                                            title={`Abrir Chat WhatsApp de ${cand.name}`}
                                                                         >
                                                                             <MessageSquare className="w-3 h-3 fill-current" />
                                                                             <span>WhatsApp</span>
-                                                                        </a>
+                                                                        </button>
                                                                     );
                                                                 })()}
                                                             </div>
@@ -651,6 +668,12 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
                 open={isCandidateModalOpen}
                 onOpenChange={setIsCandidateModalOpen}
                 vacancies={vacancies}
+            />
+
+            <WhatsAppChatModal
+                open={waModalOpen}
+                onClose={() => setWaModalOpen(false)}
+                candidate={waCandidate}
             />
         </div>
     );
