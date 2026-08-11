@@ -1445,8 +1445,8 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                     roleTitle={activeCand.vacancy?.role?.name || activeCand.vacancy?.title || candidate.vacancy?.role?.name || candidate.vacancy?.title}
                                     salary={activeCand.vacancy?.posto?.baseSalary || activeCand.vacancy?.baseSalary || activeCand.vacancy?.salary || candidate.vacancy?.posto?.baseSalary || candidate.vacancy?.salary}
                                     startDate={activeCand.vacancy?.plannedStartDate ? new Date(activeCand.vacancy.plannedStartDate).toLocaleDateString('pt-BR') : ''}
-                                    companyId={activeCand.vacancy?.companyId || activeCand.vacancy?.posto?.client?.companyId || candidate.vacancy?.companyId || candidate.vacancy?.posto?.client?.companyId}
-                                    companyName={activeCand.vacancy?.company?.name || activeCand.vacancy?.posto?.client?.name || candidate.vacancy?.company?.name}
+                                    companyId={activeCand.vacancy?.companyId || candidate.vacancy?.companyId || "fc5dad55-9ef4-49bf-b82d-4524ad82bed6"}
+                                    companyName={activeCand.vacancy?.company?.name || candidate.vacancy?.company?.name || "JVS FACILITIES LTDA"}
                                     extraFields={activeCand.extraFields}
                                     onvioLaunched={activeCand.onvioLaunched}
                                     onvioConfirmedAt={activeCand.onvioConfirmedAt}

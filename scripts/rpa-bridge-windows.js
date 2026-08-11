@@ -71,7 +71,7 @@ const server = http.createServer(async (req, res) => {
                 const rgDtDigits = formatDateDigits(rgDtRaw);
 
                 console.log(`\n[RPA WINDOWS RH] 🚀 Iniciando preenchimento visual completo para: ${candidateName}`);
-                console.log(`[RPA WINDOWS RH] CPF: ${cpfDigits} | Nascimento: ${birthDateDigits} | Cargo: ${roleTitle}`);
+                console.log(`[RPA WINDOWS RH] CPF: ${cpfDigits} | Nascimento: ${birthDateDigits} | Cargo: ${roleTitle} | Empresa Contratante (Serviço): ${companyName}`);
 
                 const browser = await chromium.launch({
                     headless: false,
@@ -117,15 +117,16 @@ const server = http.createServer(async (req, res) => {
                     await page.waitForTimeout(3000);
                 }
 
-                // 3. Selecionar Empresa JVS FACILITIES LTDA
-                console.log("[RPA WINDOWS RH] Selecionando empresa JVS FACILITIES LTDA...");
+                // 3. Selecionar Empresa Contratante (JVS FACILITIES LTDA / SPOT FACILITIES)
+                console.log(`[RPA WINDOWS RH] Selecionando contexto de empresa no topo: ${companyName}...`);
                 const companySelector = page.locator('bm-linked-account-selector, .header-firm-name').first();
                 if (await companySelector.isVisible()) {
                     await companySelector.click({ force: true });
                     await page.waitForTimeout(1500);
-                    const jvsOpt = page.locator('span:has-text("JVS FACILITIES"), div:has-text("JVS FACILITIES")').first();
-                    if (await jvsOpt.isVisible()) {
-                        await jvsOpt.click({ force: true });
+                    const compOpt = page.locator('.bento-option-list li, .bento-option, span, div')
+                        .filter({ hasText: new RegExp(companyName.split(" ")[0], "i") }).first();
+                    if (await compOpt.isVisible()) {
+                        await compOpt.click({ force: true });
                         await page.waitForTimeout(3000);
                     }
                 }
@@ -158,13 +159,11 @@ const server = http.createServer(async (req, res) => {
                     if (!val) return;
                     const list = Array.isArray(identifiers) ? identifiers : [identifiers];
                     
-                    // 1. Tenta formcontrolname ou id
                     for (const id of list) {
                         const loc = page.locator(`input[formcontrolname="${id}"], textarea[formcontrolname="${id}"], input[id="${id}"]`).first();
                         if (await fillInput(loc, val)) return;
                     }
 
-                    // 2. Tenta busca por label
                     for (const labelText of list) {
                         const lbl = page.locator('label').filter({ hasText: new RegExp(labelText, "i") }).first();
                         if (await lbl.count() > 0 && await lbl.isVisible()) {
@@ -182,7 +181,7 @@ const server = http.createServer(async (req, res) => {
                         if (await sel.count() > 0 && await sel.isVisible()) {
                             await sel.click({ force: true });
                             await page.waitForTimeout(600);
-                            const opt = page.locator(`.bento-option-list li, .bento-option, option`).filter({ hasText: new RegExp(searchText, "i") }).first();
+                            const opt = page.locator(`.bento-option-list li, .bento-option, option`).filter({ hasText: new RegExp(searchText.split(" ")[0], "i") }).first();
                             if (await opt.count() > 0 && await opt.isVisible()) {
                                 await opt.click({ force: true });
                                 await page.waitForTimeout(500);
@@ -198,7 +197,10 @@ const server = http.createServer(async (req, res) => {
                 await fillByLabelOrControl(["employeeName", "name", "Nome"], candidateName);
                 await fillByLabelOrControl(["cpfNumber", "cpf", "CPF"], cpfDigits);
 
-                await selectBentoOption("service", "JVS FACILITIES");
+                // Serviço (sede onde ficará alocado) -> sempre a empresa contratante (JVS FACILITIES, SPOT FACILITIES)
+                console.log(`[RPA WINDOWS RH] Selecionando Serviço (Sede): ${companyName}...`);
+                await selectBentoOption("service", companyName);
+
                 if (roleTitle) await selectBentoOption("jobPosition", roleTitle);
                 await selectBentoOption("department", "Geral");
                 await selectBentoOption("costCenter", "Geral");
@@ -328,7 +330,7 @@ const server = http.createServer(async (req, res) => {
                 res.writeHead(200, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({
                     success: true,
-                    message: `Chrome aberto na sua tela com todas as abas (Nome, CPF, Data DD/MM/AAAA, PIX, RG) preenchidas para ${candidateName}!`
+                    message: `Chrome aberto na sua tela com todas as abas (Serviço: ${companyName}, Nome, CPF, Data DD/MM/AAAA, PIX, RG) preenchidas para ${candidateName}!`
                 }));
             } catch (err) {
                 console.error("[RPA WINDOWS RH Error]:", err);
