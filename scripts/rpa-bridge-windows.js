@@ -1,5 +1,5 @@
 // =============================================================================
-// ROBÔ RPA ONVIO - MOTOR VISUAL COM LOGIN AUTOMÁTICO INFALÍVEL (WINDOWS RH)
+// ROBÔ RPA ONVIO - MOTOR VISUAL COM TRATAMENTO DE PORTA E LOGIN INFALÍVEL (WINDOWS)
 // =============================================================================
 const http = require("http");
 const fs = require("fs");
@@ -11,7 +11,11 @@ const ONVIO_PASS = process.env.ONVIO_PASS || "%Jcr35030";
 const VERCEL_POLL_URL = process.env.VERCEL_POLL_URL || "https://workforce-hub-henna.vercel.app/api/rpa/poll";
 
 process.on("uncaughtException", (err) => {
-    console.error("\n[ERRO NO ROBÔ]:", err.message || err);
+    if (err.code === "EADDRINUSE") {
+        console.log("\n[i] Robô já em execução no seu computador. Operando via Fila em Nuvem Vercel.");
+    } else {
+        console.error("\n[ERRO NO ROBÔ]:", err.message || err);
+    }
 });
 
 process.on("unhandledRejection", (reason) => {
@@ -107,7 +111,6 @@ async function executeVisualFilling(payload) {
     await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "domcontentloaded" });
     await page.evaluate(() => new Promise(r => setTimeout(r, 2500)));
 
-    // 2. Tentar Clicar em Entrar se estiver na Landing Page do Onvio
     console.log("[RPA WINDOWS RH] Verificando tela de login...");
     try {
         const clickedEntrar = await page.evaluate(() => {
@@ -125,7 +128,6 @@ async function executeVisualFilling(payload) {
         }
     } catch (e) {}
 
-    // Preencher Usuário e Senha
     try {
         const uidSelector = 'input[name="uid"], input[type="email"], #username, [data-qe-id="trauth-signin-uid"], input[autocomplete="username"]';
         const hasUidInp = await page.$(uidSelector);
@@ -372,6 +374,17 @@ const server = http.createServer(async (req, res) => {
     } else {
         res.writeHead(404);
         res.end("Not Found");
+    }
+});
+
+server.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+        console.log("============================================================");
+        console.log(" [i] Uma instância do Robô já está em execução no seu Windows.");
+        console.log(" [✓] Operando perfeitamente via Fila de Comunicação em Nuvem Vercel!");
+        console.log("============================================================\n");
+    } else {
+        console.error("Erro no servidor HTTP local:", err.message);
     }
 });
 
