@@ -272,16 +272,8 @@ export function HrKanbanView({ stages: initialStages, tickets, onSelectTicket, o
                         );
                     })}
                 </SortableContext>
-
-                {/* Botão de Nova Etapa no Final da Fila */}
-                <button
-                    onClick={() => handleAddNextStage(stages.length)}
-                    className="w-60 flex-shrink-0 h-16 border-2 border-dashed border-indigo-300 hover:border-indigo-500 rounded-xl flex items-center justify-center text-xs font-bold text-indigo-600 hover:bg-indigo-50 transition gap-2 shadow-sm"
-                >
-                    <span className="w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-bold">+</span>
-                    <span>Adicionar Nova Etapa</span>
-                </button>
             </div>
         </DndContext>
     );
 }
+
