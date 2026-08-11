@@ -253,13 +253,13 @@ export async function getHrTicketDetail(ticketId: string) {
 
     if (!ticket) return null;
 
-    // Verificar visibilidade
     if (ticket.isPrivate && !isAdmin && ticket.assigneeId !== user.id && !ticket.participantIds.includes(user.id)) {
         return null;
     }
 
     return ticket;
 }
+
 
 export async function updateContactInfo(ticketId: string, data: { name?: string; phone?: string }) {
     const user = await getCurrentUser();
