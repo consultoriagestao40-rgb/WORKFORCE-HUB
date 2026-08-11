@@ -682,10 +682,9 @@ export async function syncZapiChats() {
             if (!Array.isArray(chats) || chats.length === 0) break;
 
             for (const c of chats) {
-                if (c.isGroup) continue;
-
                 const phone = c.phone?.replace(/\D/g, "");
                 if (!phone) continue;
+
 
                 const phoneShort = phone.startsWith("55") ? phone.slice(2) : phone;
                 const phoneSearch = phoneShort.slice(-9);
