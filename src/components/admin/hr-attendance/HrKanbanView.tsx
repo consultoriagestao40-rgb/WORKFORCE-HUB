@@ -1,5 +1,6 @@
 "use client";
 
+import { ClipboardList, Calendar, MessageSquare, DollarSign, MoreHorizontal, Search, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import {
     DndContext,
@@ -19,7 +20,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { HrTicketCard } from "./HrTicketCard";
 import { saveHrPipelineStages, deleteHrPipelineStage } from "@/actions/hr-attendance";
 
 interface Props {
@@ -30,12 +30,75 @@ interface Props {
 }
 
 const PRESET_COLORS = [
-    "#6366f1", "#f59e0b", "#3b82f6", "#8b5cf6", "#10b981",
+    "#10b981", "#6366f1", "#f59e0b", "#3b82f6", "#8b5cf6",
     "#ec4899", "#ef4444", "#14b8a6", "#64748b", "#84cc16"
 ];
 
-// Componente de Coluna Arrastável
-function SortableColumn({ stage, stageTickets, onSelectTicket, onUpdateStage, onDeleteStage, onAddNextStage }: any) {
+// Card do Contato Estilo WaSeller
+function WaSellerCard({ ticket, onClick }: { ticket: any; onClick: () => void }) {
+    const lastMsg = ticket.messages?.[0];
+    const unreadCount = ticket.unreadCount || 0;
+
+    return (
+        <div
+            onClick={onClick}
+            className="bg-white p-3 rounded-xl border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-emerald-500 transition cursor-pointer flex flex-col justify-between group"
+        >
+            {/* Header: Foto + Nome + Badge Verde */}
+            <div className="flex items-start gap-2.5 mb-1.5">
+                <div className="relative flex-shrink-0">
+                    {ticket.contactPhotoUrl ? (
+                        <img
+                            src={ticket.contactPhotoUrl}
+                            alt=""
+                            className="w-9 h-9 rounded-full object-cover border border-slate-200"
+                        />
+                    ) : (
+                        <div className="w-9 h-9 rounded-full bg-slate-700 text-white font-bold text-xs flex items-center justify-center">
+                            {ticket.contactName?.charAt(0).toUpperCase() || "?"}
+                        </div>
+                    )}
+
+                    {unreadCount > 0 && (
+                        <span className="absolute -bottom-1 -right-1 bg-emerald-500 text-white text-[9px] font-extrabold min-w-[16px] h-[16px] rounded-full flex items-center justify-center px-0.5 border-2 border-white shadow-2xs">
+                            {unreadCount}
+                        </span>
+                    )}
+                </div>
+
+                <div className="overflow-hidden flex-1">
+                    <h4 className="text-xs font-bold text-slate-800 truncate leading-tight">{ticket.contactName}</h4>
+                    <p className="text-[11px] text-slate-500 truncate leading-snug mt-0.5">
+                        {lastMsg ? (
+                            <span>{lastMsg.senderType === "ATTENDANT" ? "✓ " : ""}{lastMsg.content}</span>
+                        ) : (
+                            <span className="italic text-slate-400">Atendimento: {ticket.title}</span>
+                        )}
+                    </p>
+                </div>
+            </div>
+
+            {/* Barra de Ícones Rápidos estilo WaSeller [ 📋 📅 💬 💲 ] */}
+            <div className="flex items-center gap-3 pt-2 text-slate-400 text-[10px]">
+                <button className="hover:text-emerald-600 transition" title="Anotações">
+                    <ClipboardList className="w-3.5 h-3.5" />
+                </button>
+                <button className="hover:text-emerald-600 transition" title="Agendar Tarefa">
+                    <Calendar className="w-3.5 h-3.5" />
+                </button>
+                <button className="hover:text-emerald-600 transition" title="Abrir Chat">
+                    <MessageSquare className="w-3.5 h-3.5" />
+                </button>
+                <button className="hover:text-emerald-600 transition" title="Valor / Proposta">
+                    <DollarSign className="w-3.5 h-3.5" />
+                </button>
+            </div>
+        </div>
+    );
+}
+
+// Coluna Arrastável do WaSeller
+function WaSellerColumn({ stage, stageTickets, onSelectTicket, onUpdateStage, onDeleteStage, onAddNextStage }: any) {
     const {
         attributes,
         listeners,
@@ -65,37 +128,35 @@ function SortableColumn({ stage, stageTickets, onSelectTicket, onUpdateStage, on
     return (
         <div
             ref={setNodeRef}
-            style={style}
-            className="w-72 flex-shrink-0 bg-slate-200/70 rounded-xl p-3 flex flex-col max-h-[82vh] relative group/col border border-slate-300/60 shadow-sm"
+            className="w-72 flex-shrink-0 bg-slate-100/90 rounded-2xl p-2.5 flex flex-col max-h-[82vh] border-t-4 shadow-xs"
+            style={{ ...style, borderTopColor: stage.color || "#10b981" }}
         >
-            {/* Header da Coluna */}
-            <div className="flex items-center justify-between mb-3 px-1">
-                {/* Drag Handle + Cor + Nome da Etapa */}
+
+            {/* Header da Coluna Estilo WaSeller */}
+            <div className="flex items-center justify-between mb-2 px-1 pb-1">
                 <div className="flex items-center gap-2 overflow-hidden flex-1">
-                    {/* Botão de Arrastar a Coluna */}
+                    {/* Handle Drag */}
                     <button
                         {...attributes}
                         {...listeners}
-                        className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-700 p-0.5 text-xs select-none"
-                        title="Segure e arraste para reordenar a coluna"
+                        className="cursor-grab text-slate-400 hover:text-slate-700 text-xs"
                     >
                         ⋮⋮
                     </button>
 
-                    {/* Cor da Coluna (Clicável para trocar) */}
+                    {/* Color Picker */}
                     <div className="relative">
                         <button
                             onClick={() => setShowColorPicker(!showColorPicker)}
-                            className="w-3.5 h-3.5 rounded-full shadow-sm border border-black/20 block hover:scale-125 transition cursor-pointer"
-                            style={{ backgroundColor: stage.color }}
-                            title="Clique para alterar a cor da etapa"
+                            className="w-3.5 h-3.5 rounded-full block border border-black/20"
+                            style={{ backgroundColor: stage.color || "#10b981" }}
                         />
                         {showColorPicker && (
                             <div className="absolute left-0 top-5 z-50 bg-white p-2 rounded-lg shadow-xl border grid grid-cols-5 gap-1.5 w-36">
                                 {PRESET_COLORS.map(c => (
                                     <button
                                         key={c}
-                                        className="w-5 h-5 rounded-full border border-black/10 hover:scale-110"
+                                        className="w-5 h-5 rounded-full border border-black/10"
                                         style={{ backgroundColor: c }}
                                         onClick={() => {
                                             onUpdateStage(stage.id, { color: c });
@@ -107,67 +168,62 @@ function SortableColumn({ stage, stageTickets, onSelectTicket, onUpdateStage, on
                         )}
                     </div>
 
-                    {/* Nome da Etapa (Editável ao clicar) */}
+                    {/* Nome da Etapa */}
                     {isEditingName ? (
                         <input
                             autoFocus
                             value={nameInput}
                             onChange={(e) => setNameInput(e.target.value)}
                             onBlur={handleSaveName}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") handleSaveName();
-                            }}
-                            className="text-xs font-bold text-slate-800 uppercase bg-white border rounded px-1.5 py-0.5 h-6 w-full"
+                            onKeyDown={(e) => { if (e.key === "Enter") handleSaveName(); }}
+                            className="text-xs font-extrabold text-slate-800 uppercase bg-white border rounded px-1.5 py-0.5 h-6 w-full"
                         />
                     ) : (
                         <h3
                             onClick={() => setIsEditingName(true)}
-                            className="font-bold text-xs text-slate-800 uppercase tracking-wider truncate cursor-pointer hover:bg-white/60 px-1 py-0.5 rounded transition"
-                            title="Clique para editar o nome da etapa"
+                            className="font-extrabold text-xs text-slate-800 uppercase tracking-wider truncate cursor-pointer hover:bg-white/60 px-1 py-0.5 rounded"
                         >
                             {stage.name}
                         </h3>
                     )}
                 </div>
 
-                {/* Badge Quantidade + Ações (+ Nova Coluna à direita / Lixeira) */}
+                {/* Counter + Actions */}
                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-[10px] font-bold bg-white text-slate-600 px-2 py-0.5 rounded-full border shadow-sm">
+                    <span className="text-[10px] font-extrabold text-slate-500 bg-slate-200/80 px-2 py-0.5 rounded-full">
                         {stageTickets.length}
                     </span>
 
-                    {/* Botão + para criar nova coluna à direita */}
                     <button
                         onClick={() => onAddNextStage(stage.order)}
-                        className="w-5 h-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-sm transition hover:scale-110"
-                        title="Adicionar nova etapa à direita desta"
+                        className="w-5 h-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-2xs"
+                        title="Criar etapa à direita"
                     >
                         +
                     </button>
 
-                    {/* Excluir Coluna */}
                     <button
                         onClick={() => onDeleteStage(stage.id)}
-                        className="text-slate-400 hover:text-red-600 text-xs px-1 opacity-0 group-hover/col:opacity-100 transition"
-                        title="Excluir esta etapa"
+                        className="text-slate-400 hover:text-red-600 text-xs px-1"
+                        title="Excluir etapa"
                     >
                         🗑️
                     </button>
                 </div>
             </div>
 
-            {/* Lista de Tickets */}
-            <div className="flex-1 overflow-y-auto space-y-2.5 pr-0.5">
+            {/* Lista de Cards dos Contatos */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-0.5">
                 {stageTickets.length === 0 ? (
-                    <div className="h-24 border-2 border-dashed border-slate-300 rounded-lg flex items-center justify-center text-[11px] text-slate-400 select-none">
-                        Nenhum atendimento
+                    <div className="h-20 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center text-[11px] text-slate-400">
+                        Nenhuma conversa
                     </div>
                 ) : (
-                    stageTickets.map((ticket: any) => (
-                        <HrTicketCard
-                            key={ticket.id}
-                            ticket={ticket}
-                            onClick={() => onSelectTicket(ticket.id)}
+                    stageTickets.map((t: any) => (
+                        <WaSellerCard
+                            key={t.id}
+                            ticket={t}
+                            onClick={() => onSelectTicket(t.id)}
                         />
                     ))
                 )}
@@ -179,7 +235,6 @@ function SortableColumn({ stage, stageTickets, onSelectTicket, onUpdateStage, on
 export function HrKanbanView({ stages: initialStages, tickets, onSelectTicket, onStagesUpdated }: Props) {
     const [stages, setStages] = useState(initialStages);
 
-    // Sincronizar etapas props com state local
     if (JSON.stringify(stages.map(s => s.id)) !== JSON.stringify(initialStages.map(s => s.id))) {
         setStages(initialStages);
     }
@@ -189,7 +244,6 @@ export function HrKanbanView({ stages: initialStages, tickets, onSelectTicket, o
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
     );
 
-    // Drag & Drop de Colunas
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
         if (over && active.id !== over.id) {
@@ -207,7 +261,6 @@ export function HrKanbanView({ stages: initialStages, tickets, onSelectTicket, o
         }
     };
 
-    // Atualizar etapa (Nome ou Cor)
     const handleUpdateStage = async (stageId: string, data: { name?: string; color?: string }) => {
         const updated = stages.map(s => s.id === stageId ? { ...s, ...data } : s);
         setStages(updated);
@@ -215,22 +268,20 @@ export function HrKanbanView({ stages: initialStages, tickets, onSelectTicket, o
         onStagesUpdated();
     };
 
-    // Excluir etapa
     const handleDeleteStage = async (stageId: string) => {
         if (stages.length <= 1) {
             alert("O pipeline deve ter pelo menos uma etapa.");
             return;
         }
-        if (confirm("Deseja realmente excluir esta etapa? Os atendimentos nela serão movidos para a primeira etapa.")) {
+        if (confirm("Deseja realmente excluir esta etapa?")) {
             await deleteHrPipelineStage(stageId);
             onStagesUpdated();
         }
     };
 
-    // Adicionar nova etapa à direita de uma específica
     const handleAddNextStage = async (afterOrder: number) => {
         const newStage = {
-            name: `Nova Etapa`,
+            name: `NOVA ETAPA`,
             color: PRESET_COLORS[(stages.length + 1) % PRESET_COLORS.length],
             order: afterOrder + 0.5,
             isDefault: false
@@ -246,21 +297,14 @@ export function HrKanbanView({ stages: initialStages, tickets, onSelectTicket, o
     };
 
     return (
-        <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-        >
-            <div className="flex-1 overflow-x-auto p-4 flex gap-4 bg-slate-100/70 items-start min-h-[calc(100vh-160px)]">
-                <SortableContext
-                    items={stages.map((s) => s.id)}
-                    strategy={horizontalListSortingStrategy}
-                >
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <div className="flex-1 overflow-x-auto p-4 flex gap-3.5 bg-slate-200/50 items-start min-h-[calc(100vh-140px)]">
+                <SortableContext items={stages.map((s) => s.id)} strategy={horizontalListSortingStrategy}>
                     {stages.map((stage) => {
                         const stageTickets = tickets.filter((t) => t.stageId === stage.id);
 
                         return (
-                            <SortableColumn
+                            <WaSellerColumn
                                 key={stage.id}
                                 stage={stage}
                                 stageTickets={stageTickets}
@@ -276,4 +320,3 @@ export function HrKanbanView({ stages: initialStages, tickets, onSelectTicket, o
         </DndContext>
     );
 }
-
