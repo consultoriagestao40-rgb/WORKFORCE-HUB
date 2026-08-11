@@ -667,80 +667,74 @@ export async function syncZapiChats() {
             });
         }
 
-        // 2. Buscar conversas ativas do celular via Z-API REST API
-        const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/chats?page=1&pageSize=40`;
-        const res = await fetch(url, {
-            headers: zapiHeaders(),
-            next: { revalidate: 0 }
-        });
-
-        if (!res.ok) {
-            console.error("[Z-API Sync] Endpoint chats retornou status", res.status);
-            return { error: "Falha ao consultar Z-API" };
-        }
-
-        const chats = await res.json();
-        if (!Array.isArray(chats)) return { success: true, count: 0 };
-
+        // 2. Buscar conversas ativas do celular via Z-API (paginado ate 250 conversas)
         let createdCount = 0;
 
-        for (const c of chats) {
-            // Desconsiderar grupos se quiser apenas atendimento individual (ou tratar)
-            if (c.isGroup) continue;
-
-            const phone = c.phone?.replace(/\D/g, "");
-            if (!phone) continue;
-
-            const phoneShort = phone.startsWith("55") ? phone.slice(2) : phone;
-            const phoneSearch = phoneShort.slice(-9);
-
-            // Verificar se já existe um ticket para este número
-            const existingTicket = await prisma.hrTicket.findFirst({
-                where: {
-                    OR: [
-                        { contactPhone: { contains: phoneSearch } },
-                        { contactPhone: { contains: phone } }
-                    ]
-                }
+        for (let page = 1; page <= 5; page++) {
+            const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/chats?page=${page}&pageSize=50`;
+            const res = await fetch(url, {
+                headers: zapiHeaders(),
+                next: { revalidate: 0 }
             });
 
-            const photoUrl = await fetchZapiProfilePic(phone);
+            if (!res.ok) break;
+            const chats = await res.json();
+            if (!Array.isArray(chats) || chats.length === 0) break;
 
-            if (!existingTicket) {
-                // Buscar se o telefone é de um funcionário cadastrado
-                const employee = await prisma.employee.findFirst({
+            for (const c of chats) {
+                if (c.isGroup) continue;
+
+                const phone = c.phone?.replace(/\D/g, "");
+                if (!phone) continue;
+
+                const phoneShort = phone.startsWith("55") ? phone.slice(2) : phone;
+                const phoneSearch = phoneShort.slice(-9);
+
+                const existingTicket = await prisma.hrTicket.findFirst({
                     where: {
                         OR: [
-                            { phone: { contains: phoneSearch } },
-                            { phone: { contains: phone } }
+                            { contactPhone: { contains: phoneSearch } },
+                            { contactPhone: { contains: phone } }
                         ]
                     }
                 });
 
-                const contactName = c.name || (employee ? employee.name : `Contato (${phone.slice(-4)})`);
+                const photoUrl = await fetchZapiProfilePic(phone);
 
-                await prisma.hrTicket.create({
-                    data: {
-                        title: `Atendimento: ${contactName}`,
-                        employeeId: employee?.id || null,
-                        contactPhone: phone,
-                        contactName,
-                        contactPhotoUrl: photoUrl,
-                        stageId: inboxStage.id,
-                        status: "OPEN",
-                        unreadCount: parseInt(c.messagesUnread || c.unread || "0", 10)
-                    }
-                });
-                createdCount++;
-            } else if (photoUrl && existingTicket.contactPhotoUrl !== photoUrl) {
-                // Se o ticket já existe mas estava sem foto, atualizar a foto de perfil
-                await prisma.hrTicket.update({
-                    where: { id: existingTicket.id },
-                    data: { contactPhotoUrl: photoUrl }
-                });
+                if (!existingTicket) {
+                    const employee = await prisma.employee.findFirst({
+                        where: {
+                            OR: [
+                                { phone: { contains: phoneSearch } },
+                                { phone: { contains: phone } }
+                            ]
+                        }
+                    });
+
+                    const contactName = c.name || (employee ? employee.name : `Contato (${phone.slice(-4)})`);
+
+                    await prisma.hrTicket.create({
+                        data: {
+                            title: `Atendimento: ${contactName}`,
+                            employeeId: employee?.id || null,
+                            contactPhone: phone,
+                            contactName,
+                            contactPhotoUrl: photoUrl,
+                            stageId: inboxStage.id,
+                            status: "OPEN",
+                            unreadCount: parseInt(c.messagesUnread || c.unread || "0", 10)
+                        }
+                    });
+                    createdCount++;
+                } else if (photoUrl && existingTicket.contactPhotoUrl !== photoUrl) {
+                    await prisma.hrTicket.update({
+                        where: { id: existingTicket.id },
+                        data: { contactPhotoUrl: photoUrl }
+                    });
+                }
             }
-
         }
+
 
         revalidatePath("/admin/atendimento");
         return { success: true, count: createdCount };
