@@ -12,6 +12,8 @@ console.log("============================================================");
 console.log("  🤖 INICIANDO PONTE LOCAL DO ROBÔ RPA ONVIO - WINDOWS RH  ");
 console.log("============================================================");
 
+let activeBrowser = null;
+
 function formatDateDigits(dStr) {
     if (!dStr) return "";
     if (typeof dStr !== 'string') dStr = String(dStr);
@@ -73,11 +75,21 @@ const server = http.createServer(async (req, res) => {
                 console.log(`\n[RPA WINDOWS RH] 🚀 Iniciando preenchimento visual completo para: ${candidateName}`);
                 console.log(`[RPA WINDOWS RH] CPF: ${cpfDigits} | Nascimento: ${birthDateDigits} | Cargo: ${roleTitle} | Empresa Contratante (Serviço): ${companyName}`);
 
-                const browser = await chromium.launch({
+                // Fechar janela anterior do Chrome se já houver uma aberta
+                if (activeBrowser) {
+                    console.log("[RPA WINDOWS RH] Fechando janela anterior do Chrome...");
+                    try {
+                        await activeBrowser.close();
+                    } catch (e) {}
+                    activeBrowser = null;
+                }
+
+                activeBrowser = await chromium.launch({
                     headless: false,
                     args: ["--start-maximized", "--no-sandbox"]
                 });
 
+                const browser = activeBrowser;
                 const context = await browser.newContext({ viewport: null });
                 const page = await context.newPage();
 
