@@ -5,8 +5,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3F1993DFB59E83474F059E648AE68DF9";
-const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "B7D14605963E820FEE720C73";
-const ZAPI_CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN || "F75962b9f8d1a49f5ad38ea822ef4a44bS";
+const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "81087A6B5C1CAB8AAAC801C4";
+const ZAPI_CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN || "F5c1b8f27f6b049c98c4e779d00f67552S";
 
 export async function sendZapiTextMessage(data: {
     candidateId: string;
@@ -18,7 +18,7 @@ export async function sendZapiTextMessage(data: {
         const cleanPhone = data.phone.replace(/\D/g, "");
         const finalPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
 
-        // 1. Enviar mensagem real via API do Z-API
+        // Enviar mensagem real via Z-API
         const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-text`;
         
         let zapiMsgId: string | null = null;
@@ -39,7 +39,7 @@ export async function sendZapiTextMessage(data: {
 
             if (zapiRes.ok) {
                 const resJson = await zapiRes.json();
-                zapiMsgId = resJson.messageId || resJson.id || null;
+                zapiMsgId = resJson.messageId || resJson.id || resJson.zaapId || null;
                 isSuccess = true;
             } else {
                 console.error("[Z-API Send Error]:", await zapiRes.text());
@@ -48,7 +48,7 @@ export async function sendZapiTextMessage(data: {
             console.error("[Z-API Exception]:", zapiErr);
         }
 
-        // 2. Registrar a mensagem enviada no banco de dados do candidato
+        // Registrar no banco de dados
         const newMsg = await prisma.recruitmentWhatsAppMessage.create({
             data: {
                 candidateId: data.candidateId,
@@ -159,7 +159,6 @@ export async function getCandidateWhatsAppMessagesAction(candidateId: string) {
             orderBy: { createdAt: "asc" }
         });
 
-        // Zerar contador de nao lidas ao abrir o chat
         await prisma.recruitmentCandidate.update({
             where: { id: candidateId },
             data: { unreadWhatsAppCount: 0 }
