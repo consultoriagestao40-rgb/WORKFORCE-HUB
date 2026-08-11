@@ -26,11 +26,14 @@ async function fetchZapiProfilePic(phone: string): Promise<string | null> {
         const res = await fetch(url, { headers: zapiHeaders(), next: { revalidate: 0 } });
         if (!res.ok) return null;
         const data = await res.json();
+        // Z-API retorna a chave "link" com a URL da foto no WhatsApp
+        if (data.link && data.link !== "null") return data.link;
         return data.profilePictureUrl || data.picture || data.url || null;
     } catch {
         return null;
     }
 }
+
 
 /** Busca nome do contato no WhatsApp via Z-API */
 async function fetchZapiContactName(phone: string): Promise<string | null> {
@@ -701,6 +704,8 @@ export async function syncZapiChats() {
                 }
             });
 
+            const photoUrl = await fetchZapiProfilePic(phone);
+
             if (!existingTicket) {
                 // Buscar se o telefone é de um funcionário cadastrado
                 const employee = await prisma.employee.findFirst({
@@ -713,7 +718,6 @@ export async function syncZapiChats() {
                 });
 
                 const contactName = c.name || (employee ? employee.name : `Contato (${phone.slice(-4)})`);
-                const photoUrl = await fetchZapiProfilePic(phone);
 
                 await prisma.hrTicket.create({
                     data: {
@@ -728,7 +732,14 @@ export async function syncZapiChats() {
                     }
                 });
                 createdCount++;
+            } else if (photoUrl && existingTicket.contactPhotoUrl !== photoUrl) {
+                // Se o ticket já existe mas estava sem foto, atualizar a foto de perfil
+                await prisma.hrTicket.update({
+                    where: { id: existingTicket.id },
+                    data: { contactPhotoUrl: photoUrl }
+                });
             }
+
         }
 
         revalidatePath("/admin/atendimento");

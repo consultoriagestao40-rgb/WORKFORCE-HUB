@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Search, RefreshCw, Lock, MessageSquare } from "lucide-react";
 import {
     getHrPipelineStages,
     getHrTickets,
@@ -14,7 +15,6 @@ import { HrKanbanView } from "./HrKanbanView";
 import { HrLabelView } from "./HrLabelView";
 import { HrHistoryView } from "./HrHistoryView";
 import { HrTicketModal } from "./HrTicketModal";
-import { HrPipelineEditor } from "./HrPipelineEditor";
 import { HrAccessManager } from "./HrAccessManager";
 
 interface Props {
@@ -33,8 +33,6 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
     const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
 
-    // Modals
-    const [showPipelineEditor, setShowPipelineEditor] = useState(false);
     const [showAccessManager, setShowAccessManager] = useState(false);
 
     const loadData = useCallback(async () => {
@@ -67,12 +65,11 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         }
     };
 
-
     useEffect(() => {
         loadData();
     }, [loadData]);
 
-    // Polling a cada 5 segundos para recarregar lista de tickets e mensagens não lidas
+    // Polling a cada 5s para recarregar lista de tickets e mensagens não lidas
     useEffect(() => {
         const interval = setInterval(() => {
             getHrTickets({ search: searchQuery }).then(setTickets);
@@ -81,78 +78,93 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
     }, [searchQuery]);
 
     return (
-        <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-slate-100">
-            {/* Header com Visões e Ações */}
-            <div className="bg-white border-b px-6 py-3 flex items-center justify-between shadow-sm">
-                <div className="flex items-center gap-4">
-                    <div>
-                        <h1 className="font-extrabold text-lg text-slate-800 flex items-center gap-2">
-                            <span>📞</span> Atendimento RH <span className="text-xs bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">WhatsApp ao Vivo</span>
-                        </h1>
-                        <p className="text-[11px] text-slate-500">Pipeline de tickets e suporte de funcionários</p>
+        <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-slate-100 font-sans">
+            {/* Header WaSeller Style — Abas Pills no Topo */}
+            <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex items-center justify-between shadow-sm z-10">
+                {/* Título & Abas Pills Estilo WaSeller */}
+                <div className="flex items-center gap-4 overflow-x-auto py-1">
+                    <div className="flex items-center gap-2 flex-shrink-0 mr-2">
+                        <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow">
+                            W
+                        </div>
+                        <div>
+                            <h1 className="font-extrabold text-sm text-slate-800 leading-none">WaAtendimento</h1>
+                            <span className="text-[10px] text-emerald-600 font-semibold">WhatsApp RH ao Vivo</span>
+                        </div>
                     </div>
 
-                    {/* View Switcher */}
-                    <div className="flex bg-slate-100 p-1 rounded-lg border gap-1">
-                        <button
-                            onClick={() => setViewMode("kanban")}
-                            className={`px-3 py-1 text-xs font-semibold rounded-md transition ${viewMode === "kanban" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
-                        >
-                            📊 Pipeline (Kanban)
-                        </button>
-                        <button
-                            onClick={() => setViewMode("labels")}
-                            className={`px-3 py-1 text-xs font-semibold rounded-md transition ${viewMode === "labels" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
-                        >
-                            🏷️ Por Etiquetas
-                        </button>
-                        <button
-                            onClick={() => setViewMode("history")}
-                            className={`px-3 py-1 text-xs font-semibold rounded-md transition ${viewMode === "history" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
-                        >
-                            📜 Histórico
-                        </button>
+                    {/* Abas Pílula Estilo WaSeller (INBOX 836, ATENDIMENTO 4, etc) */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pr-2">
+                        {stages.map((stg) => {
+                            const count = tickets.filter(t => t.stageId === stg.id).length;
+                            return (
+                                <div
+                                    key={stg.id}
+                                    className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 flex-shrink-0 shadow-xs"
+                                >
+                                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stg.color }} />
+                                    <span>{stg.name}</span>
+                                    <span className="bg-white text-slate-800 text-[10px] px-1.5 py-0.2 rounded-full border shadow-2xs font-extrabold">
+                                        {count}
+                                    </span>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
 
-                {/* Right Actions */}
-                <div className="flex items-center gap-3">
+                {/* Ações da Direita */}
+                <div className="flex items-center gap-2.5 flex-shrink-0">
                     <Button
                         variant="outline"
                         size="sm"
                         disabled={syncing}
-                        className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-semibold"
+                        className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-bold"
                         onClick={handleSync}
                     >
-                        <span>🔄</span> {syncing ? "Sincronizando..." : "Puxar Conversas WhatsApp"}
+                        <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
+                        {syncing ? "Sincronizando..." : "Sincronizar Z-API"}
                     </Button>
 
-                    <Input
-                        placeholder="Buscar funcionario ou protocolo..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="text-xs h-8 w-60 bg-slate-50"
-                    />
-
+                    {/* Modos de Visão */}
+                    <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                        <button
+                            onClick={() => setViewMode("kanban")}
+                            className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${viewMode === "kanban" ? "bg-white text-emerald-600 shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
+                        >
+                            Kanban
+                        </button>
+                        <button
+                            onClick={() => setViewMode("labels")}
+                            className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${viewMode === "labels" ? "bg-white text-emerald-600 shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
+                        >
+                            Etiquetas
+                        </button>
+                        <button
+                            onClick={() => setViewMode("history")}
+                            className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${viewMode === "history" ? "bg-white text-emerald-600 shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
+                        >
+                            Histórico
+                        </button>
+                    </div>
 
                     {currentUser?.role === "ADMIN" && (
                         <Button
                             variant="outline"
                             size="sm"
-                            className="h-8 text-xs gap-1 border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100"
+                            className="h-8 text-xs gap-1 border-slate-300 text-slate-700"
                             onClick={() => setShowAccessManager(true)}
                         >
-                            <span>🔒</span> Acessos
+                            <Lock className="w-3.5 h-3.5" /> Acessos
                         </Button>
                     )}
                 </div>
-
             </div>
 
-            {/* View Render */}
+            {/* Conteúdo Principal */}
             {loading ? (
                 <div className="flex-1 flex items-center justify-center text-xs text-slate-400">
-                    Carregando Central de Atendimento...
+                    Carregando atendimento WaSeller...
                 </div>
             ) : viewMode === "kanban" ? (
                 <HrKanbanView
@@ -161,7 +173,6 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                     onSelectTicket={setSelectedTicketId}
                     onStagesUpdated={loadData}
                 />
-
             ) : viewMode === "labels" ? (
                 <HrLabelView
                     labels={labels}
@@ -173,7 +184,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 <HrHistoryView onSelectTicket={setSelectedTicketId} />
             )}
 
-            {/* Modals */}
+            {/* Modais */}
             <HrTicketModal
                 ticketId={selectedTicketId}
                 onClose={() => setSelectedTicketId(null)}
@@ -181,13 +192,6 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 availableUsers={allUsers}
                 availableLabels={labels}
                 availableStages={stages}
-            />
-
-            <HrPipelineEditor
-                open={showPipelineEditor}
-                onClose={() => setShowPipelineEditor(false)}
-                stages={stages}
-                onSaved={loadData}
             />
 
             <HrAccessManager

@@ -16,11 +16,13 @@ async function fetchZapiProfilePic(phone: string): Promise<string | null> {
         });
         if (!res.ok) return null;
         const data = await res.json();
+        if (data.link && data.link !== "null") return data.link;
         return data.profilePictureUrl || data.picture || data.url || null;
     } catch {
         return null;
     }
 }
+
 
 /**
  * WEBHOOK Z-API — Central de Atendimento RH + Recrutamento
