@@ -1,8 +1,10 @@
 // =============================================================================
-// ROBÔ RPA ONVIO - MOTOR VISUAL COM PONTE NUVEM-DESKTOP DUAL (WINDOWS RH)
+// ROBÔ RPA ONVIO - MOTOR VISUAL COM PUPPETEER-CORE (WINDOWS RH)
 // =============================================================================
 const http = require("http");
-const { chromium } = require("playwright");
+const fs = require("fs");
+const path = require("path");
+const puppeteer = require("puppeteer-core");
 
 const PORT = process.env.PORT || 3000;
 const ONVIO_USER = process.env.ONVIO_USER || "adm@jvstratamentosdepiso.com";
@@ -10,7 +12,7 @@ const ONVIO_PASS = process.env.ONVIO_PASS || "%Jcr35030";
 const VERCEL_POLL_URL = process.env.VERCEL_POLL_URL || "https://workforce-hub-henna.vercel.app/api/rpa/poll";
 
 process.on("uncaughtException", (err) => {
-    console.error("\n[ERRO CAPTURADO NO ROBÔ]:", err.message || err);
+    console.error("\n[ERRO NO ROBÔ]:", err.message || err);
 });
 
 process.on("unhandledRejection", (reason) => {
@@ -19,6 +21,20 @@ process.on("unhandledRejection", (reason) => {
 
 let activeBrowser = null;
 
+function findWindowsChromePath() {
+    const paths = [
+        "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+        process.env.LOCALAPPDATA + "\\Google\\Chrome\\Application\\chrome.exe",
+        "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+        "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe"
+    ];
+    for (const p of paths) {
+        if (p && fs.existsSync(p)) return p;
+    }
+    return null;
+}
+
 function formatDateDigits(dStr) {
     if (!dStr) return "";
     if (typeof dStr !== 'string') dStr = String(dStr);
@@ -26,7 +42,7 @@ function formatDateDigits(dStr) {
     if (dStr.includes("-") && dStr.length >= 10) {
         const parts = dStr.split("T")[0].split("-");
         if (parts.length === 3 && parts[0].length === 4) {
-            return `${parts[2]}${parts[1]}${parts[0]}`; // DDMMYYYY (8 dígitos)
+            return `${parts[2]}${parts[1]}${parts[0]}`;
         }
     }
     if (clean.length === 8) return clean;
@@ -59,7 +75,7 @@ async function executeVisualFilling(payload) {
     const rgDtRaw = extra.rgDataEmissao || extra.dataEmissaoRg || "";
     const rgDtDigits = formatDateDigits(rgDtRaw);
 
-    console.log(`\n[RPA WINDOWS RH] 🚀 Iniciando preenchimento no Chrome para: ${candidateName}`);
+    console.log(`\n[RPA WINDOWS RH] 🚀 Abrindo Google Chrome para: ${candidateName}`);
     console.log(`[RPA WINDOWS RH] CPF: ${cpfDigits} | Nascimento: ${birthDateDigits} | Cargo: ${roleTitle} | Empresa: ${companyName}`);
 
     if (activeBrowser) {
@@ -70,139 +86,120 @@ async function executeVisualFilling(payload) {
         activeBrowser = null;
     }
 
-    let browser = null;
-    try {
-        browser = await chromium.launch({
-            channel: "chrome",
-            headless: false,
-            args: ["--start-maximized", "--no-sandbox"]
-        });
-    } catch (e1) {
-        try {
-            browser = await chromium.launch({
-                channel: "msedge",
-                headless: false,
-                args: ["--start-maximized", "--no-sandbox"]
-            });
-        } catch (e2) {
-            browser = await chromium.launch({
-                headless: false,
-                args: ["--start-maximized", "--no-sandbox"]
-            });
-        }
+    const chromePath = findWindowsChromePath();
+    const launchOptions = {
+        headless: false,
+        defaultViewport: null,
+        args: ["--start-maximized", "--no-sandbox"]
+    };
+    if (chromePath) {
+        launchOptions.executablePath = chromePath;
+    } else {
+        launchOptions.channel = "chrome";
     }
 
+    const browser = await puppeteer.launch(launchOptions);
     activeBrowser = browser;
-    const context = await browser.newContext({ viewport: null });
-    const page = await context.newPage();
+
+    const pages = await browser.pages();
+    const page = pages.length > 0 ? pages[0] : await browser.newPage();
 
     console.log("[RPA WINDOWS RH] Acessando https://onvio.com.br...");
     await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "domcontentloaded" });
-    await page.waitForTimeout(2500);
+    await page.evaluate(() => new Promise(r => setTimeout(r, 2500)));
 
     if (page.url().includes("/auth") || page.url().includes("thomsonreuters")) {
         console.log("[RPA WINDOWS RH] Efetuando login...");
-        const entrarBtn = page.locator('button:has-text("Entrar"), a:has-text("Entrar"), .btn-primary').first();
-        if (await entrarBtn.isVisible()) {
-            await entrarBtn.click();
-            await page.waitForTimeout(2000);
-        }
+        try {
+            await page.evaluate(() => {
+                const btn = Array.from(document.querySelectorAll('button, a')).find(el => el.textContent.includes('Entrar'));
+                if (btn) btn.click();
+            });
+            await page.evaluate(() => new Promise(r => setTimeout(r, 2000)));
 
-        await page.waitForSelector('input[name="uid"], [data-qe-id="trauth-signin-uid"]', { timeout: 25000 });
-        await page.fill('input[name="uid"], [data-qe-id="trauth-signin-uid"]', ONVIO_USER);
+            await page.waitForSelector('input[name="uid"], [data-qe-id="trauth-signin-uid"]', { timeout: 25000 });
+            await page.type('input[name="uid"], [data-qe-id="trauth-signin-uid"]', ONVIO_USER);
 
-        const nextBtn = page.locator('button[type="submit"], button:has-text("Avançar"), button:has-text("Continuar")').first();
-        if (await nextBtn.isVisible()) {
-            await nextBtn.click();
-            await page.waitForTimeout(2000);
-        }
+            await page.evaluate(() => {
+                const btn = Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('Avançar') || el.textContent.includes('Continuar') || el.type === 'submit');
+                if (btn) btn.click();
+            });
+            await page.evaluate(() => new Promise(r => setTimeout(r, 2000)));
 
-        await page.waitForSelector('input[type="password"]', { timeout: 20000 });
-        await page.fill('input[type="password"]', ONVIO_PASS);
+            await page.waitForSelector('input[type="password"]', { timeout: 20000 });
+            await page.type('input[type="password"]', ONVIO_PASS);
 
-        const submitBtn = page.locator('button[type="submit"]').first();
-        if (await submitBtn.isVisible()) {
-            await submitBtn.click();
-            await page.waitForTimeout(5000);
-        }
+            await page.evaluate(() => {
+                const btn = Array.from(document.querySelectorAll('button')).find(el => el.type === 'submit' || el.textContent.includes('Entrar'));
+                if (btn) btn.click();
+            });
+            await page.evaluate(() => new Promise(r => setTimeout(r, 5000)));
+        } catch (e) {}
 
         await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "domcontentloaded" });
-        await page.waitForTimeout(3000);
+        await page.evaluate(() => new Promise(r => setTimeout(r, 3000)));
     }
 
     console.log(`[RPA WINDOWS RH] Selecionando contexto de empresa: ${companyName}...`);
-    const companySelector = page.locator('bm-linked-account-selector, .header-firm-name').first();
-    if (await companySelector.isVisible()) {
-        await companySelector.click({ force: true });
-        await page.waitForTimeout(1500);
-        const compOpt = page.locator('.bento-option-list li, .bento-option, span, div')
-            .filter({ hasText: new RegExp(companyName.split(" ")[0], "i") }).first();
-        if (await compOpt.isVisible()) {
-            await compOpt.click({ force: true });
-            await page.waitForTimeout(3000);
-        }
-    }
+    try {
+        await page.evaluate((compName) => {
+            const selector = document.querySelector('bm-linked-account-selector, .header-firm-name');
+            if (selector) selector.click();
+        }, companyName);
+        await page.evaluate(() => new Promise(r => setTimeout(r, 1500)));
+
+        await page.evaluate((compName) => {
+            const prefix = compName.split(" ")[0].toLowerCase();
+            const items = Array.from(document.querySelectorAll('.bento-option-list li, .bento-option, span, div'));
+            const match = items.find(el => el.textContent.toLowerCase().includes(prefix));
+            if (match) match.click();
+        }, companyName);
+        await page.evaluate(() => new Promise(r => setTimeout(r, 3000)));
+    } catch (e) {}
 
     console.log("[RPA WINDOWS RH] Abrindo formulário /add...");
     await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration/add", { waitUntil: "domcontentloaded" });
-    await page.waitForTimeout(3500);
+    await page.evaluate(() => new Promise(r => setTimeout(r, 3500)));
 
-    const fillInput = async (locator, val) => {
-        if (!val) return false;
-        try {
-            if (await locator.count() > 0 && await locator.isVisible()) {
-                await locator.click({ force: true });
-                await locator.fill("");
-                await locator.focus();
-                await page.keyboard.type(String(val), { delay: 40 });
-                await locator.dispatchEvent("input");
-                await locator.dispatchEvent("change");
-                await locator.dispatchEvent("blur");
-                await page.waitForTimeout(200);
-                return true;
-            }
-        } catch (e) {}
-        return false;
-    };
-
-    const fillByLabelOrControl = async (identifiers, val) => {
+    const fillByControl = async (controlName, val) => {
         if (!val) return;
-        const list = Array.isArray(identifiers) ? identifiers : [identifiers];
-        
-        for (const id of list) {
-            const loc = page.locator(`input[formcontrolname="${id}"], textarea[formcontrolname="${id}"], input[id="${id}"]`).first();
-            if (await fillInput(loc, val)) return;
-        }
-
-        for (const labelText of list) {
-            const lbl = page.locator('label').filter({ hasText: new RegExp(labelText, "i") }).first();
-            if (await lbl.count() > 0 && await lbl.isVisible()) {
-                const inp = lbl.locator('..').locator('input, textarea').first();
-                if (await fillInput(inp, val)) return;
-            }
-        }
+        try {
+            await page.evaluate((ctrl, value) => {
+                const inp = document.querySelector(`input[formcontrolname="${ctrl}"], textarea[formcontrolname="${ctrl}"]`);
+                if (inp) {
+                    inp.focus();
+                    inp.value = value;
+                    inp.dispatchEvent(new Event('input', { bubbles: true }));
+                    inp.dispatchEvent(new Event('change', { bubbles: true }));
+                    inp.dispatchEvent(new Event('blur', { bubbles: true }));
+                }
+            }, controlName, String(val));
+        } catch (e) {}
     };
 
     const selectBentoOption = async (controlName, searchText) => {
         if (!searchText) return;
         try {
-            const sel = page.locator(`bento-select[formcontrolname="${controlName}"], select[formcontrolname="${controlName}"]`).first();
-            if (await sel.count() > 0 && await sel.isVisible()) {
-                await sel.click({ force: true });
-                await page.waitForTimeout(600);
-                const opt = page.locator(`.bento-option-list li, .bento-option, option`).filter({ hasText: new RegExp(searchText.split(" ")[0], "i") }).first();
-                if (await opt.count() > 0 && await opt.isVisible()) {
-                    await opt.click({ force: true });
-                    await page.waitForTimeout(500);
-                }
-            }
+            await page.evaluate((ctrl, text) => {
+                const sel = document.querySelector(`bento-select[formcontrolname="${ctrl}"], select[formcontrolname="${ctrl}"]`);
+                if (sel) sel.click();
+            }, controlName, searchText);
+            await page.evaluate(() => new Promise(r => setTimeout(r, 600)));
+
+            await page.evaluate((text) => {
+                const prefix = text.split(" ")[0].toLowerCase();
+                const opts = Array.from(document.querySelectorAll('.bento-option-list li, .bento-option, option'));
+                const match = opts.find(el => el.textContent.toLowerCase().includes(prefix));
+                if (match) match.click();
+            }, searchText);
+            await page.evaluate(() => new Promise(r => setTimeout(r, 500)));
         } catch (e) {}
     };
 
     // ABA 1: GERAL
     console.log("[RPA WINDOWS RH] Preenchendo Aba 1 (Geral)...");
-    await fillByLabelOrControl(["employeeName", "name", "Nome"], candidateName);
-    await fillByLabelOrControl(["cpfNumber", "cpf", "CPF"], cpfDigits);
+    await fillByControl("employeeName", candidateName);
+    await fillByControl("cpfNumber", cpfDigits);
     await selectBentoOption("service", companyName);
 
     if (roleTitle) await selectBentoOption("jobPosition", roleTitle);
@@ -211,107 +208,112 @@ async function executeVisualFilling(payload) {
     await selectBentoOption("union", "SIEMACO");
 
     try {
-        const subAdmissao = page.locator('button:has-text("ADMISSÃO"), a:has-text("ADMISSÃO"), span:has-text("ADMISSÃO")').first();
-        if (await subAdmissao.isVisible()) {
-            await subAdmissao.click();
-            await page.waitForTimeout(1000);
-            await fillByLabelOrControl(["salary", "Salário"], payload.salary || "1900.00");
-            await selectBentoOption("admissionCategory", "Mensalista");
-            await selectBentoOption("employmentRelationship", "Celetista");
-        }
+        await page.evaluate(() => {
+            const btn = Array.from(document.querySelectorAll('button, a, span')).find(el => el.textContent.trim() === 'ADMISSÃO');
+            if (btn) btn.click();
+        });
+        await page.evaluate(() => new Promise(r => setTimeout(r, 1000)));
+        await fillByControl("salary", payload.salary || "1900.00");
+        await selectBentoOption("admissionCategory", "Mensalista");
+        await selectBentoOption("employmentRelationship", "Celetista");
     } catch (e) {}
 
     try {
-        const subExp = page.locator('button:has-text("CONTRATO DE EXPERIÊNCIA"), a:has-text("CONTRATO DE EXPERIÊNCIA")').first();
-        if (await subExp.isVisible()) {
-            await subExp.click();
-            await page.waitForTimeout(1000);
-            await fillByLabelOrControl(["probationDays1", "Contrato de Experiência"], "45");
-            await fillByLabelOrControl(["probationDays2", "Dias de Prorrogação"], "45");
-        }
+        await page.evaluate(() => {
+            const btn = Array.from(document.querySelectorAll('button, a')).find(el => el.textContent.includes('CONTRATO DE EXPERIÊNCIA'));
+            if (btn) btn.click();
+        });
+        await page.evaluate(() => new Promise(r => setTimeout(r, 1000)));
+        await fillByControl("probationDays1", "45");
+        await fillByControl("probationDays2", "45");
     } catch (e) {}
 
     // ABA 2: PROFISSIONAL
     console.log("[RPA WINDOWS RH] Preenchendo Aba 2 (Profissional)...");
-    const tab2 = page.locator('button.bento-wizard-step:nth-child(2), button:has-text("Profissional")').first();
-    if (await tab2.isVisible()) await tab2.click({ force: true });
-    await page.waitForTimeout(1500);
-
-    await fillByLabelOrControl(["workNumber", "ctpsNumber", "Número da carteira de trabalho"], ctpsNum);
-    await fillByLabelOrControl(["workSerial", "ctpsSerial", "Série"], ctpsSerie);
-
     try {
-        const subPis = page.locator('button:has-text("INFORMAÇÕES DO PIS"), a:has-text("INFORMAÇÕES DO PIS")').first();
-        if (await subPis.isVisible()) {
-            await subPis.click();
-            await page.waitForTimeout(1000);
-            await fillByLabelOrControl(["pisNumber", "pis", "PIS / PASEP"], pisNum);
-        }
-    } catch (e) {}
+        await page.evaluate(() => {
+            const btn = Array.from(document.querySelectorAll('button.bento-wizard-step, button')).find(el => el.textContent.includes('Profissional'));
+            if (btn) btn.click();
+        });
+        await page.evaluate(() => new Promise(r => setTimeout(r, 1500)));
 
-    try {
-        const subPag = page.locator('button:has-text("PAGAMENTO"), a:has-text("PAGAMENTO"), span:has-text("PAGAMENTO")').first();
-        if (await subPag.isVisible()) {
-            await subPag.click();
-            await page.waitForTimeout(1000);
-            
-            const btnPix = page.locator('button:has-text("PIX"), .btn:has-text("PIX"), span:has-text("PIX"), label:has-text("PIX")').first();
-            if (await btnPix.isVisible()) {
-                await btnPix.click({ force: true });
-                await page.waitForTimeout(800);
-            }
+        await fillByControl("workNumber", ctpsNum);
+        await fillByControl("workSerial", ctpsSerie);
 
-            await selectBentoOption("pixType", "CPF");
-            await fillByLabelOrControl(["pixKey", "Chave"], cpfDigits);
-        }
+        await page.evaluate(() => {
+            const btn = Array.from(document.querySelectorAll('button, a')).find(el => el.textContent.includes('INFORMAÇÕES DO PIS'));
+            if (btn) btn.click();
+        });
+        await page.evaluate(() => new Promise(r => setTimeout(r, 1000)));
+        await fillByControl("pisNumber", pisNum);
+
+        // PAGAMENTO -> PIX
+        await page.evaluate(() => {
+            const btn = Array.from(document.querySelectorAll('button, a, span')).find(el => el.textContent.includes('PAGAMENTO'));
+            if (btn) btn.click();
+        });
+        await page.evaluate(() => new Promise(r => setTimeout(r, 1000)));
+
+        await page.evaluate(() => {
+            const btnPix = Array.from(document.querySelectorAll('button, .btn, span, label')).find(el => el.textContent.trim() === 'PIX');
+            if (btnPix) btnPix.click();
+        });
+        await page.evaluate(() => new Promise(r => setTimeout(r, 800)));
+
+        await selectBentoOption("pixType", "CPF");
+        await fillByControl("pixKey", cpfDigits);
     } catch (e) {}
 
     // ABA 3: PESSOAL
     console.log("[RPA WINDOWS RH] Preenchendo Aba 3 (Pessoal)...");
-    const tab3 = page.locator('button.bento-wizard-step:nth-child(3), button:has-text("Pessoal")').first();
-    if (await tab3.isVisible()) await tab3.click({ force: true });
-    await page.waitForTimeout(1500);
-
-    if (birthDateDigits) {
-        await fillByLabelOrControl(["birthDate", "dataNascimento", "Data de nascimento"], birthDateDigits);
-    }
-
     try {
+        await page.evaluate(() => {
+            const btn = Array.from(document.querySelectorAll('button.bento-wizard-step, button')).find(el => el.textContent.includes('Pessoal'));
+            if (btn) btn.click();
+        });
+        await page.evaluate(() => new Promise(r => setTimeout(r, 1500)));
+
+        if (birthDateDigits) await fillByControl("birthDate", birthDateDigits);
+
         const isFem = String(gender).toLowerCase().includes("fem");
-        const sexBtn = page.locator(isFem ? 'button:has-text("FEMININO"), span:has-text("FEMININO")' : 'button:has-text("MASCULINO"), span:has-text("MASCULINO")').first();
-        if (await sexBtn.isVisible()) {
-            await sexBtn.click({ force: true });
-        }
-    } catch (e) {}
+        await page.evaluate((fem) => {
+            const btn = Array.from(document.querySelectorAll('button, span')).find(el => el.textContent.trim() === (fem ? 'FEMININO' : 'MASCULINO'));
+            if (btn) btn.click();
+        }, isFem);
 
-    await fillByLabelOrControl(["motherName", "nomeMae", "Nome da Mãe"], nomeMae);
-    await fillByLabelOrControl(["fatherName", "nomePai", "Nome do Pai"], nomePai);
+        await fillByControl("motherName", nomeMae);
+        await fillByControl("fatherName", nomePai);
 
-    try {
-        const subEnd = page.locator('button:has-text("ENDEREÇO E CONTATO"), a:has-text("ENDEREÇO E CONTATO")').first();
-        if (await subEnd.isVisible()) {
-            await subEnd.click();
-            await page.waitForTimeout(1000);
-            await fillByLabelOrControl(["address", "endereco", "Endereço"], address);
-        }
+        await page.evaluate(() => {
+            const btn = Array.from(document.querySelectorAll('button, a')).find(el => el.textContent.includes('ENDEREÇO E CONTATO'));
+            if (btn) btn.click();
+        });
+        await page.evaluate(() => new Promise(r => setTimeout(r, 1000)));
+        await fillByControl("address", address);
     } catch (e) {}
 
     // ABA 4: DOCUMENTOS
     console.log("[RPA WINDOWS RH] Preenchendo Aba 4 (Documentos)...");
-    const tab4 = page.locator('button.bento-wizard-step:nth-child(4), button:has-text("Documentos")').first();
-    if (await tab4.isVisible()) await tab4.click({ force: true });
-    await page.waitForTimeout(1500);
+    try {
+        await page.evaluate(() => {
+            const btn = Array.from(document.querySelectorAll('button.bento-wizard-step, button')).find(el => el.textContent.includes('Documentos'));
+            if (btn) btn.click();
+        });
+        await page.evaluate(() => new Promise(r => setTimeout(r, 1500)));
 
-    await fillByLabelOrControl(["identityCard", "identityCardNumber", "rg", "rgNumber", "Número da Identidade"], rgNum);
-    await fillByLabelOrControl(["issuingAgency", "rgIssuingAgency", "orgao", "Órgão de expedição"], rgOrgao);
-    if (rgDtDigits) {
-        await fillByLabelOrControl(["identityCardIssuingDate", "rgIssuingDate", "dataEmissao", "Data de emissão"], rgDtDigits);
-    }
+        await fillByControl("identityCard", rgNum);
+        await fillByControl("issuingAgency", rgOrgao);
+        if (rgDtDigits) await fillByControl("identityCardIssuingDate", rgDtDigits);
+    } catch (e) {}
 
-    const tab1 = page.locator('button.bento-wizard-step:nth-child(1), button:has-text("Geral")').first();
-    if (await tab1.isVisible()) await tab1.click({ force: true });
+    try {
+        await page.evaluate(() => {
+            const btn = Array.from(document.querySelectorAll('button.bento-wizard-step, button')).find(el => el.textContent.includes('Geral'));
+            if (btn) btn.click();
+        });
+    } catch (e) {}
 
-    console.log(`[RPA WINDOWS RH] ✅ PREENCHIMENTO VISUAL CONCLUÍDO PARA ${candidateName}!`);
+    console.log(`[RPA WINDOWS RH] ✅ PREENCHIMENTO CONCLUÍDO PARA ${candidateName}!`);
     console.log("[RPA WINDOWS RH] 🟢 O Chrome PERMANECE ABERTO na tela do RH para revisão e salvamento.");
 
     return {
@@ -320,7 +322,6 @@ async function executeVisualFilling(payload) {
     };
 }
 
-// Servidor de chamadas locais (localhost:3000)
 const server = http.createServer(async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -358,12 +359,12 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
     console.log("============================================================");
     console.log(` [✓] SERVIDOR DO ROBÔ RPA ATIVO E CONECTADO NA NUVEM!`);
-    console.log(` [✓] O Robô abrirá o Chrome no Windows quando disparado na Vercel.`);
+    console.log(` [✓] O Robô usará o Google Chrome instalado no seu Windows.`);
     console.log(` [✓] Mantenha esta janela aberta enquanto utiliza o sistema.`);
     console.log("============================================================\n");
 });
 
-// Polling continuo da fila na Nuvem Vercel (Passa por qualquer Firewall/Mixed Content)
+// Polling continuo da fila na Nuvem Vercel
 setInterval(async () => {
     try {
         const response = await fetch(VERCEL_POLL_URL);
@@ -371,7 +372,7 @@ setInterval(async () => {
             const data = await response.json();
             if (data && data.job) {
                 const job = data.job;
-                console.log(`\n[RPA NUVEM -> WINDOWS] 🔔 Novo disparo de admissão recebido da Vercel para: ${job.payload?.name || job.candidateId}`);
+                console.log(`\n[RPA NUVEM -> WINDOWS] 🔔 Novo disparo recebido da Vercel para: ${job.payload?.name || job.candidateId}`);
                 
                 const resData = await executeVisualFilling(job.payload);
                 

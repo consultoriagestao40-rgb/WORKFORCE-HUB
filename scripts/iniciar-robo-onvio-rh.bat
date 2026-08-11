@@ -1,36 +1,29 @@
 @echo off
 title Robô RPA Onvio - Conexão RH Workforce Hub
 color 0A
+cls
 
 echo ============================================================
 echo   ROBO RPA ONVIO - WORKFORCE HUB (AUTOMACAO WINDOWS RH)
 echo ============================================================
 echo.
-echo Verificando instalacao do Node.js e Playwright...
+echo  [✓] Servidor do Robô RPA Ativo!
+echo  [✓] O Robô abrirá o Google Chrome no seu Windows quando disparado.
+echo  [✓] Mantenha esta janela aberta enquanto utiliza o sistema.
+echo ============================================================
+echo.
 
-where node >nul 2>nul
+if exist bin\Robo-Onvio-RH.exe (
+    bin\Robo-Onvio-RH.exe
+) else if exist Robo-Onvio-RH.exe (
+    Robo-Onvio-RH.exe
+) else (
+    node scripts/rpa-bridge-windows.js
+)
+
 if %errorlevel% neq 0 (
-    echo [ERRO] Node.js nao encontrado neste computador Windows!
-    echo Por favor, instale o Node.js em: https://nodejs.org/
-    pause
-    exit /b
+    echo.
+    echo [AVISO] Ocorreu uma exceção no robô. A janela permanecerá aberta.
 )
-
-if not exist node_modules\playwright (
-    echo Instalando o robô e navegador Playwright...
-    call npm install playwright
-    call npx playwright install chromium
-)
-
-echo.
-echo ============================================================
-echo  [V] Robô ativo e aguardando na porta 3000!
-echo  [V] Mantenha esta janela aberta durante os testes do RH.
-echo  [V] Ao clicar em 'Transmitir via Robô RPA' no sistema, 
-echo      o Chrome abrirá visivelmente na sua tela preenchido!
-echo ============================================================
-echo.
-
-node scripts/rpa-bridge-windows.js
 
 pause
