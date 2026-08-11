@@ -5,7 +5,7 @@ import { CheckCircle2, Loader2, Calendar, Zap, Bot, ExternalLink } from "lucide-
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { confirmOnvio, getEmployeeFormData, extractDataFromDocumentImages } from "@/actions/recruitment";
-import { sendCandidateToOnvioRpa } from "@/actions/onvio-rpa";
+import { sendCandidateToOnvioRpa, createRpaJobAction, checkRpaJobStatusAction } from "@/actions/onvio-rpa";
 import { getWizardDropdowns } from "@/app/actions";
 import { EmployeeOnvioWizard } from "@/components/admin/EmployeeOnvioWizard";
 
@@ -90,47 +90,38 @@ Empresa: ${companyName || ""}
     async function handleRpaTransmit() {
         setSendingRpa(true);
         try {
-            // 1. Tentar comunicar primeiro com o Robô Local no computador do usuário (portas 3000 ou ponte configurada)
-            const bridgeUrl = process.env.NEXT_PUBLIC_RPA_BRIDGE_URL || "http://localhost:3000/api/rpa/onvio";
+            toast.info("Enviando solicitação para o Robô no seu computador Windows...");
             
-            let localBridgeSuccess = false;
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 3500);
+            // 1. Criar Job na fila de comunicacao segura em nuvem (Vercel -> Windows)
+            const jobRes = await createRpaJobAction(candidateId, wizardInitialData);
+            
+            if (jobRes.success && jobRes.jobId) {
+                const jobId = jobRes.jobId;
+                let isHandledByWindows = false;
 
-                const localBridgeRes = await fetch(bridgeUrl, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        candidateId,
-                        payload: wizardInitialData
-                    }),
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-
-                if (localBridgeRes.ok) {
-                    const localData = await localBridgeRes.json();
-                    if (localData.success) {
-                        localBridgeSuccess = true;
-                        toast.success(localData.message || "Robô RPA abriu o Chrome na sua tela com todas as 6 abas preenchidas!");
+                // Aguarda ate 10 segundos pelo polling do Robo-Onvio-RH.exe
+                for (let i = 0; i < 10; i++) {
+                    await new Promise(r => setTimeout(r, 1000));
+                    const statusRes = await checkRpaJobStatusAction(jobId);
+                    if (statusRes.success && (statusRes.status === "PROCESSING" || statusRes.status === "COMPLETED")) {
+                        isHandledByWindows = true;
+                        toast.success("🤖 O Robô no seu Windows recebeu a solicitação e abriu a janela do Chrome na sua tela!");
                         onUpdate();
-                        return;
+                        break;
                     }
                 }
-            } catch (localErr) {
-                // Robô local não atendeu no localhost:3000
+
+                if (isHandledByWindows) return;
             }
 
-            // 2. Se não houver robô local ativo no PC, executa no servidor de nuvem Vercel
-            if (!localBridgeSuccess) {
-                const res = await sendCandidateToOnvioRpa(candidateId);
-                if (res.success) {
-                    toast.success(res.message || "Robô RPA executou com sucesso no portal Onvio!");
-                    onUpdate();
-                } else {
-                    toast.error(res.error || "Erro ao executar o robô RPA no Onvio.");
-                }
+            // 2. Fallback caso o Robo-Onvio-RH.exe nao esteja rodando no Windows
+            toast.info("Robô local não detectado no Windows. Executando automação no servidor de nuvem...");
+            const res = await sendCandidateToOnvioRpa(candidateId);
+            if (res.success) {
+                toast.success(res.message || "Robô RPA executou com sucesso no portal Onvio!");
+                onUpdate();
+            } else {
+                toast.error(res.error || "Erro ao executar o robô RPA no Onvio.");
             }
         } catch (e: any) {
             toast.error(e.message || "Erro durante o disparo do robô RPA.");

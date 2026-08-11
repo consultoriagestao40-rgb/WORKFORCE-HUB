@@ -941,4 +941,16 @@ model EpiDelivery {
   @@index([deliveredById])
 }
 
+model RpaJob {
+  id          String   @id @default(uuid())
+  candidateId String
+  status      String   @default("PENDING")
+  payload     Json
+  result      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+}
+
 

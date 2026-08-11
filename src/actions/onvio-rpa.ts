@@ -98,13 +98,35 @@ export async function sendCandidateToOnvioRpa(candidateId: string) {
             }
         } catch (rpaErr: any) {
             console.error("[RPA Server Action Error]:", rpaErr);
-            return {
-                success: false,
-                error: rpaErr?.message || "Ocorreu um erro durante a execução do robô RPA no servidor."
-            };
+            return { success: false, error: rpaErr.message || "Falha na comunicação com o robô Onvio." };
         }
-    } catch (error: any) {
-        console.error("Error in sendCandidateToOnvioRpa:", error);
-        return { success: false, error: error.message || "Falha na comunicação com o robô RPA." };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+export async function createRpaJobAction(candidateId: string, payload: any) {
+    try {
+        const job = await prisma.rpaJob.create({
+            data: {
+                candidateId,
+                status: "PENDING",
+                payload: payload || {}
+            }
+        });
+        return { success: true, jobId: job.id };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+export async function checkRpaJobStatusAction(jobId: string) {
+    try {
+        const job = await prisma.rpaJob.findUnique({
+            where: { id: jobId }
+        });
+        return { success: true, status: job?.status, result: job?.result };
+    } catch (e: any) {
+        return { success: false, error: e.message };
     }
 }
