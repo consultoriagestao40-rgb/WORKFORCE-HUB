@@ -390,6 +390,10 @@ model RecruitmentCandidate {
   metocarRegistered        Boolean  @default(false)
   urbisRegistered          Boolean  @default(false)
   benefitsCompletedAt      DateTime?
+
+  // Z-API WhatsApp Chat
+  unreadWhatsAppCount      Int      @default(0)
+  whatsappMessages         RecruitmentWhatsAppMessage[]
 }
 
 model RecruitmentStage {
@@ -951,6 +955,25 @@ model RpaJob {
   updatedAt   DateTime @updatedAt
 
   @@index([status])
+}
+
+model RecruitmentWhatsAppMessage {
+  id            String               @id @default(uuid())
+  candidateId   String
+  candidate     RecruitmentCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  senderType    String               // "RECRUITER" | "CANDIDATE" | "SYSTEM"
+  senderName    String?
+  messageType   String               @default("TEXT") // "TEXT" | "IMAGE" | "DOCUMENT" | "AUDIO"
+  content       String
+  mediaUrl      String?
+  mediaFileName String?
+  mediaMimeType String?
+  status        String               @default("SENT") // "SENT" | "DELIVERED" | "READ"
+  zapiMessageId String?
+  createdAt     DateTime             @default(now())
+
+  @@index([candidateId])
+  @@index([createdAt])
 }
 
 

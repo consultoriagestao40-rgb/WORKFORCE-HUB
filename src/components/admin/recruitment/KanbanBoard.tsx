@@ -33,6 +33,7 @@ interface Candidate {
     stageDueDate?: Date; // NEW
     requirementsEvaluation?: any;
     appliedFromPublicForm?: boolean;
+    unreadWhatsAppCount?: number;
     vacancy: {
         id?: string; // NEW: Added to fix TS error
         title: string;
@@ -516,6 +517,11 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                                 ) : null}
                                                                                 {candidate.appliedFromPublicForm && (
                                                                                     <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 text-[9px] font-black uppercase tracking-wider" title="Inscrição pública via Meta Ads">Meta Ads</span>
+                                                                                )}
+                                                                                {((candidate.unreadWhatsAppCount && candidate.unreadWhatsAppCount > 0) || (candidate as any).extraFields?.unreadWhatsAppCount > 0) && (
+                                                                                    <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[9px] font-black tracking-wider flex items-center gap-1 shadow-xs animate-pulse" title="Novas mensagens não lidas no WhatsApp">
+                                                                                        💬 {candidate.unreadWhatsAppCount || (candidate as any).extraFields?.unreadWhatsAppCount}
+                                                                                    </span>
                                                                                 )}
                                                                             </div>
                                                                         )}
