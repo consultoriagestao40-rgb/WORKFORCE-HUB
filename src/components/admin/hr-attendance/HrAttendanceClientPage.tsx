@@ -115,17 +115,6 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
 
                 {/* Ações da Direita (FIXO, SEM SOBREPOSIÇÃO) */}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={syncing}
-                        className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-bold whitespace-nowrap"
-                        onClick={handleSync}
-                    >
-                        <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
-                        {syncing ? "Sincronizando..." : "Sincronizar Z-API"}
-                    </Button>
-
                     {/* Modos de Visão */}
                     <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 flex-shrink-0">
                         <button
@@ -159,6 +148,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                         </Button>
                     )}
                 </div>
+
             </div>
 
 
