@@ -7,7 +7,8 @@ import {
     getHrPipelineStages,
     getHrTickets,
     getHrLabels,
-    seedDefaultPipeline
+    seedDefaultPipeline,
+    syncZapiChats
 } from "@/actions/hr-attendance";
 import { HrKanbanView } from "./HrKanbanView";
 import { HrLabelView } from "./HrLabelView";
@@ -27,6 +28,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
     const [tickets, setTickets] = useState<any[]>([]);
     const [labels, setLabels] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [syncing, setSyncing] = useState(false);
 
     const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
@@ -39,6 +41,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         setLoading(true);
         try {
             await seedDefaultPipeline();
+            await syncZapiChats();
             const [stgs, tcks, lbls] = await Promise.all([
                 getHrPipelineStages(),
                 getHrTickets({ search: searchQuery }),
@@ -52,6 +55,18 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
             setLoading(false);
         }
     }, [searchQuery]);
+
+    const handleSync = async () => {
+        setSyncing(true);
+        try {
+            await syncZapiChats();
+            const tcks = await getHrTickets({ search: searchQuery });
+            setTickets(tcks);
+        } finally {
+            setSyncing(false);
+        }
+    };
+
 
     useEffect(() => {
         loadData();
@@ -102,12 +117,23 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
 
                 {/* Right Actions */}
                 <div className="flex items-center gap-3">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={syncing}
+                        className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-semibold"
+                        onClick={handleSync}
+                    >
+                        <span>🔄</span> {syncing ? "Sincronizando..." : "Puxar Conversas WhatsApp"}
+                    </Button>
+
                     <Input
                         placeholder="Buscar funcionario ou protocolo..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="text-xs h-8 w-60 bg-slate-50"
                     />
+
 
                     {currentUser?.role === "ADMIN" && (
                         <Button

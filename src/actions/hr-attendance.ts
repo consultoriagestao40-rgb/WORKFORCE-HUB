@@ -624,11 +624,20 @@ export async function updateTicketStamp(ticketId: string, stamp: string) {
 // ─── SEED DE PIPELINE PADRÃO ─────────────────────────────────────────────────
 
 export async function seedDefaultPipeline() {
+    // Garantir que a primeira etapa seja INBOX e atualizar se existir com outro nome
+    const firstStage = await prisma.hrPipelineStage.findFirst({ orderBy: { order: "asc" } });
+    if (firstStage && firstStage.name !== "INBOX") {
+        await prisma.hrPipelineStage.update({
+            where: { id: firstStage.id },
+            data: { name: "INBOX", isDefault: true }
+        });
+    }
+
     const count = await prisma.hrPipelineStage.count();
     if (count > 0) return;
 
     const defaultStages = [
-        { name: "Novo", color: "#6366f1", order: 0, isDefault: true },
+        { name: "INBOX", color: "#6366f1", order: 0, isDefault: true },
         { name: "Em Atendimento", color: "#f59e0b", order: 1, isDefault: false },
         { name: "Aguardando Retorno", color: "#3b82f6", order: 2, isDefault: false },
         { name: "Aguardando Documento", color: "#8b5cf6", order: 3, isDefault: false },
@@ -637,3 +646,98 @@ export async function seedDefaultPipeline() {
 
     await prisma.hrPipelineStage.createMany({ data: defaultStages });
 }
+
+/** Sincroniza conversas ativas do celular via Z-API para a coluna INBOX */
+export async function syncZapiChats() {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { error: "Não autenticado" };
+
+        // 1. Garantir que temos a etapa INBOX
+        let inboxStage = await prisma.hrPipelineStage.findFirst({ where: { name: "INBOX" } });
+        if (!inboxStage) {
+            inboxStage = await prisma.hrPipelineStage.findFirst({ orderBy: { order: "asc" } });
+        }
+        if (!inboxStage) {
+            inboxStage = await prisma.hrPipelineStage.create({
+                data: { name: "INBOX", color: "#6366f1", order: 0, isDefault: true }
+            });
+        }
+
+        // 2. Buscar conversas ativas do celular via Z-API REST API
+        const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/chats?page=1&pageSize=40`;
+        const res = await fetch(url, {
+            headers: zapiHeaders(),
+            next: { revalidate: 0 }
+        });
+
+        if (!res.ok) {
+            console.error("[Z-API Sync] Endpoint chats retornou status", res.status);
+            return { error: "Falha ao consultar Z-API" };
+        }
+
+        const chats = await res.json();
+        if (!Array.isArray(chats)) return { success: true, count: 0 };
+
+        let createdCount = 0;
+
+        for (const c of chats) {
+            // Desconsiderar grupos se quiser apenas atendimento individual (ou tratar)
+            if (c.isGroup) continue;
+
+            const phone = c.phone?.replace(/\D/g, "");
+            if (!phone) continue;
+
+            const phoneShort = phone.startsWith("55") ? phone.slice(2) : phone;
+            const phoneSearch = phoneShort.slice(-9);
+
+            // Verificar se já existe um ticket para este número
+            const existingTicket = await prisma.hrTicket.findFirst({
+                where: {
+                    OR: [
+                        { contactPhone: { contains: phoneSearch } },
+                        { contactPhone: { contains: phone } }
+                    ]
+                }
+            });
+
+            if (!existingTicket) {
+                // Buscar se o telefone é de um funcionário cadastrado
+                const employee = await prisma.employee.findFirst({
+                    where: {
+                        OR: [
+                            { phone: { contains: phoneSearch } },
+                            { phone: { contains: phone } }
+                        ]
+                    }
+                });
+
+                const contactName = c.name || (employee ? employee.name : `Contato (${phone.slice(-4)})`);
+                const photoUrl = await fetchZapiProfilePic(phone);
+
+                await prisma.hrTicket.create({
+                    data: {
+                        title: `Atendimento: ${contactName}`,
+                        employeeId: employee?.id || null,
+                        contactPhone: phone,
+                        contactName,
+                        contactPhotoUrl: photoUrl,
+                        stageId: inboxStage.id,
+                        status: "OPEN",
+                        unreadCount: parseInt(c.messagesUnread || c.unread || "0", 10)
+                    }
+                });
+                createdCount++;
+            }
+        }
+
+        revalidatePath("/admin/atendimento");
+        return { success: true, count: createdCount };
+
+    } catch (e: any) {
+        console.error("[Z-API Sync Error]:", e.message);
+        return { error: e.message };
+    }
+}
+
+
