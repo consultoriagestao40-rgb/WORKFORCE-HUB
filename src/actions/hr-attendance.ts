@@ -734,8 +734,9 @@ export async function syncZapiChats() {
                     });
 
                     const contactName = c.name || (employee ? employee.name : `Contato (${phone.slice(-4)})`);
+                    const lastMsgPreview = c.lastMessage?.text?.message || c.lastMessage?.text || null;
 
-                    await prisma.hrTicket.create({
+                    const newTicket = await prisma.hrTicket.create({
                         data: {
                             title: `Atendimento: ${contactName}`,
                             employeeId: employee?.id || null,
@@ -747,13 +748,29 @@ export async function syncZapiChats() {
                             unreadCount: parseInt(c.messagesUnread || c.unread || "0", 10)
                         }
                     });
+
+                    if (lastMsgPreview && typeof lastMsgPreview === "string") {
+                        await prisma.hrTicketMessage.create({
+                            data: {
+                                ticketId: newTicket.id,
+                                senderType: "EMPLOYEE",
+                                senderName: contactName,
+                                content: lastMsgPreview,
+                                status: "DELIVERED"
+                            }
+                        });
+                    }
                     createdCount++;
-                } else if (photoUrl && existingTicket.contactPhotoUrl !== photoUrl) {
-                    await prisma.hrTicket.update({
-                        where: { id: existingTicket.id },
-                        data: { contactPhotoUrl: photoUrl }
-                    });
+                } else {
+                    if (photoUrl && existingTicket.contactPhotoUrl !== photoUrl) {
+                        await prisma.hrTicket.update({
+                            where: { id: existingTicket.id },
+                            data: { contactPhotoUrl: photoUrl }
+                        });
+                    }
                 }
+
+
             }
         }
 
