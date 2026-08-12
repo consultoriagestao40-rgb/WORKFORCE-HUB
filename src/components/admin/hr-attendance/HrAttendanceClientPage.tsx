@@ -433,8 +433,8 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                             </div>
                         </div>
 
-                        {/* Lista Scrollável de Contatos / Grupos */}
-                        <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+                        {/* Lista Scrollável de Contatos / Grupos (Com barra de rolagem funcionando) */}
+                        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 min-h-0">
                             {loading ? (
                                 <div className="p-6 text-center text-xs text-slate-400">Carregando conversas...</div>
                             ) : filteredTickets.length === 0 ? (
@@ -443,6 +443,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                 filteredTickets.map((t) => {
                                     const isSelected = selectedTicketId === t.id;
                                     const lastMsg = t.messages?.[0];
+                                    const isGroup = t.contactPhone?.includes("-group") || t.contactName?.toLowerCase().includes("grupo") || t.contactName?.toLowerCase().includes("rh -");
 
                                     return (
                                         <div
@@ -453,12 +454,16 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                             }`}
                                         >
                                             <div className="relative flex-shrink-0">
-                                                {t.contactPhotoUrl ? (
+                                                {t.contactPhotoUrl && t.contactPhotoUrl !== "null" ? (
                                                     <img
                                                         src={t.contactPhotoUrl}
                                                         alt=""
                                                         className="w-12 h-12 rounded-full object-cover border border-slate-200 shadow-2xs"
                                                     />
+                                                ) : isGroup ? (
+                                                    <div className="w-12 h-12 rounded-full bg-emerald-700 text-white font-bold text-lg flex items-center justify-center shadow-2xs">
+                                                        👥
+                                                    </div>
                                                 ) : (
                                                     <div className="w-12 h-12 rounded-full bg-slate-700 text-white font-bold text-sm flex items-center justify-center shadow-2xs">
                                                         {t.contactName?.charAt(0).toUpperCase() || "?"}
@@ -499,6 +504,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                 })
                             )}
                         </div>
+
                     </div>
 
                     {/* PAINEL DIREITO: CONVERSA DO WHATSAPP ABERTA DIRETO NA TELA */}
