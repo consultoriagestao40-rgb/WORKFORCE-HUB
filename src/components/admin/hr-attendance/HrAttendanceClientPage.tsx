@@ -516,37 +516,41 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                         </div>
                                     </div>
 
-                                    {/* Controles de Ação do RH */}
+                                    {/* Alternador de Abas: Chat | Notas | Agendar Atividade */}
                                     <div className="flex items-center gap-2">
-                                        <div className="flex bg-slate-200/80 p-1 rounded-xl gap-1">
+                                        <div className="flex bg-slate-200/80 p-0.5 rounded-lg">
                                             <button
                                                 onClick={() => setChatRightTab("chat")}
-                                                className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${chatRightTab === "chat" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
+                                                className={`px-3 py-1 text-xs font-extrabold rounded-md transition ${chatRightTab === "chat" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
                                             >
                                                 💬 Chat ({ticketDetail.messages?.length || 0})
                                             </button>
                                             <button
                                                 onClick={() => setChatRightTab("notes")}
-                                                className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${chatRightTab === "notes" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
+                                                className={`px-3 py-1 text-xs font-extrabold rounded-md transition ${chatRightTab === "notes" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
                                             >
                                                 📝 Notas ({ticketDetail.notes?.length || 0})
                                             </button>
                                         </div>
 
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 text-xs font-bold gap-1 bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100"
+                                            onClick={() => setShowScheduleActModal(true)}
+                                        >
+                                            📅 Agendar Atividade
+                                        </Button>
+
                                         <select
                                             value={ticketDetail.stageId}
                                             onChange={(e) => handleChangeStage(e.target.value)}
-                                            className="text-xs font-bold p-1.5 rounded-lg border bg-white text-slate-800"
+                                            className="bg-white border border-slate-300 text-slate-800 font-extrabold text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-emerald-500 shadow-2xs"
                                         >
-                                            {stages.map((st: any) => (
-                                                <option key={st.id} value={st.id}>{st.name}</option>
+                                            {stages.map((stg) => (
+                                                <option key={stg.id} value={stg.id}>{stg.name}</option>
                                             ))}
                                         </select>
-
-                                        {ticketDetail.assignee ? (
-                                            <span className="text-xs text-slate-700 font-bold bg-white px-2.5 py-1 rounded-lg border">
-                                                👤 {ticketDetail.assignee.name}
-                                            </span>
                                         ) : (
                                             <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 font-bold" onClick={handleAssume}>
                                                 Assumir

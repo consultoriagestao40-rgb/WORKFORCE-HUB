@@ -219,6 +219,7 @@ function parseMessageBody(body: any) {
     if (body.text?.message) content = body.text.message;
     else if (typeof body.message === "string") content = body.message;
     else if (typeof body.body === "string") content = body.body;
+    else if (body.caption) content = body.caption;
 
     if (body.image) {
         messageType = "IMAGE";
@@ -244,10 +245,17 @@ function parseMessageBody(body: any) {
         content = body.video.caption || "🎥 Vídeo";
     }
 
-    const msgId = body.messageId || body.id || body.msgId || null;
+    // Tratar Mensagem Citada (Quoted Message)
+    if (body.quotedMessage) {
+        const quotedText = body.quotedMessage.text || body.quotedMessage.body || body.quotedMessage.caption || "Mensagem";
+        content = `> ${quotedText}\n${content}`;
+    }
+
+    const msgId = body.messageId || body.id || body.msgId || body.zaapId || null;
 
     return { messageType, content: content || "Mensagem enviada", mediaUrl, mediaFileName, mediaMimeType, msgId };
 }
+
 
 export async function GET() {
     return NextResponse.json({
