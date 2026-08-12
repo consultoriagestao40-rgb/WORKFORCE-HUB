@@ -574,13 +574,16 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                     </div>
                                 </div>
 
-                                {/* Chat WhatsApp Real */}
+                                {/* Chat WhatsApp Real com Fundo Oficial Nítido */}
                                 {chatRightTab === "chat" && (
                                     <div className="flex-1 flex flex-col overflow-hidden bg-[#efeae2] relative">
-                                        {/* Papel de Parede Doodle do WhatsApp Web Oficial */}
-                                        <div className="absolute inset-0 bg-[#efeae2] bg-[url('/whatsapp-doodle-bg.svg')] bg-[size:400px_400px] opacity-40 pointer-events-none" />
+                                        {/* Papel de Parede Imagem Oficial do WhatsApp Web Nítido */}
+                                        <div
+                                            className="absolute inset-0 bg-[#efeae2] bg-repeat opacity-85 pointer-events-none z-0"
+                                            style={{ backgroundImage: `url('/whatsapp-bg-official.png')`, backgroundSize: '450px 450px' }}
+                                        />
 
-                                        <div className="flex-1 overflow-y-auto p-4 space-y-2.5 relative z-0">
+                                        <div className="flex-1 overflow-y-auto p-4 space-y-2.5 relative z-10">
                                             {ticketDetail.messages?.map((msg: any) => {
                                                 const isAttendant = msg.senderType === "ATTENDANT" || msg.fromMe === true;
                                                 const showSenderHeader = !isAttendant && msg.senderName && msg.senderName !== ticketDetail.contactName;
