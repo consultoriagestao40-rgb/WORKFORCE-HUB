@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
     Search, Paperclip, Send, CheckCheck, Clock, ShieldCheck,
-    ArrowRightLeft, UserCheck, Lock, RefreshCw, X, Plus, Calendar, StickyNote,
-    MessageSquare, Tag, UserPlus, FileText, Filter, Mic, Smile
+    ArrowRightLeft, UserCheck, Lock, RefreshCw, X, Plus, Calendar, StickyNote, Filter,
+    Phone, Video, MoreVertical, MessageSquare, DollarSign, ClipboardList
 } from "lucide-react";
 import {
     getHrPipelineStages,
@@ -24,8 +24,11 @@ import {
     transferHrTicket,
     closeHrTicket,
     addHrTicketNote,
+    completeHrTicketActivity,
+    applyLabelToTicket,
     updateHrTicketStage,
     updateContactInfo,
+    updateTicketStamp,
     saveHrPipelineStages
 } from "@/actions/hr-attendance";
 import { HrKanbanView } from "./HrKanbanView";
@@ -38,36 +41,43 @@ interface Props {
 }
 
 export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
-    // Visões Superiores do SmartBidHub: 'list' (Lista + Chat) | 'kanban_label' | 'kanban_stage'
-    const [viewMode, setViewMode] = useState<"list" | "kanban_label" | "kanban_stage">("list");
-    const [ticketFilter, setTicketFilter] = useState<"open" | "closed">("open");
+    // Alternador de Visões: 'chat' (WhatsApp Web Real) ou 'kanban' (Pipeline Kanban)
+    const [mainView, setMainView] = useState<"chat" | "kanban">("chat");
 
     const [stages, setStages] = useState<any[]>([]);
     const [tickets, setTickets] = useState<any[]>([]);
     const [labels, setLabels] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Ticket Ativo Selecionado no SmartBid
+    // Filtro de Etapa no Topo (null = Todas)
+    const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
+
+    // Ticket Selecionado
     const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
     const [ticketDetail, setTicketDetail] = useState<any>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
 
-    // Filtros e Busca da Sidebar Esquerda
+    // Busca e Filtros
     const [searchQuery, setSearchQuery] = useState("");
+    const [filterMode, setFilterMode] = useState<"all" | "unread">("all");
 
-    // Sub-abas do Chat no SmartBid (Chat | Anotações | Lembretes | Etiquetas | Cadastro)
-    const [chatTab, setChatTab] = useState<"chat" | "notes" | "reminders" | "labels" | "register">("chat");
+    // Chat State
+    const [chatRightTab, setChatRightTab] = useState<"chat" | "notes">("chat");
     const [messageText, setMessageText] = useState("");
     const [sending, setSending] = useState(false);
 
-    // Anotações
-    const [noteText, setNoteText] = useState("");
+    // Edição rápida de contato
+    const [isEditingContact, setIsEditingContact] = useState(false);
+    const [contactNameInput, setContactNameInput] = useState("");
+    const [contactPhoneInput, setContactPhoneInput] = useState("");
 
     const [showAccessManager, setShowAccessManager] = useState(false);
+    const [noteText, setNoteText] = useState("");
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    // Carregar dados gerais
+    // Carregar dados iniciais
     const loadData = useCallback(async () => {
         try {
             await seedDefaultPipeline();
@@ -89,13 +99,13 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         }
     }, [searchQuery]);
 
-    // Polling sutil a cada 3s para sincronização ao vivo sem travar a tela
+    // Polling rápido de 2s para sincronizar tempo real
     useEffect(() => {
         loadData();
         const interval = setInterval(async () => {
             const tcks = await getHrTickets({ search: searchQuery });
             setTickets(tcks);
-        }, 3000);
+        }, 2000);
         return () => clearInterval(interval);
     }, [loadData, searchQuery]);
 
@@ -106,6 +116,8 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
             const res = await getHrTicketDetail(id);
             if (res) {
                 setTicketDetail(res);
+                setContactNameInput(res.contactName);
+                setContactPhoneInput(res.contactPhone);
                 markHrTicketRead(id);
             }
         } finally {
@@ -119,7 +131,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         }
     }, [selectedTicketId, loadTicketDetail]);
 
-    // Polling a cada 3s para novas mensagens da conversa ativa
+    // Polling de 2s para novas mensagens da conversa ativa (Tempo Real)
     useEffect(() => {
         if (!selectedTicketId) return;
         const interval = setInterval(async () => {
@@ -136,18 +148,18 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 });
                 markHrTicketRead(selectedTicketId);
             }
-        }, 3000);
+        }, 2000);
         return () => clearInterval(interval);
     }, [selectedTicketId, ticketDetail?.messages]);
 
     // Scroll automático no chat
     useEffect(() => {
-        if (chatTab === "chat") {
+        if (chatRightTab === "chat") {
             messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
         }
-    }, [ticketDetail?.messages, chatTab]);
+    }, [ticketDetail?.messages, chatRightTab]);
 
-    // Enviar mensagem pelo WhatsApp
+    // Enviar mensagem
     const handleSendMessage = async (e?: React.FormEvent) => {
         e?.preventDefault();
         if (!messageText.trim() || sending || !ticketDetail) return;
@@ -160,7 +172,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         const tempMsg = {
             id: tempId,
             senderType: "ATTENDANT",
-            senderName: currentUser?.name || "Atendente",
+            senderName: "Você",
             content: textToSend,
             status: "SENDING",
             createdAt: new Date().toISOString()
@@ -190,7 +202,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         }
     };
 
-    // Upload de arquivos
+    // Upload de arquivo
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !ticketDetail) return;
@@ -218,6 +230,23 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         }
     };
 
+    // Salvar alteração de contato
+    const handleSaveContact = async () => {
+        if (!ticketDetail) return;
+        await updateContactInfo(ticketDetail.id, { name: contactNameInput, phone: contactPhoneInput });
+        setIsEditingContact(false);
+        setTicketDetail((prev: any) => ({ ...prev, contactName: contactNameInput, contactPhone: contactPhoneInput }));
+        loadData();
+    };
+
+    // Assumir Atendimento
+    const handleAssume = async () => {
+        if (!ticketDetail) return;
+        await assumeHrTicket(ticketDetail.id);
+        loadTicketDetail(ticketDetail.id);
+        loadData();
+    };
+
     // Encerrar Atendimento
     const handleCloseTicket = async () => {
         if (!ticketDetail) return;
@@ -238,313 +267,388 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         }
     };
 
-    // Filtrar tickets por abas Abertas / Encerradas
-    const openTickets = tickets.filter(t => t.status === "OPEN");
-    const closedTickets = tickets.filter(t => t.status === "CLOSED");
-    const displayedTickets = ticketFilter === "open" ? openTickets : closedTickets;
+    // Alterar Etapa do Ticket
+    const handleChangeStage = async (stageId: string) => {
+        if (!ticketDetail) return;
+        await updateHrTicketStage(ticketDetail.id, stageId);
+        loadTicketDetail(ticketDetail.id);
+        loadData();
+    };
+
+    // Filtrar lista de tickets
+    const filteredTickets = tickets.filter(t => {
+        if (selectedStageId && t.stageId !== selectedStageId) return false;
+        if (filterMode === "unread" && t.unreadCount === 0) return false;
+        return true;
+    });
 
     return (
-        <div className="flex flex-col h-[calc(100vh-64px)] bg-[#0b1329] p-3 font-sans overflow-hidden">
-            {/* CONTAINER PRINCIPAL SMARTBID (Modal Dark de Tela Inteira) */}
-            <div className="flex-1 bg-white rounded-2xl flex flex-col overflow-hidden shadow-2xl border border-slate-700/50">
-                {/* SMARTBID TOP HEADER BAR (Negro com Ícones e Botões de Visão) */}
-                <div className="bg-[#0b1329] px-6 py-3.5 flex items-center justify-between border-b border-slate-800 text-white z-10 flex-shrink-0">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center font-bold">
-                            💬
+        <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-slate-100 font-sans">
+            {/* TOP BAR: Pílulas de Etapas / Filtros exatamente como nos seus prints */}
+            <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex items-center justify-between shadow-2xs z-10 gap-4 overflow-hidden">
+                <div className="flex items-center gap-3 overflow-x-auto min-w-0 flex-1 py-1 no-scrollbar">
+                    <div className="flex items-center gap-2 flex-shrink-0 mr-2">
+                        <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-xs">
+                            W
                         </div>
                         <div>
-                            <h1 className="font-extrabold text-sm tracking-wide uppercase text-white">CENTRAL DE ATENDIMENTO WHATSAPP</h1>
-                            <p className="text-[11px] text-slate-400">Acompanhe e responda todas as conversas do funil em tempo real</p>
+                            <h1 className="font-extrabold text-sm text-slate-800 leading-none">WaAtendimento</h1>
+                            <span className="text-[10px] text-emerald-600 font-bold whitespace-nowrap">WhatsApp RH CRM</span>
                         </div>
                     </div>
 
-                    {/* Botões Superiores do SmartBid: [ 📄 Lista ] [ 🏷️ Kanban por Etiquetas ] [ 📊 Kanban por Etapa ] */}
-                    <div className="flex items-center gap-2">
-                        <div className="flex bg-slate-900/80 p-1 rounded-xl border border-slate-700">
-                            <button
-                                onClick={() => setViewMode("list")}
-                                className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition flex items-center gap-1.5 ${viewMode === "list" ? "bg-[#1e293b] text-white shadow-xs" : "text-slate-400 hover:text-white"}`}
-                            >
-                                📄 Lista
-                            </button>
-                            <button
-                                onClick={() => setViewMode("kanban_label")}
-                                className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition flex items-center gap-1.5 ${viewMode === "kanban_label" ? "bg-[#1e293b] text-white shadow-xs" : "text-slate-400 hover:text-white"}`}
-                            >
-                                🏷️ Kanban por Etiquetas
-                            </button>
-                            <button
-                                onClick={() => setViewMode("kanban_stage")}
-                                className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition flex items-center gap-1.5 ${viewMode === "kanban_stage" ? "bg-[#1e293b] text-white shadow-xs" : "text-slate-400 hover:text-white"}`}
-                            >
-                                📊 Kanban por Etapa
-                            </button>
-                        </div>
+                    <button
+                        onClick={() => setSelectedStageId(null)}
+                        className={`px-3 py-1 rounded-full text-xs font-bold transition flex-shrink-0 whitespace-nowrap ${
+                            selectedStageId === null
+                                ? "bg-emerald-600 text-white shadow-xs"
+                                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        }`}
+                    >
+                        Todas ({tickets.length})
+                    </button>
 
-                        {currentUser?.role === "ADMIN" && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-9 text-xs gap-1 border-slate-700 text-slate-300 bg-slate-900 hover:bg-slate-800"
-                                onClick={() => setShowAccessManager(true)}
+                    {stages.map((stg) => {
+                        const count = tickets.filter(t => t.stageId === stg.id).length;
+                        const isSelected = selectedStageId === stg.id;
+
+                        return (
+                            <button
+                                key={stg.id}
+                                onClick={() => setSelectedStageId(stg.id)}
+                                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition flex-shrink-0 border whitespace-nowrap ${
+                                    isSelected
+                                        ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                                }`}
                             >
-                                <Lock className="w-3.5 h-3.5" /> Acessos
-                            </Button>
-                        )}
-                    </div>
+                                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stg.color || "#10b981" }} />
+                                <span>{stg.name}</span>
+                                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${isSelected ? "bg-slate-700 text-white" : "bg-emerald-600 text-white"}`}>
+                                    {count}
+                                </span>
+                            </button>
+                        );
+                    })}
                 </div>
 
-                {/* VISÃO 1: LISTA DE ATENDIMENTO E CHAT SMARTBID */}
-                {viewMode === "list" && (
-                    <div className="flex flex-1 overflow-hidden">
-                        {/* PAINEL ESQUERDO SMARTBID: Lista de conversas com cards azuis */}
-                        <div className="w-96 border-r border-slate-200 bg-slate-50/50 flex flex-col overflow-hidden flex-shrink-0">
-                            {/* Search Bar + Abas Abertas / Encerradas */}
-                            <div className="p-3 border-b border-slate-200 bg-white space-y-2.5">
-                                <div className="relative">
-                                    <Input
-                                        placeholder="Pesquisar conversas..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="text-xs h-9 bg-slate-50 border-slate-200 rounded-xl"
-                                    />
-                                </div>
+                {/* Alternador de Visão: [💬 Chat WhatsApp] ou [📊 Pipeline Kanban] */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                        <button
+                            onClick={() => setMainView("chat")}
+                            className={`px-3 py-1 text-xs font-extrabold rounded-md transition ${mainView === "chat" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
+                        >
+                            💬 Chat WhatsApp
+                        </button>
+                        <button
+                            onClick={() => setMainView("kanban")}
+                            className={`px-3 py-1 text-xs font-extrabold rounded-md transition ${mainView === "kanban" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
+                        >
+                            📊 Pipeline Kanban
+                        </button>
+                    </div>
 
-                                <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
-                                    <button
-                                        onClick={() => setTicketFilter("open")}
-                                        className={`flex-1 py-1 text-xs font-extrabold rounded-lg transition text-center ${ticketFilter === "open" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-900"}`}
-                                    >
-                                        Abertas ({openTickets.length})
-                                    </button>
-                                    <button
-                                        onClick={() => setTicketFilter("closed")}
-                                        className={`flex-1 py-1 text-xs font-extrabold rounded-lg transition text-center ${ticketFilter === "closed" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-900"}`}
-                                    >
-                                        Encerradas ({closedTickets.length})
-                                    </button>
-                                </div>
+                    {currentUser?.role === "ADMIN" && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs gap-1 border-slate-300 text-slate-700 font-bold"
+                            onClick={() => setShowAccessManager(true)}
+                        >
+                            <Lock className="w-3.5 h-3.5" /> Acessos
+                        </Button>
+                    )}
+                </div>
+            </div>
+
+            {/* VISÃO 1: CHAT WHATSAPP WEB REAL (Conexão ao vivo) */}
+            {mainView === "chat" && (
+                <div className="flex flex-1 overflow-hidden">
+                    {/* Painel Esquerdo: Lista de Conversas do WhatsApp */}
+                    <div className="w-96 border-r border-slate-200 bg-white flex flex-col overflow-hidden flex-shrink-0">
+                        <div className="p-3 border-b border-slate-100 bg-slate-50/80 space-y-2">
+                            <div className="relative">
+                                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                                <Input
+                                    placeholder="Pesquisar ou começar uma nova conversa"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-9 text-xs h-9 bg-white border-slate-200 rounded-xl"
+                                />
                             </div>
 
-                            {/* Lista de Cards do SmartBid */}
-                            <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
-                                {loading ? (
-                                    <div className="p-6 text-center text-xs text-slate-400">Carregando conversas...</div>
-                                ) : displayedTickets.length === 0 ? (
-                                    <div className="p-6 text-center text-xs text-slate-400">Nenhuma conversa nesta aba.</div>
-                                ) : (
-                                    displayedTickets.map((t) => {
-                                        const isSelected = selectedTicketId === t.id;
-                                        const initials = t.contactName?.slice(0, 2).toUpperCase() || "CN";
-
-                                        return (
-                                            <div
-                                                key={t.id}
-                                                onClick={() => setSelectedTicketId(t.id)}
-                                                className={`p-3 rounded-xl border transition cursor-pointer flex items-center justify-between ${
-                                                    isSelected
-                                                        ? "bg-emerald-50/70 border-emerald-500 shadow-2xs"
-                                                        : "bg-white border-slate-200/90 hover:border-slate-300"
-                                                }`}
-                                            >
-                                                <div className="flex items-center gap-3 overflow-hidden">
-                                                    {/* Avatar Circular com Iniciais no SmartBid */}
-                                                    <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-700 font-extrabold text-xs flex items-center justify-center border flex-shrink-0">
-                                                        {t.contactPhotoUrl && t.contactPhotoUrl !== "null" ? (
-                                                            <img src={t.contactPhotoUrl} alt="" className="w-10 h-10 rounded-full object-cover" />
-                                                        ) : (
-                                                            initials
-                                                        )}
-                                                    </div>
-
-                                                    <div className="overflow-hidden">
-                                                        <h4 className="text-xs font-extrabold text-slate-900 truncate">{t.contactName}</h4>
-                                                        <span className="text-[10px] text-slate-400 block font-mono">Sem segmento</span>
-                                                        <span className="text-[11px] text-slate-500 font-mono block">{t.contactPhone}</span>
-                                                        <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border inline-block mt-1 uppercase">
-                                                            Etapa: {t.stage?.name || "PROSPECT"}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="text-right flex-shrink-0">
-                                                    <span className="text-xs font-extrabold text-slate-700">R$ 0</span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
+                            <div className="flex items-center gap-1.5 pt-0.5">
+                                <button
+                                    onClick={() => setFilterMode("all")}
+                                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold transition ${filterMode === "all" ? "bg-slate-900 text-white" : "bg-slate-200/70 text-slate-600 hover:bg-slate-300"}`}
+                                >
+                                    Tudo
+                                </button>
+                                <button
+                                    onClick={() => setFilterMode("unread")}
+                                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold transition ${filterMode === "unread" ? "bg-slate-900 text-white" : "bg-slate-200/70 text-slate-600 hover:bg-slate-300"}`}
+                                >
+                                    Não lidas ({tickets.filter(t => t.unreadCount > 0).length})
+                                </button>
                             </div>
                         </div>
 
-                        {/* PAINEL DIREITO SMARTBID: CHAT REAL COM FUNDO DOODLE E BALÕES VERDES */}
-                        <div className="flex-1 flex flex-col bg-[#efeae2] relative overflow-hidden">
-                            {!ticketDetail ? (
-                                <div className="flex-1 flex items-center justify-center text-xs text-slate-400 bg-slate-100">
-                                    Selecione uma conversa ao lado para visualizar a central.
-                                </div>
+                        {/* Lista de Contatos com Scroll Funcional */}
+                        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 min-h-0">
+                            {loading ? (
+                                <div className="p-6 text-center text-xs text-slate-400">Carregando conversas...</div>
+                            ) : filteredTickets.length === 0 ? (
+                                <div className="p-6 text-center text-xs text-slate-400">Nenhuma conversa encontrada.</div>
                             ) : (
-                                <div className="flex flex-1 flex-col h-full overflow-hidden">
-                                    {/* SmartBid Contact Header Bar */}
-                                    <div className="bg-white border-b border-slate-200 px-4 py-2.5 flex items-center justify-between z-10 shadow-2xs">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-full bg-slate-100 text-slate-700 font-extrabold text-xs flex items-center justify-center border">
-                                                {ticketDetail.contactPhotoUrl && ticketDetail.contactPhotoUrl !== "null" ? (
-                                                    <img src={ticketDetail.contactPhotoUrl} alt="" className="w-9 h-9 rounded-full object-cover" />
+                                filteredTickets.map((t) => {
+                                    const isSelected = selectedTicketId === t.id;
+                                    const lastMsg = t.messages?.[0];
+                                    const isGroup = t.contactPhone?.includes("-group") || t.contactName?.toLowerCase().includes("grupo") || t.contactName?.toLowerCase().includes("rh -");
+
+                                    return (
+                                        <div
+                                            key={t.id}
+                                            onClick={() => setSelectedTicketId(t.id)}
+                                            className={`p-3 flex items-center gap-3 cursor-pointer transition relative ${
+                                                isSelected ? "bg-slate-100 border-l-4 border-l-emerald-500" : "hover:bg-slate-50"
+                                            }`}
+                                        >
+                                            <div className="relative flex-shrink-0">
+                                                {t.contactPhotoUrl && t.contactPhotoUrl !== "null" ? (
+                                                    <img
+                                                        src={t.contactPhotoUrl}
+                                                        alt=""
+                                                        className="w-12 h-12 rounded-full object-cover border border-slate-200 shadow-2xs"
+                                                    />
+                                                ) : isGroup ? (
+                                                    <div className="w-12 h-12 rounded-full bg-emerald-700 text-white font-bold text-lg flex items-center justify-center shadow-2xs">
+                                                        👥
+                                                    </div>
                                                 ) : (
-                                                    ticketDetail.contactName?.slice(0, 2).toUpperCase()
+                                                    <div className="w-12 h-12 rounded-full bg-slate-700 text-white font-bold text-sm flex items-center justify-center shadow-2xs">
+                                                        {t.contactName?.charAt(0).toUpperCase() || "?"}
+                                                    </div>
+                                                )}
+
+                                                {t.unreadCount > 0 && (
+                                                    <span className="absolute -bottom-1 -right-1 bg-emerald-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 border-2 border-white shadow-2xs">
+                                                        {t.unreadCount}
+                                                    </span>
                                                 )}
                                             </div>
-                                            <div>
-                                                <h3 className="text-xs font-extrabold text-slate-900 leading-tight">{ticketDetail.contactName}</h3>
-                                                <span className="text-[11px] text-slate-500 font-mono">{ticketDetail.contactPhone}</span>
-                                            </div>
-                                        </div>
 
-                                        {/* Botões do Header do SmartBid: [+ Participante] [RESP: Ádamo Quadros] [❌ Encerrar] [📋 Cadastro] [🟩 Funil] */}
-                                        <div className="flex items-center gap-2">
-                                            <Button variant="outline" size="sm" className="h-7 text-[11px] font-bold border-slate-300">
-                                                + Participante
-                                            </Button>
-
-                                            <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-lg border text-[11px] font-bold text-slate-700">
-                                                <span className="text-slate-400 uppercase text-[9px]">RESP:</span>
-                                                <span>{ticketDetail.assignee?.name || "Ádamo Quadros"}</span>
-                                            </div>
-
-                                            <Button variant="outline" size="sm" onClick={handleCloseTicket} className="h-7 text-[11px] font-bold border-red-200 text-red-600 hover:bg-red-50">
-                                                ❌ Encerrar
-                                            </Button>
-
-                                            <Button variant="outline" size="sm" className="h-7 text-[11px] font-bold border-slate-300">
-                                                📋 Cadastro
-                                            </Button>
-
-                                            <Button size="sm" className="h-7 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
-                                                🟩 Funil
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    {/* SmartBid Sub-tabs: [ 💬 Chat ] [ 📝 Anotações ] [ ⏰ Lembretes ] [ 🏷️ Etiquetas ] [ 📋 Cadastro ] */}
-                                    <div className="bg-white border-b border-slate-200 px-4 py-1.5 flex items-center gap-4 text-xs font-bold text-slate-600">
-                                        <button
-                                            onClick={() => setChatTab("chat")}
-                                            className={`py-1 flex items-center gap-1.5 border-b-2 transition ${chatTab === "chat" ? "border-emerald-600 text-emerald-600" : "border-transparent hover:text-slate-900"}`}
-                                        >
-                                            <MessageSquare className="w-3.5 h-3.5" /> Chat
-                                        </button>
-                                        <button
-                                            onClick={() => setChatTab("notes")}
-                                            className={`py-1 flex items-center gap-1.5 border-b-2 transition ${chatTab === "notes" ? "border-emerald-600 text-emerald-600" : "border-transparent hover:text-slate-900"}`}
-                                        >
-                                            <FileText className="w-3.5 h-3.5" /> Anotações
-                                        </button>
-                                        <button
-                                            onClick={() => setChatTab("reminders")}
-                                            className={`py-1 flex items-center gap-1.5 border-b-2 transition ${chatTab === "reminders" ? "border-emerald-600 text-emerald-600" : "border-transparent hover:text-slate-900"}`}
-                                        >
-                                            <Clock className="w-3.5 h-3.5" /> Lembretes
-                                        </button>
-                                        <button
-                                            onClick={() => setChatTab("labels")}
-                                            className={`py-1 flex items-center gap-1.5 border-b-2 transition ${chatTab === "labels" ? "border-emerald-600 text-emerald-600" : "border-transparent hover:text-slate-900"}`}
-                                        >
-                                            <Tag className="w-3.5 h-3.5" /> Etiquetas
-                                        </button>
-                                    </div>
-
-                                    {/* CONTEÚDO DO CHAT REAL DO SMARTBID */}
-                                    {chatTab === "chat" && (
-                                        <div className="flex-1 flex flex-col overflow-hidden bg-[#efeae2]">
-                                            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                                                <div className="text-center my-2">
-                                                    <span className="bg-white/80 text-slate-600 text-[10px] font-bold px-3 py-1 rounded-full shadow-2xs">
-                                                        Hoje
+                                            <div className="overflow-hidden flex-1">
+                                                <div className="flex items-center justify-between mb-0.5">
+                                                    <h4 className="text-xs font-bold text-slate-900 truncate">{t.contactName}</h4>
+                                                    <span className="text-[10px] font-mono text-slate-400 flex-shrink-0">
+                                                        {new Date(t.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </span>
                                                 </div>
 
-                                                {ticketDetail.messages?.map((msg: any) => {
-                                                    const isAttendant = msg.senderType === "ATTENDANT";
+                                                <p className="text-[11px] text-slate-500 truncate leading-snug">
+                                                    {lastMsg ? (
+                                                        <span>{lastMsg.senderType === "ATTENDANT" ? "✓ " : ""}{lastMsg.content}</span>
+                                                    ) : (
+                                                        <span className="italic text-slate-400">Atendimento iniciado</span>
+                                                    )}
+                                                </p>
 
-                                                    return (
-                                                        <div key={msg.id} className={`flex ${isAttendant ? "justify-end" : "justify-start"}`}>
-                                                            <div className={`max-w-[70%] p-3 rounded-xl shadow-2xs text-xs ${isAttendant ? "bg-[#d9fdd3] text-slate-900 rounded-tr-none" : "bg-white text-slate-900 rounded-tl-none"}`}>
-                                                                {isAttendant && (
-                                                                    <div className="text-[10px] font-extrabold text-emerald-800 mb-1">
-                                                                        *{msg.senderName || "Ádamo Quadros"}*:
-                                                                    </div>
-                                                                )}
-                                                                <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                                                                <div className="flex items-center justify-end gap-1 text-[9px] text-slate-500 mt-1 font-mono">
-                                                                    <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                                    {isAttendant && <CheckCheck className="w-3.5 h-3.5 text-emerald-600 inline" />}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                                <div ref={messagesEndRef} />
-                                            </div>
-
-                                            {/* BARRA DE DIGITAÇÃO E ENVIO DO SMARTBID */}
-                                            <div className="h-16 bg-[#f0f2f5] border-t border-slate-300 px-4 flex items-center gap-3">
-                                                <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-                                                <button type="button" className="text-slate-500 hover:text-slate-700" onClick={() => fileInputRef.current?.click()}>
-                                                    <Paperclip className="w-5 h-5" />
-                                                </button>
-                                                <button type="button" className="text-slate-500 hover:text-slate-700">
-                                                    <Smile className="w-5 h-5" />
-                                                </button>
-                                                <Textarea
-                                                    value={messageText}
-                                                    onChange={(e) => setMessageText(e.target.value)}
-                                                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                                                    placeholder="Digite uma mensagem..."
-                                                    className="flex-1 text-xs resize-none h-10 min-h-[40px] bg-white border-none rounded-xl px-4 py-2.5 shadow-2xs"
-                                                />
-                                                <Button onClick={handleSendMessage} disabled={sending || !messageText.trim()} className="bg-[#0b1329] hover:bg-slate-800 text-white h-10 w-10 p-0 rounded-full flex items-center justify-center shadow-xs">
-                                                    <Send className="w-4 h-4 ml-0.5" />
-                                                </Button>
+                                                {t.stage && (
+                                                    <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.2 rounded text-slate-600 bg-slate-100 border">
+                                                        {t.stage.name}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
-                                    )}
-
-                                    {/* ABA ANOTAÇÕES */}
-                                    {chatTab === "notes" && (
-                                        <div className="flex-1 p-6 bg-slate-100 overflow-y-auto space-y-4">
-                                            <div className="bg-white p-4 rounded-xl border shadow-2xs space-y-3">
-                                                <h4 className="text-xs font-bold text-slate-800">Nova Anotação Interna</h4>
-                                                <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Anotação interna..." className="text-xs h-20" />
-                                                <div className="flex justify-end">
-                                                    <Button size="sm" onClick={handleAddNote} className="bg-emerald-600 text-xs font-bold">Salvar Nota</Button>
-                                                </div>
-                                            </div>
-                                            {ticketDetail.notes?.map((n: any) => (
-                                                <div key={n.id} className="bg-white p-3 rounded-xl border shadow-2xs">
-                                                    <div className="text-xs font-bold text-slate-800">{n.author?.name}</div>
-                                                    <p className="text-xs text-slate-600 mt-1">{n.content}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
+                                    );
+                                })
                             )}
                         </div>
                     </div>
-                )}
 
-                {/* VISÃO 2: KANBAN POR ETIQUETAS DO SMARTBID */}
-                {viewMode === "kanban_label" && (
-                    <HrLabelView labels={labels} tickets={tickets} onSelectTicket={(id) => { setSelectedTicketId(id); setViewMode("list"); }} onLabelsUpdated={loadData} />
-                )}
+                    {/* Painel Direito: Chat WhatsApp Web Real */}
+                    <div className="flex-1 flex flex-col bg-[#efeae2] relative overflow-hidden">
+                        {!ticketDetail ? (
+                            <div className="flex-1 flex items-center justify-center text-xs text-slate-400 bg-slate-100">
+                                Selecione uma conversa ao lado para visualizar o chat.
+                            </div>
+                        ) : (
+                            <div className="flex flex-1 flex-col h-full overflow-hidden">
+                                {/* Header do Chat WhatsApp Web */}
+                                <div className="h-16 bg-[#f0f2f5] border-b border-slate-300 px-4 flex items-center justify-between z-10 shadow-2xs">
+                                    <div className="flex items-center gap-3">
+                                        {ticketDetail.contactPhotoUrl && ticketDetail.contactPhotoUrl !== "null" ? (
+                                            <img src={ticketDetail.contactPhotoUrl} alt="" className="w-10 h-10 rounded-full object-cover border" />
+                                        ) : (
+                                            <div className="w-10 h-10 rounded-full bg-[#128c7e] text-white font-bold text-sm flex items-center justify-center">
+                                                👥
+                                            </div>
+                                        )}
 
-                {/* VISÃO 3: KANBAN POR ETAPA DO SMARTBID */}
-                {viewMode === "kanban_stage" && (
-                    <HrKanbanView stages={stages} tickets={tickets} onSelectTicket={(id) => { setSelectedTicketId(id); setViewMode("list"); }} onStagesUpdated={loadData} />
-                )}
-            </div>
+                                        <div>
+                                            {isEditingContact ? (
+                                                <div className="flex items-center gap-1">
+                                                    <Input
+                                                        value={contactNameInput}
+                                                        onChange={(e) => setContactNameInput(e.target.value)}
+                                                        className="h-6 text-xs bg-white w-40"
+                                                    />
+                                                    <Button size="sm" className="h-6 text-[10px] bg-emerald-600" onClick={handleSaveContact}>OK</Button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-1.5">
+                                                    <h3 className="text-sm font-bold text-slate-800 leading-tight">{ticketDetail.contactName}</h3>
+                                                    <button onClick={() => setIsEditingContact(true)} className="text-[10px] text-slate-400 hover:text-emerald-600">✏️</button>
+                                                </div>
+                                            )}
+                                            <span className="text-[11px] text-slate-500 font-mono">{ticketDetail.contactPhone}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Controles de Ação do RH */}
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex bg-slate-200/80 p-1 rounded-xl gap-1">
+                                            <button
+                                                onClick={() => setChatRightTab("chat")}
+                                                className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${chatRightTab === "chat" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
+                                            >
+                                                💬 Chat ({ticketDetail.messages?.length || 0})
+                                            </button>
+                                            <button
+                                                onClick={() => setChatRightTab("notes")}
+                                                className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${chatRightTab === "notes" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
+                                            >
+                                                📝 Notas ({ticketDetail.notes?.length || 0})
+                                            </button>
+                                        </div>
+
+                                        <select
+                                            value={ticketDetail.stageId}
+                                            onChange={(e) => handleChangeStage(e.target.value)}
+                                            className="text-xs font-bold p-1.5 rounded-lg border bg-white text-slate-800"
+                                        >
+                                            {stages.map((st: any) => (
+                                                <option key={st.id} value={st.id}>{st.name}</option>
+                                            ))}
+                                        </select>
+
+                                        {ticketDetail.assignee ? (
+                                            <span className="text-xs text-slate-700 font-bold bg-white px-2.5 py-1 rounded-lg border">
+                                                👤 {ticketDetail.assignee.name}
+                                            </span>
+                                        ) : (
+                                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 font-bold" onClick={handleAssume}>
+                                                Assumir
+                                            </Button>
+                                        )}
+
+                                        <Button variant="ghost" size="sm" className="h-8 text-xs text-red-600 hover:bg-red-50 font-bold" onClick={handleCloseTicket}>
+                                            Encerrar
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                {/* Chat WhatsApp Real */}
+                                {chatRightTab === "chat" && (
+                                    <div className="flex-1 flex flex-col overflow-hidden bg-[#efeae2]">
+                                        <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+                                            {ticketDetail.messages?.map((msg: any) => {
+                                                const isAttendant = msg.senderType === "ATTENDANT" || msg.fromMe === true;
+
+                                                return (
+                                                    <div key={msg.id} className={`flex ${isAttendant ? "justify-end" : "justify-start"}`}>
+                                                        <div className={`max-w-[70%] p-2.5 rounded-lg shadow-2xs text-xs ${isAttendant ? "bg-[#d9fdd3] text-slate-900 rounded-tr-none" : "bg-white text-slate-900 rounded-tl-none"}`}>
+                                                            {/* Exibição de Imagem */}
+                                                            {msg.mediaUrl && (msg.messageType === "IMAGE" || msg.mediaUrl.match(/\.(jpg|jpeg|png|webp)/i)) && (
+                                                                <img src={msg.mediaUrl} alt="" className="max-w-xs rounded-lg mb-2 max-h-60 object-cover border" />
+                                                            )}
+
+                                                            {/* Exibição de PDF / Documento encaminhado */}
+                                                            {(msg.mediaUrl || msg.messageType === "DOCUMENT" || msg.content?.includes(".pdf")) && (
+                                                                <div className="flex items-center gap-3 p-2.5 bg-slate-100/90 rounded-lg mb-2 border border-slate-200">
+                                                                    <div className="w-9 h-9 rounded bg-red-500 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                                                        PDF
+                                                                    </div>
+                                                                    <div className="overflow-hidden flex-1">
+                                                                        <span className="font-bold text-slate-800 block truncate text-xs">
+                                                                            {msg.mediaFileName || "Documento"}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-slate-500">Documento • PDF</span>
+                                                                    </div>
+                                                                    {msg.mediaUrl && (
+                                                                        <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-700 font-bold underline flex-shrink-0">
+                                                                            Abrir
+                                                                        </a>
+                                                                    )}
+                                                                </div>
+                                                            )}
+
+                                                            <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                                                            <div className="flex items-center justify-end gap-1 text-[9px] text-slate-500 mt-1 font-mono">
+                                                                <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                                {isAttendant && <CheckCheck className="w-3.5 h-3.5 text-emerald-600 inline" />}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            <div ref={messagesEndRef} />
+                                        </div>
+
+                                        {/* Barra de Digitação */}
+                                        <div className="h-16 bg-[#f0f2f5] border-t border-slate-300 px-4 flex items-center gap-3">
+                                            <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+                                            <button type="button" className="text-slate-500 hover:text-slate-700" onClick={() => fileInputRef.current?.click()}>
+                                                <Paperclip className="w-5 h-5" />
+                                            </button>
+                                            <Textarea
+                                                value={messageText}
+                                                onChange={(e) => setMessageText(e.target.value)}
+                                                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                                                placeholder="Digite uma mensagem..."
+                                                className="flex-1 text-xs resize-none h-10 min-h-[40px] bg-white border-none rounded-xl px-4 py-2.5 shadow-2xs"
+                                            />
+                                            <Button onClick={handleSendMessage} disabled={sending || !messageText.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 w-10 p-0 rounded-full flex items-center justify-center shadow-xs">
+                                                <Send className="w-4 h-4 ml-0.5" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Notas */}
+                                {chatRightTab === "notes" && (
+                                    <div className="flex-1 p-6 bg-slate-100 overflow-y-auto space-y-4">
+                                        <div className="bg-white p-4 rounded-xl border shadow-2xs space-y-3">
+                                            <h4 className="text-xs font-bold text-slate-800">Nova Anotação Interna</h4>
+                                            <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Anotação interna..." className="text-xs h-20" />
+                                            <div className="flex justify-end">
+                                                <Button size="sm" onClick={handleAddNote} className="bg-emerald-600 text-xs font-bold">Salvar Nota</Button>
+                                            </div>
+                                        </div>
+                                        {ticketDetail.notes?.map((n: any) => (
+                                            <div key={n.id} className="bg-white p-3 rounded-xl border shadow-2xs">
+                                                <div className="text-xs font-bold text-slate-800">{n.author?.name}</div>
+                                                <p className="text-xs text-slate-600 mt-1">{n.content}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* VISÃO 2: PIPELINE KANBAN (Conforme seu segundo print) */}
+            {mainView === "kanban" && (
+                <HrKanbanView
+                    stages={stages}
+                    tickets={tickets}
+                    onSelectTicket={(id) => { setSelectedTicketId(id); setMainView("chat"); }}
+                    onStagesUpdated={loadData}
+                />
+            )}
 
             <HrAccessManager open={showAccessManager} onClose={() => setShowAccessManager(false)} />
         </div>
