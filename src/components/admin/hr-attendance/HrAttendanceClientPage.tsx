@@ -430,29 +430,32 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                         {t.contactName?.charAt(0).toUpperCase() || "?"}
                                                     </div>
                                                 )}
-
-                                                {t.unreadCount > 0 && (
-                                                    <span className="absolute -bottom-1 -right-1 bg-emerald-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 border-2 border-white shadow-2xs">
-                                                        {t.unreadCount}
-                                                    </span>
-                                                )}
                                             </div>
 
                                             <div className="overflow-hidden flex-1">
                                                 <div className="flex items-center justify-between mb-0.5">
                                                     <h4 className="text-xs font-bold text-slate-900 truncate">{t.contactName}</h4>
-                                                    <span className="text-[10px] font-mono text-slate-400 flex-shrink-0">
+                                                    <span className={`text-[10px] font-mono flex-shrink-0 ${t.unreadCount > 0 ? "text-emerald-600 font-extrabold" : "text-slate-400"}`}>
                                                         {new Date(t.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </span>
                                                 </div>
 
-                                                <p className="text-[11px] text-slate-500 truncate leading-snug">
-                                                    {lastMsg ? (
-                                                        <span>{lastMsg.senderType === "ATTENDANT" ? "✓ " : ""}{lastMsg.content}</span>
-                                                    ) : (
-                                                        <span className="italic text-slate-400">Atendimento iniciado</span>
+                                                <div className="flex items-center justify-between gap-1">
+                                                    <p className="text-[11px] text-slate-500 truncate leading-snug flex-1">
+                                                        {lastMsg ? (
+                                                            <span>{lastMsg.senderType === "ATTENDANT" ? "✓ " : ""}{lastMsg.content}</span>
+                                                        ) : (
+                                                            <span className="italic text-slate-400">Atendimento iniciado</span>
+                                                        )}
+                                                    </p>
+
+                                                    {/* Bolinha Verde do WhatsApp Web com a Quantidade de Não Lidas na Direita */}
+                                                    {t.unreadCount > 0 && (
+                                                        <span className="bg-[#25d366] text-white text-[10px] font-extrabold min-w-[20px] h-[20px] rounded-full flex items-center justify-center px-1.5 flex-shrink-0 shadow-2xs">
+                                                            {t.unreadCount}
+                                                        </span>
                                                     )}
-                                                </p>
+                                                </div>
 
                                                 {t.stage && (
                                                     <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.2 rounded text-slate-600 bg-slate-100 border">
@@ -461,6 +464,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                 )}
                                             </div>
                                         </div>
+
                                     );
                                 })
                             )}
@@ -555,17 +559,25 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                         <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
                                             {ticketDetail.messages?.map((msg: any) => {
                                                 const isAttendant = msg.senderType === "ATTENDANT" || msg.fromMe === true;
+                                                const showSenderHeader = !isAttendant && msg.senderName && msg.senderName !== ticketDetail.contactName;
 
                                                 return (
                                                     <div key={msg.id} className={`flex ${isAttendant ? "justify-end" : "justify-start"}`}>
                                                         <div className={`max-w-[70%] p-2.5 rounded-lg shadow-2xs text-xs ${isAttendant ? "bg-[#d9fdd3] text-slate-900 rounded-tr-none" : "bg-white text-slate-900 rounded-tl-none"}`}>
+                                                            {/* Nome do Colaborador que postou no grupo */}
+                                                            {showSenderHeader && (
+                                                                <div className="text-[11px] font-extrabold text-emerald-700 mb-1">
+                                                                    {msg.senderName}
+                                                                </div>
+                                                            )}
+
                                                             {/* Exibição de Imagem */}
                                                             {msg.mediaUrl && (msg.messageType === "IMAGE" || msg.mediaUrl.match(/\.(jpg|jpeg|png|webp)/i)) && (
                                                                 <img src={msg.mediaUrl} alt="" className="max-w-xs rounded-lg mb-2 max-h-60 object-cover border" />
                                                             )}
 
-                                                            {/* Exibição de PDF / Documento encaminhado */}
-                                                            {(msg.mediaUrl || msg.messageType === "DOCUMENT" || msg.content?.includes(".pdf")) && (
+                                                            {/* Exibição de PDF Real */}
+                                                            {msg.messageType === "DOCUMENT" && msg.mediaUrl && (
                                                                 <div className="flex items-center gap-3 p-2.5 bg-slate-100/90 rounded-lg mb-2 border border-slate-200">
                                                                     <div className="w-9 h-9 rounded bg-red-500 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
                                                                         PDF
@@ -576,11 +588,9 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                                         </span>
                                                                         <span className="text-[10px] text-slate-500">Documento • PDF</span>
                                                                     </div>
-                                                                    {msg.mediaUrl && (
-                                                                        <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-700 font-bold underline flex-shrink-0">
-                                                                            Abrir
-                                                                        </a>
-                                                                    )}
+                                                                    <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-700 font-bold underline flex-shrink-0">
+                                                                        Abrir
+                                                                    </a>
                                                                 </div>
                                                             )}
 
