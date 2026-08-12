@@ -35,6 +35,8 @@ import { HrKanbanView } from "./HrKanbanView";
 import { HrLabelView } from "./HrLabelView";
 import { HrAccessManager } from "./HrAccessManager";
 import { HrTicketModal } from "./HrTicketModal";
+import { HrScheduleActivityModal } from "./HrScheduleActivityModal";
+
 
 
 interface Props {
@@ -59,6 +61,8 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
     const [ticketDetail, setTicketDetail] = useState<any>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
     const [selectedImageZoom, setSelectedImageZoom] = useState<string | null>(null);
+    const [showScheduleAct, setShowScheduleAct] = useState(false);
+
 
 
     // Busca e Filtros
@@ -537,10 +541,11 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                             size="sm"
                                             variant="outline"
                                             className="h-7 text-xs font-bold gap-1 bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100"
-                                            onClick={() => setShowScheduleActModal(true)}
+                                            onClick={() => setShowScheduleAct(true)}
                                         >
                                             📅 Agendar Atividade
                                         </Button>
+
 
                                         <select
                                             value={ticketDetail.stageId}
@@ -551,15 +556,17 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                 <option key={stg.id} value={stg.id}>{stg.name}</option>
                                             ))}
                                         </select>
-                                        ) : (
+
+                                        {!ticketDetail.assignee && (
                                             <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 font-bold" onClick={handleAssume}>
                                                 Assumir
                                             </Button>
                                         )}
 
                                         <Button variant="ghost" size="sm" className="h-8 text-xs text-red-600 hover:bg-red-50 font-bold" onClick={handleCloseTicket}>
-                            Encerrar
+                                            Encerrar
                                         </Button>
+
                                     </div>
                                 </div>
 
@@ -727,8 +734,22 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 </div>
             )}
 
+            {showScheduleAct && selectedTicketId && (
+                <HrScheduleActivityModal
+                    open={showScheduleAct}
+                    onClose={() => setShowScheduleAct(false)}
+                    ticketId={selectedTicketId}
+                    onCreated={() => {
+                        setShowScheduleAct(false);
+                        loadData();
+                    }}
+                />
+            )}
+
+
             <HrAccessManager open={showAccessManager} onClose={() => setShowAccessManager(false)} />
         </div>
     );
 }
+
 
