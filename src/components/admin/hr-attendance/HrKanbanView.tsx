@@ -97,19 +97,36 @@ function SortableTicketCard({ ticket, onClick }: { ticket: any; onClick: () => v
 
             {/* Barra de Ícones Rápidos [ 📋 📅 💬 💲 ] */}
             <div className="flex items-center gap-3 pt-2 text-slate-400 text-[10px]">
-                <button className="hover:text-emerald-600 transition" title="Anotações">
+                <button
+                    className="hover:text-emerald-600 transition"
+                    title="Anotações"
+                    onClick={(e) => { e.stopPropagation(); onClick(); }}
+                >
                     <ClipboardList className="w-3.5 h-3.5" />
                 </button>
-                <button className="hover:text-emerald-600 transition" title="Agendar Tarefa">
+                <button
+                    className="hover:text-emerald-600 transition"
+                    title="Agendar Tarefa"
+                    onClick={(e) => { e.stopPropagation(); onClick(); }}
+                >
                     <Calendar className="w-3.5 h-3.5" />
                 </button>
-                <button className="hover:text-emerald-600 transition" title="Abrir Chat" onClick={(e) => { e.stopPropagation(); onClick(); }}>
+                <button
+                    className="hover:text-emerald-600 transition"
+                    title="Abrir Chat"
+                    onClick={(e) => { e.stopPropagation(); onClick(); }}
+                >
                     <MessageSquare className="w-3.5 h-3.5" />
                 </button>
-                <button className="hover:text-emerald-600 transition" title="Valor / Proposta">
+                <button
+                    className="hover:text-emerald-600 transition"
+                    title="Valor / Proposta"
+                    onClick={(e) => { e.stopPropagation(); onClick(); }}
+                >
                     <DollarSign className="w-3.5 h-3.5" />
                 </button>
             </div>
+
         </div>
     );
 }
@@ -355,7 +372,14 @@ export function HrKanbanView({ stages: initialStages, tickets: initialTickets, o
             <div className="flex-1 overflow-x-auto p-4 flex gap-3.5 bg-slate-200/50 items-start min-h-[calc(100vh-140px)]">
                 <SortableContext items={stages.map((s) => s.id)} strategy={horizontalListSortingStrategy}>
                     {stages.map((stage) => {
-                        const stageTickets = initialTickets.filter((t) => t.stageId === stage.id);
+                        const stageTickets = initialTickets
+                            .filter((t) => t.stageId === stage.id)
+                            .sort((a, b) => {
+                                if ((b.unreadCount || 0) !== (a.unreadCount || 0)) {
+                                    return (b.unreadCount || 0) - (a.unreadCount || 0);
+                                }
+                                return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+                            });
 
                         return (
                             <DroppableKanbanColumn
@@ -374,3 +398,4 @@ export function HrKanbanView({ stages: initialStages, tickets: initialTickets, o
         </DndContext>
     );
 }
+

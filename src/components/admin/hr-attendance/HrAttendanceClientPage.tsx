@@ -34,6 +34,8 @@ import {
 import { HrKanbanView } from "./HrKanbanView";
 import { HrLabelView } from "./HrLabelView";
 import { HrAccessManager } from "./HrAccessManager";
+import { HrTicketModal } from "./HrTicketModal";
+
 
 interface Props {
     currentUser: any;
@@ -650,15 +652,30 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 </div>
             )}
 
-            {/* VISÃO 2: PIPELINE KANBAN (Conforme seu segundo print) */}
+            {/* VISÃO 2: PIPELINE KANBAN (Abre modal de chat ao clicar no card) */}
             {mainView === "kanban" && (
-                <HrKanbanView
-                    stages={stages}
-                    tickets={tickets}
-                    onSelectTicket={(id) => { setSelectedTicketId(id); setMainView("chat"); }}
-                    onStagesUpdated={loadData}
-                />
+                <>
+                    <HrKanbanView
+                        stages={stages}
+                        tickets={tickets}
+                        onSelectTicket={(id) => setSelectedTicketId(id)}
+                        onStagesUpdated={loadData}
+                    />
+
+                    {/* Modal do Chat do WhatsApp Web ao Clicar no Card do Kanban */}
+                    {selectedTicketId && (
+                        <HrTicketModal
+                            ticketId={selectedTicketId}
+                            onClose={() => setSelectedTicketId(null)}
+                            onUpdated={loadData}
+                            availableUsers={allUsers}
+                            availableLabels={labels}
+                            availableStages={stages}
+                        />
+                    )}
+                </>
             )}
+
 
             <HrAccessManager open={showAccessManager} onClose={() => setShowAccessManager(false)} />
         </div>
