@@ -322,8 +322,11 @@ export function HrTicketModal({ ticketId, initialTab = "chat", onClose, onUpdate
                                 </div>
                             </div>
 
-                            {/* PAPEL DE PAREDE TEXTURIZADO DOODLE DO WHATSAPP */}
-                            <div className="absolute inset-0 top-16 bottom-16 bg-[#efeae2] opacity-95 pointer-events-none bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px]" />
+                            {/* Papel de Parede Oficial 100% Exato do WhatsApp Web */}
+                            <div
+                                className="absolute inset-0 top-16 bottom-16 bg-[#efeae2] bg-repeat opacity-95 pointer-events-none z-0"
+                                style={{ backgroundImage: `url('/whatsapp-bg-official.png')`, backgroundSize: '500px 380px' }}
+                            />
 
                             {/* CHAT MESSAGES */}
                             {activeTab === "chat" && (
@@ -331,11 +334,13 @@ export function HrTicketModal({ ticketId, initialTab = "chat", onClose, onUpdate
                                     <div className="flex-1 overflow-y-auto p-5 space-y-3">
                                         {ticket.messages?.map((msg: any) => {
                                             const isAttendant = msg.senderType === "ATTENDANT" || msg.fromMe === true;
+                                            const isGroupTicket = ticket.contactPhone?.includes("-group") || ticket.contactPhone?.length > 13 || ticket.title?.toLowerCase().includes("grupo") || ticket.title?.includes("Taxas") || ticket.title?.includes("Mesa") || ticket.title?.includes("RH - ATESTADO");
+                                            const showSenderHeader = isGroupTicket && !isAttendant && msg.senderName;
 
                                             return (
                                                 <div key={msg.id} className={`flex ${isAttendant ? "justify-end" : "justify-start"}`}>
                                                     <div className={`max-w-[70%] p-3 rounded-xl shadow-2xs text-xs ${isAttendant ? "bg-[#d9fdd3] text-slate-900 rounded-tr-none" : "bg-white text-slate-900 rounded-tl-none"}`}>
-                                                        {msg.senderName && !isAttendant && msg.senderName !== ticket.contactName && (
+                                                        {showSenderHeader && (
                                                             <div className="text-[11px] font-extrabold text-emerald-700 mb-1">
                                                                 {msg.senderName}
                                                             </div>

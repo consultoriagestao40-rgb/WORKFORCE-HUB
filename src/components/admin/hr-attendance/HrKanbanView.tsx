@@ -100,9 +100,9 @@ function TicketCardUI({ ticket, onSelectTicket, isDragging = false }: { ticket: 
             <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-100">
                 <div className="flex items-center gap-1.5">
                     <button
-                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 flex items-center justify-center transition"
-                        title="Ver / Deixar Anotações"
-                        onClick={(e) => { e.stopPropagation(); onSelectTicket?.(ticket.id, "notes"); }}
+                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition"
+                        title="Anotações Internas"
+                        onClick={(e) => { e.stopPropagation(); setTimeout(() => onSelectTicket?.(ticket.id, "notes"), 0); }}
                     >
                         <ClipboardList className="w-3.5 h-3.5" />
                     </button>
@@ -110,7 +110,7 @@ function TicketCardUI({ ticket, onSelectTicket, isDragging = false }: { ticket: 
                     <button
                         className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-amber-50 text-slate-500 hover:text-amber-700 flex items-center justify-center transition"
                         title="Agendar Lembrete / Atividade"
-                        onClick={(e) => { e.stopPropagation(); onSelectTicket?.(ticket.id, "activities"); }}
+                        onClick={(e) => { e.stopPropagation(); setTimeout(() => onSelectTicket?.(ticket.id, "activities"), 0); }}
                     >
                         <Calendar className="w-3.5 h-3.5" />
                     </button>
@@ -118,7 +118,7 @@ function TicketCardUI({ ticket, onSelectTicket, isDragging = false }: { ticket: 
                     <button
                         className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 flex items-center justify-center transition"
                         title="Abrir Chat do WhatsApp"
-                        onClick={(e) => { e.stopPropagation(); onSelectTicket?.(ticket.id, "chat"); }}
+                        onClick={(e) => { e.stopPropagation(); setTimeout(() => onSelectTicket?.(ticket.id, "chat"), 0); }}
                     >
                         <MessageSquare className="w-3.5 h-3.5" />
                     </button>
@@ -126,7 +126,7 @@ function TicketCardUI({ ticket, onSelectTicket, isDragging = false }: { ticket: 
                     <button
                         className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-500 hover:text-blue-700 flex items-center justify-center transition font-bold"
                         title="Definir Valor / Proposta"
-                        onClick={(e) => { e.stopPropagation(); onSelectTicket?.(ticket.id, "value"); }}
+                        onClick={(e) => { e.stopPropagation(); setTimeout(() => onSelectTicket?.(ticket.id, "value"), 0); }}
                     >
                         <DollarSign className="w-3.5 h-3.5" />
                     </button>
