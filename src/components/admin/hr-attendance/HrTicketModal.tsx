@@ -280,7 +280,11 @@ export function HrTicketModal({ ticketId, onClose, onUpdated, availableUsers = [
 
                         {/* PAINEL DIREITO: CHAT WHATSAPP WEB REAL COM TEXTURA DOODLE */}
                         <div className="flex-1 flex flex-col bg-[#efeae2] relative overflow-hidden text-slate-900">
+                            {/* Papel de Parede Doodle do WhatsApp Web Oficial */}
+                            <div className="absolute inset-0 bg-[#efeae2] bg-[url('/whatsapp-doodle-bg.svg')] bg-[size:400px_400px] opacity-40 pointer-events-none" />
+
                             {/* WhatsApp Header Bar */}
+
                             <div className="h-16 bg-[#f0f2f5] border-b border-slate-300 px-5 flex items-center justify-between z-10 shadow-xs">
                                 <div className="flex items-center gap-3">
                                     {ticket.contactPhotoUrl && ticket.contactPhotoUrl !== "null" ? (

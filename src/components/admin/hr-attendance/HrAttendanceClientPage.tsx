@@ -552,15 +552,18 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                         )}
 
                                         <Button variant="ghost" size="sm" className="h-8 text-xs text-red-600 hover:bg-red-50 font-bold" onClick={handleCloseTicket}>
-                                            Encerrar
+                            Encerrar
                                         </Button>
                                     </div>
                                 </div>
 
                                 {/* Chat WhatsApp Real */}
                                 {chatRightTab === "chat" && (
-                                    <div className="flex-1 flex flex-col overflow-hidden bg-[#efeae2]">
-                                        <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+                                    <div className="flex-1 flex flex-col overflow-hidden bg-[#efeae2] relative">
+                                        {/* Papel de Parede Doodle do WhatsApp Web Oficial */}
+                                        <div className="absolute inset-0 bg-[#efeae2] bg-[url('/whatsapp-doodle-bg.svg')] bg-[size:400px_400px] opacity-40 pointer-events-none" />
+
+                                        <div className="flex-1 overflow-y-auto p-4 space-y-2.5 relative z-0">
                                             {ticketDetail.messages?.map((msg: any) => {
                                                 const isAttendant = msg.senderType === "ATTENDANT" || msg.fromMe === true;
                                                 const showSenderHeader = !isAttendant && msg.senderName && msg.senderName !== ticketDetail.contactName;
