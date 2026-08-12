@@ -32,6 +32,7 @@ import { HrScheduleActivityModal } from "./HrScheduleActivityModal";
 
 interface Props {
     ticketId: string | null;
+    initialTab?: "chat" | "notes" | "activities" | "value";
     onClose: () => void;
     onUpdated?: () => void;
     availableUsers?: any[];
@@ -39,10 +40,11 @@ interface Props {
     availableStages?: any[];
 }
 
-export function HrTicketModal({ ticketId, onClose, onUpdated, availableUsers = [], availableLabels = [], availableStages = [] }: Props) {
+export function HrTicketModal({ ticketId, initialTab = "chat", onClose, onUpdated, availableUsers = [], availableLabels = [], availableStages = [] }: Props) {
     const [ticket, setTicket] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<"chat" | "notes">("chat");
+    const [activeTab, setActiveTab] = useState<"chat" | "notes" | "activities" | "value">(initialTab);
+
 
     const [messageText, setMessageText] = useState("");
     const [sending, setSending] = useState(false);
@@ -308,8 +310,12 @@ export function HrTicketModal({ ticketId, onClose, onUpdated, availableUsers = [
                                         <button onClick={() => setActiveTab("notes")} className={`px-3 py-1 text-xs font-bold rounded-lg transition ${activeTab === "notes" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}>
                                             📝 Notas ({ticket.notes?.length || 0})
                                         </button>
+                                        <button onClick={() => setActiveTab("activities")} className={`px-3 py-1 text-xs font-bold rounded-lg transition ${activeTab === "activities" ? "bg-white text-amber-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}>
+                                            📅 Atividades / Lembretes ({ticket.activities?.length || 0})
+                                        </button>
                                     </div>
 
+                                    {/* Botão Fechar Modal X */}
                                     <button onClick={onClose} className="w-8 h-8 rounded-full bg-slate-300/80 hover:bg-red-600 hover:text-white text-slate-700 flex items-center justify-center font-extrabold transition cursor-pointer">
                                         <X className="w-4 h-4" />
                                     </button>
@@ -388,24 +394,59 @@ export function HrTicketModal({ ticketId, onClose, onUpdated, availableUsers = [
                                 </div>
                             )}
 
-                            {/* NOTAS */}
+                            {/* NOTAS INTERNAS */}
                             {activeTab === "notes" && (
                                 <div className="flex-1 p-6 bg-slate-100 overflow-y-auto space-y-4 relative z-10">
                                     <div className="bg-white p-4 rounded-xl border shadow-2xs space-y-3">
                                         <h4 className="text-xs font-bold text-slate-800">Nova Anotação Interna</h4>
-                                        <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Anotação interna..." className="text-xs h-20" />
+                                        <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Anotação interna sobre este atendimento..." className="text-xs h-20" />
                                         <div className="flex justify-end">
                                             <Button size="sm" onClick={handleAddNote} className="bg-emerald-600 text-xs font-bold">Salvar Nota</Button>
                                         </div>
                                     </div>
                                     {ticket.notes?.map((n: any) => (
-                                        <div key={n.id} className="bg-white p-3 rounded-xl border shadow-2xs">
-                                            <div className="text-xs font-bold text-slate-800">{n.author?.name}</div>
+                                        <div key={n.id} className="bg-white p-3.5 rounded-xl border shadow-2xs">
+                                            <div className="text-xs font-bold text-slate-800">{n.author?.name || "Atendente RH"}</div>
                                             <p className="text-xs text-slate-600 mt-1">{n.content}</p>
                                         </div>
                                     ))}
                                 </div>
                             )}
+
+                            {/* ATIVIDADES & LEMBRETES */}
+                            {activeTab === "activities" && (
+                                <div className="flex-1 p-6 bg-slate-100 overflow-y-auto space-y-4 relative z-10">
+                                    <div className="bg-white p-4 rounded-xl border shadow-2xs flex items-center justify-between">
+                                        <div>
+                                            <h4 className="text-xs font-extrabold text-slate-800">📅 Agendar Novo Lembrete / Atividade</h4>
+                                            <p className="text-[11px] text-slate-500">Defina um horário para retornar o contato com este colaborador.</p>
+                                        </div>
+                                        <Button onClick={() => setShowScheduleAct(true)} className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs">
+                                            + Criar Lembrete
+                                        </Button>
+                                    </div>
+
+                                    {ticket.activities?.length === 0 ? (
+                                        <div className="text-center py-10 text-xs text-slate-400">Nenhum lembrete ou atividade agendada.</div>
+                                    ) : (
+                                        ticket.activities?.map((act: any) => (
+                                            <div key={act.id} className="bg-white p-3.5 rounded-xl border shadow-2xs flex items-center justify-between">
+                                                <div>
+                                                    <h5 className="text-xs font-bold text-slate-800">{act.title}</h5>
+                                                    {act.description && <p className="text-[11px] text-slate-500 mt-0.5">{act.description}</p>}
+                                                    <span className="text-[10px] text-amber-600 font-mono font-bold mt-1 block">
+                                                        ⏰ {new Date(act.dueDate).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${act.completed ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"}`}>
+                                                    {act.completed ? "Concluído" : "Pendente"}
+                                                </span>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+
                         </div>
                     </div>
                 )}

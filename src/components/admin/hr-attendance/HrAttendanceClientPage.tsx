@@ -58,8 +58,10 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
 
     // Ticket Selecionado
     const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+    const [modalInitialTab, setModalInitialTab] = useState<"chat" | "notes" | "activities" | "value">("chat");
     const [ticketDetail, setTicketDetail] = useState<any>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
+
     const [selectedImageZoom, setSelectedImageZoom] = useState<string | null>(null);
     const [showScheduleAct, setShowScheduleAct] = useState(false);
 
@@ -689,7 +691,10 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                     <HrKanbanView
                         stages={stages}
                         tickets={tickets}
-                        onSelectTicket={(id) => setSelectedTicketId(id)}
+                        onSelectTicket={(id, tab) => {
+                            setSelectedTicketId(id);
+                            if (tab) setModalInitialTab(tab);
+                        }}
                         onStagesUpdated={loadData}
                     />
 
@@ -697,6 +702,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                     {selectedTicketId && (
                         <HrTicketModal
                             ticketId={selectedTicketId}
+                            initialTab={modalInitialTab}
                             onClose={() => setSelectedTicketId(null)}
                             onUpdated={loadData}
                             availableUsers={allUsers}
@@ -706,6 +712,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                     )}
                 </>
             )}
+
 
 
             {/* MODAL LIGHTBOX / ZOOM DE IMAGEM */}

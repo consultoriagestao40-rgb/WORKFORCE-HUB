@@ -26,9 +26,10 @@ import { saveHrPipelineStages, deleteHrPipelineStage, updateHrTicketStage } from
 interface Props {
     stages: any[];
     tickets: any[];
-    onSelectTicket: (ticketId: string) => void;
+    onSelectTicket: (ticketId: string, initialTab?: "chat" | "notes" | "activities" | "value") => void;
     onStagesUpdated: () => void;
 }
+
 
 const PRESET_COLORS = [
     "#6366f1", "#f59e0b", "#3b82f6", "#8b5cf6", "#10b981",
@@ -37,7 +38,8 @@ const PRESET_COLORS = [
 ];
 
 // Card do Contato Arrastável no Kanban
-function SortableTicketCard({ ticket, onClick }: { ticket: any; onClick: () => void }) {
+function SortableTicketCard({ ticket, onClick, onSelectTicket }: { ticket: any; onClick: () => void; onSelectTicket: (id: string, tab?: any) => void }) {
+
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id: ticket.id,
         data: { type: "TICKET", ticket }
@@ -98,34 +100,35 @@ function SortableTicketCard({ ticket, onClick }: { ticket: any; onClick: () => v
             {/* Barra de Ícones Rápidos [ 📋 📅 💬 💲 ] */}
             <div className="flex items-center gap-3 pt-2 text-slate-400 text-[10px]">
                 <button
-                    className="hover:text-emerald-600 transition"
-                    title="Anotações"
-                    onClick={(e) => { e.stopPropagation(); onClick(); }}
+                    className="hover:text-emerald-600 transition flex items-center gap-0.5"
+                    title="Ver / Deixar Anotações"
+                    onClick={(e) => { e.stopPropagation(); onSelectTicket(ticket.id, "notes"); }}
                 >
                     <ClipboardList className="w-3.5 h-3.5" />
                 </button>
                 <button
-                    className="hover:text-emerald-600 transition"
-                    title="Agendar Tarefa"
-                    onClick={(e) => { e.stopPropagation(); onClick(); }}
+                    className="hover:text-amber-600 transition flex items-center gap-0.5"
+                    title="Agendar Lembrete / Atividade"
+                    onClick={(e) => { e.stopPropagation(); onSelectTicket(ticket.id, "activities"); }}
                 >
                     <Calendar className="w-3.5 h-3.5" />
                 </button>
                 <button
-                    className="hover:text-emerald-600 transition"
-                    title="Abrir Chat"
-                    onClick={(e) => { e.stopPropagation(); onClick(); }}
+                    className="hover:text-emerald-600 transition flex items-center gap-0.5"
+                    title="Abrir Chat do WhatsApp"
+                    onClick={(e) => { e.stopPropagation(); onSelectTicket(ticket.id, "chat"); }}
                 >
                     <MessageSquare className="w-3.5 h-3.5" />
                 </button>
                 <button
-                    className="hover:text-emerald-600 transition"
-                    title="Valor / Proposta"
-                    onClick={(e) => { e.stopPropagation(); onClick(); }}
+                    className="hover:text-blue-600 transition flex items-center gap-0.5 font-bold"
+                    title="Definir Valor / Proposta"
+                    onClick={(e) => { e.stopPropagation(); onSelectTicket(ticket.id, "value"); }}
                 >
                     <DollarSign className="w-3.5 h-3.5" />
                 </button>
             </div>
+
 
         </div>
     );
@@ -269,9 +272,11 @@ function DroppableKanbanColumn({ stage, stageTickets, onSelectTicket, onUpdateSt
                             <SortableTicketCard
                                 key={t.id}
                                 ticket={t}
-                                onClick={() => onSelectTicket(t.id)}
+                                onClick={() => onSelectTicket(t.id, "chat")}
+                                onSelectTicket={onSelectTicket}
                             />
                         ))
+
                     )}
                 </div>
             </SortableContext>
