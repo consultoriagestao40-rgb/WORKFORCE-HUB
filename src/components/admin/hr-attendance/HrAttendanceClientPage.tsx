@@ -69,7 +69,8 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
 
     // Busca e Filtros
     const [searchQuery, setSearchQuery] = useState("");
-    const [filterMode, setFilterMode] = useState<"all" | "unread">("all");
+    const [filterMode, setFilterMode] = useState<"all" | "unread" | "groups">("all");
+
 
     // Chat State
     const [chatRightTab, setChatRightTab] = useState<"chat" | "notes">("chat");
@@ -287,12 +288,17 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         loadData();
     };
 
-    // Filtrar lista de tickets
+    // Filtrar lista de tickets (Tudo | Não lidas | Grupos)
     const filteredTickets = tickets.filter(t => {
         if (selectedStageId && t.stageId !== selectedStageId) return false;
         if (filterMode === "unread" && t.unreadCount === 0) return false;
+        if (filterMode === "groups") {
+            const isGroup = t.contactPhone?.includes("-group") || t.contactName?.toLowerCase().includes("grupo") || t.contactName?.toLowerCase().includes("rh -");
+            if (!isGroup) return false;
+        }
         return true;
     });
+
 
     return (
         <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-slate-100 font-sans">
@@ -338,42 +344,45 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 </div>
             </div>
 
-            {/* TOP BAR - LINHA 2: Pílulas de Etapas do Pipeline (100% Livre com Scroll Suave) */}
-            <div className="bg-slate-50 border-b border-slate-200/80 px-6 py-1.5 flex items-center gap-2 overflow-x-auto no-scrollbar shadow-2xs z-10">
-                <button
-                    onClick={() => setSelectedStageId(null)}
-                    className={`px-3 py-1 rounded-full text-xs font-extrabold transition flex-shrink-0 whitespace-nowrap ${
-                        selectedStageId === null
-                            ? "bg-emerald-600 text-white shadow-xs"
-                            : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
-                    }`}
-                >
-                    Todas ({tickets.length})
-                </button>
+            {/* TOP BAR - LINHA 2: Pílulas de Etapas do Pipeline (Apenas na visão de Chat para não espremer o Kanban) */}
+            {mainView === "chat" && (
+                <div className="bg-slate-50 border-b border-slate-200/80 px-6 py-1.5 flex items-center gap-2 overflow-x-auto no-scrollbar shadow-2xs z-10">
+                    <button
+                        onClick={() => setSelectedStageId(null)}
+                        className={`px-3 py-1 rounded-full text-xs font-extrabold transition flex-shrink-0 whitespace-nowrap ${
+                            selectedStageId === null
+                                ? "bg-emerald-600 text-white shadow-xs"
+                                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                        }`}
+                    >
+                        Todas ({tickets.length})
+                    </button>
 
-                {stages.map((stg) => {
-                    const count = tickets.filter(t => t.stageId === stg.id).length;
-                    const isSelected = selectedStageId === stg.id;
+                    {stages.map((stg) => {
+                        const count = tickets.filter(t => t.stageId === stg.id).length;
+                        const isSelected = selectedStageId === stg.id;
 
-                    return (
-                        <button
-                            key={stg.id}
-                            onClick={() => setSelectedStageId(stg.id)}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold transition flex-shrink-0 border whitespace-nowrap ${
-                                isSelected
-                                    ? "bg-slate-900 text-white border-slate-900 shadow-xs"
-                                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                            }`}
-                        >
-                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stg.color || "#10b981" }} />
-                            <span>{stg.name}</span>
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${isSelected ? "bg-slate-700 text-white" : "bg-emerald-600 text-white"}`}>
-                                {count}
-                            </span>
-                        </button>
-                    );
-                })}
-            </div>
+                        return (
+                            <button
+                                key={stg.id}
+                                onClick={() => setSelectedStageId(stg.id)}
+                                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold transition flex-shrink-0 border whitespace-nowrap ${
+                                    isSelected
+                                        ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                }`}
+                            >
+                                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stg.color || "#10b981" }} />
+                                <span>{stg.name}</span>
+                                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${isSelected ? "bg-slate-700 text-white" : "bg-emerald-600 text-white"}`}>
+                                    {count}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
 
 
             {/* VISÃO 1: CHAT WHATSAPP WEB REAL (Conexão ao vivo) */}
@@ -405,7 +414,14 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                 >
                                     Não lidas ({tickets.filter(t => t.unreadCount > 0).length})
                                 </button>
+                                <button
+                                    onClick={() => setFilterMode("groups")}
+                                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold transition ${filterMode === "groups" ? "bg-slate-900 text-white" : "bg-slate-200/70 text-slate-600 hover:bg-slate-300"}`}
+                                >
+                                    Grupos ({tickets.filter(t => t.contactPhone?.includes("-group") || t.contactName?.toLowerCase().includes("grupo") || t.contactName?.toLowerCase().includes("rh -")).length})
+                                </button>
                             </div>
+
                         </div>
 
                         {/* Lista de Contatos com Scroll Funcional */}
