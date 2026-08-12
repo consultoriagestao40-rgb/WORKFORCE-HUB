@@ -286,56 +286,20 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
 
     return (
         <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-slate-100 font-sans">
-            {/* TOP BAR: Pílulas de Etapas / Filtros exatamente como nos seus prints */}
-            <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex items-center justify-between shadow-2xs z-10 gap-4 overflow-hidden">
-                <div className="flex items-center gap-3 overflow-x-auto min-w-0 flex-1 py-1 no-scrollbar">
-                    <div className="flex items-center gap-2 flex-shrink-0 mr-2">
-                        <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-xs">
-                            W
-                        </div>
-                        <div>
-                            <h1 className="font-extrabold text-sm text-slate-800 leading-none">WaAtendimento</h1>
-                            <span className="text-[10px] text-emerald-600 font-bold whitespace-nowrap">WhatsApp RH CRM</span>
-                        </div>
+            {/* TOP BAR - LINHA 1: Título & Alternador de Visão + Acessos */}
+            <div className="bg-white border-b border-slate-200 px-6 py-2 flex items-center justify-between shadow-2xs z-20">
+                <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
+                        W
                     </div>
-
-                    <button
-                        onClick={() => setSelectedStageId(null)}
-                        className={`px-3 py-1 rounded-full text-xs font-bold transition flex-shrink-0 whitespace-nowrap ${
-                            selectedStageId === null
-                                ? "bg-emerald-600 text-white shadow-xs"
-                                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                        }`}
-                    >
-                        Todas ({tickets.length})
-                    </button>
-
-                    {stages.map((stg) => {
-                        const count = tickets.filter(t => t.stageId === stg.id).length;
-                        const isSelected = selectedStageId === stg.id;
-
-                        return (
-                            <button
-                                key={stg.id}
-                                onClick={() => setSelectedStageId(stg.id)}
-                                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition flex-shrink-0 border whitespace-nowrap ${
-                                    isSelected
-                                        ? "bg-slate-900 text-white border-slate-900 shadow-xs"
-                                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-                                }`}
-                            >
-                                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stg.color || "#10b981" }} />
-                                <span>{stg.name}</span>
-                                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${isSelected ? "bg-slate-700 text-white" : "bg-emerald-600 text-white"}`}>
-                                    {count}
-                                </span>
-                            </button>
-                        );
-                    })}
+                    <div>
+                        <h1 className="font-black text-xs text-slate-900 leading-none">WaAtendimento</h1>
+                        <span className="text-[9px] text-emerald-600 font-extrabold tracking-wider uppercase">WhatsApp RH CRM</span>
+                    </div>
                 </div>
 
-                {/* Alternador de Visão: [💬 Chat WhatsApp] ou [📊 Pipeline Kanban] */}
-                <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Alternador de Visão [ 💬 Chat WhatsApp ] [ 📊 Pipeline Kanban ] + Acessos em Linha Dedicada */}
+                <div className="flex items-center gap-2">
                     <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
                         <button
                             onClick={() => setMainView("chat")}
@@ -355,14 +319,52 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                         <Button
                             variant="outline"
                             size="sm"
-                            className="h-8 text-xs gap-1 border-slate-300 text-slate-700 font-bold"
+                            className="h-7 text-xs gap-1 border-slate-300 text-slate-700 font-bold"
                             onClick={() => setShowAccessManager(true)}
                         >
-                            <Lock className="w-3.5 h-3.5" /> Acessos
+                            <Lock className="w-3 h-3" /> Acessos
                         </Button>
                     )}
                 </div>
             </div>
+
+            {/* TOP BAR - LINHA 2: Pílulas de Etapas do Pipeline (100% Livre com Scroll Suave) */}
+            <div className="bg-slate-50 border-b border-slate-200/80 px-6 py-1.5 flex items-center gap-2 overflow-x-auto no-scrollbar shadow-2xs z-10">
+                <button
+                    onClick={() => setSelectedStageId(null)}
+                    className={`px-3 py-1 rounded-full text-xs font-extrabold transition flex-shrink-0 whitespace-nowrap ${
+                        selectedStageId === null
+                            ? "bg-emerald-600 text-white shadow-xs"
+                            : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                    }`}
+                >
+                    Todas ({tickets.length})
+                </button>
+
+                {stages.map((stg) => {
+                    const count = tickets.filter(t => t.stageId === stg.id).length;
+                    const isSelected = selectedStageId === stg.id;
+
+                    return (
+                        <button
+                            key={stg.id}
+                            onClick={() => setSelectedStageId(stg.id)}
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold transition flex-shrink-0 border whitespace-nowrap ${
+                                isSelected
+                                    ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                            }`}
+                        >
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stg.color || "#10b981" }} />
+                            <span>{stg.name}</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${isSelected ? "bg-slate-700 text-white" : "bg-emerald-600 text-white"}`}>
+                                {count}
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
+
 
             {/* VISÃO 1: CHAT WHATSAPP WEB REAL (Conexão ao vivo) */}
             {mainView === "chat" && (
