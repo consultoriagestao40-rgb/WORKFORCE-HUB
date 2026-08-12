@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
     Search, Paperclip, Send, CheckCheck, Clock, ShieldCheck,
     ArrowRightLeft, UserCheck, Lock, RefreshCw, X, Plus, Calendar, StickyNote, Filter,
-    Phone, Video, MoreVertical, MessageSquare, DollarSign, ClipboardList
+    Phone, Video, MoreVertical, MessageSquare, DollarSign, ClipboardList, Smile, Mic
 } from "lucide-react";
 import {
     getHrPipelineStages,
@@ -37,8 +37,6 @@ import { HrAccessManager } from "./HrAccessManager";
 import { HrTicketModal } from "./HrTicketModal";
 import { HrScheduleActivityModal } from "./HrScheduleActivityModal";
 
-
-
 interface Props {
     currentUser: any;
     allUsers: any[];
@@ -65,12 +63,9 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
     const [selectedImageZoom, setSelectedImageZoom] = useState<string | null>(null);
     const [showScheduleAct, setShowScheduleAct] = useState(false);
 
-
-
     // Busca e Filtros
     const [searchQuery, setSearchQuery] = useState("");
     const [filterMode, setFilterMode] = useState<"all" | "unread" | "groups">("all");
-
 
     // Chat State
     const [chatRightTab, setChatRightTab] = useState<"chat" | "notes">("chat");
@@ -110,17 +105,16 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         }
     }, [searchQuery]);
 
-    // Polling leve e inteligente a cada 6s para evitar travamento da UI (INP issue)
+    // Polling inteligente a cada 6s
     useEffect(() => {
         loadData();
         const interval = setInterval(async () => {
-            if (document.hidden) return; // Não roda quando a aba está em segundo plano
+            if (document.hidden) return;
             const tcks = await getHrTickets({ search: searchQuery });
             setTickets(tcks);
         }, 6000);
         return () => clearInterval(interval);
     }, [loadData, searchQuery]);
-
 
     // Carregar detalhes do ticket selecionado
     const loadTicketDetail = useCallback(async (id: string) => {
@@ -222,73 +216,70 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
 
         setSending(true);
         try {
-            const formData = new FormData();
-            formData.append("file", file);
-            const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
-
-            if (uploadRes.ok) {
-                const { url } = await uploadRes.json();
-                await sendHrWhatsAppFile({
+            const reader = new FileReader();
+            reader.onload = async () => {
+                const dataUrl = reader.result as string;
+                const res = await sendHrWhatsAppFile({
                     ticketId: ticketDetail.id,
                     phone: ticketDetail.contactPhone,
-                    fileUrl: url,
+                    fileUrl: dataUrl,
                     fileName: file.name,
-                    mimeType: file.type
+                    mimeType: file.type || "application/pdf"
                 });
-                loadTicketDetail(ticketDetail.id);
+                if (res.success && res.message) {
+                    setTicketDetail((prev: any) => ({
+                        ...prev,
+                        messages: [...(prev?.messages || []), res.message]
+                    }));
+                }
                 loadData();
-            }
+            };
+            reader.readAsDataURL(file);
         } finally {
             setSending(false);
         }
     };
 
-    // Salvar alteração de contato
-    const handleSaveContact = async () => {
-        if (!ticketDetail) return;
-        await updateContactInfo(ticketDetail.id, { name: contactNameInput, phone: contactPhoneInput });
-        setIsEditingContact(false);
-        setTicketDetail((prev: any) => ({ ...prev, contactName: contactNameInput, contactPhone: contactPhoneInput }));
-        loadData();
-    };
-
-    // Assumir Atendimento
     const handleAssume = async () => {
-        if (!ticketDetail) return;
-        await assumeHrTicket(ticketDetail.id);
-        loadTicketDetail(ticketDetail.id);
+        if (!selectedTicketId) return;
+        await assumeHrTicket(selectedTicketId);
         loadData();
+        loadTicketDetail(selectedTicketId);
     };
 
-    // Encerrar Atendimento
     const handleCloseTicket = async () => {
-        if (!ticketDetail) return;
-        if (confirm("Deseja realmente encerrar este atendimento?")) {
-            await closeHrTicket(ticketDetail.id);
-            loadData();
-            setSelectedTicketId(null);
-        }
-    };
-
-    // Adicionar Nota
-    const handleAddNote = async () => {
-        if (!ticketDetail || !noteText.trim()) return;
-        const res = await addHrTicketNote(ticketDetail.id, noteText.trim());
-        if (res.note) {
-            setNoteText("");
-            setTicketDetail((prev: any) => ({ ...prev, notes: [...prev.notes, res.note] }));
-        }
-    };
-
-    // Alterar Etapa do Ticket
-    const handleChangeStage = async (stageId: string) => {
-        if (!ticketDetail) return;
-        await updateHrTicketStage(ticketDetail.id, stageId);
-        loadTicketDetail(ticketDetail.id);
+        if (!selectedTicketId) return;
+        await closeHrTicket(selectedTicketId);
         loadData();
+        loadTicketDetail(selectedTicketId);
     };
 
-    // Filtrar lista de tickets (Tudo | Não lidas | Grupos)
+    const handleChangeStage = async (stageId: string) => {
+        if (!selectedTicketId) return;
+        await updateHrTicketStage(selectedTicketId, stageId);
+        loadData();
+        loadTicketDetail(selectedTicketId);
+    };
+
+    const handleAddNote = async () => {
+        if (!selectedTicketId || !noteText.trim()) return;
+        await addHrTicketNote(selectedTicketId, noteText.trim());
+        setNoteText("");
+        loadTicketDetail(selectedTicketId);
+    };
+
+    const handleSaveContactEdit = async () => {
+        if (!selectedTicketId) return;
+        await updateContactInfo(selectedTicketId, {
+            name: contactNameInput.trim(),
+            phone: contactPhoneInput.trim()
+        });
+        setIsEditingContact(false);
+        loadData();
+        loadTicketDetail(selectedTicketId);
+    };
+
+    // Filtragem de Tickets na Lista Esquerda
     const filteredTickets = tickets.filter(t => {
         if (selectedStageId && t.stageId !== selectedStageId) return false;
         if (filterMode === "unread" && t.unreadCount === 0) return false;
@@ -299,22 +290,24 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         return true;
     });
 
-
     return (
-        <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-slate-100 font-sans">
-            {/* TOP BAR - LINHA 1: Título & Alternador de Visão + Acessos */}
-            <div className="bg-white border-b border-slate-200 px-6 py-2 flex items-center justify-between shadow-2xs z-20">
-                <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
-                        W
+        <div className="flex flex-col h-screen bg-[#f0f2f5] overflow-hidden select-none">
+            {/* TOP BAR SUPERIOR - Estilo WaAtendimento CRM */}
+            <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between shadow-2xs z-20 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white font-black text-xs shadow-xs">
+                        WA
                     </div>
                     <div>
-                        <h1 className="font-black text-xs text-slate-900 leading-none">WaAtendimento</h1>
-                        <span className="text-[9px] text-emerald-600 font-extrabold tracking-wider uppercase">WhatsApp RH CRM</span>
+                        <h1 className="font-black text-xs text-slate-900 leading-none flex items-center gap-1.5">
+                            WaAtendimento
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Z-API Conectado ao Vivo" />
+                        </h1>
+                        <span className="text-[9px] text-emerald-600 font-bold tracking-wider uppercase">WhatsApp RH CRM</span>
                     </div>
                 </div>
 
-                {/* Alternador de Visão [ 💬 Chat WhatsApp ] [ 📊 Pipeline Kanban ] + Acessos em Linha Dedicada */}
+                {/* Alternador de Visão + Acessos */}
                 <div className="flex items-center gap-2">
                     <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
                         <button
@@ -344,18 +337,21 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 </div>
             </div>
 
-            {/* TOP BAR - LINHA 2: Pílulas de Etapas do Pipeline (Apenas na visão de Chat para não espremer o Kanban) */}
+            {/* TOP BAR - LINHA 2: Carrossel de Etapas Kanban do CRM (Foto 01) */}
             {mainView === "chat" && (
-                <div className="bg-slate-50 border-b border-slate-200/80 px-6 py-1.5 flex items-center gap-2 overflow-x-auto no-scrollbar shadow-2xs z-10">
+                <div className="bg-[#f0f2f5] border-b border-slate-200/80 px-4 py-2 flex items-center gap-2 overflow-x-auto no-scrollbar shadow-2xs z-10">
                     <button
                         onClick={() => setSelectedStageId(null)}
-                        className={`px-3 py-1 rounded-full text-xs font-extrabold transition flex-shrink-0 whitespace-nowrap ${
+                        className={`px-3 py-1 rounded-full text-xs font-extrabold transition flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 border ${
                             selectedStageId === null
-                                ? "bg-emerald-600 text-white shadow-xs"
-                                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                                ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                         }`}
                     >
-                        Todas ({tickets.length})
+                        <span>Todas</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${selectedStageId === null ? "bg-emerald-800 text-white" : "bg-slate-200 text-slate-700"}`}>
+                            {tickets.length}
+                        </span>
                     </button>
 
                     {stages.map((stg) => {
@@ -383,48 +379,54 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 </div>
             )}
 
-
-
             {/* VISÃO 1: CHAT WHATSAPP WEB REAL (Conexão ao vivo) */}
             {mainView === "chat" && (
                 <div className="flex flex-1 overflow-hidden">
-                    {/* Painel Esquerdo: Lista de Conversas do WhatsApp */}
+                    {/* Painel Esquerdo: Lista de Conversas do WhatsApp (Pixel-Perfect WhatsApp Web) */}
                     <div className="w-96 border-r border-slate-200 bg-white flex flex-col overflow-hidden flex-shrink-0">
-                        <div className="p-3 border-b border-slate-100 bg-slate-50/80 space-y-2">
+                        {/* Header com Busca e Filtros (Foto 01) */}
+                        <div className="p-3 border-b border-slate-200 bg-[#f0f2f5] space-y-2">
+                            <div className="flex items-center justify-between mb-1">
+                                <h2 className="text-base font-black text-slate-900 tracking-tight">WhatsApp</h2>
+                                <div className="flex items-center gap-2 text-slate-500">
+                                    <button className="hover:text-slate-800 p-1" title="Nova mensagem"><Plus className="w-4 h-4" /></button>
+                                    <button className="hover:text-slate-800 p-1" title="Mais opções"><MoreVertical className="w-4 h-4" /></button>
+                                </div>
+                            </div>
+
                             <div className="relative">
                                 <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                                 <Input
                                     placeholder="Pesquisar ou começar uma nova conversa"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-9 text-xs h-9 bg-white border-slate-200 rounded-xl"
+                                    className="pl-9 text-xs h-9 bg-white border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500"
                                 />
                             </div>
 
-                            <div className="flex items-center gap-1.5 pt-0.5">
+                            <div className="flex items-center gap-1.5 pt-0.5 overflow-x-auto no-scrollbar">
                                 <button
                                     onClick={() => setFilterMode("all")}
-                                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold transition ${filterMode === "all" ? "bg-slate-900 text-white" : "bg-slate-200/70 text-slate-600 hover:bg-slate-300"}`}
+                                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition flex-shrink-0 ${filterMode === "all" ? "bg-slate-900 text-white" : "bg-slate-200/80 text-slate-600 hover:bg-slate-300"}`}
                                 >
                                     Tudo
                                 </button>
                                 <button
                                     onClick={() => setFilterMode("unread")}
-                                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold transition ${filterMode === "unread" ? "bg-slate-900 text-white" : "bg-slate-200/70 text-slate-600 hover:bg-slate-300"}`}
+                                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition flex-shrink-0 ${filterMode === "unread" ? "bg-slate-900 text-white" : "bg-slate-200/80 text-slate-600 hover:bg-slate-300"}`}
                                 >
                                     Não lidas ({tickets.filter(t => t.unreadCount > 0).length})
                                 </button>
                                 <button
                                     onClick={() => setFilterMode("groups")}
-                                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold transition ${filterMode === "groups" ? "bg-slate-900 text-white" : "bg-slate-200/70 text-slate-600 hover:bg-slate-300"}`}
+                                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition flex-shrink-0 ${filterMode === "groups" ? "bg-slate-900 text-white" : "bg-slate-200/80 text-slate-600 hover:bg-slate-300"}`}
                                 >
                                     Grupos ({tickets.filter(t => t.contactPhone?.includes("-group") || t.contactName?.toLowerCase().includes("grupo") || t.contactName?.toLowerCase().includes("rh -")).length})
                                 </button>
                             </div>
-
                         </div>
 
-                        {/* Lista de Contatos com Scroll Funcional */}
+                        {/* Lista de Contatos WhatsApp Web (Foto 01) */}
                         <div className="flex-1 overflow-y-auto divide-y divide-slate-100 min-h-0">
                             {loading ? (
                                 <div className="p-6 text-center text-xs text-slate-400">Carregando conversas...</div>
@@ -433,7 +435,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                             ) : (
                                 filteredTickets.map((t) => {
                                     const isSelected = selectedTicketId === t.id;
-                                    const lastMsg = t.messages?.[0];
+                                    const lastMsg = t.messages?.[t.messages.length - 1];
                                     const isGroup = t.contactPhone?.includes("-group") || t.contactName?.toLowerCase().includes("grupo") || t.contactName?.toLowerCase().includes("rh -");
 
                                     return (
@@ -441,7 +443,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                             key={t.id}
                                             onClick={() => setSelectedTicketId(t.id)}
                                             className={`p-3 flex items-center gap-3 cursor-pointer transition relative ${
-                                                isSelected ? "bg-slate-100 border-l-4 border-l-emerald-500" : "hover:bg-slate-50"
+                                                isSelected ? "bg-[#f0f2f5] border-l-4 border-l-emerald-500" : "hover:bg-slate-50"
                                             }`}
                                         >
                                             <div className="relative flex-shrink-0">
@@ -449,14 +451,14 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                     <img
                                                         src={t.contactPhotoUrl}
                                                         alt=""
-                                                        className="w-12 h-12 rounded-full object-cover border border-slate-200 shadow-2xs"
+                                                        className="w-11 h-11 rounded-full object-cover border border-slate-200 shadow-2xs"
                                                     />
                                                 ) : isGroup ? (
-                                                    <div className="w-12 h-12 rounded-full bg-emerald-700 text-white font-bold text-lg flex items-center justify-center shadow-2xs">
+                                                    <div className="w-11 h-11 rounded-full bg-amber-600 text-white font-bold text-base flex items-center justify-center shadow-2xs">
                                                         👥
                                                     </div>
                                                 ) : (
-                                                    <div className="w-12 h-12 rounded-full bg-slate-700 text-white font-bold text-sm flex items-center justify-center shadow-2xs">
+                                                    <div className="w-11 h-11 rounded-full bg-emerald-700 text-white font-bold text-sm flex items-center justify-center shadow-2xs">
                                                         {t.contactName?.charAt(0).toUpperCase() || "?"}
                                                     </div>
                                                 )}
@@ -464,7 +466,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
 
                                             <div className="overflow-hidden flex-1">
                                                 <div className="flex items-center justify-between mb-0.5">
-                                                    <h4 className="text-xs font-bold text-slate-900 truncate">{t.contactName}</h4>
+                                                    <h4 className="text-xs font-black text-slate-900 truncate">{t.contactName}</h4>
                                                     <span className={`text-[10px] font-mono flex-shrink-0 ${t.unreadCount > 0 ? "text-emerald-600 font-extrabold" : "text-slate-400"}`}>
                                                         {new Date(t.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </span>
@@ -473,55 +475,52 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                 <div className="flex items-center justify-between gap-1">
                                                     <p className="text-[11px] text-slate-500 truncate leading-snug flex-1">
                                                         {lastMsg ? (
-                                                            <span>{lastMsg.senderType === "ATTENDANT" ? "✓ " : ""}{lastMsg.content}</span>
+                                                            <span>{lastMsg.senderType === "ATTENDANT" ? "✓ Você: " : ""}{lastMsg.content}</span>
                                                         ) : (
                                                             <span className="italic text-slate-400">Atendimento iniciado</span>
                                                         )}
                                                     </p>
 
-                                                    {/* Bolinha Verde do WhatsApp Web com a Quantidade de Não Lidas na Direita */}
+                                                    {/* Bolinha Verde do WhatsApp Web com a Quantidade de Não Lidas */}
                                                     {t.unreadCount > 0 && (
-                                                        <span className="bg-[#25d366] text-white text-[10px] font-extrabold min-w-[20px] h-[20px] rounded-full flex items-center justify-center px-1.5 flex-shrink-0 shadow-2xs">
+                                                        <span className="bg-[#25d366] text-white text-[10px] font-extrabold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 flex-shrink-0 shadow-2xs">
                                                             {t.unreadCount}
                                                         </span>
                                                     )}
                                                 </div>
-
-                                                {t.stage && (
-                                                    <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.2 rounded text-slate-600 bg-slate-100 border">
-                                                        {t.stage.name}
-                                                    </span>
-                                                )}
                                             </div>
                                         </div>
-
                                     );
                                 })
                             )}
                         </div>
                     </div>
 
-                    {/* Painel Direito: Chat WhatsApp Web Real */}
+                    {/* Painel Direito: Chat WhatsApp Web Real (Foto 01) */}
                     <div className="flex-1 flex flex-col bg-[#efeae2] relative overflow-hidden">
                         {!ticketDetail ? (
-                            <div className="flex-1 flex items-center justify-center text-xs text-slate-400 bg-slate-100">
-                                Selecione uma conversa ao lado para visualizar o chat.
+                            <div className="flex-1 flex flex-col items-center justify-center text-xs text-slate-400 bg-[#f0f2f5] p-6 text-center">
+                                <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-black text-xl mb-3">
+                                    💬
+                                </div>
+                                <h3 className="text-base font-bold text-slate-700 mb-1">WaAtendimento — WhatsApp Web</h3>
+                                <p className="text-xs text-slate-500 max-w-sm">Selecione uma conversa na lista à esquerda para visualizar o histórico de mensagens, ouvir áudios e interagir.</p>
                             </div>
                         ) : (
                             <div className="flex flex-1 flex-col h-full overflow-hidden">
-                                {/* Header da Conversa no Chat (100% Limpo e Sem Amontoar) */}
+                                {/* Header da Conversa (Foto 01 Limpo e Elegante) */}
                                 <div className="h-16 bg-[#f0f2f5] border-b border-slate-300 px-4 flex items-center justify-between z-10 shadow-2xs gap-3">
                                     <div className="flex items-center gap-3 overflow-hidden min-w-0">
                                         {ticketDetail.contactPhotoUrl && ticketDetail.contactPhotoUrl !== "null" ? (
                                             <img src={ticketDetail.contactPhotoUrl} alt="" className="w-10 h-10 rounded-full object-cover border flex-shrink-0" />
                                         ) : (
-                                            <div className="w-10 h-10 rounded-full bg-slate-700 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+                                            <div className="w-10 h-10 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
                                                 {ticketDetail.contactName?.charAt(0).toUpperCase()}
                                             </div>
                                         )}
                                         <div className="overflow-hidden min-w-0 flex-1">
                                             <div className="flex items-center gap-1.5">
-                                                <h3 className="text-xs font-black text-slate-900 truncate max-w-[200px] leading-tight" title={ticketDetail.contactName}>
+                                                <h3 className="text-xs font-black text-slate-900 truncate max-w-[220px] leading-tight" title={ticketDetail.contactName}>
                                                     {ticketDetail.contactName}
                                                 </h3>
                                                 <button onClick={() => setIsEditingContact(true)} className="text-slate-400 hover:text-slate-600 text-xs flex-shrink-0" title="Editar nome">
@@ -532,7 +531,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                         </div>
                                     </div>
 
-                                    {/* Controles de Ação do RH (Abas + Etapa + Ações) */}
+                                    {/* Controles de Ação do RH no Chat (Foto 01) */}
                                     <div className="flex items-center gap-2 flex-shrink-0">
                                         <div className="flex bg-slate-200/80 p-0.5 rounded-lg flex-shrink-0">
                                             <button
@@ -555,13 +554,14 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                             className="h-7 text-xs font-bold gap-1 bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 flex-shrink-0 px-2.5"
                                             onClick={() => setShowScheduleAct(true)}
                                         >
-                                            📅 Agendar Atividade
+                                            📅 Agendar
                                         </Button>
 
+                                        {/* Dropdown de Etapa do Pipeline */}
                                         <select
                                             value={ticketDetail.stageId}
                                             onChange={(e) => handleChangeStage(e.target.value)}
-                                            className="bg-white border border-slate-300 text-slate-800 font-extrabold text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-500 shadow-2xs flex-shrink-0"
+                                            className="bg-white border border-slate-300 text-slate-800 font-black text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-emerald-500 shadow-2xs flex-shrink-0"
                                         >
                                             {stages.map((stg) => (
                                                 <option key={stg.id} value={stg.id}>{stg.name}</option>
@@ -580,26 +580,31 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                     </div>
                                 </div>
 
-                                {/* Chat WhatsApp Real com Fundo Oficial Exato */}
+                                {/* Área de Mensagens do Chat com Papel de Parede Oficial (Foto 01) */}
                                 {chatRightTab === "chat" && (
                                     <div className="flex-1 flex flex-col overflow-hidden bg-[#efeae2] relative">
-                                        {/* Papel de Parede Oficial 100% Exato do WhatsApp Web */}
                                         <div
                                             className="absolute inset-0 bg-[#efeae2] bg-repeat opacity-95 pointer-events-none z-0"
                                             style={{ backgroundImage: `url('/whatsapp-bg-official.png')`, backgroundSize: '500px 380px' }}
                                         />
 
                                         <div className="flex-1 overflow-y-auto p-4 space-y-2.5 relative z-10">
-
+                                            {/* Divisor de Data "Hoje" estilo WhatsApp Web */}
+                                            <div className="flex justify-center my-2">
+                                                <span className="bg-white/90 text-slate-600 text-[10px] font-bold px-3 py-1 rounded-full shadow-2xs border border-slate-200/50 uppercase tracking-wider">
+                                                    Hoje
+                                                </span>
+                                            </div>
 
                                             {ticketDetail.messages?.map((msg: any) => {
                                                 const isAttendant = msg.senderType === "ATTENDANT" || msg.fromMe === true;
-                                                const showSenderHeader = !isAttendant && msg.senderName && msg.senderName !== ticketDetail.contactName;
+                                                const isGroupTicket = ticketDetail.contactPhone?.includes("-group") || ticketDetail.contactPhone?.length > 13 || ticketDetail.title?.toLowerCase().includes("grupo") || ticketDetail.title?.includes("Taxas") || ticketDetail.title?.includes("Mesa") || ticketDetail.title?.includes("RH - ATESTADO");
+                                                const showSenderHeader = isGroupTicket && !isAttendant && msg.senderName;
 
                                                 return (
                                                     <div key={msg.id} className={`flex ${isAttendant ? "justify-end" : "justify-start"}`}>
                                                         <div className={`max-w-[70%] p-2.5 rounded-lg shadow-2xs text-xs ${isAttendant ? "bg-[#d9fdd3] text-slate-900 rounded-tr-none" : "bg-white text-slate-900 rounded-tl-none"}`}>
-                                                            {/* Nome do Colaborador que postou no grupo */}
+                                                            {/* Nome do Colaborador que postou no grupo (apenas em Grupos) */}
                                                             {showSenderHeader && (
                                                                 <div className="text-[11px] font-extrabold text-emerald-700 mb-1">
                                                                     {msg.senderName}
@@ -610,15 +615,10 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                             {msg.mediaUrl && (msg.messageType === "IMAGE" || msg.mediaUrl.match(/\.(jpg|jpeg|png|webp)/i)) && (
                                                                 <div className="relative group cursor-pointer my-1 overflow-hidden rounded-lg border border-slate-200" onClick={() => setSelectedImageZoom(msg.mediaUrl)}>
                                                                     <img src={msg.mediaUrl} alt="Mídia" className="max-w-xs rounded-lg max-h-72 object-cover transition group-hover:scale-105" />
-                                                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
-                                                                        <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-md">
-                                                                            🔍 Expandir / Baixar
-                                                                        </span>
-                                                                    </div>
                                                                 </div>
                                                             )}
 
-                                                            {/* Exibição de PDF Real com Download Direto */}
+                                                            {/* Exibição de PDF Real */}
                                                             {msg.messageType === "DOCUMENT" && msg.mediaUrl && (
                                                                 <div className="flex items-center gap-3 p-2.5 bg-slate-100/90 rounded-lg mb-2 border border-slate-200">
                                                                     <div className="w-9 h-9 rounded bg-red-500 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
@@ -654,18 +654,21 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                             <div ref={messagesEndRef} />
                                         </div>
 
-                                        {/* Barra de Digitação */}
+                                        {/* Barra de Digitação Estilo WhatsApp Web (Foto 01) */}
                                         <div className="h-16 bg-[#f0f2f5] border-t border-slate-300 px-4 flex items-center gap-3">
                                             <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-                                            <button type="button" className="text-slate-500 hover:text-slate-700" onClick={() => fileInputRef.current?.click()}>
+                                            <button type="button" className="text-slate-500 hover:text-slate-700 p-1" onClick={() => fileInputRef.current?.click()} title="Anexar arquivo">
                                                 <Paperclip className="w-5 h-5" />
+                                            </button>
+                                            <button type="button" className="text-slate-500 hover:text-slate-700 p-1" title="Emojis">
+                                                <Smile className="w-5 h-5" />
                                             </button>
                                             <Textarea
                                                 value={messageText}
                                                 onChange={(e) => setMessageText(e.target.value)}
                                                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
                                                 placeholder="Digite uma mensagem..."
-                                                className="flex-1 text-xs resize-none h-10 min-h-[40px] bg-white border-none rounded-xl px-4 py-2.5 shadow-2xs"
+                                                className="flex-1 text-xs resize-none h-10 min-h-[40px] bg-white border-none rounded-lg px-4 py-2.5 shadow-2xs focus:ring-1 focus:ring-emerald-500"
                                             />
                                             <Button onClick={handleSendMessage} disabled={sending || !messageText.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 w-10 p-0 rounded-full flex items-center justify-center shadow-xs">
                                                 <Send className="w-4 h-4 ml-0.5" />
@@ -726,8 +729,6 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 </>
             )}
 
-
-
             {/* MODAL LIGHTBOX / ZOOM DE IMAGEM */}
             {selectedImageZoom && (
                 <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setSelectedImageZoom(null)}>
@@ -766,10 +767,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 />
             )}
 
-
             <HrAccessManager open={showAccessManager} onClose={() => setShowAccessManager(false)} />
         </div>
     );
 }
-
-

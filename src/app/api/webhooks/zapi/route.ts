@@ -39,7 +39,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ status: "ack_ignored" });
         }
 
-        const isFromMe = body.fromMe === true || body.from === "me" || body.isSentByMe === true;
+        const isFromMe = body.fromMe === true || body.fromMe === "true" || body.from === "me" || body.isSentByMe === true || body.isSentByMe === "true";
         const rawPhone = isFromMe
             ? (body.to || body.phone || body.recipient || "")
             : (body.phone || body.from || body.sender || body.senderPhone || "");
