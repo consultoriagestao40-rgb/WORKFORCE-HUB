@@ -58,6 +58,8 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
     const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
     const [ticketDetail, setTicketDetail] = useState<any>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
+    const [selectedImageZoom, setSelectedImageZoom] = useState<string | null>(null);
+
 
     // Busca e Filtros
     const [searchQuery, setSearchQuery] = useState("");
@@ -578,12 +580,19 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                                 </div>
                                                             )}
 
-                                                            {/* Exibição de Imagem */}
+                                                            {/* Exibição de Imagem com Zoom e Download ao Clicar */}
                                                             {msg.mediaUrl && (msg.messageType === "IMAGE" || msg.mediaUrl.match(/\.(jpg|jpeg|png|webp)/i)) && (
-                                                                <img src={msg.mediaUrl} alt="" className="max-w-xs rounded-lg mb-2 max-h-60 object-cover border" />
+                                                                <div className="relative group cursor-pointer my-1 overflow-hidden rounded-lg border border-slate-200" onClick={() => setSelectedImageZoom(msg.mediaUrl)}>
+                                                                    <img src={msg.mediaUrl} alt="Mídia" className="max-w-xs rounded-lg max-h-72 object-cover transition group-hover:scale-105" />
+                                                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                                                                        <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-md">
+                                                                            🔍 Expandir / Baixar
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
                                                             )}
 
-                                                            {/* Exibição de PDF Real */}
+                                                            {/* Exibição de PDF Real com Download Direto */}
                                                             {msg.messageType === "DOCUMENT" && msg.mediaUrl && (
                                                                 <div className="flex items-center gap-3 p-2.5 bg-slate-100/90 rounded-lg mb-2 border border-slate-200">
                                                                     <div className="w-9 h-9 rounded bg-red-500 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
@@ -591,12 +600,18 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                                     </div>
                                                                     <div className="overflow-hidden flex-1">
                                                                         <span className="font-bold text-slate-800 block truncate text-xs">
-                                                                            {msg.mediaFileName || "Documento"}
+                                                                            {msg.mediaFileName || "Documento.pdf"}
                                                                         </span>
                                                                         <span className="text-[10px] text-slate-500">Documento • PDF</span>
                                                                     </div>
-                                                                    <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-700 font-bold underline flex-shrink-0">
-                                                                        Abrir
+                                                                    <a
+                                                                        href={msg.mediaUrl}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        download={msg.mediaFileName || "documento.pdf"}
+                                                                        className="text-xs bg-emerald-600 text-white font-bold px-2.5 py-1 rounded-md hover:bg-emerald-700 transition flex-shrink-0"
+                                                                    >
+                                                                        Baixar
                                                                     </a>
                                                                 </div>
                                                             )}
@@ -682,7 +697,34 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
             )}
 
 
+            {/* MODAL LIGHTBOX / ZOOM DE IMAGEM */}
+            {selectedImageZoom && (
+                <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setSelectedImageZoom(null)}>
+                    <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                        <img src={selectedImageZoom} alt="Visualização" className="max-w-full max-h-[80vh] object-contain rounded-xl shadow-2xl border border-slate-700" />
+                        <div className="flex items-center gap-3">
+                            <a
+                                href={selectedImageZoom}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download="imagem_whatsapp.jpg"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-lg transition"
+                            >
+                                📥 Baixar Imagem Original
+                            </a>
+                            <button
+                                onClick={() => setSelectedImageZoom(null)}
+                                className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-lg transition"
+                            >
+                                ✕ Fechar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <HrAccessManager open={showAccessManager} onClose={() => setShowAccessManager(false)} />
         </div>
     );
 }
+
