@@ -42,12 +42,11 @@ interface Props {
 export function HrTicketModal({ ticketId, onClose, onUpdated, availableUsers = [], availableLabels = [], availableStages = [] }: Props) {
     const [ticket, setTicket] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<"chat" | "notes" | "activities" | "attachments">("chat");
+    const [activeTab, setActiveTab] = useState<"chat" | "notes">("chat");
 
     const [messageText, setMessageText] = useState("");
     const [sending, setSending] = useState(false);
     const [stamp, setStamp] = useState("");
-    const [showStampInput, setShowStampInput] = useState(false);
 
     const [isEditingContact, setIsEditingContact] = useState(false);
     const [contactNameInput, setContactNameInput] = useState("");
@@ -57,7 +56,6 @@ export function HrTicketModal({ ticketId, onClose, onUpdated, availableUsers = [
     const [showScheduleAct, setShowScheduleAct] = useState(false);
     const [showTransferModal, setShowTransferModal] = useState(false);
     const [transferTargetUser, setTransferTargetUser] = useState("");
-    const [transferReason, setTransferReason] = useState("");
 
     const [noteText, setNoteText] = useState("");
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -65,26 +63,25 @@ export function HrTicketModal({ ticketId, onClose, onUpdated, availableUsers = [
 
     const loadDetail = useCallback(async () => {
         if (!ticketId) return;
-        const res = await getHrTicketDetail(ticketId);
-        if (res) {
-            setTicket(res);
-            setContactNameInput(res.contactName);
-            setContactPhoneInput(res.contactPhone);
-            setStamp(res.attendantStamp || "");
-            markHrTicketRead(ticketId);
+        try {
+            const res = await getHrTicketDetail(ticketId);
+            if (res) {
+                setTicket(res);
+                setContactNameInput(res.contactName);
+                setContactPhoneInput(res.contactPhone);
+                setStamp(res.attendantStamp || "");
+                markHrTicketRead(ticketId);
+            }
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     }, [ticketId]);
 
     useEffect(() => {
-        if (ticketId) {
-            setLoading(true);
-            loadDetail();
-            refreshContactInfo(ticketId);
-        }
-    }, [ticketId, loadDetail]);
+        loadDetail();
+    }, [loadDetail]);
 
-    // Polling a cada 3s para mensagens em tempo real
+    // Polling a cada 2.5s para novas mensagens ativas no modal
     useEffect(() => {
         if (!ticketId) return;
         const interval = setInterval(async () => {
@@ -101,8 +98,7 @@ export function HrTicketModal({ ticketId, onClose, onUpdated, availableUsers = [
                 });
                 markHrTicketRead(ticketId);
             }
-        }, 3000);
-
+        }, 2500);
         return () => clearInterval(interval);
     }, [ticketId, ticket?.messages]);
 
@@ -182,32 +178,9 @@ export function HrTicketModal({ ticketId, onClose, onUpdated, availableUsers = [
         }
     };
 
-    const handleSaveContact = async () => {
-        if (!ticket) return;
-        await updateContactInfo(ticket.id, { name: contactNameInput, phone: contactPhoneInput });
-        setIsEditingContact(false);
-        setTicket((prev: any) => ({ ...prev, contactName: contactNameInput, contactPhone: contactPhoneInput }));
-        onUpdated?.();
-    };
-
-    const handleSaveStamp = async () => {
-        if (!ticket) return;
-        await updateTicketStamp(ticket.id, stamp);
-        setShowStampInput(false);
-        setTicket((prev: any) => ({ ...prev, attendantStamp: stamp }));
-    };
-
     const handleAssume = async () => {
         if (!ticket) return;
         await assumeHrTicket(ticket.id);
-        loadDetail();
-        onUpdated?.();
-    };
-
-    const handleTransfer = async () => {
-        if (!ticket || !transferTargetUser) return;
-        await transferHrTicket(ticket.id, transferTargetUser, transferReason);
-        setShowTransferModal(false);
         loadDetail();
         onUpdated?.();
     };
@@ -230,14 +203,6 @@ export function HrTicketModal({ ticketId, onClose, onUpdated, availableUsers = [
         }
     };
 
-    const handleToggleLabel = async (labelId: string) => {
-        if (!ticket) return;
-        const hasLabel = ticket.labels.some((l: any) => l.id === labelId);
-        await applyLabelToTicket(ticket.id, labelId, !hasLabel);
-        loadDetail();
-        onUpdated?.();
-    };
-
     const handleChangeStage = async (stageId: string) => {
         if (!ticket) return;
         await updateHrTicketStage(ticket.id, stageId);
@@ -248,294 +213,149 @@ export function HrTicketModal({ ticketId, onClose, onUpdated, availableUsers = [
     if (!ticketId) return null;
 
     return (
-        <Dialog open={!!ticketId} onOpenChange={(o) => !o && onClose()}>
-            <DialogContent className="max-w-6xl h-[92vh] p-0 flex flex-col overflow-hidden bg-slate-900 border-none rounded-2xl shadow-2xl">
-                {loading ? (
-                    <div className="flex-1 flex items-center justify-center text-xs text-slate-400">
+        <Dialog open={!!ticketId} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="p-0 border-none bg-transparent max-w-6xl w-[95vw] sm:max-w-6xl shadow-none">
+                {loading || !ticket ? (
+                    <div className="bg-[#0f172a] text-white p-8 rounded-3xl text-center text-xs border border-slate-700">
                         Carregando atendimento...
                     </div>
-                ) : !ticket ? (
-                    <div className="flex-1 flex items-center justify-center text-xs text-slate-400">
-                        Atendimento não encontrado.
-                    </div>
                 ) : (
-                    <div className="flex flex-1 overflow-hidden">
-                        {/* PAINEL ESQUERDO: Info & Controles */}
-                        <div className="w-80 border-r border-slate-800 bg-slate-950 text-slate-200 flex flex-col overflow-y-auto">
-                            {/* Profile Header */}
-                            <div className="p-4 border-b border-slate-800 bg-slate-900/50 text-center">
-                                <div className="relative inline-block mb-3">
-                                    {ticket.contactPhotoUrl ? (
-                                        <img
-                                            src={ticket.contactPhotoUrl}
-                                            alt={ticket.contactName}
-                                            className="w-20 h-20 rounded-full object-cover border-2 border-emerald-500 shadow-lg"
-                                        />
-                                    ) : (
-                                        <div className="w-20 h-20 rounded-full bg-slate-700 text-white font-bold text-2xl flex items-center justify-center shadow-lg">
-                                            {ticket.contactName?.charAt(0).toUpperCase() || "?"}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {isEditingContact ? (
-                                    <div className="space-y-2 text-left bg-slate-800 p-2.5 rounded-lg border border-slate-700">
-                                        <Input
-                                            value={contactNameInput}
-                                            onChange={(e) => setContactNameInput(e.target.value)}
-                                            placeholder="Nome do Contato"
-                                            className="text-xs h-7 bg-slate-900 border-slate-700 text-white"
-                                        />
-                                        <Input
-                                            value={contactPhoneInput}
-                                            onChange={(e) => setContactPhoneInput(e.target.value)}
-                                            placeholder="Telefone"
-                                            className="text-xs h-7 font-mono bg-slate-900 border-slate-700 text-white"
-                                        />
-                                        <div className="flex justify-end gap-1 pt-1">
-                                            <Button variant="ghost" size="sm" className="h-6 text-[10px] text-slate-400" onClick={() => setIsEditingContact(false)}>Cancelar</Button>
-                                            <Button size="sm" className="h-6 text-[10px] bg-emerald-600 hover:bg-emerald-700" onClick={handleSaveContact}>Salvar</Button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div>
-                                        <div className="flex items-center justify-center gap-1.5">
-                                            <h3 className="font-bold text-sm text-white">{ticket.contactName}</h3>
-                                            <button
-                                                onClick={() => setIsEditingContact(true)}
-                                                className="text-[10px] text-slate-400 hover:text-emerald-400"
-                                                title="Editar Contato"
-                                            >
-                                                ✏️
-                                            </button>
-                                        </div>
-                                        <p className="text-xs font-mono text-emerald-400">{ticket.contactPhone}</p>
-                                        {ticket.employee && (
-                                            <span className="inline-flex items-center gap-1 mt-1 text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20 font-semibold">
-                                                <ShieldCheck className="w-3 h-3" /> Colaborador Cadastrado
-                                            </span>
+                    <div className="relative bg-[#0f172a] text-white w-full h-[88vh] rounded-3xl shadow-2xl overflow-hidden flex border border-slate-700/60 z-50">
+                        {/* PAINEL LATERAL ESQUERDO */}
+                        <div className="w-80 bg-[#1e293b]/95 border-r border-slate-700/80 p-5 flex flex-col justify-between overflow-y-auto space-y-4 flex-shrink-0">
+                            <div className="space-y-4">
+                                <div className="text-center space-y-2 pb-3 border-b border-slate-700/60">
+                                    <div className="relative inline-block">
+                                        {ticket.contactPhotoUrl && ticket.contactPhotoUrl !== "null" ? (
+                                            <img src={ticket.contactPhotoUrl} alt="" className="w-20 h-20 rounded-full object-cover border-2 border-emerald-500 shadow-lg mx-auto" />
+                                        ) : (
+                                            <div className="w-20 h-20 rounded-full bg-slate-700 text-white font-extrabold text-2xl flex items-center justify-center border-2 border-emerald-500 shadow-lg mx-auto">
+                                                {ticket.contactName?.charAt(0).toUpperCase()}
+                                            </div>
                                         )}
                                     </div>
-                                )}
-                            </div>
-
-                            {/* Etapa no Pipeline */}
-                            <div className="p-3.5 border-b border-slate-800">
-                                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Etapa no Pipeline</label>
-                                <select
-                                    value={ticket.stageId}
-                                    onChange={(e) => handleChangeStage(e.target.value)}
-                                    className="w-full text-xs font-semibold p-2 rounded-lg border border-slate-700 bg-slate-900 text-white"
-                                >
-                                    {availableStages.map((st: any) => (
-                                        <option key={st.id} value={st.id}>{st.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Atendente Responsável */}
-                            <div className="p-3.5 border-b border-slate-800">
-                                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Atendente Responsável</label>
-                                {ticket.assignee ? (
-                                    <div className="flex items-center justify-between bg-slate-900 border border-slate-800 p-2.5 rounded-lg">
-                                        <span className="text-xs font-semibold text-white">👤 {ticket.assignee.name}</span>
-                                        <Button variant="ghost" size="sm" className="h-6 text-[10px] text-emerald-400 hover:bg-emerald-500/10" onClick={() => setShowTransferModal(true)}>
-                                            <ArrowRightLeft className="w-3 h-3 mr-1" /> Transferir
-                                        </Button>
-                                    </div>
-                                ) : (
-                                    <Button size="sm" className="w-full text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold" onClick={handleAssume}>
-                                        <UserCheck className="w-3.5 h-3.5 mr-1.5" /> Assumir Atendimento
-                                    </Button>
-                                )}
-                            </div>
-
-                            {/* Etiquetas */}
-                            <div className="p-3.5 border-b border-slate-800">
-                                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Etiquetas</label>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {availableLabels.map((lbl: any) => {
-                                        const active = ticket.labels.some((l: any) => l.id === lbl.id);
-                                        return (
-                                            <button
-                                                key={lbl.id}
-                                                onClick={() => handleToggleLabel(lbl.id)}
-                                                className={`text-[10px] px-2 py-0.5 rounded-full border transition ${active ? "text-white font-bold shadow-sm" : "bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700"}`}
-                                                style={{ backgroundColor: active ? lbl.color : undefined }}
-                                            >
-                                                {active ? "✓ " : ""}{lbl.name}
-                                            </button>
-                                        );
-                                    })}
+                                    <h2 className="text-sm font-extrabold text-white leading-tight">{ticket.contactName}</h2>
+                                    <span className="text-xs text-emerald-400 font-mono block">{ticket.contactPhone}</span>
                                 </div>
-                            </div>
 
-                            {/* Carimbo do Atendente */}
-                            <div className="p-3.5 border-b border-slate-800">
-                                <div className="flex items-center justify-between mb-1.5">
-                                    <label className="text-[10px] uppercase font-bold text-slate-400">Carimbo do Atendente</label>
-                                    <button onClick={() => setShowStampInput(!showStampInput)} className="text-[10px] text-emerald-400 hover:underline">
-                                        {showStampInput ? "Fechar" : "Configurar"}
-                                    </button>
-                                </div>
-                                {showStampInput ? (
-                                    <div className="space-y-1.5">
-                                        <Textarea
-                                            value={stamp}
-                                            onChange={(e) => setStamp(e.target.value)}
-                                            placeholder="Ex: *Atendente Késia (RH JVS)*"
-                                            className="text-xs h-16 bg-slate-900 border-slate-700 text-white"
-                                        />
-                                        <Button size="sm" className="w-full h-6 text-[10px] bg-emerald-600 hover:bg-emerald-700" onClick={handleSaveStamp}>Salvar Carimbo</Button>
-                                    </div>
-                                ) : (
-                                    <div className="text-[11px] text-slate-300 bg-slate-900 p-2 rounded-lg border border-slate-800 italic">
-                                        {ticket.attendantStamp || <span className="text-slate-500">Nenhum carimbo ativo</span>}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Botões de Ação Rápida */}
-                            <div className="p-3.5 space-y-2 mt-auto">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full text-xs border-slate-800 text-emerald-400 bg-slate-900 hover:bg-slate-800 justify-start gap-2"
-                                    onClick={() => setShowScheduleMsg(true)}
-                                >
-                                    <Clock className="w-3.5 h-3.5" /> Agendar Mensagem (WhatsApp)
-                                </Button>
-
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full text-xs border-slate-800 text-amber-400 bg-slate-900 hover:bg-slate-800 justify-start gap-2"
-                                    onClick={() => setShowScheduleAct(true)}
-                                >
-                                    <Calendar className="w-3.5 h-3.5" /> Agendar Retorno / Atividade
-                                </Button>
-
-                                {ticket.status === "OPEN" && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="w-full text-xs border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20 justify-start gap-2"
-                                        onClick={handleCloseTicket}
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">ETAPA NO PIPELINE</label>
+                                    <select
+                                        value={ticket.stageId}
+                                        onChange={(e) => handleChangeStage(e.target.value)}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
                                     >
-                                        ✓ Concluir / Encerrar Atendimento
-                                    </Button>
-                                )}
+                                        {availableStages.map((stg) => (
+                                            <option key={stg.id} value={stg.id}>{stg.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">ATENDENTE RESPONSÁVEL</label>
+                                    {ticket.assignee ? (
+                                        <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-700 flex items-center justify-between">
+                                            <span className="text-xs font-bold text-white">👤 {ticket.assignee.name}</span>
+                                        </div>
+                                    ) : (
+                                        <Button onClick={handleAssume} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-xl">
+                                            <UserCheck className="w-4 h-4 mr-1.5" /> Assumir Atendimento
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="space-y-2 pt-3 border-t border-slate-700/60">
+                                <Button onClick={() => setShowScheduleMsg(true)} variant="outline" className="w-full border-emerald-500/40 text-emerald-400 bg-emerald-950/30 hover:bg-emerald-900/50 text-xs font-bold justify-start rounded-xl">
+                                    💬 Agendar Mensagem (WhatsApp)
+                                </Button>
+                                <Button onClick={() => setShowScheduleAct(true)} variant="outline" className="w-full border-amber-500/40 text-amber-400 bg-amber-950/30 hover:bg-amber-900/50 text-xs font-bold justify-start rounded-xl">
+                                    📅 Agendar Retorno / Atividade
+                                </Button>
+                                <Button onClick={handleCloseTicket} variant="outline" className="w-full border-red-500/40 text-red-400 bg-red-950/30 hover:bg-red-900/50 text-xs font-bold justify-start rounded-xl">
+                                    ✕ Encerrar Atendimento
+                                </Button>
                             </div>
                         </div>
 
-                        {/* PAINEL DIREITO: WhatsApp Web Real Interface */}
-                        <div className="flex-1 flex flex-col bg-[#efeae2] relative overflow-hidden">
+                        {/* PAINEL DIREITO: CHAT WHATSAPP WEB REAL COM TEXTURA DOODLE */}
+                        <div className="flex-1 flex flex-col bg-[#efeae2] relative overflow-hidden text-slate-900">
                             {/* WhatsApp Header Bar */}
-                            <div className="h-16 bg-[#f0f2f5] border-b border-slate-300 px-4 flex items-center justify-between z-10 shadow-sm">
+                            <div className="h-16 bg-[#f0f2f5] border-b border-slate-300 px-5 flex items-center justify-between z-10 shadow-xs">
                                 <div className="flex items-center gap-3">
-                                    {ticket.contactPhotoUrl ? (
+                                    {ticket.contactPhotoUrl && ticket.contactPhotoUrl !== "null" ? (
                                         <img src={ticket.contactPhotoUrl} alt="" className="w-10 h-10 rounded-full object-cover border" />
                                     ) : (
-                                        <div className="w-10 h-10 rounded-full bg-slate-700 text-white font-bold text-sm flex items-center justify-center">
-                                            {ticket.contactName?.charAt(0).toUpperCase() || "?"}
+                                        <div className="w-10 h-10 rounded-full bg-slate-700 text-white font-bold text-xs flex items-center justify-center">
+                                            {ticket.contactName?.charAt(0)}
                                         </div>
                                     )}
                                     <div>
-                                        <h3 className="text-sm font-bold text-slate-800 leading-tight">{ticket.contactName}</h3>
+                                        <h3 className="text-xs font-extrabold text-slate-900">{ticket.contactName}</h3>
                                         <span className="text-[11px] text-slate-500 font-mono">{ticket.contactPhone}</span>
                                     </div>
                                 </div>
 
-                                {/* Abas de navegação + Botão Fechar X */}
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-3">
                                     <div className="flex bg-slate-200/80 p-1 rounded-xl gap-1">
-                                        <button
-                                            onClick={() => setActiveTab("chat")}
-                                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${activeTab === "chat" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
-                                        >
+                                        <button onClick={() => setActiveTab("chat")} className={`px-3 py-1 text-xs font-bold rounded-lg transition ${activeTab === "chat" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}>
                                             💬 Chat ({ticket.messages?.length || 0})
                                         </button>
-                                        <button
-                                            onClick={() => setActiveTab("notes")}
-                                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${activeTab === "notes" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
-                                        >
+                                        <button onClick={() => setActiveTab("notes")} className={`px-3 py-1 text-xs font-bold rounded-lg transition ${activeTab === "notes" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}>
                                             📝 Notas ({ticket.notes?.length || 0})
-                                        </button>
-                                        <button
-                                            onClick={() => setActiveTab("activities")}
-                                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${activeTab === "activities" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
-                                        >
-                                            📌 Tarefas ({ticket.activities?.length || 0})
                                         </button>
                                     </div>
 
-                                    {/* Botão Fechar X bem destacado */}
-                                    <button
-                                        onClick={onClose}
-                                        className="w-8 h-8 rounded-full bg-slate-300/70 hover:bg-red-500 hover:text-white text-slate-700 flex items-center justify-center transition shadow-sm font-bold ml-2 cursor-pointer"
-                                        title="Fechar Atendimento (ESC)"
-                                    >
+                                    <button onClick={onClose} className="w-8 h-8 rounded-full bg-slate-300/80 hover:bg-red-600 hover:text-white text-slate-700 flex items-center justify-center font-extrabold transition cursor-pointer">
                                         <X className="w-4 h-4" />
                                     </button>
                                 </div>
                             </div>
 
+                            {/* PAPEL DE PAREDE TEXTURIZADO DOODLE DO WHATSAPP */}
+                            <div className="absolute inset-0 top-16 bottom-16 bg-[#efeae2] opacity-95 pointer-events-none bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px]" />
 
-                            {/* TAB: CHAT WHATSAPP REAL */}
+                            {/* CHAT MESSAGES */}
                             {activeTab === "chat" && (
-                                <div className="flex-1 flex flex-col overflow-hidden bg-[#efeae2]">
-                                    {/* Messages Feed (Papel de parede WhatsApp) */}
-                                    <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+                                <div className="flex-1 flex flex-col overflow-hidden relative z-10">
+                                    <div className="flex-1 overflow-y-auto p-5 space-y-3">
                                         {ticket.messages?.map((msg: any) => {
-                                            const isAttendant = msg.senderType === "ATTENDANT";
-                                            const isSystem = msg.senderType === "SYSTEM";
-
-                                            if (isSystem) {
-                                                return (
-                                                    <div key={msg.id} className="flex justify-center my-2">
-                                                        <span className="text-[10px] bg-slate-200/90 text-slate-600 px-3 py-1 rounded-lg shadow-sm font-medium">
-                                                            {msg.content}
-                                                        </span>
-                                                    </div>
-                                                );
-                                            }
+                                            const isAttendant = msg.senderType === "ATTENDANT" || msg.fromMe === true;
 
                                             return (
-                                                <div
-                                                    key={msg.id}
-                                                    className={`flex ${isAttendant ? "justify-end" : "justify-start"}`}
-                                                >
-                                                    <div
-                                                        className={`max-w-[70%] p-2.5 rounded-lg shadow-sm relative text-xs ${
-                                                            isAttendant
-                                                                ? "bg-[#d9fdd3] text-slate-900 rounded-tr-none"
-                                                                : "bg-white text-slate-900 rounded-tl-none"
-                                                        }`}
-                                                    >
-                                                        {/* Mídia */}
-                                                        {msg.mediaUrl && msg.messageType === "IMAGE" && (
-                                                            <img src={msg.mediaUrl} alt="" className="max-w-xs rounded-lg mb-2 max-h-60 object-cover" />
+                                                <div key={msg.id} className={`flex ${isAttendant ? "justify-end" : "justify-start"}`}>
+                                                    <div className={`max-w-[70%] p-3 rounded-xl shadow-2xs text-xs ${isAttendant ? "bg-[#d9fdd3] text-slate-900 rounded-tr-none" : "bg-white text-slate-900 rounded-tl-none"}`}>
+                                                        {msg.senderName && !isAttendant && msg.senderName !== ticket.contactName && (
+                                                            <div className="text-[11px] font-extrabold text-emerald-700 mb-1">
+                                                                {msg.senderName}
+                                                            </div>
                                                         )}
 
-                                                        {msg.mediaUrl && msg.messageType === "DOCUMENT" && (
-                                                            <a
-                                                                href={msg.mediaUrl}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="flex items-center gap-2 p-2 bg-black/5 rounded-lg mb-2 hover:bg-black/10 transition"
-                                                            >
-                                                                <span className="text-xl">📄</span>
-                                                                <span className="font-semibold underline text-emerald-800 truncate">{msg.mediaFileName || "Baixar Documento"}</span>
-                                                            </a>
+                                                        {msg.mediaUrl && (msg.messageType === "IMAGE" || msg.mediaUrl.match(/\.(jpg|jpeg|png|webp)/i)) && (
+                                                            <img src={msg.mediaUrl} alt="" className="max-w-xs rounded-lg mb-2 max-h-60 object-cover border" />
+                                                        )}
+
+                                                        {msg.messageType === "DOCUMENT" && msg.mediaUrl && (
+                                                            <div className="flex items-center gap-3 p-2.5 bg-slate-100/90 rounded-lg mb-2 border border-slate-200">
+                                                                <div className="w-9 h-9 rounded bg-red-500 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                                                    PDF
+                                                                </div>
+                                                                <div className="overflow-hidden flex-1">
+                                                                    <span className="font-bold text-slate-800 block truncate text-xs">
+                                                                        {msg.mediaFileName || "Documento.pdf"}
+                                                                    </span>
+                                                                    <span className="text-[10px] text-slate-500">Documento • PDF</span>
+                                                                </div>
+                                                                <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-700 font-bold underline flex-shrink-0">
+                                                                    Abrir
+                                                                </a>
+                                                            </div>
                                                         )}
 
                                                         <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-
                                                         <div className="flex items-center justify-end gap-1 text-[9px] text-slate-500 mt-1 font-mono">
                                                             <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                            {isAttendant && (
-                                                                <CheckCheck className="w-3.5 h-3.5 text-emerald-600 inline" />
-                                                            )}
+                                                            {isAttendant && <CheckCheck className="w-3.5 h-3.5 text-emerald-600 inline" />}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -544,92 +364,40 @@ export function HrTicketModal({ ticketId, onClose, onUpdated, availableUsers = [
                                         <div ref={messagesEndRef} />
                                     </div>
 
-                                    {/* Barra de Digitação estilo WhatsApp Web */}
+                                    {/* BARRA DE ENVIO */}
                                     <div className="h-16 bg-[#f0f2f5] border-t border-slate-300 px-4 flex items-center gap-3">
                                         <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-
-                                        <button
-                                            type="button"
-                                            className="text-slate-500 hover:text-slate-700 transition"
-                                            onClick={() => fileInputRef.current?.click()}
-                                            title="Anexar Arquivo"
-                                        >
+                                        <button type="button" className="text-slate-500 hover:text-slate-700" onClick={() => fileInputRef.current?.click()}>
                                             <Paperclip className="w-5 h-5" />
                                         </button>
-
                                         <Textarea
                                             value={messageText}
                                             onChange={(e) => setMessageText(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === "Enter" && !e.shiftKey) {
-                                                    e.preventDefault();
-                                                    handleSendMessage();
-                                                }
-                                            }}
+                                            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
                                             placeholder="Digite uma mensagem..."
-                                            className="flex-1 text-xs resize-none h-10 min-h-[40px] bg-white border-none rounded-xl px-4 py-2.5 focus-visible:ring-1 focus-visible:ring-emerald-500 shadow-sm"
+                                            className="flex-1 text-xs resize-none h-10 min-h-[40px] bg-white border-none rounded-xl px-4 py-2.5 shadow-2xs"
                                         />
-
-                                        <Button
-                                            onClick={handleSendMessage}
-                                            disabled={sending || !messageText.trim()}
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 w-10 p-0 rounded-full flex items-center justify-center shadow-md"
-                                        >
+                                        <Button onClick={handleSendMessage} disabled={sending || !messageText.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 w-10 p-0 rounded-full flex items-center justify-center shadow-xs">
                                             <Send className="w-4 h-4 ml-0.5" />
                                         </Button>
                                     </div>
                                 </div>
                             )}
 
-                            {/* TAB: ANOTAÇÕES */}
+                            {/* NOTAS */}
                             {activeTab === "notes" && (
-                                <div className="flex-1 p-6 bg-slate-100 overflow-y-auto space-y-4">
-                                    <div className="bg-white p-4 rounded-xl border shadow-sm space-y-3">
+                                <div className="flex-1 p-6 bg-slate-100 overflow-y-auto space-y-4 relative z-10">
+                                    <div className="bg-white p-4 rounded-xl border shadow-2xs space-y-3">
                                         <h4 className="text-xs font-bold text-slate-800">Nova Anotação Interna</h4>
-                                        <Textarea
-                                            value={noteText}
-                                            onChange={(e) => setNoteText(e.target.value)}
-                                            placeholder="Anotações internas sobre o atendimento..."
-                                            className="text-xs h-20"
-                                        />
+                                        <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Anotação interna..." className="text-xs h-20" />
                                         <div className="flex justify-end">
-                                            <Button size="sm" onClick={handleAddNote} className="bg-emerald-600 text-xs">Salvar Nota</Button>
+                                            <Button size="sm" onClick={handleAddNote} className="bg-emerald-600 text-xs font-bold">Salvar Nota</Button>
                                         </div>
                                     </div>
-
-                                    <div className="space-y-2">
-                                        {ticket.notes?.map((n: any) => (
-                                            <div key={n.id} className="bg-white p-3.5 rounded-xl border shadow-sm">
-                                                <div className="flex items-center justify-between mb-1">
-                                                    <span className="text-xs font-bold text-slate-800">👤 {n.author?.name || "RH"}</span>
-                                                    <span className="text-[10px] text-slate-400">{new Date(n.createdAt).toLocaleString()}</span>
-                                                </div>
-                                                <p className="text-xs text-slate-600 whitespace-pre-wrap">{n.content}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* TAB: TAREFAS */}
-                            {activeTab === "activities" && (
-                                <div className="flex-1 p-6 bg-slate-100 overflow-y-auto space-y-3">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="text-xs font-bold text-slate-800">Atividades Agendadas</h4>
-                                        <Button size="sm" onClick={() => setShowScheduleAct(true)} className="bg-emerald-600 text-xs">+ Nova Tarefa</Button>
-                                    </div>
-
-                                    {ticket.activities?.map((act: any) => (
-                                        <div key={act.id} className="bg-white p-4 rounded-xl border shadow-sm flex items-center justify-between">
-                                            <div>
-                                                <h5 className="text-xs font-bold text-slate-800">{act.title}</h5>
-                                                <div className="text-[11px] text-emerald-600 font-semibold mt-1">Prazo: {new Date(act.dueAt).toLocaleString()}</div>
-                                            </div>
-                                            {!act.completedAt && (
-                                                <Button size="sm" variant="outline" className="text-xs border-emerald-600 text-emerald-700" onClick={async () => { await completeHrTicketActivity(act.id); loadDetail(); }}>
-                                                    Concluir
-                                                </Button>
-                                            )}
+                                    {ticket.notes?.map((n: any) => (
+                                        <div key={n.id} className="bg-white p-3 rounded-xl border shadow-2xs">
+                                            <div className="text-xs font-bold text-slate-800">{n.author?.name}</div>
+                                            <p className="text-xs text-slate-600 mt-1">{n.content}</p>
                                         </div>
                                     ))}
                                 </div>
@@ -638,29 +406,6 @@ export function HrTicketModal({ ticketId, onClose, onUpdated, availableUsers = [
                     </div>
                 )}
             </DialogContent>
-
-            <HrScheduleMessageModal open={showScheduleMsg} onClose={() => setShowScheduleMsg(false)} ticketId={ticket?.id} contactPhone={ticket?.contactPhone} contactName={ticket?.contactName} onScheduled={loadDetail} />
-            <HrScheduleActivityModal open={showScheduleAct} onClose={() => setShowScheduleAct(false)} ticketId={ticket?.id} onCreated={loadDetail} />
-
-            {/* Transfer Modal */}
-            <Dialog open={showTransferModal} onOpenChange={(o) => !o && setShowTransferModal(false)}>
-                <DialogContent className="max-w-md bg-slate-900 text-white border-slate-800">
-                    <h3 className="text-sm font-bold">Transferir Atendimento</h3>
-                    <div className="space-y-3 py-2">
-                        <select value={transferTargetUser} onChange={(e) => setTransferTargetUser(e.target.value)} className="w-full text-xs p-2 border rounded bg-slate-800 text-white border-slate-700">
-                            <option value="">Selecione o atendente...</option>
-                            {availableUsers.map((u: any) => (
-                                <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                            ))}
-                        </select>
-                        <Textarea value={transferReason} onChange={(e) => setTransferReason(e.target.value)} placeholder="Motivo da transferência..." className="text-xs h-16 bg-slate-800 border-slate-700 text-white" />
-                        <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => setShowTransferModal(false)}>Cancelar</Button>
-                            <Button size="sm" className="bg-emerald-600" onClick={handleTransfer} disabled={!transferTargetUser}>Confirmar</Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
         </Dialog>
     );
 }
