@@ -253,11 +253,34 @@ export async function getHrTicketDetail(ticketId: string) {
 
     if (!ticket) return null;
 
-    if (ticket.isPrivate && !isAdmin && ticket.assigneeId !== user.id && !ticket.participantIds.includes(user.id)) {
-        return null;
+    if (ticket && ticket.messages.length === 0) {
+        // Se nao tem nenhuma mensagem no banco, consultar a ultima mensagem do Z-API
+        try {
+            const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/chats/${ticket.contactPhone}`;
+            const res = await fetch(url, { headers: zapiHeaders(), next: { revalidate: 0 } });
+            if (res.ok) {
+                const chatData = await res.json();
+                if (chatData && (chatData.lastMessage || chatData.name)) {
+                    const text = chatData.lastMessage?.text?.message || chatData.lastMessage?.text || "Atendimento iniciado via WhatsApp";
+                    const initialMsg = await prisma.hrTicketMessage.create({
+                        data: {
+                            ticketId: ticket.id,
+                            senderType: "EMPLOYEE",
+                            senderName: ticket.contactName,
+                            content: text,
+                            status: "DELIVERED"
+                        }
+                    });
+                    ticket.messages = [initialMsg as any];
+                }
+            }
+        } catch (e) {
+            console.error("[Z-API Last Msg Error]", e);
+        }
     }
 
     return ticket;
+
 }
 
 
