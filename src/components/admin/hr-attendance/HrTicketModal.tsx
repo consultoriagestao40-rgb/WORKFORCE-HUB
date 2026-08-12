@@ -450,7 +450,38 @@ export function HrTicketModal({ ticketId, initialTab = "chat", onClose, onUpdate
                         </div>
                     </div>
                 )}
+
+                {/* SUBMODAL: AGENDAR MENSAGEM WHATSAPP */}
+                {showScheduleMsg && ticket && (
+                    <HrScheduleMessageModal
+                        open={showScheduleMsg}
+                        onClose={() => setShowScheduleMsg(false)}
+                        ticketId={ticket.id}
+                        contactPhone={ticket.contactPhone}
+                        onScheduled={() => {
+                            setShowScheduleMsg(false);
+                            loadDetail();
+                            onUpdated?.();
+                        }}
+                    />
+                )}
+
+
+                {/* SUBMODAL: AGENDAR RETORNO / ATIVIDADE */}
+                {showScheduleAct && ticket && (
+                    <HrScheduleActivityModal
+                        open={showScheduleAct}
+                        onClose={() => setShowScheduleAct(false)}
+                        ticketId={ticket.id}
+                        onCreated={() => {
+                            setShowScheduleAct(false);
+                            loadDetail();
+                            onUpdated?.();
+                        }}
+                    />
+                )}
             </DialogContent>
         </Dialog>
     );
 }
+

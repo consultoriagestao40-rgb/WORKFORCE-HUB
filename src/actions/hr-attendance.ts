@@ -537,8 +537,13 @@ export async function getHrTicketMessages(ticketId: string, since?: string) {
 }
 
 export async function markHrTicketRead(ticketId: string) {
-    await prisma.hrTicket.update({ where: { id: ticketId }, data: { unreadCount: 0 } });
+    // Atualizar apenas o unreadCount sem alterar o updatedAt (data da ultima mensagem)
+    await prisma.$executeRawUnsafe(
+        `UPDATE "HrTicket" SET "unreadCount" = 0 WHERE "id" = $1`,
+        ticketId
+    );
 }
+
 
 // ─── ANOTAÇÕES ────────────────────────────────────────────────────────────────
 

@@ -109,15 +109,17 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         }
     }, [searchQuery]);
 
-    // Polling rápido de 2s para sincronizar tempo real
+    // Polling leve e inteligente a cada 6s para evitar travamento da UI (INP issue)
     useEffect(() => {
         loadData();
         const interval = setInterval(async () => {
+            if (document.hidden) return; // Não roda quando a aba está em segundo plano
             const tcks = await getHrTickets({ search: searchQuery });
             setTickets(tcks);
-        }, 2000);
+        }, 6000);
         return () => clearInterval(interval);
     }, [loadData, searchQuery]);
+
 
     // Carregar detalhes do ticket selecionado
     const loadTicketDetail = useCallback(async (id: string) => {
