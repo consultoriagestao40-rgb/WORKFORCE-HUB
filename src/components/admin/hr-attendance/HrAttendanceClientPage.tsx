@@ -509,49 +509,41 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                             </div>
                         ) : (
                             <div className="flex flex-1 flex-col h-full overflow-hidden">
-                                {/* Header do Chat WhatsApp Web */}
-                                <div className="h-16 bg-[#f0f2f5] border-b border-slate-300 px-4 flex items-center justify-between z-10 shadow-2xs">
-                                    <div className="flex items-center gap-3">
+                                {/* Header da Conversa no Chat (100% Limpo e Sem Amontoar) */}
+                                <div className="h-16 bg-[#f0f2f5] border-b border-slate-300 px-4 flex items-center justify-between z-10 shadow-2xs gap-3">
+                                    <div className="flex items-center gap-3 overflow-hidden min-w-0">
                                         {ticketDetail.contactPhotoUrl && ticketDetail.contactPhotoUrl !== "null" ? (
-                                            <img src={ticketDetail.contactPhotoUrl} alt="" className="w-10 h-10 rounded-full object-cover border" />
+                                            <img src={ticketDetail.contactPhotoUrl} alt="" className="w-10 h-10 rounded-full object-cover border flex-shrink-0" />
                                         ) : (
-                                            <div className="w-10 h-10 rounded-full bg-[#128c7e] text-white font-bold text-sm flex items-center justify-center">
-                                                👥
+                                            <div className="w-10 h-10 rounded-full bg-slate-700 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+                                                {ticketDetail.contactName?.charAt(0).toUpperCase()}
                                             </div>
                                         )}
-
-                                        <div>
-                                            {isEditingContact ? (
-                                                <div className="flex items-center gap-1">
-                                                    <Input
-                                                        value={contactNameInput}
-                                                        onChange={(e) => setContactNameInput(e.target.value)}
-                                                        className="h-6 text-xs bg-white w-40"
-                                                    />
-                                                    <Button size="sm" className="h-6 text-[10px] bg-emerald-600" onClick={handleSaveContact}>OK</Button>
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-1.5">
-                                                    <h3 className="text-sm font-bold text-slate-800 leading-tight">{ticketDetail.contactName}</h3>
-                                                    <button onClick={() => setIsEditingContact(true)} className="text-[10px] text-slate-400 hover:text-emerald-600">✏️</button>
-                                                </div>
-                                            )}
-                                            <span className="text-[11px] text-slate-500 font-mono">{ticketDetail.contactPhone}</span>
+                                        <div className="overflow-hidden min-w-0 flex-1">
+                                            <div className="flex items-center gap-1.5">
+                                                <h3 className="text-xs font-black text-slate-900 truncate max-w-[200px] leading-tight" title={ticketDetail.contactName}>
+                                                    {ticketDetail.contactName}
+                                                </h3>
+                                                <button onClick={() => setIsEditingContact(true)} className="text-slate-400 hover:text-slate-600 text-xs flex-shrink-0" title="Editar nome">
+                                                    ✏️
+                                                </button>
+                                            </div>
+                                            <span className="text-[10px] text-slate-500 font-mono block truncate">{ticketDetail.contactPhone}</span>
                                         </div>
                                     </div>
 
-                                    {/* Alternador de Abas: Chat | Notas | Agendar Atividade */}
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex bg-slate-200/80 p-0.5 rounded-lg">
+                                    {/* Controles de Ação do RH (Abas + Etapa + Ações) */}
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                        <div className="flex bg-slate-200/80 p-0.5 rounded-lg flex-shrink-0">
                                             <button
                                                 onClick={() => setChatRightTab("chat")}
-                                                className={`px-3 py-1 text-xs font-extrabold rounded-md transition ${chatRightTab === "chat" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
+                                                className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${chatRightTab === "chat" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
                                             >
                                                 💬 Chat ({ticketDetail.messages?.length || 0})
                                             </button>
                                             <button
                                                 onClick={() => setChatRightTab("notes")}
-                                                className={`px-3 py-1 text-xs font-extrabold rounded-md transition ${chatRightTab === "notes" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
+                                                className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${chatRightTab === "notes" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
                                             >
                                                 📝 Notas ({ticketDetail.notes?.length || 0})
                                             </button>
@@ -560,17 +552,16 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="h-7 text-xs font-bold gap-1 bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100"
+                                            className="h-7 text-xs font-bold gap-1 bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 flex-shrink-0 px-2.5"
                                             onClick={() => setShowScheduleAct(true)}
                                         >
                                             📅 Agendar Atividade
                                         </Button>
 
-
                                         <select
                                             value={ticketDetail.stageId}
                                             onChange={(e) => handleChangeStage(e.target.value)}
-                                            className="bg-white border border-slate-300 text-slate-800 font-extrabold text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-emerald-500 shadow-2xs"
+                                            className="bg-white border border-slate-300 text-slate-800 font-extrabold text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-500 shadow-2xs flex-shrink-0"
                                         >
                                             {stages.map((stg) => (
                                                 <option key={stg.id} value={stg.id}>{stg.name}</option>
@@ -578,28 +569,28 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                         </select>
 
                                         {!ticketDetail.assignee && (
-                                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 font-bold" onClick={handleAssume}>
+                                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7 font-bold flex-shrink-0 px-2.5" onClick={handleAssume}>
                                                 Assumir
                                             </Button>
                                         )}
 
-                                        <Button variant="ghost" size="sm" className="h-8 text-xs text-red-600 hover:bg-red-50 font-bold" onClick={handleCloseTicket}>
+                                        <Button variant="ghost" size="sm" className="h-7 text-xs text-red-600 hover:bg-red-50 font-bold flex-shrink-0 px-2" onClick={handleCloseTicket}>
                                             Encerrar
                                         </Button>
-
                                     </div>
                                 </div>
 
-                                {/* Chat WhatsApp Real com Fundo Oficial Nítido */}
+                                {/* Chat WhatsApp Real com Fundo Oficial Limpo */}
                                 {chatRightTab === "chat" && (
                                     <div className="flex-1 flex flex-col overflow-hidden bg-[#efeae2] relative">
-                                        {/* Papel de Parede Imagem Oficial do WhatsApp Web Nítido */}
+                                        {/* Papel de Parede Doodle SVG Oficial Limpo */}
                                         <div
-                                            className="absolute inset-0 bg-[#efeae2] bg-repeat opacity-85 pointer-events-none z-0"
-                                            style={{ backgroundImage: `url('/whatsapp-bg-official.png')`, backgroundSize: '450px 450px' }}
+                                            className="absolute inset-0 bg-[#efeae2] bg-repeat opacity-80 pointer-events-none z-0"
+                                            style={{ backgroundImage: `url('/whatsapp-doodle-bg.svg')`, backgroundSize: '400px 400px' }}
                                         />
 
                                         <div className="flex-1 overflow-y-auto p-4 space-y-2.5 relative z-10">
+
                                             {ticketDetail.messages?.map((msg: any) => {
                                                 const isAttendant = msg.senderType === "ATTENDANT" || msg.fromMe === true;
                                                 const showSenderHeader = !isAttendant && msg.senderName && msg.senderName !== ticketDetail.contactName;
