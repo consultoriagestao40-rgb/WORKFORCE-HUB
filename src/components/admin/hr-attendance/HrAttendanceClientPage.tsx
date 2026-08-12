@@ -580,16 +580,17 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                     </div>
                                 </div>
 
-                                {/* Chat WhatsApp Real com Fundo Oficial Limpo */}
+                                {/* Chat WhatsApp Real com Fundo Oficial Exato */}
                                 {chatRightTab === "chat" && (
                                     <div className="flex-1 flex flex-col overflow-hidden bg-[#efeae2] relative">
-                                        {/* Papel de Parede Doodle SVG Oficial Limpo */}
+                                        {/* Papel de Parede Oficial 100% Exato do WhatsApp Web */}
                                         <div
-                                            className="absolute inset-0 bg-[#efeae2] bg-repeat opacity-80 pointer-events-none z-0"
-                                            style={{ backgroundImage: `url('/whatsapp-doodle-bg.svg')`, backgroundSize: '400px 400px' }}
+                                            className="absolute inset-0 bg-[#efeae2] bg-repeat opacity-95 pointer-events-none z-0"
+                                            style={{ backgroundImage: `url('/whatsapp-bg-official.png')`, backgroundSize: '500px 380px' }}
                                         />
 
                                         <div className="flex-1 overflow-y-auto p-4 space-y-2.5 relative z-10">
+
 
                                             {ticketDetail.messages?.map((msg: any) => {
                                                 const isAttendant = msg.senderType === "ATTENDANT" || msg.fromMe === true;
