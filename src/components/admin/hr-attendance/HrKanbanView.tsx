@@ -122,14 +122,6 @@ function TicketCardUI({ ticket, onSelectTicket, isDragging = false }: { ticket: 
                     >
                         <MessageSquare className="w-3.5 h-3.5" />
                     </button>
-
-                    <button
-                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-500 hover:text-blue-700 flex items-center justify-center transition font-bold"
-                        title="Definir Valor / Proposta"
-                        onClick={(e) => { e.stopPropagation(); setTimeout(() => onSelectTicket?.(ticket.id, "value"), 0); }}
-                    >
-                        <DollarSign className="w-3.5 h-3.5" />
-                    </button>
                 </div>
 
                 <span className="text-[9px] font-mono text-slate-400">
