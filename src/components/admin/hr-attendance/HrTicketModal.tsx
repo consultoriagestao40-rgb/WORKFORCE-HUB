@@ -216,7 +216,7 @@ export function HrTicketModal({ ticketId, initialTab = "chat", onClose, onUpdate
 
     return (
         <Dialog open={!!ticketId} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="p-0 border-none bg-transparent max-w-6xl w-[95vw] sm:max-w-6xl shadow-none">
+            <DialogContent className="p-0 border-none bg-transparent max-w-6xl w-[95vw] sm:max-w-6xl shadow-none [&>button]:hidden">
                 {loading || !ticket ? (
                     <div className="bg-[#0f172a] text-white p-8 rounded-3xl text-center text-xs border border-slate-700">
                         Carregando atendimento...

@@ -70,7 +70,45 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         if (!importJsonText.trim()) return;
         setImporting(true);
         try {
-            const payload = JSON.parse(importJsonText.trim());
+            let payload: any = null;
+            const text = importJsonText.trim();
+
+            // 1. Tentar parsear JSON direto
+            try {
+                payload = JSON.parse(text);
+            } catch (e) {
+                // 2. Fallback: Extrair mensagens de texto colado
+                const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+                const extractedMsgs: any[] = [];
+                for (const line of lines) {
+                    if (line.startsWith("const") || line.startsWith("function") || line.startsWith("alert") || line.startsWith("copy")) continue;
+                    extractedMsgs.push({
+                        senderType: line.toLowerCase().startsWith("você:") || line.toLowerCase().startsWith("atendente:") ? "ATTENDANT" : "EMPLOYEE",
+                        senderName: ticketDetail?.contactName || "Contato",
+                        content: line,
+                        createdAt: new Date().toISOString()
+                    });
+                }
+                if (extractedMsgs.length > 0) {
+                    payload = {
+                        phone: ticketDetail?.contactPhone || "5541999999999",
+                        contactName: ticketDetail?.contactName || "Contato WhatsApp",
+                        messages: extractedMsgs
+                    };
+                }
+            }
+
+            // Se o usuário colou o próprio código JS
+            if (text.includes("exportWhatsAppChat") || text.includes("function") || text.includes("copy(finalJSON)")) {
+                alert("⚠️ Você colou o CÓDIGO JavaScript!\n\nPasso a passo simples:\n1. Cole esse código no Console (F12) do WhatsApp Web (web.whatsapp.com).\n2. Aperte Enter no WhatsApp Web.\n3. O WhatsApp Web vai copiar as mensagens e exibir um OK.\n4. Depois volte aqui no sistema, dê Ctrl+V para colar o resultado e clique em Salvar!");
+                return;
+            }
+
+            if (!payload || !payload.messages) {
+                alert("❌ Cole o resultado da cópia (JSON) ou as linhas da conversa para salvar.");
+                return;
+            }
+
             const res = await fetch("/api/whatsapp/import-history", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -87,7 +125,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 alert("❌ Erro ao importar: " + (data.error || "Formato inválido."));
             }
         } catch (e: any) {
-            alert("❌ Erro no JSON colado: " + e.message);
+            alert("❌ Erro ao processar o texto: " + e.message);
         } finally {
             setImporting(false);
         }
