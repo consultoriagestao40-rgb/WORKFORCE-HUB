@@ -688,13 +688,13 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
 
                                 {/* Área de Mensagens do Chat com Papel de Parede Oficial (Foto 01) */}
                                 {chatRightTab === "chat" && (
-                                    <div className="flex-1 flex flex-col overflow-hidden bg-[#efeae2] relative">
+                                    <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-[#efeae2] relative">
                                         <div
                                             className="absolute inset-0 bg-[#efeae2] bg-repeat opacity-95 pointer-events-none z-0"
                                             style={{ backgroundImage: `url('/whatsapp-bg-official.png')`, backgroundSize: '500px 380px' }}
                                         />
 
-                                        <div className="flex-1 overflow-y-auto p-4 space-y-2.5 relative z-10">
+                                        <div className="flex-1 overflow-y-auto p-4 space-y-2.5 relative z-10 min-h-0">
                                             {ticketDetail.messages?.map((msg: any, idx: number) => {
                                                 const isAttendant = msg.senderType === "ATTENDANT" || msg.fromMe === true;
                                                 const isGroupTicket = ticketDetail.contactPhone?.includes("-group") || ticketDetail.contactPhone?.length > 13 || ticketDetail.title?.toLowerCase().includes("grupo") || ticketDetail.title?.includes("Taxas") || ticketDetail.title?.includes("Mesa") || ticketDetail.title?.includes("RH - ATESTADO");
@@ -706,6 +706,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                 const showDateDivider = idx === 0 || currentDateStr !== prevDateStr;
 
                                                 const dateLabel = formatDynamicDateLabel(msg.createdAt);
+                                                const isAudioMsg = msg.messageType === "AUDIO" || msg.content?.includes("Áudio") || msg.content?.includes("Voice Note") || (msg.mediaUrl && msg.mediaUrl.match(/\.(mp3|ogg|wav|opus|m4a)/i));
 
                                                 return (
                                                     <div key={msg.id} className="space-y-2.5">
@@ -718,64 +719,79 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                         )}
                                                         <div className={`flex ${isAttendant ? "justify-end" : "justify-start"}`}>
                                                             <div className={`max-w-[70%] p-2.5 rounded-lg shadow-2xs text-xs ${isAttendant ? "bg-[#d9fdd3] text-slate-900 rounded-tr-none" : "bg-white text-slate-900 rounded-tl-none"}`}>
-                                                            {/* Nome do Colaborador que postou no grupo (apenas em Grupos) */}
-                                                            {showSenderHeader && (
-                                                                <div className="text-[11px] font-extrabold text-emerald-700 mb-1">
-                                                                    {msg.senderName}
-                                                                </div>
-                                                            )}
-
-                                                            {/* Exibição de Imagem com Zoom e Download ao Clicar */}
-                                                            {msg.mediaUrl && (msg.messageType === "IMAGE" || msg.mediaUrl.match(/\.(jpg|jpeg|png|webp)/i)) && (
-                                                                <div className="relative group cursor-pointer my-1 overflow-hidden rounded-lg border border-slate-200" onClick={() => setSelectedImageZoom(msg.mediaUrl)}>
-                                                                    <img src={msg.mediaUrl} alt="Mídia" className="max-w-xs rounded-lg max-h-72 object-cover transition group-hover:scale-105" />
-                                                                </div>
-                                                            )}
-
-                                                            {/* Exibição de PDF Real */}
-                                                            {msg.messageType === "DOCUMENT" && msg.mediaUrl && (
-                                                                <div className="flex items-center gap-3 p-2.5 bg-slate-100/90 rounded-lg mb-2 border border-slate-200">
-                                                                    <div className="w-9 h-9 rounded bg-red-500 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
-                                                                        PDF
+                                                                {/* Nome do Colaborador que postou no grupo (apenas em Grupos) */}
+                                                                {showSenderHeader && (
+                                                                    <div className="text-[11px] font-extrabold text-emerald-700 mb-1">
+                                                                        {msg.senderName}
                                                                     </div>
-                                                                    <div className="overflow-hidden flex-1">
-                                                                        <span className="font-bold text-slate-800 block truncate text-xs">
-                                                                            {msg.mediaFileName || "Documento.pdf"}
-                                                                        </span>
-                                                                        <span className="text-[10px] text-slate-500">Documento • PDF</span>
-                                                                    </div>
-                                                                    <a
-                                                                        href={msg.mediaUrl}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        download={msg.mediaFileName || "documento.pdf"}
-                                                                        className="text-xs bg-emerald-600 text-white font-bold px-2.5 py-1 rounded-md hover:bg-emerald-700 transition flex-shrink-0"
-                                                                    >
-                                                                        Baixar
-                                                                    </a>
-                                                                </div>
-                                                            )}
+                                                                )}
 
-                                                            <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                                                            <div className="flex items-center justify-end gap-1 text-[9px] text-slate-500 mt-1 font-mono">
-                                                                <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                                {isAttendant && <CheckCheck className="w-3.5 h-3.5 text-emerald-600 inline" />}
+                                                                {/* Exibição de Imagem com Zoom e Download ao Clicar */}
+                                                                {msg.mediaUrl && (msg.messageType === "IMAGE" || msg.mediaUrl.match(/\.(jpg|jpeg|png|webp)/i)) && (
+                                                                    <div className="relative group cursor-pointer my-1 overflow-hidden rounded-lg border border-slate-200" onClick={() => setSelectedImageZoom(msg.mediaUrl)}>
+                                                                        <img src={msg.mediaUrl} alt="Mídia" className="max-w-xs rounded-lg max-h-72 object-cover transition group-hover:scale-105" />
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Player de Áudio / Mensagem de Voz Real */}
+                                                                {isAudioMsg && (
+                                                                    <div className="my-1 p-2 bg-slate-100/90 rounded-lg border border-slate-200 space-y-1">
+                                                                        <div className="flex items-center gap-2 text-slate-700 font-bold text-xs">
+                                                                            <Mic className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                                                            <span className="truncate">{msg.content || "Mensagem de Voz"}</span>
+                                                                        </div>
+                                                                        {msg.mediaUrl ? (
+                                                                            <audio controls src={msg.mediaUrl} className="w-full h-8 mt-1 rounded-md" />
+                                                                        ) : (
+                                                                            <span className="text-[10px] text-slate-500 italic block">Áudio gravado via WhatsApp Web</span>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Exibição de PDF Real */}
+                                                                {msg.messageType === "DOCUMENT" && msg.mediaUrl && (
+                                                                    <div className="flex items-center gap-3 p-2.5 bg-slate-100/90 rounded-lg mb-2 border border-slate-200">
+                                                                        <div className="w-9 h-9 rounded bg-red-500 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                                                            PDF
+                                                                        </div>
+                                                                        <div className="overflow-hidden flex-1">
+                                                                            <span className="font-bold text-slate-800 block truncate text-xs">
+                                                                                {msg.mediaFileName || "Documento.pdf"}
+                                                                            </span>
+                                                                            <span className="text-[10px] text-slate-500">Documento • PDF</span>
+                                                                        </div>
+                                                                        <a
+                                                                            href={msg.mediaUrl}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            download={msg.mediaFileName || "documento.pdf"}
+                                                                            className="text-xs bg-emerald-600 text-white font-bold px-2.5 py-1 rounded-md hover:bg-emerald-700 transition flex-shrink-0"
+                                                                        >
+                                                                            Baixar
+                                                                        </a>
+                                                                    </div>
+                                                                )}
+
+                                                                {!isAudioMsg && <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>}
+                                                                <div className="flex items-center justify-end gap-1 text-[9px] text-slate-500 mt-1 font-mono">
+                                                                    <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                                    {isAttendant && <CheckCheck className="w-3.5 h-3.5 text-emerald-600 inline" />}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            );
+                                                );
                                             })}
                                             <div ref={messagesEndRef} />
                                         </div>
 
-                                        {/* Barra de Digitação Estilo WhatsApp Web (Foto 01) */}
-                                        <div className="h-16 bg-[#f0f2f5] border-t border-slate-300 px-4 flex items-center gap-3">
+                                        {/* Barra de Digitação Estilo WhatsApp Web Fixa no Rodapé (Foto 01) */}
+                                        <div className="h-16 bg-[#f0f2f5] border-t border-slate-300 px-4 flex items-center gap-3 flex-shrink-0 z-20">
                                             <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-                                            <button type="button" className="text-slate-500 hover:text-slate-700 p-1" onClick={() => fileInputRef.current?.click()} title="Anexar arquivo">
+                                            <button type="button" className="text-slate-500 hover:text-slate-700 p-1 cursor-pointer" onClick={() => fileInputRef.current?.click()} title="Anexar arquivo">
                                                 <Paperclip className="w-5 h-5" />
                                             </button>
-                                            <button type="button" className="text-slate-500 hover:text-slate-700 p-1" title="Emojis">
+                                            <button type="button" className="text-slate-500 hover:text-slate-700 p-1 cursor-pointer" title="Emojis">
                                                 <Smile className="w-5 h-5" />
                                             </button>
                                             <Textarea
@@ -785,7 +801,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                 placeholder="Digite uma mensagem..."
                                                 className="flex-1 text-xs resize-none h-10 min-h-[40px] bg-white border-none rounded-lg px-4 py-2.5 shadow-2xs focus:ring-1 focus:ring-emerald-500"
                                             />
-                                            <Button onClick={handleSendMessage} disabled={sending || !messageText.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 w-10 p-0 rounded-full flex items-center justify-center shadow-xs">
+                                            <Button onClick={handleSendMessage} disabled={sending || !messageText.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 w-10 p-0 rounded-full flex items-center justify-center shadow-xs flex-shrink-0 cursor-pointer">
                                                 <Send className="w-4 h-4 ml-0.5" />
                                             </Button>
                                         </div>
