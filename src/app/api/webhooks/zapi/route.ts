@@ -264,10 +264,12 @@ function parseMessageBody(body: any) {
     let mediaFileName: string | undefined;
     let mediaMimeType: string | undefined;
 
-    if (body.text?.message) content = body.text.message;
+    if (typeof body.text === "string") content = body.text;
+    else if (body.text?.message) content = body.text.message;
     else if (typeof body.message === "string") content = body.message;
     else if (typeof body.body === "string") content = body.body;
-    else if (body.caption) content = body.caption;
+    else if (typeof body.caption === "string") content = body.caption;
+    else if (typeof body.content === "string") content = body.content;
 
     if (body.image) {
         messageType = "IMAGE";
