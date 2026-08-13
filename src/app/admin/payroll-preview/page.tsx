@@ -508,57 +508,77 @@ export default function PayrollPreviewPage() {
                 return;
             }
 
-            const excelData = filtered.map(item => ({
-                "Colaborador": item.employeeName,
-                "CPF": item.employeeCpf,
-                "Empresa": item.companyName,
-                "Cliente / Contrato": item.clientName,
-                "Posto / Função": item.postoName,
-                "Admissão": item.admissionDate,
-                "Dias Trab.": item.daysWorked,
-                "Salário Base (R$)": item.baseSalary,
-                "Insalubridade (R$)": item.insalubridade,
-                "Periculosidade (R$)": item.periculosidade,
-                "Gratificação (R$)": item.gratificacao,
-                "Outros Adicionais (R$)": item.outrosAdicionais,
-                "Salário Bruto (R$)": item.totalGrossSalary,
-                "Atrasos (Horas)": item.atrasosHours,
-                "Desc. Atrasos (R$)": item.atrasosDeduction,
-                "H.Extras 50% (H)": item.extras50Hours,
-                "Valor Extras 50% (R$)": item.horasExtras50Value,
-                "H.Extras 100% (H)": item.extras100Hours,
-                "Valor Extras 100% (R$)": item.horasExtras100Value,
-                "Adic. Noturno (H)": item.adicionalNoturnoHours,
-                "Valor Adic. Noturno (R$)": item.adicionalNoturnoValue,
-                "Dependentes (Qtd)": item.dependentsCount,
-                "Salário-Família (R$)": item.salarioFamilia,
-                "Prêmio Absenteísmo (R$)": item.absenteismoAward,
-                "Ajuda de Custo (R$)": item.ajudaCusto,
-                "Adic. Viagem (R$)": item.adicionalViagem,
-                "Faltas (Dias)": item.faltasCount,
-                "Desc. Faltas (R$)": item.faltaDeduction,
-                "DSR Perdidos": item.dsrDeductionsCount,
-                "Desc. DSR (R$)": item.dsrDeduction,
-                "Desc. VT (R$)": item.vtPayrollDiscount,
-                "Desc. VA (R$)": item.vaPayrollDiscount,
-                "Descontos Diversos (R$)": item.diversosDescontos,
-                "Empréstimos (R$)": item.emprestimos,
-                "Convênios (R$)": item.convenios,
-                "Sindicatos (R$)": item.sindicato,
-                "Desc. INSS (R$)": item.inssDeduction,
-                "Desc. IRRF (R$)": item.irrfDeduction,
-                "Total Descontos (R$)": item.totalDeductions,
-                "Salário Líquido (R$)": item.netSalary
-            }));
+            const excelData = filtered.map(item => {
+                const atestadosList = (item.occurrencesList || []).filter(o => o.rawType === "ATESTADO");
+                const atestadosDatesStr = atestadosList.length > 0
+                    ? atestadosList.map(o => o.date).join(", ")
+                    : "-";
+
+                const faltasList = (item.occurrencesList || []).filter(o => o.rawType === "FALTA" || o.rawType === "FALTA_INJUSTIFICADA");
+                const faltasDatesStr = faltasList.length > 0
+                    ? faltasList.map(o => o.date).join(", ")
+                    : "-";
+
+                return {
+                    "Colaborador": item.employeeName,
+                    "CPF": item.employeeCpf,
+                    "Empresa": item.companyName,
+                    "Cliente / Contrato": item.clientName,
+                    "Posto / Função": item.postoName,
+                    "Admissão": item.admissionDate,
+                    "Dias Trab.": item.daysWorked,
+                    "Salário Base (R$)": item.baseSalary,
+                    "Insalubridade (R$)": item.insalubridade,
+                    "Periculosidade (R$)": item.periculosidade,
+                    "Gratificação (R$)": item.gratificacao,
+                    "Outros Adicionais (R$)": item.outrosAdicionais,
+                    "Salário Bruto (R$)": item.totalGrossSalary,
+                    "Atrasos (Horas)": item.atrasosHours,
+                    "Desc. Atrasos (R$)": item.atrasosDeduction,
+                    "H.Extras 50% (H)": item.extras50Hours,
+                    "Valor Extras 50% (R$)": item.horasExtras50Value,
+                    "H.Extras 100% (H)": item.extras100Hours,
+                    "Valor Extras 100% (R$)": item.horasExtras100Value,
+                    "Adic. Noturno (H)": item.adicionalNoturnoHours,
+                    "Valor Adic. Noturno (R$)": item.adicionalNoturnoValue,
+                    "Dependentes (Qtd)": item.dependentsCount,
+                    "Salário-Família (R$)": item.salarioFamilia,
+                    "Prêmio Absenteísmo (R$)": item.absenteismoAward,
+                    "Ajuda de Custo (R$)": item.ajudaCusto,
+                    "Adic. Viagem (R$)": item.adicionalViagem,
+                    "Faltas (Dias)": item.faltasCount,
+                    "Datas das Faltas": faltasDatesStr,
+                    "Desc. Faltas (R$)": item.faltaDeduction,
+                    "DSR Perdidos": item.dsrDeductionsCount,
+                    "Desc. DSR (R$)": item.dsrDeduction,
+                    "Atestados (Dias)": item.atestadosCount || 0,
+                    "Datas dos Atestados": atestadosDatesStr,
+                    "Desc. VT (R$)": item.vtPayrollDiscount,
+                    "Desc. VA (R$)": item.vaPayrollDiscount,
+                    "Descontos Diversos (R$)": item.diversosDescontos,
+                    "Empréstimos (R$)": item.emprestimos,
+                    "Convênios (R$)": item.convenios,
+                    "Sindicatos (R$)": item.sindicato,
+                    "Desc. INSS (R$)": item.inssDeduction,
+                    "Desc. IRRF (R$)": item.irrfDeduction,
+                    "Total Descontos (R$)": item.totalDeductions,
+                    "Salário Líquido (R$)": item.netSalary
+                };
+            });
 
             const worksheet = XLSX.utils.json_to_sheet(excelData);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Prévia de Folha");
 
-            // Auto-fit columns
-            const maxCols = Object.keys(excelData[0] || {}).map(key => ({
-                wch: Math.max(key.length + 3, 12)
-            }));
+            // Auto-fit columns dynamically
+            const maxCols = Object.keys(excelData[0] || {}).map(key => {
+                let maxLen = key.length;
+                excelData.forEach(row => {
+                    const val = String((row as any)[key] || "");
+                    if (val.length > maxLen) maxLen = val.length;
+                });
+                return { wch: Math.min(Math.max(maxLen + 3, 12), 50) };
+            });
             worksheet["!cols"] = maxCols;
 
             const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
