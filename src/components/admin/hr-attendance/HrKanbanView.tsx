@@ -1,7 +1,7 @@
 "use client";
 
 import { ClipboardList, Calendar, MessageSquare, DollarSign, Plus, Trash2, GripVertical } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
     DndContext,
     closestCenter,
@@ -43,10 +43,22 @@ const PRESET_COLORS = [
 function TicketCardUI({ ticket, onSelectTicket, isDragging = false }: { ticket: any; onSelectTicket?: (id: string, tab?: any) => void; isDragging?: boolean }) {
     const lastMsg = ticket.messages?.[0];
     const unreadCount = ticket.unreadCount || 0;
+    const clickPosRef = useRef({ x: 0, y: 0, time: 0 });
 
     return (
         <div
-            onClick={() => setTimeout(() => onSelectTicket?.(ticket.id, "chat"), 0)}
+            onMouseDown={(e) => {
+                clickPosRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+            }}
+            onMouseUp={(e) => {
+                const dx = Math.abs(e.clientX - clickPosRef.current.x);
+                const dy = Math.abs(e.clientY - clickPosRef.current.y);
+                const dt = Date.now() - clickPosRef.current.time;
+                // Apenas abrir modal se NÃO foi arrastado (deslocamento menor que 6px)
+                if (dx < 6 && dy < 6 && dt < 450) {
+                    setTimeout(() => onSelectTicket?.(ticket.id, "chat"), 0);
+                }
+            }}
             className={`bg-white p-3.5 rounded-2xl border transition-all duration-200 shadow-2xs group flex flex-col justify-between cursor-pointer ${
                 isDragging
                     ? "border-emerald-500 shadow-2xl scale-105 rotate-1 opacity-95 bg-white ring-2 ring-emerald-500/20"

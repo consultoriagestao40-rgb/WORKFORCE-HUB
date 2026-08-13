@@ -147,3 +147,16 @@
 .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.35);
 }
+
+/* Ocultar avisos de INP e Overlays de DevTools */
+div[class*="INP"],
+[data-nextjs-toast-wrapper],
+[data-nextjs-toast],
+.nextjs-toast-errors-parent,
+iframe#next-dev-overlay,
+#next-logo-wrapper {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

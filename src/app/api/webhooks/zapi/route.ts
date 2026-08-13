@@ -102,6 +102,54 @@ async function processCandidateMessage(candidate: any, body: any, isFromMe: bool
         }
     });
 
+    // Também salvar no Ticket de Atendimento RH para aparecer no /admin/atendimento
+    const cleanPhone = candidate.phone.replace(/\D/g, "");
+    const phoneSearch = cleanPhone.slice(-9);
+
+    let ticket = await prisma.hrTicket.findFirst({
+        where: {
+            OR: [
+                { contactPhone: { contains: phoneSearch } },
+                { contactPhone: { contains: cleanPhone } }
+            ]
+        }
+    });
+
+    if (!ticket) {
+        let inboxStage = await prisma.hrPipelineStage.findFirst({ where: { isDefault: true } })
+            || await prisma.hrPipelineStage.findFirst({ orderBy: { order: "asc" } });
+        ticket = await prisma.hrTicket.create({
+            data: {
+                title: `Atendimento: ${candidate.name}`,
+                contactPhone: cleanPhone,
+                contactName: candidate.name,
+                stageId: inboxStage?.id || "",
+                status: "OPEN",
+                unreadCount: isFromMe ? 0 : 1
+            }
+        });
+    } else {
+        await prisma.hrTicket.update({
+            where: { id: ticket.id },
+            data: { updatedAt: new Date(), unreadCount: isFromMe ? ticket.unreadCount : { increment: 1 } }
+        });
+    }
+
+    await prisma.hrTicketMessage.create({
+        data: {
+            ticketId: ticket.id,
+            senderType: isFromMe ? "ATTENDANT" : "EMPLOYEE",
+            senderName: isFromMe ? "Atendente RH" : candidate.name,
+            messageType,
+            content,
+            mediaUrl,
+            mediaFileName,
+            mediaMimeType,
+            status: isFromMe ? "SENT" : "RECEIVED",
+            zapiMessageId: msgId
+        }
+    });
+
     if (!isFromMe) {
         await prisma.recruitmentCandidate.update({
             where: { id: candidate.id },
