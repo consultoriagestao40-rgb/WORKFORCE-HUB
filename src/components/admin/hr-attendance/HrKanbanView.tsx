@@ -46,7 +46,8 @@ function TicketCardUI({ ticket, onSelectTicket, isDragging = false }: { ticket: 
 
     return (
         <div
-            className={`bg-white p-3.5 rounded-2xl border transition-all duration-200 shadow-2xs group flex flex-col justify-between ${
+            onClick={() => setTimeout(() => onSelectTicket?.(ticket.id, "chat"), 0)}
+            className={`bg-white p-3.5 rounded-2xl border transition-all duration-200 shadow-2xs group flex flex-col justify-between cursor-pointer ${
                 isDragging
                     ? "border-emerald-500 shadow-2xl scale-105 rotate-1 opacity-95 bg-white ring-2 ring-emerald-500/20"
                     : "border-slate-200/80 hover:border-emerald-400 hover:shadow-md hover:-translate-y-0.5"

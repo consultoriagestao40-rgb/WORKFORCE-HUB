@@ -304,13 +304,13 @@ export function HrTicketModal({ ticketId, initialTab = "chat", onClose, onUpdate
 
                                 <div className="flex items-center gap-3">
                                     <div className="flex bg-slate-200/80 p-1 rounded-xl gap-1">
-                                        <button onClick={() => setActiveTab("chat")} className={`px-3 py-1 text-xs font-bold rounded-lg transition ${activeTab === "chat" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}>
+                                        <button onClick={() => setTimeout(() => setActiveTab("chat"), 0)} className={`px-3 py-1 text-xs font-bold rounded-lg transition ${activeTab === "chat" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}>
                                             💬 Chat ({ticket.messages?.length || 0})
                                         </button>
-                                        <button onClick={() => setActiveTab("notes")} className={`px-3 py-1 text-xs font-bold rounded-lg transition ${activeTab === "notes" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}>
+                                        <button onClick={() => setTimeout(() => setActiveTab("notes"), 0)} className={`px-3 py-1 text-xs font-bold rounded-lg transition ${activeTab === "notes" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}>
                                             📝 Notas ({ticket.notes?.length || 0})
                                         </button>
-                                        <button onClick={() => setActiveTab("activities")} className={`px-3 py-1 text-xs font-bold rounded-lg transition ${activeTab === "activities" ? "bg-white text-amber-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}>
+                                        <button onClick={() => setTimeout(() => setActiveTab("activities"), 0)} className={`px-3 py-1 text-xs font-bold rounded-lg transition ${activeTab === "activities" ? "bg-white text-amber-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}>
                                             📅 Atividades / Lembretes ({ticket.activities?.length || 0})
                                         </button>
                                     </div>
