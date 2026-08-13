@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Conversa - Mesa de Operações</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0b141a; color: #e9edef; margin: 0; padding: 20px; }
+    .chat-container { max-width: 800px; margin: 0 auto; background-color: #111b21; border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+    .chat-header { border-bottom: 1px solid #222d34; padding-bottom: 15px; margin-bottom: 20px; }
+    .chat-title { font-size: 20px; font-weight: bold; color: #25d366; margin: 0 0 5px 0; }
+    .chat-subtitle { font-size: 13px; color: #8696a0; }
+    .msg-bubble { margin-bottom: 15px; max-width: 75%; padding: 10px 14px; border-radius: 8px; position: relative; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
+    .msg-in { background-color: #202c33; align-self: flex-start; margin-right: auto; border-top-left-radius: 0; }
+    .msg-out { background-color: #005c4b; align-self: flex-end; margin-left: auto; border-top-right-radius: 0; }
+    .msg-sender { font-size: 11px; font-weight: bold; color: #53bdeb; margin-bottom: 4px; }
+    .msg-text { white-space: pre-wrap; }
+    .msg-time { font-size: 10px; color: #8696a0; text-align: right; margin-top: 6px; }
+    .media-container { margin-top: 8px; }
+    audio { width: 100%; border-radius: 20px; outline: none; }
+    .img-preview { max-width: 100%; max-height: 300px; border-radius: 8px; margin-top: 5px; }
+    .doc-link { display: inline-block; background-color: rgba(255,255,255,0.1); color: #25d366; text-decoration: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; }
+    .doc-link:hover { background-color: rgba(255,255,255,0.2); }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <div class="chat-header">
+      <h1 class="chat-title">Mesa de Operações</h1>
+      <div class="chat-subtitle">👤 Conversa Individual • 120363425022319430</div>
+    </div>
+    <div style="display: flex; flex-direction: column;">
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* FERNANDO JOSE OSTROSKA
+📍 *Posto:* JVS TRATAMENTOS DE PISO
+🏢 *Depto:* CONDOR RIO NEGRO
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 22:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">11/08/2026, 22:05:30</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* ROSIEL DEL CARMEN KAIDBAY ROJAS
+📍 *Posto:* JVS TRATAMENTOS DE PISO
+🏢 *Depto:* VOLANTE NOTURNO
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 22:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">11/08/2026, 22:05:32</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* LEONARDO SILVA GONÇALVES
+📍 *Posto:* JVS TRATAMENTOS DE PISO
+🏢 *Depto:* CONDOR BARREIRINHA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 22:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">11/08/2026, 22:05:32</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* FERNANDA STIIRMER DE MATTOS YAMAGUCHI
+📍 *Posto:* JVS TRATAMENTOS DE PISO
+🏢 *Depto:* CONDOR MERCES
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 22:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">11/08/2026, 22:05:32</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* FERNANDO JOSE OSTROSKA
+📍 *Posto:* JVS TRATAMENTOS DE PISO
+🏢 *Depto:* CONDOR RIO NEGRO
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 22:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">11/08/2026, 22:15:28</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* LEONARDO SILVA GONÇALVES
+📍 *Posto:* JVS TRATAMENTOS DE PISO
+🏢 *Depto:* CONDOR BARREIRINHA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 22:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">11/08/2026, 22:15:30</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* ROSIEL DEL CARMEN KAIDBAY ROJAS
+📍 *Posto:* JVS TRATAMENTOS DE PISO
+🏢 *Depto:* VOLANTE NOTURNO
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 22:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">11/08/2026, 22:15:31</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* FERNANDA STIIRMER DE MATTOS YAMAGUCHI
+📍 *Posto:* JVS TRATAMENTOS DE PISO
+🏢 *Depto:* CONDOR MERCES
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 22:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">11/08/2026, 22:15:34</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* ROSIEL DEL CARMEN KAIDBAY ROJAS
+📍 *Posto:* JVS TRATAMENTOS DE PISO
+🏢 *Depto:* VOLANTE NOTURNO
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 22:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">11/08/2026, 22:25:32</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* FERNANDO JOSE OSTROSKA
+📍 *Posto:* JVS TRATAMENTOS DE PISO
+🏢 *Depto:* CONDOR RIO NEGRO
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 22:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">11/08/2026, 22:25:32</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* FERNANDA STIIRMER DE MATTOS YAMAGUCHI
+📍 *Posto:* JVS TRATAMENTOS DE PISO
+🏢 *Depto:* CONDOR MERCES
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 22:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">11/08/2026, 22:25:34</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* IZOLETE GOLOMBIESKI RIBAS
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* SUPERMERCADO BOZA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 06:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 06:05:33</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* ROSA RIBEIRO DA SILVA
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* AMERICA EMBALAGENS
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 06:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 06:05:37</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* LISANGELA ESTACIO RODRIGUES
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* Witzenmann
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 06:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 06:05:37</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* ROSA RIBEIRO DA SILVA
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* AMERICA EMBALAGENS
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 06:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 06:15:35</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* LISANGELA ESTACIO RODRIGUES
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* Witzenmann
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 06:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 06:15:37</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* ROSA RIBEIRO DA SILVA
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* AMERICA EMBALAGENS
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 06:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 06:25:38</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* LISANGELA ESTACIO RODRIGUES
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* Witzenmann
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 06:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 06:25:38</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* APARECIDA DE FATIMA PRUDENCIO DE FREITAS
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* HERBARIUM
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 06:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 06:35:28</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* CELIA APARECIDA LISBOA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* HERBARIUM
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 06:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 06:35:30</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* APARECIDA DE FATIMA PRUDENCIO DE FREITAS
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* HERBARIUM
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 06:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 06:45:29</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* CELIA APARECIDA LISBOA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* HERBARIUM
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 06:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 06:45:31</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* APARECIDA DE FATIMA PRUDENCIO DE FREITAS
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* HERBARIUM
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 06:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 06:55:28</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* CELIA APARECIDA LISBOA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* HERBARIUM
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 06:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 06:55:28</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* GABRIELY BRASQUE ALVES PEREIRA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* POWER TURBO
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:05:29</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* KAUANE BRASQUE ALVES PEREIRA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* POWER TURBO
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:05:32</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* ELICIANE APARECIDA FELIZ
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* MRV - ENGENHARIA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:05:32</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* EURAKIS DEL CARMEN VELASQUEZ ARTEAGA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* EMPRESA DE ONIBUS PENHA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:05:32</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* REGINA FUSCAIM DOS SANTOS ORTIZ
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* EMPRESA DE ONIBUS PENHA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:05:35</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* ROSANGELA SILVEIRA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* ERASTO GAETNER
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:05:35</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* GABRIELY BRASQUE ALVES PEREIRA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* POWER TURBO
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:15:28</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* KAUANE BRASQUE ALVES PEREIRA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* POWER TURBO
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:15:30</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* EURAKIS DEL CARMEN VELASQUEZ ARTEAGA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* EMPRESA DE ONIBUS PENHA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:15:32</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* REGINA FUSCAIM DOS SANTOS ORTIZ
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* EMPRESA DE ONIBUS PENHA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:15:32</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* ROSANGELA SILVEIRA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* ERASTO GAETNER
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:15:34</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* ELICIANE APARECIDA FELIZ
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* MRV - ENGENHARIA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:15:38</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* GABRIELY BRASQUE ALVES PEREIRA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* POWER TURBO
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:25:27</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* KAUANE BRASQUE ALVES PEREIRA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* POWER TURBO
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:25:29</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* ELICIANE APARECIDA FELIZ
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* MRV - ENGENHARIA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:25:31</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* EURAKIS DEL CARMEN VELASQUEZ ARTEAGA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* EMPRESA DE ONIBUS PENHA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:25:32</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* REGINA FUSCAIM DOS SANTOS ORTIZ
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* EMPRESA DE ONIBUS PENHA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:25:32</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* ROSANGELA SILVEIRA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* ERASTO GAETNER
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:25:34</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* CLEIDE RIBEIRO SOARES
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* DGI
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:35:33</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* MARIANE CRISTINA BRUNETTI
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* DAJU AGUA VERDE ADM
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:35:36</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* MARIANE CRISTINA BRUNETTI
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* DAJU AGUA VERDE ADM
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:45:35</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* MARIANE CRISTINA BRUNETTI
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* DAJU AGUA VERDE ADM
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 07:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 07:55:34</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">📋 *NEXUS — RELATÓRIO GERENCIAL* 📋
+⚠️ *PENDÊNCIAS DE ONTEM (11/08)*
+━━━━━━━━━━━━━━━━━━━━━━
+Supervisores, favor providenciar as justificativas para as ausências abaixo no sistema:
+
+📍 *POSTO: CLEAN TECH PRO - LOCAÇÕES E ASSISTENCIA TECNICA LTDA*
+  • *CLEAN TECH*:
+    - LUCAS DE SOUZA DUARTE (Entrada: 08:00)
+
+📍 *POSTO: JVS FACILITES*
+  • *SPATIUM LABORIS*:
+    - ELIZABETE BRUM ANTONIO (Entrada: 09:30)
+  • *SUPERMERCADO BOZA*:
+    - IZOLETE GOLOMBIESKI RIBAS (Entrada: 06:00)
+
+📍 *POSTO: JVS TRATAMENTOS DE PISO*
+  • *CONDOR BARREIRINHA*:
+    - LEONARDO SILVA GONÇALVES (Entrada: 22:00)
+
+📍 *POSTO: SPOT SERVIÇOS FACILITIES LTDA*
+  • *AMERICA EMBALAGENS*:
+    - ROSA NAIR GODARTH PINHEIRO (Entrada: 08:00)
+  • *DGI*:
+    - CLEIDE RIBEIRO SOARES (Entrada: 07:30)
+  • *GALERIA OSORIO *:
+    - SANDRA ALVES DOS SANTOS (Entrada: 08:00)
+    - IGOR MICKAEL GONÇALVES DA SILVA (Entrada: 13:45)
+  • *MRV - JOHN KENNEDY*:
+    - MARIA DA CONCEIÇÃO SARAIVA (Entrada: 08:00)
+  • *MRV - SENSIA MARINGA*:
+    - SABRINA APARECIDA NUNES CRIVELARO (Entrada: 08:00)
+
+🛑 *Total de Justificativas Pendentes: 10*
+🔗 _Link para lançamento: https://mesa-de-opera-es.vercel.app/dashboard_</div>
+          
+          <div class="msg-time">12/08/2026, 08:00:38</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* FRANCIELLE CRISTIANE SOARES GONÇALVES ALMEIDA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* GUARDA BRASIL MOSSUNGUE
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:05:33</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* LUCAS DE SOUZA DUARTE
+📍 *Posto:* CLEAN TECH PRO - LOCAÇÕES E ASSISTENCIA TECNICA LTDA
+🏢 *Depto:* CLEAN TECH
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:05:36</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* SUELLEN PRESTES DA SILVA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* IBEG
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:05:36</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* ALLAN HENRIQUE ALVES
+📍 *Posto:* CLEAN TECH PRO - LOCAÇÕES E ASSISTENCIA TECNICA LTDA
+🏢 *Depto:* CLEAN TECH
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:05:37</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* MARIA SUELI DE MATOS SOUZA
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* DAJU CABRAL
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:05:37</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* SABRINA APARECIDA NUNES CRIVELARO
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* MRV - SENSIA MARINGA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:05:37</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* SANDRA ALVES DOS SANTOS
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* GALERIA OSORIO 
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:05:38</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* RODMAN APOLINAR REYES ORTIZ
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* DAJU AGUA VERDE
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:06:07</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* FRANCIELLE CRISTIANE SOARES GONÇALVES ALMEIDA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* GUARDA BRASIL MOSSUNGUE
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:15:28</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* SUELLEN PRESTES DA SILVA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* IBEG
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:15:31</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* RODMAN APOLINAR REYES ORTIZ
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* DAJU AGUA VERDE
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:15:32</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* LUCAS DE SOUZA DUARTE
+📍 *Posto:* CLEAN TECH PRO - LOCAÇÕES E ASSISTENCIA TECNICA LTDA
+🏢 *Depto:* CLEAN TECH
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:15:33</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* ALLAN HENRIQUE ALVES
+📍 *Posto:* CLEAN TECH PRO - LOCAÇÕES E ASSISTENCIA TECNICA LTDA
+🏢 *Depto:* CLEAN TECH
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:15:36</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* MARIA SUELI DE MATOS SOUZA
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* DAJU CABRAL
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:15:36</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* LUCAS DE SOUZA DUARTE
+📍 *Posto:* CLEAN TECH PRO - LOCAÇÕES E ASSISTENCIA TECNICA LTDA
+🏢 *Depto:* CLEAN TECH
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:25:29</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* FRANCIELLE CRISTIANE SOARES GONÇALVES ALMEIDA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* GUARDA BRASIL MOSSUNGUE
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:25:30</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* SUELLEN PRESTES DA SILVA
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* IBEG
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:25:31</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* MARIA SUELI DE MATOS SOUZA
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* DAJU CABRAL
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:25:33</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* ALLAN HENRIQUE ALVES
+📍 *Posto:* CLEAN TECH PRO - LOCAÇÕES E ASSISTENCIA TECNICA LTDA
+🏢 *Depto:* CLEAN TECH
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:26:09</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* VANESSA DA SILVA CAMARGO
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* HERBARIUM
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:35:29</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* VANESSA DA SILVA CAMARGO
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* HERBARIUM
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:45:35</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* VANESSA DA SILVA CAMARGO
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* HERBARIUM
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 08:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 08:55:29</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* ELIZABETE BRUM ANTONIO
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* SPATIUM LABORIS
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 09:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 09:35:28</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* ELIZABETE BRUM ANTONIO
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* SPATIUM LABORIS
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 09:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 09:46:36</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* ELIZABETE BRUM ANTONIO
+📍 *Posto:* JVS FACILITES
+🏢 *Depto:* SPATIUM LABORIS
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 09:30
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 09:55:29</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* IGOR MICKAEL GONÇALVES DA SILVA
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* GALERIA OSORIO 
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 13:45
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 13:50:44</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* PAULO SERGIO DA SILVA FRAGA
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* GALERIA OSORIO 
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 13:45
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 13:50:46</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* PAULO SERGIO DA SILVA FRAGA
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* GALERIA OSORIO 
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 13:45
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 14:03:41</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* PAULO SERGIO DA SILVA FRAGA
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* GALERIA OSORIO 
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 13:45
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 14:10:30</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* ROSEMANIE CASSEUS
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* AMERICA EMBALAGENS
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 14:20
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 14:25:31</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* ROSEMANIE CASSEUS
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* AMERICA EMBALAGENS
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 14:20
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 14:35:32</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* ROSEMANIE CASSEUS
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* AMERICA EMBALAGENS
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 14:20
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 14:45:30</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* ANDREA CRISTIANE RIBA
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* DAJU CABRAL
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 16:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 16:05:32</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">⚠️ *1º AVISO — NEXUS OPERACIONAL* ⚠️
+
+👤 *Colaborador:* CLAUDIANE GOUVEA MANOEL
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* DAJU ATUBA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 16:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 16:06:10</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* CLAUDIANE GOUVEA MANOEL
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* DAJU ATUBA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 16:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 16:15:31</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🚨 *2º AVISO — NEXUS OPERACIONAL* 🚨
+
+👤 *Colaborador:* ANDREA CRISTIANE RIBA
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* DAJU CABRAL
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 16:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 16:15:43</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* ANDREA CRISTIANE RIBA
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* DAJU CABRAL
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 16:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 16:25:29</div>
+        </div>
+      
+        <div class="msg-bubble msg-out">
+          <div class="msg-sender">Atendente RH</div>
+          <div class="msg-text">🆘 *3º AVISO — NEXUS OPERACIONAL* 🆘
+
+👤 *Colaborador:* CLAUDIANE GOUVEA MANOEL
+📍 *Posto:* SPOT SERVIÇOS FACILITIES LTDA
+🏢 *Depto:* DAJU ATUBA
+🕒 *Evento:* Entrada no Turno
+⏰ *Horário Previsto:* 16:00
+❌ *Batida não registrada no Secullum*
+
+Verificar presença no local imediatamente! ⏱️</div>
+          
+          <div class="msg-time">12/08/2026, 16:25:32</div>
+        </div>
+      
+    </div>
+  </div>
+</body>
+</html>
