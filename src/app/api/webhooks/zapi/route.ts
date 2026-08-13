@@ -279,10 +279,10 @@ function parseMessageBody(body: any) {
         mediaFileName = body.document.fileName || body.document.name || "documento";
         mediaMimeType = body.document.mimeType || "application/pdf";
         content = body.document.caption || content || `📎 ${mediaFileName}`;
-    } else if (body.audio) {
+    } else if (body.audio || body.ptt || body.type === "audio" || body.type === "ptt") {
         messageType = "AUDIO";
-        mediaUrl = body.audio.audioUrl || body.audio.url;
-        content = "🎙️ Áudio";
+        mediaUrl = body.audio?.audioUrl || body.audio?.url || (typeof body.audio === "string" ? body.audio : undefined) || body.mediaUrl || body.url || body.file || body.ptt?.audioUrl || body.ptt?.url;
+        content = "🎙️ Mensagem de Voz";
     } else if (body.sticker) {
         messageType = "IMAGE";
         mediaUrl = body.sticker.stickerUrl || body.sticker.url;

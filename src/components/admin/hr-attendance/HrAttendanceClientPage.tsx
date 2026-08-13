@@ -735,15 +735,28 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
 
                                                                 {/* Player de Áudio / Mensagem de Voz Real */}
                                                                 {isAudioMsg && (
-                                                                    <div className="my-1 p-2 bg-slate-100/90 rounded-lg border border-slate-200 space-y-1">
-                                                                        <div className="flex items-center gap-2 text-slate-700 font-bold text-xs">
-                                                                            <Mic className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                                                                            <span className="truncate">{msg.content || "Mensagem de Voz"}</span>
+                                                                    <div className="my-1 p-2.5 bg-slate-100/90 rounded-lg border border-slate-200 space-y-1.5 min-w-[220px]">
+                                                                        <div className="flex items-center justify-between gap-2 text-slate-800 font-bold text-xs">
+                                                                            <div className="flex items-center gap-1.5 overflow-hidden min-w-0">
+                                                                                <Mic className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                                                                <span className="truncate">{msg.content || "Mensagem de Voz"}</span>
+                                                                            </div>
+                                                                            {msg.mediaUrl && (
+                                                                                <a
+                                                                                    href={msg.mediaUrl}
+                                                                                    target="_blank"
+                                                                                    rel="noopener noreferrer"
+                                                                                    download="audio_whatsapp.mp3"
+                                                                                    className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded hover:bg-emerald-700 transition flex-shrink-0"
+                                                                                >
+                                                                                    Baixar Áudio
+                                                                                </a>
+                                                                            )}
                                                                         </div>
                                                                         {msg.mediaUrl ? (
-                                                                            <audio controls src={msg.mediaUrl} className="w-full h-8 mt-1 rounded-md" />
+                                                                            <audio controls src={msg.mediaUrl} className="w-full h-8 rounded-md" />
                                                                         ) : (
-                                                                            <span className="text-[10px] text-slate-500 italic block">Áudio gravado via WhatsApp Web</span>
+                                                                            <span className="text-[10px] text-slate-500 italic block pt-0.5">Áudio enviado via WhatsApp Web</span>
                                                                         )}
                                                                     </div>
                                                                 )}
