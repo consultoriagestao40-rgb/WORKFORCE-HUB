@@ -291,6 +291,10 @@ function parseMessageBody(body: any) {
         messageType = "VIDEO";
         mediaUrl = body.video.videoUrl || body.video.url;
         content = body.video.caption || "🎥 Vídeo";
+    } else if (body.contact || body.vcard) {
+        messageType = "CONTACT";
+        const cName = body.contact?.displayName || body.contact?.name || body.vcard?.displayName || "Contato";
+        content = `👤 ${cName} (Contato enviado)`;
     }
 
     // Tratar Mensagem Citada (Quoted Message)
