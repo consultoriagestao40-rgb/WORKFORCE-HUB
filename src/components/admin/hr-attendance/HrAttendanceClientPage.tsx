@@ -37,6 +37,35 @@ import { HrAccessManager } from "./HrAccessManager";
 import { HrTicketModal } from "./HrTicketModal";
 import { HrScheduleActivityModal } from "./HrScheduleActivityModal";
 
+function formatDynamicDateLabel(dateInput: any) {
+    if (!dateInput) return "HOJE";
+    const d = new Date(dateInput);
+    const now = new Date();
+
+    const isToday = d.getDate() === now.getDate() &&
+                    d.getMonth() === now.getMonth() &&
+                    d.getFullYear() === now.getFullYear();
+
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = d.getDate() === yesterday.getDate() &&
+                        d.getMonth() === yesterday.getMonth() &&
+                        d.getFullYear() === yesterday.getFullYear();
+
+    if (isToday) return "HOJE";
+    if (isYesterday) return "ONTEM";
+
+    const daysOfWeek = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
+    const diffTime = Math.abs(now.getTime() - d.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays <= 7) {
+        return daysOfWeek[d.getDay()].toUpperCase();
+    }
+
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 interface Props {
     currentUser: any;
     allUsers: any[];
@@ -666,21 +695,29 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                         />
 
                                         <div className="flex-1 overflow-y-auto p-4 space-y-2.5 relative z-10">
-                                            {/* Divisor de Data "Hoje" estilo WhatsApp Web */}
-                                            <div className="flex justify-center my-2">
-                                                <span className="bg-white/90 text-slate-600 text-[10px] font-bold px-3 py-1 rounded-full shadow-2xs border border-slate-200/50 uppercase tracking-wider">
-                                                    Hoje
-                                                </span>
-                                            </div>
-
-                                            {ticketDetail.messages?.map((msg: any) => {
+                                            {ticketDetail.messages?.map((msg: any, idx: number) => {
                                                 const isAttendant = msg.senderType === "ATTENDANT" || msg.fromMe === true;
                                                 const isGroupTicket = ticketDetail.contactPhone?.includes("-group") || ticketDetail.contactPhone?.length > 13 || ticketDetail.title?.toLowerCase().includes("grupo") || ticketDetail.title?.includes("Taxas") || ticketDetail.title?.includes("Mesa") || ticketDetail.title?.includes("RH - ATESTADO");
                                                 const showSenderHeader = isGroupTicket && !isAttendant && msg.senderName;
 
+                                                const currentDateStr = new Date(msg.createdAt).toLocaleDateString("pt-BR");
+                                                const prevMsg = idx > 0 ? ticketDetail.messages[idx - 1] : null;
+                                                const prevDateStr = prevMsg ? new Date(prevMsg.createdAt).toLocaleDateString("pt-BR") : null;
+                                                const showDateDivider = idx === 0 || currentDateStr !== prevDateStr;
+
+                                                const dateLabel = formatDynamicDateLabel(msg.createdAt);
+
                                                 return (
-                                                    <div key={msg.id} className={`flex ${isAttendant ? "justify-end" : "justify-start"}`}>
-                                                        <div className={`max-w-[70%] p-2.5 rounded-lg shadow-2xs text-xs ${isAttendant ? "bg-[#d9fdd3] text-slate-900 rounded-tr-none" : "bg-white text-slate-900 rounded-tl-none"}`}>
+                                                    <div key={msg.id} className="space-y-2.5">
+                                                        {showDateDivider && (
+                                                            <div className="flex justify-center my-3">
+                                                                <span className="bg-white/90 text-slate-600 text-[10px] font-bold px-3 py-1 rounded-full shadow-2xs border border-slate-200/50 uppercase tracking-wider">
+                                                                    {dateLabel}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                        <div className={`flex ${isAttendant ? "justify-end" : "justify-start"}`}>
+                                                            <div className={`max-w-[70%] p-2.5 rounded-lg shadow-2xs text-xs ${isAttendant ? "bg-[#d9fdd3] text-slate-900 rounded-tr-none" : "bg-white text-slate-900 rounded-tl-none"}`}>
                                                             {/* Nome do Colaborador que postou no grupo (apenas em Grupos) */}
                                                             {showSenderHeader && (
                                                                 <div className="text-[11px] font-extrabold text-emerald-700 mb-1">
@@ -726,7 +763,8 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                             </div>
                                                         </div>
                                                     </div>
-                                                );
+                                                </div>
+                                            );
                                             })}
                                             <div ref={messagesEndRef} />
                                         </div>
