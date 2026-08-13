@@ -743,7 +743,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                                             </div>
                                                                             {msg.mediaUrl && (
                                                                                 <a
-                                                                                    href={`/api/whatsapp/media-proxy?url=${encodeURIComponent(msg.mediaUrl)}`}
+                                                                                    href={msg.mediaUrl.startsWith("http") ? `/api/whatsapp/media-proxy?url=${encodeURIComponent(msg.mediaUrl)}` : msg.mediaUrl}
                                                                                     target="_blank"
                                                                                     rel="noopener noreferrer"
                                                                                     download="audio_whatsapp.mp3"
@@ -754,7 +754,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                                             )}
                                                                         </div>
                                                                         {msg.mediaUrl ? (
-                                                                            <audio controls preload="metadata" src={`/api/whatsapp/media-proxy?url=${encodeURIComponent(msg.mediaUrl)}`} className="w-full h-8 rounded-md" />
+                                                                            <audio controls preload="auto" src={msg.mediaUrl.startsWith("http") ? `/api/whatsapp/media-proxy?url=${encodeURIComponent(msg.mediaUrl)}` : msg.mediaUrl} className="w-full h-8 rounded-md" />
                                                                         ) : (
                                                                             <span className="text-[10px] text-slate-500 italic block pt-0.5">Áudio enviado via WhatsApp Web</span>
                                                                         )}
