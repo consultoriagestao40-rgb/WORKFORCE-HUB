@@ -23,88 +23,100 @@ import { prisma } from "@/lib/db";
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { phone, contactName, isGroup, messages } = body;
 
-        if (!phone || !Array.isArray(messages)) {
-            return NextResponse.json({ error: "Telefone e array de mensagens são obrigatórios." }, { status: 400 });
-        }
+        // Se for um lote de conversas em array
+        const chatItems = Array.isArray(body) ? body : [body];
 
-        const cleanPhone = phone.replace(/\D/g, "");
-        const phoneSearch = cleanPhone.slice(-9);
+        let totalInsertedAll = 0;
+        let totalChatsProcessed = 0;
 
-        // 1. Encontrar ou criar o ticket de atendimento
-        let ticket = await prisma.hrTicket.findFirst({
-            where: {
-                OR: [
-                    { contactPhone: { contains: phoneSearch } },
-                    { contactPhone: { contains: cleanPhone } }
-                ]
-            }
-        });
-
-        if (!ticket) {
-            let inboxStage = await prisma.hrPipelineStage.findFirst({ where: { isDefault: true } });
-            if (!inboxStage) inboxStage = await prisma.hrPipelineStage.findFirst({ orderBy: { order: "asc" } });
-            if (!inboxStage) {
-                inboxStage = await prisma.hrPipelineStage.create({
-                    data: { name: "INBOX", color: "#6366f1", order: 0, isDefault: true }
-                });
-            }
-
-            ticket = await prisma.hrTicket.create({
-                data: {
-                    title: `Atendimento: ${contactName || phone}`,
-                    contactPhone: cleanPhone,
-                    contactName: contactName || `Contato (${cleanPhone.slice(-4)})`,
-                    stageId: inboxStage.id,
-                    status: "OPEN"
-                }
+        let inboxStage = await prisma.hrPipelineStage.findFirst({ where: { isDefault: true } });
+        if (!inboxStage) inboxStage = await prisma.hrPipelineStage.findFirst({ orderBy: { order: "asc" } });
+        if (!inboxStage) {
+            inboxStage = await prisma.hrPipelineStage.create({
+                data: { name: "INBOX", color: "#6366f1", order: 0, isDefault: true }
             });
         }
 
-        // 2. Inserir mensagens no banco de dados sem duplicar
-        let insertedCount = 0;
+        for (const item of chatItems) {
+            const { phone, contactName, messages } = item;
+            if (!phone || !Array.isArray(messages) || messages.length === 0) continue;
 
-        for (const m of messages) {
-            if (!m.content) continue;
+            const cleanPhone = phone.replace(/\D/g, "");
+            if (!cleanPhone) continue;
+            const phoneSearch = cleanPhone.slice(-9);
 
-            const msgDate = m.createdAt ? new Date(m.createdAt) : new Date();
-
-            const exists = await prisma.hrTicketMessage.findFirst({
+            // 1. Encontrar ou criar o ticket de atendimento
+            let ticket = await prisma.hrTicket.findFirst({
                 where: {
-                    ticketId: ticket.id,
-                    content: m.content
+                    OR: [
+                        { contactPhone: { contains: phoneSearch } },
+                        { contactPhone: { contains: cleanPhone } }
+                    ]
                 }
             });
 
-            if (!exists) {
-                await prisma.hrTicketMessage.create({
+            if (!ticket) {
+                ticket = await prisma.hrTicket.create({
                     data: {
-                        ticketId: ticket.id,
-                        senderType: m.senderType || "EMPLOYEE",
-                        senderName: m.senderName || ticket.contactName,
-                        messageType: m.messageType || "TEXT",
-                        content: m.content,
-                        mediaUrl: m.mediaUrl || null,
-                        mediaFileName: m.mediaFileName || null,
-                        mediaMimeType: m.mediaMimeType || null,
-                        status: "DELIVERED",
-                        createdAt: msgDate
+                        title: `Atendimento: ${contactName || phone}`,
+                        contactPhone: cleanPhone,
+                        contactName: contactName || `Contato (${cleanPhone.slice(-4)})`,
+                        stageId: inboxStage.id,
+                        status: "OPEN"
                     }
                 });
-                insertedCount++;
             }
-        }
 
-        await prisma.hrTicket.update({
-            where: { id: ticket.id },
-            data: { updatedAt: new Date() }
-        });
+            // 2. Inserir mensagens no banco de dados sem duplicar
+            let insertedCount = 0;
+
+            for (const m of messages) {
+                if (!m.content) continue;
+
+                const msgDate = m.createdAt ? new Date(m.createdAt) : new Date();
+
+                const exists = await prisma.hrTicketMessage.findFirst({
+                    where: {
+                        ticketId: ticket.id,
+                        content: m.content
+                    }
+                });
+
+                if (!exists) {
+                    await prisma.hrTicketMessage.create({
+                        data: {
+                            ticketId: ticket.id,
+                            senderType: m.senderType || "EMPLOYEE",
+                            senderName: m.senderName || ticket.contactName,
+                            messageType: m.messageType || "TEXT",
+                            content: m.content,
+                            mediaUrl: m.mediaUrl || null,
+                            mediaFileName: m.mediaFileName || null,
+                            mediaMimeType: m.mediaMimeType || null,
+                            status: "DELIVERED",
+                            createdAt: msgDate
+                        }
+                    });
+                    insertedCount++;
+                }
+            }
+
+            if (insertedCount > 0) {
+                await prisma.hrTicket.update({
+                    where: { id: ticket.id },
+                    data: { updatedAt: new Date() }
+                });
+            }
+
+            totalInsertedAll += insertedCount;
+            totalChatsProcessed++;
+        }
 
         return NextResponse.json({
             success: true,
-            ticketId: ticket.id,
-            totalInserted: insertedCount
+            totalChatsProcessed,
+            totalInserted: totalInsertedAll
         });
 
     } catch (e: any) {
