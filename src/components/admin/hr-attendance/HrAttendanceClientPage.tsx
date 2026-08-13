@@ -62,6 +62,36 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
 
     const [selectedImageZoom, setSelectedImageZoom] = useState<string | null>(null);
     const [showScheduleAct, setShowScheduleAct] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [importJsonText, setImportJsonText] = useState("");
+    const [importing, setImporting] = useState(false);
+
+    const handleProcessImportJson = async () => {
+        if (!importJsonText.trim()) return;
+        setImporting(true);
+        try {
+            const payload = JSON.parse(importJsonText.trim());
+            const res = await fetch("/api/whatsapp/import-history", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(`✅ SUCESSO! ${data.totalInserted} mensagens salvas no banco de dados!`);
+                setShowImportModal(false);
+                setImportJsonText("");
+                loadData();
+                if (selectedTicketId) loadTicketDetail(selectedTicketId);
+            } else {
+                alert("❌ Erro ao importar: " + (data.error || "Formato inválido."));
+            }
+        } catch (e: any) {
+            alert("❌ Erro no JSON colado: " + e.message);
+        } finally {
+            setImporting(false);
+        }
+    };
 
     // Busca e Filtros
     const [searchQuery, setSearchQuery] = useState("");
@@ -323,6 +353,15 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                             📊 Pipeline Kanban
                         </button>
                     </div>
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs gap-1 border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-extrabold"
+                        onClick={() => setShowImportModal(true)}
+                    >
+                        📥 Importar Histórico
+                    </Button>
 
                     {currentUser?.role === "ADMIN" && (
                         <Button
@@ -765,6 +804,34 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                         loadData();
                     }}
                 />
+            )}
+
+            {showImportModal && (
+                <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+                    <div className="bg-white p-6 rounded-2xl max-w-lg w-full space-y-4 shadow-2xl border border-slate-200" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between border-b pb-3">
+                            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                📥 Importar Histórico do WhatsApp Web
+                            </h3>
+                            <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                            Cole abaixo o código ou texto copiado do seu WhatsApp Web para salvar todas as mensagens no banco de dados do seu sistema.
+                        </p>
+                        <Textarea
+                            value={importJsonText}
+                            onChange={(e) => setImportJsonText(e.target.value)}
+                            placeholder="Cole o código/JSON aqui (Ctrl+V)..."
+                            className="h-44 text-xs font-mono bg-slate-50 border-slate-300 rounded-xl"
+                        />
+                        <div className="flex items-center justify-end gap-2 pt-2">
+                            <Button variant="ghost" size="sm" onClick={() => setShowImportModal(false)} className="text-xs font-bold">Cancelar</Button>
+                            <Button size="sm" onClick={handleProcessImportJson} disabled={importing || !importJsonText.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs">
+                                {importing ? "Importando..." : "Salvar no Banco de Dados"}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             <HrAccessManager open={showAccessManager} onClose={() => setShowAccessManager(false)} />
