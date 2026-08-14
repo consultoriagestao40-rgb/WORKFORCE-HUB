@@ -66,6 +66,13 @@ export function HrTicketModal({
     const [messageText, setMessageText] = useState("");
     const [sending, setSending] = useState(false);
     const [useStamp, setUseStamp] = useState(true);
+    const [customStamp, setCustomStamp] = useState(() => {
+        if (typeof window !== "undefined") {
+            return localStorage.getItem("hr_whatsapp_custom_stamp") || currentUser?.name?.split(" ")[0] || "Atendente RH";
+        }
+        return currentUser?.name?.split(" ")[0] || "Atendente RH";
+    });
+    const [isEditingStamp, setIsEditingStamp] = useState(false);
     const [syncingHistory, setSyncingHistory] = useState(false);
 
     // Gravação de Áudio ao Vivo
@@ -207,7 +214,7 @@ export function HrTicketModal({
         }));
 
         try {
-            const stamp = useStamp ? `*${currentUser?.name || "Atendente RH"}*` : undefined;
+            const stamp = useStamp && customStamp.trim() ? `*${customStamp.trim()}*` : undefined;
             const res = await sendHrWhatsAppMessage({
                 ticketId: ticket.id,
                 phone: ticket.contactPhone,
@@ -694,22 +701,59 @@ export function HrTicketModal({
 
                                     {/* BARRA DE DIGITAÇÃO E COMPOSER WASELLER */}
                                     <div className="bg-[#f0f2f5] border-t border-slate-300 p-2.5 flex flex-col gap-1.5 z-20">
-                                        <div className="flex items-center justify-between text-[10px] text-slate-500 px-1">
-                                            <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-700">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={useStamp}
-                                                    onChange={e => setUseStamp(e.target.checked)}
-                                                    className="rounded text-emerald-600"
-                                                />
-                                                <span>Assinar como <strong>{currentUser?.name || "Operador"}</strong></span>
-                                            </label>
+                                        <div className="flex items-center justify-between text-[11px] text-slate-600 px-1">
+                                            <div className="flex items-center gap-2">
+                                                <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-700">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={useStamp}
+                                                        onChange={e => setUseStamp(e.target.checked)}
+                                                        className="rounded text-emerald-600 cursor-pointer"
+                                                    />
+                                                    <span>Assinar como:</span>
+                                                </label>
+
+                                                {isEditingStamp ? (
+                                                    <div className="flex items-center gap-1">
+                                                        <input
+                                                            type="text"
+                                                            value={customStamp}
+                                                            onChange={e => {
+                                                                setCustomStamp(e.target.value);
+                                                                localStorage.setItem("hr_whatsapp_custom_stamp", e.target.value);
+                                                            }}
+                                                            onBlur={() => setIsEditingStamp(false)}
+                                                            onKeyDown={e => e.key === "Enter" && setIsEditingStamp(false)}
+                                                            autoFocus
+                                                            placeholder="Nome da assinatura..."
+                                                            className="text-[11px] font-bold bg-white border border-emerald-500 rounded-lg px-2 py-0.5 w-36 shadow-2xs focus:outline-none"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsEditingStamp(false)}
+                                                            className="text-[10px] bg-emerald-600 text-white font-bold px-1.5 py-0.5 rounded cursor-pointer"
+                                                        >
+                                                            OK
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsEditingStamp(true)}
+                                                        className="font-bold text-emerald-800 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 px-2 py-0.5 rounded-lg flex items-center gap-1 text-[11px] transition cursor-pointer"
+                                                        title="Clique para personalizar seu nome de assinatura no WhatsApp"
+                                                    >
+                                                        <span>{customStamp || "Definir nome"}</span>
+                                                        <span className="text-[9px] text-emerald-600">✏️</span>
+                                                    </button>
+                                                )}
+                                            </div>
 
                                             <button
                                                 onClick={() => setShowQuickReplies(true)}
                                                 className="text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1"
                                             >
-                                                <Zap className="w-3 h-3 text-amber-500 fill-amber-400" /> Templates RH
+                                                <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-400" /> Templates RH
                                             </button>
                                         </div>
 
