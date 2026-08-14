@@ -408,14 +408,19 @@ export function EmployeeOnvioWizard({
 
             const selectedPosto = postos.find(p => p.id === resolvedPostoId);
 
-            const safeFormatDate = (d?: string) => {
+            const safeFormatDate = (d?: any) => {
                 if (!d) return "";
-                if (d.includes("-")) return d.split("T")[0];
-                if (d.includes("/")) {
-                    const parts = d.split("/");
+                if (d instanceof Date) {
+                    if (isNaN(d.getTime())) return "";
+                    return d.toISOString().split("T")[0];
+                }
+                const str = String(d);
+                if (str.includes("-")) return str.split("T")[0];
+                if (str.includes("/")) {
+                    const parts = str.split("/");
                     if (parts.length === 3) {
                         const [day, month, year] = parts;
-                        if (year.length === 4) return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                        if (year && year.length === 4) return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
                     }
                 }
                 try {

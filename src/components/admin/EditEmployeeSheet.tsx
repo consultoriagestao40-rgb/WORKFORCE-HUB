@@ -246,7 +246,7 @@ export function EditEmployeeSheet({
                 {/* CONTEÚDO PRINCIPAL */}
                 <div className="flex-1 overflow-hidden pt-2">
                     {/* ABA 1: FICHA COMPLETA (ONVIO WIZARD) */}
-                    {activeTab === "onvio" && (
+                    {open && activeTab === "onvio" && (
                         <form onSubmit={handleFormSubmit} className="flex flex-col h-full overflow-hidden">
                             <input type="hidden" name="id" value={employee.id} />
                             
