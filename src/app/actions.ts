@@ -1539,6 +1539,9 @@ export async function updateEmployee(formData: FormData) {
             include: { role: true, situation: true }
         });
 
+        const oldExtra = (oldEmployee?.extraFields as Record<string, any>) || {};
+        const mergedExtra = extraFields ? { ...oldExtra, ...extraFields } : (Object.keys(oldExtra).length > 0 ? oldExtra : undefined);
+
         const result = await prisma.$transaction(async (tx) => {
             const updated = await tx.employee.update({
                 where: { id },
@@ -1584,10 +1587,35 @@ export async function updateEmployee(formData: FormData) {
                     email: (formData.get("email") as string) || null,
                     dismissalReason: (formData.get("dismissalReason") as string) || null,
                     dismissalNotes: (formData.get("dismissalNotes") as string) || null,
-                    extraFields: extraFields || undefined
+                    extraFields: mergedExtra
                 },
                 include: { role: true, situation: true }
             });
+
+            // Posto Assignment sync if changed
+            const newPostoId = formData.get("postoId") as string;
+            if (newPostoId && newPostoId !== "no_posto") {
+                const currentActiveAssignment = await tx.assignment.findFirst({
+                    where: { employeeId: id, endDate: null },
+                    orderBy: { startDate: 'desc' }
+                });
+
+                if (!currentActiveAssignment || currentActiveAssignment.postoId !== newPostoId) {
+                    if (currentActiveAssignment) {
+                        await tx.assignment.update({
+                            where: { id: currentActiveAssignment.id },
+                            data: { endDate: new Date() }
+                        });
+                    }
+                    await tx.assignment.create({
+                        data: {
+                            employeeId: id,
+                            postoId: newPostoId,
+                            startDate: new Date()
+                        }
+                    });
+                }
+            }
 
             // Change Logging
             if (oldEmployee) {

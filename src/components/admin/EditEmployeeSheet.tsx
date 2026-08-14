@@ -2,25 +2,29 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
     Edit, Plus, Trash2, Download, UploadCloud, FileText, CheckCircle2, 
-    User, Briefcase, CreditCard, ShieldAlert, Users, Paperclip, ChevronDown,
-    Pencil, X, Check, Loader2, Scale
+    User, Briefcase, CreditCard, ShieldAlert, Users, Paperclip,
+    Pencil, X, Check, Loader2, Scale, Sparkles, Layers, BookOpen, Clock, Calendar
 } from "lucide-react";
 import { 
     updateEmployee, 
     createAdHocDisciplinaryMeasure, 
     deleteDisciplinaryMeasure,
-    resendDisciplinaryWhatsApp
+    resendDisciplinaryWhatsApp,
+    getWizardDropdowns
 } from "@/app/actions";
+import { EmployeeOnvioWizard } from "./EmployeeOnvioWizard";
 import { VacationHistory } from "./VacationHistory";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface EditEmployeeSheetProps {
     employee: any;
@@ -30,62 +34,23 @@ interface EditEmployeeSheetProps {
     postos?: any[];
 }
 
-const compressImageIfNeeded = (file: File): Promise<File> => {
-    return new Promise((resolve) => {
-        if (!file.type.startsWith("image/")) {
-            resolve(file);
-            return;
-        }
-        const img = new Image();
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            img.src = e.target?.result as string;
-            img.onload = () => {
-                const canvas = document.createElement("canvas");
-                let width = img.width;
-                let height = img.height;
-                const maxDim = 1600;
-                if (width > maxDim || height > maxDim) {
-                    if (width > height) {
-                        height = Math.round((height * maxDim) / width);
-                        width = maxDim;
-                    } else {
-                        width = Math.round((width * maxDim) / height);
-                        height = maxDim;
-                    }
-                }
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext("2d");
-                if (ctx) {
-                    ctx.drawImage(img, 0, 0, width, height);
-                    canvas.toBlob((blob) => {
-                        if (blob) {
-                            const compressedFile = new File([blob], file.name, {
-                                type: "image/jpeg",
-                                lastModified: Date.now()
-                            });
-                            resolve(compressedFile.size < file.size ? compressedFile : file);
-                        } else {
-                            resolve(file);
-                        }
-                    }, "image/jpeg", 0.75);
-                } else {
-                    resolve(file);
-                }
-            };
-            img.onerror = () => resolve(file);
-        };
-        reader.onerror = () => resolve(file);
-        reader.readAsDataURL(file);
-    });
-};
-
-export function EditEmployeeSheet({ employee, situations, roles, companies = [] }: EditEmployeeSheetProps) {
+export function EditEmployeeSheet({ 
+    employee, 
+    situations, 
+    roles, 
+    companies = [],
+    postos = []
+}: EditEmployeeSheetProps) {
+    const router = useRouter();
     const [open, setOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<"onvio" | "vacations" | "disciplinary">("onvio");
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [status, setStatus] = useState(employee.status);
-    const [situationId, setSituationId] = useState(employee.situationId || "");
+
+    // Dynamic Dropdowns
+    const [departments, setDepartments] = useState<{ id: string, name: string }[]>([]);
+    const [costCenters, setCostCenters] = useState<{ id: string, name: string }[]>([]);
+    const [unions, setUnions] = useState<{ id: string, name: string }[]>([]);
+    const [jobFunctions, setJobFunctions] = useState<{ id: string, name: string }[]>([]);
 
     // Ad-hoc Disciplinary Measures states
     const [openAdHocDialog, setOpenAdHocDialog] = useState(false);
@@ -93,17 +58,26 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
     const [adHocCltArticle, setAdHocCltArticle] = useState("Artigo 482, alínea e - Desídia (Faltas/Atrasos)");
     const [adHocOccurrenceDate, setAdHocOccurrenceDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [adHocDescription, setAdHocDescription] = useState("");
-    const [adHocFile, setAdHocFile] = useState<File | null>(null);
     const [adHocFileName, setAdHocFileName] = useState("");
     const [adHocFileData, setAdHocFileData] = useState("");
     const [isAnalyzingDoc, setIsAnalyzingDoc] = useState(false);
     const [isSubmittingAdHoc, setIsSubmittingAdHoc] = useState(false);
 
+    useEffect(() => {
+        if (open) {
+            getWizardDropdowns().then(res => {
+                setDepartments(res.departments || []);
+                setCostCenters(res.costCenters || []);
+                setUnions(res.unions || []);
+                setJobFunctions(res.jobFunctions || []);
+            });
+        }
+    }, [open]);
+
     const handleAdHocFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        setAdHocFile(file);
         setAdHocFileName(file.name);
         
         const reader = new FileReader();
@@ -152,8 +126,8 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
             const res = await createAdHocDisciplinaryMeasure({
                 employeeId: employee.id,
                 type: adHocType,
-                occurrenceDate: adHocOccurrenceDate,
                 cltArticle: adHocCltArticle,
+                occurrenceDate: adHocOccurrenceDate,
                 description: adHocDescription,
                 fileName: adHocFileName,
                 fileData: adHocFileData
@@ -162,231 +136,46 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
             if (res.success) {
                 toast.success("Medida disciplinar registrada com sucesso!");
                 setOpenAdHocDialog(false);
-                setAdHocFile(null);
-                setAdHocFileName("");
-                setAdHocFileData("");
                 setAdHocDescription("");
-                setAdHocCltArticle("");
-                setOpen(false);
+                setAdHocFileData("");
+                setAdHocFileName("");
+                router.refresh();
             } else {
                 toast.error(res.error || "Erro ao salvar medida disciplinar.");
             }
-        } catch (e: any) {
-            console.error(e);
-            toast.error("Erro interno ao salvar.");
+        } catch (error: any) {
+            toast.error(error.message || "Erro de conexão ao salvar.");
         } finally {
             setIsSubmittingAdHoc(false);
         }
     };
 
-    const extra = employee.extraFields || {};
-
-    // Benefits specific states
-    const [vtOptIn, setVtOptIn] = useState(employee.vtOptIn !== false);
-    const [vtPaymentMethod, setVtPaymentMethod] = useState(employee.vtPaymentMethod || "Metrocard");
-    const [vtOptions, setVtOptions] = useState<string[]>(["Metrocard", "Urbs", "PIX"]);
-    const [isManagingVt, setIsManagingVt] = useState(false);
-    const [newVtMethodName, setNewVtMethodName] = useState("");
-    const [editingVtIndex, setEditingVtIndex] = useState<number | null>(null);
-    const [editingVtValue, setEditingVtValue] = useState("");
-
-    const [vtPaymentMethod2, setVtPaymentMethod2] = useState(employee.vtPaymentMethod2 || "Urbs");
-    const [vtOptions2, setVtOptions2] = useState<string[]>(["Metrocard", "Urbs", "PIX"]);
-    const [isManagingVt2, setIsManagingVt2] = useState(false);
-    const [newVtMethodName2, setNewVtMethodName2] = useState("");
-    const [editingVtIndex2, setEditingVtIndex2] = useState<number | null>(null);
-    const [editingVtValue2, setEditingVtValue2] = useState("");
-
-    const [valeTransporte, setValeTransporte] = useState(employee.valeTransporte.toString());
-    const [valeTransporte2, setValeTransporte2] = useState((employee.valeTransporte2 || 0).toString());
-    const [vtDiscountPercentage, setVtDiscountPercentage] = useState(employee.vtDiscountPercentage !== null && employee.vtDiscountPercentage !== undefined ? employee.vtDiscountPercentage.toString() : "");
-    const [vaDiscountPercentage, setVaDiscountPercentage] = useState(employee.vaDiscountPercentage !== null && employee.vaDiscountPercentage !== undefined ? employee.vaDiscountPercentage.toString() : "");
-
-    useEffect(() => {
-        const initialMethod = employee.vtPaymentMethod;
-        if (initialMethod && !["Metrocard", "Urbs", "PIX"].includes(initialMethod)) {
-            setVtOptions(prev => {
-                if (prev.includes(initialMethod)) return prev;
-                return [...prev, initialMethod];
-            });
-        }
-    }, [employee.vtPaymentMethod]);
-
-    useEffect(() => {
-        const initialMethod2 = employee.vtPaymentMethod2;
-        if (initialMethod2 && !["Metrocard", "Urbs", "PIX"].includes(initialMethod2)) {
-            setVtOptions2(prev => {
-                if (prev.includes(initialMethod2)) return prev;
-                return [...prev, initialMethod2];
-            });
-        }
-    }, [employee.vtPaymentMethod2]);
-
-    const [vtCustomPaymentDetails, setVtCustomPaymentDetails] = useState(employee.vtCustomPaymentDetails || "");
-    const [vtCustomPaymentDetails2, setVtCustomPaymentDetails2] = useState(employee.vtCustomPaymentDetails2 || "");
-    const [urbsSic, setUrbsSic] = useState(employee.urbsSic || "");
-    const [urbsCqCtNf, setUrbsCqCtNf] = useState(employee.urbsCqCtNf || "");
-    const [vaPaymentMethod, setVaPaymentMethod] = useState(employee.vaPaymentMethod || "Cartão Caju");
-    const [vaOptions, setVaOptions] = useState<string[]>(["Cartão Caju"]);
-    const [isManagingVa, setIsManagingVa] = useState(false);
-    const [newVaMethodName, setNewVaMethodName] = useState("");
-    const [editingVaIndex, setEditingVaIndex] = useState<number | null>(null);
-    const [editingVaValue, setEditingVaValue] = useState("");
-
-    useEffect(() => {
-        const initialMethod = employee.vaPaymentMethod;
-        if (initialMethod && !["Cartão Caju"].includes(initialMethod)) {
-            setVaOptions(prev => {
-                if (prev.includes(initialMethod)) return prev;
-                return [...prev, initialMethod];
-            });
-        }
-    }, [employee.vaPaymentMethod]);
-
-    const [vaCustomPaymentDetails, setVaCustomPaymentDetails] = useState(employee.vaCustomPaymentDetails || "");
-
-    const getInitialAttachments = () => {
-        const list = [...((extra.attachments as { name: string; fileName: string; fileData: string }[]) || [])];
-        if (extra.dismissalProcess?.attachment) {
-            const da = extra.dismissalProcess.attachment;
-            const exists = list.some((a: any) => a.fileName === da.fileName);
-            if (!exists) {
-                list.push({
-                    name: "Pedido de Demissão",
-                    fileName: da.fileName,
-                    fileData: da.fileData
-                });
-            }
-        }
-        return list;
-    };
-
-    // Attachments & Dependents
-    const [attachments, setAttachments] = useState<{ name: string; fileName: string; fileData: string }[]>(getInitialAttachments());
-    const [dependents, setDependents] = useState<any[]>(extra.dependentes || []);
-
-    // Extra Professional Fields
-    const [nomeSocial, setNomeSocial] = useState(extra.nomeSocial || "");
-    const [matricula, setMatricula] = useState(extra.matricula || "");
-    const [funcao, setFuncao] = useState(extra.funcao || "");
-    const [departamento, setDepartamento] = useState(extra.departamento || "");
-    const [centroCusto, setCentroCusto] = useState(extra.centroCusto || "");
-    const [sindicato, setSindicato] = useState(extra.sindicato || "");
-    const [categoriaAdmissao, setCategoriaAdmissao] = useState(extra.categoriaAdmissao || "");
-    const [vinculoEmpregaticio, setVinculoEmpregaticio] = useState(extra.vinculoEmpregaticio || "");
-    const [experienciaDias1, setExperienciaDias1] = useState(extra.experienciaDias1 || "");
-    const [experienciaDias2, setExperienciaDias2] = useState(extra.experienciaDias2 || "");
-    const [escalaHorario, setEscalaHorario] = useState(extra.escalaHorario || "");
-    const [jornadaHoras, setJornadaHoras] = useState(extra.jornadaHoras || "");
-
-    // CTPS & PIS
-    const [ctpsNumero, setCtpsNumero] = useState(extra.ctpsNumero || "");
-    const [ctpsSerie, setCtpsSerie] = useState(extra.ctpsSerie || "");
-    const [ctpsUf, setCtpsUf] = useState(extra.ctpsUf || "");
-    const [ctpsDataEmissao, setCtpsDataEmissao] = useState(extra.ctpsDataEmissao || "");
-    const [pisNumero, setPisNumero] = useState(extra.pisNumero || "");
-
-    // FGTS
-    const [fgtsOpcao, setFgtsOpcao] = useState(extra.fgtsOpcao || "");
-    const [fgtsDataOpcao, setFgtsDataOpcao] = useState(extra.fgtsDataOpcao || "");
-    const [fgtsBanco, setFgtsBanco] = useState(extra.fgtsBanco || "");
-
-    // Conselho
-    const [conselhoNome, setConselhoNome] = useState(extra.conselhoNome || "");
-    const [conselhoNumero, setConselhoNumero] = useState(extra.conselhoNumero || "");
-    const [conselhoUf, setConselhoUf] = useState(extra.conselhoUf || "");
-    const [conselhoValidade, setConselhoValidade] = useState(extra.conselhoValidade || "");
-
-    // Personal & Address
-    const [estadoCivil, setEstadoCivil] = useState(extra.estadoCivil || "");
-    const [grauInstrucao, setGrauInstrucao] = useState(extra.grauInstrucao || "");
-    const [nomePai, setNomePai] = useState(extra.nomePai || "");
-    const [nomeMae, setNomeMae] = useState(extra.nomeMae || "");
-    const [nacionalidade, setNacionalidade] = useState(extra.nacionalidade || "");
-    const [naturalidadeCidade, setNaturalidadeCidade] = useState(extra.naturalidadeCidade || "");
-    const [naturalidadeUf, setNaturalidadeUf] = useState(extra.naturalidadeUf || "");
-
-    // RG
-    const [rgNumero, setRgNumero] = useState(extra.rgNumero || "");
-    const [rgOrgaoEmissor, setRgOrgaoEmissor] = useState(extra.rgOrgaoEmissor || "");
-    const [rgDataEmissao, setRgDataEmissao] = useState(extra.rgDataEmissao || "");
-    const [rgUf, setRgUf] = useState(extra.rgUf || "");
-
-    // CNH
-    const [cnhNumero, setCnhNumero] = useState(extra.cnhNumero || "");
-    const [cnhCategoria, setCnhCategoria] = useState(extra.cnhCategoria || "");
-    const [cnhValidade, setCnhValidade] = useState(extra.cnhValidade || "");
-    const [cnhUf, setCnhUf] = useState(extra.cnhUf || "");
-
-    // Titulo
-    const [tituloEleitorNumero, setTituloEleitorNumero] = useState(extra.tituloEleitorNumero || "");
-    const [tituloEleitorZona, setTituloEleitorZona] = useState(extra.tituloEleitorZona || "");
-    const [tituloEleitorSecao, setTituloEleitorSecao] = useState(extra.tituloEleitorSecao || "");
-    const [tituloEleitorUf, setTituloEleitorUf] = useState(extra.tituloEleitorUf || "");
-
-    // Reservista
-    const [reservistaNumero, setReservistaNumero] = useState(extra.reservistaNumero || "");
-    const [reservistaCategoria, setReservistaCategoria] = useState(extra.reservistaCategoria || "");
-    const [chavePix, setChavePix] = useState(extra.chavePix || "");
-    const [formaPagamento, setFormaPagamento] = useState(extra.formaPagamento || "PIX");
-    const [tipoChavePix, setTipoChavePix] = useState(extra.tipoChavePix || "");
-
-    // File attachments handlers
-    const handleUploadAttachment = async (rawFile: File, label: string) => {
+    const handleDeleteDisciplinary = async (measureId: string) => {
+        if (!confirm("Deseja realmente excluir este registro de medida disciplinar?")) return;
         try {
-            const file = await compressImageIfNeeded(rawFile);
-            if (file.size > 4.2 * 1024 * 1024) {
-                toast.error("O arquivo excede o limite máximo de 4.2MB.");
-                return;
+            const res = await deleteDisciplinaryMeasure(measureId);
+            if (res.success) {
+                toast.success("Registro excluído com sucesso!");
+                router.refresh();
+            } else {
+                toast.error(res.error || "Erro ao excluir registro.");
             }
-
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64Data = reader.result as string;
-                setAttachments(prev => {
-                    const filtered = prev.filter(a => a.name !== label);
-                    return [...filtered, { name: label, fileName: file.name, fileData: base64Data }];
-                });
-                toast.success(`Documento "${label}" carregado com sucesso!`);
-            };
-            reader.readAsDataURL(file);
-        } catch (err: any) {
-            toast.error("Erro ao carregar arquivo.");
+        } catch (e: any) {
+            toast.error(e.message || "Erro ao excluir.");
         }
     };
 
-    const handleDeleteAttachment = (label: string) => {
-        setAttachments(prev => prev.filter(a => a.name !== label));
-        toast.info(`Documento "${label}" removido.`);
-    };
-
-    const handleDownloadFile = (fileData: string, fileName: string) => {
-        const link = document.createElement("a");
-        link.href = fileData;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
-    // Dependents handlers
-    const addDependent = () => {
-        setDependents([
-            ...dependents,
-            { nome: "", cpf: "", dataNascimento: "", parentesco: "", salarioFamilia: "Não", irrf: "Não" }
-        ]);
-    };
-
-    const updateDependent = (index: number, key: string, val: string) => {
-        setDependents(prev => {
-            const copy = [...prev];
-            copy[index] = { ...copy[index], [key]: val };
-            return copy;
-        });
-    };
-
-    const removeDependent = (index: number) => {
-        setDependents(prev => prev.filter((_, i) => i !== index));
+    const handleResendWhatsApp = async (measureId: string) => {
+        try {
+            const res = await resendDisciplinaryWhatsApp(measureId);
+            if (res.success) {
+                toast.success("Notificação enviada ao WhatsApp do colaborador!");
+            } else {
+                toast.error(res.error || "Erro ao enviar notificação.");
+            }
+        } catch (e: any) {
+            toast.error(e.message || "Erro ao disparar mensagem.");
+        }
     };
 
     async function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -394,1723 +183,333 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
         if (isSubmitting) return;
         setIsSubmitting(true);
         try {
-            const formData = new FormData(e.currentTarget);
-            const result = await updateEmployee(formData);
+            const rawFormData = new FormData(e.currentTarget);
+            rawFormData.set("id", employee.id);
+
+            const result = await updateEmployee(rawFormData);
             if (result?.error) {
                 toast.error(result.error);
                 setIsSubmitting(false);
                 return;
             }
+
             setOpen(false);
-            toast.success("Dados atualizados com sucesso!");
+            toast.success("Cadastro do colaborador atualizado com sucesso!");
+            router.refresh();
             window.location.reload();
         } catch (error: any) {
-            toast.error(error.message);
+            toast.error(error.message || "Erro ao atualizar colaborador");
             setIsSubmitting(false);
         }
     }
 
-    // Pack extra fields to string hidden input
-    const extraFieldsData = {
-        nomeSocial,
-        matricula,
-        funcao,
-        departamento,
-        centroCusto,
-        sindicato,
-        categoriaAdmissao,
-        vinculoEmpregaticio,
-        experienciaDias1,
-        experienciaDias2,
-        escalaHorario,
-        jornadaHoras,
-        ctpsNumero,
-        ctpsSerie,
-        ctpsUf,
-        ctpsDataEmissao,
-        pisNumero,
-        fgtsOpcao,
-        fgtsDataOpcao,
-        fgtsBanco,
-        conselhoNome,
-        conselhoNumero,
-        conselhoUf,
-        conselhoValidade,
-        estadoCivil,
-        grauInstrucao,
-        nomePai,
-        nomeMae,
-        nacionalidade,
-        naturalidadeCidade,
-        naturalidadeUf,
-        rgNumero,
-        rgOrgaoEmissor,
-        rgDataEmissao,
-        rgUf,
-        cnhNumero,
-        cnhCategoria,
-        cnhValidade,
-        cnhUf,
-        tituloEleitorNumero,
-        tituloEleitorZona,
-        tituloEleitorSecao,
-        tituloEleitorUf,
-        reservistaNumero,
-        reservistaCategoria,
-        chavePix,
-        formaPagamento,
-        tipoChavePix,
-        dependentes: dependents,
-        attachments
-    };
-
     return (
         <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2 bg-slate-900 text-white hover:bg-slate-800 font-bold border-none h-9 px-4 rounded-xl shadow-sm">
-                    <Edit className="w-4 h-4" /> Editar Perfil
+                <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold border-none h-9 px-4 rounded-xl shadow-xs text-xs uppercase tracking-wider">
+                    <Edit className="w-4 h-4" /> Editar Colaborador
                 </Button>
             </SheetTrigger>
-            <SheetContent className="px-8 sm:max-w-2xl w-full flex flex-col p-0 overflow-hidden">
-                <SheetHeader className="p-6 pb-4 border-b bg-slate-50/50">
-                    <SheetTitle className="text-lg font-black text-slate-800 flex items-center gap-2">
-                        <User className="w-5 h-5 text-orange-500" /> Editar Colaborador
+            <SheetContent className="px-8 sm:max-w-5xl w-full flex flex-col h-full bg-white">
+                <SheetHeader className="pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2 text-indigo-600 font-black text-[10px] uppercase tracking-[0.3em] mb-0.5">
+                        <User className="w-3.5 h-3.5 fill-current" /> Gestão de Pessoal & Ficha Cadastral
+                    </div>
+                    <SheetTitle className="text-2xl font-black text-slate-900">
+                        Editar Cadastro de {employee.name}
                     </SheetTitle>
-                    <SheetDescription className="text-xs">
-                        Atualize todos os dados cadastrais, benefícios, dependentes e anexos de {employee.name}.
+                    <SheetDescription className="text-xs text-slate-500">
+                        Atualize todos os dados cadastrais, profissionais, eSocial/Onvio, benefícios, dependentes e anexos.
                     </SheetDescription>
+
+                    {/* Abas Superiores de Manutenção */}
+                    <div className="pt-2">
+                        <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="w-full">
+                            <TabsList className="bg-slate-100 p-1 rounded-xl">
+                                <TabsTrigger value="onvio" className="text-xs font-bold px-4 py-1.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                                    <Layers className="w-3.5 h-3.5 mr-1.5 text-indigo-600" />
+                                    Ficha Cadastral Completa
+                                </TabsTrigger>
+                                <TabsTrigger value="vacations" className="text-xs font-bold px-4 py-1.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                                    <Calendar className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+                                    Histórico de Férias
+                                </TabsTrigger>
+                                <TabsTrigger value="disciplinary" className="text-xs font-bold px-4 py-1.5 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-xs">
+                                    <Scale className="w-3.5 h-3.5 mr-1.5 text-rose-600" />
+                                    Medidas Disciplinares ({employee.disciplinaryMeasures?.length || 0})
+                                </TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+                    </div>
                 </SheetHeader>
 
-                <form onSubmit={handleFormSubmit} className="flex-1 flex flex-col overflow-hidden text-xs">
-                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                    {/* Hidden Inputs for action */}
-                    <input type="hidden" name="id" value={employee.id} />
-                    <input type="hidden" name="status" value={status} />
-                    <input type="hidden" name="vtOptIn" value={vtOptIn ? "true" : "false"} />
-                    <input type="hidden" name="vtPaymentMethod" value={vtPaymentMethod} />
-                    <input type="hidden" name="vtPaymentMethod2" value={vtPaymentMethod2} />
-                    <input type="hidden" name="vtCustomPaymentDetails" value={vtCustomPaymentDetails} />
-                    <input type="hidden" name="vtCustomPaymentDetails2" value={vtCustomPaymentDetails2} />
-                    <input type="hidden" name="urbsSic" value={urbsSic} />
-                    <input type="hidden" name="urbsCqCtNf" value={urbsCqCtNf} />
-                    <input type="hidden" name="vaPaymentMethod" value={vaPaymentMethod} />
-                    <input type="hidden" name="vaCustomPaymentDetails" value={vaCustomPaymentDetails} />
-                    <input type="hidden" name="extraFields" value={JSON.stringify(extraFieldsData)} />
-
-                    {/* SEÇÃO 1: DADOS CADASTRAIS BÁSICOS */}
-                    <details className="group border border-slate-200 rounded-2xl p-4 bg-white shadow-sm open:shadow-md transition-all space-y-4" open>
-                        <summary className="font-bold text-slate-800 cursor-pointer select-none flex items-center justify-between list-none">
-                            <span className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-700">
-                                <User className="w-4 h-4 text-orange-500" /> Dados Básicos & Identificação
-                            </span>
-                            <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-                        </summary>
-                        <div className="pt-3 space-y-3">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Nome Completo</Label>
-                                    <Input name="name" defaultValue={employee.name} required className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Nome Social</Label>
-                                    <Input value={nomeSocial} onChange={e => setNomeSocial(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">CPF</Label>
-                                    <Input name="cpf" defaultValue={employee.cpf} required className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Data de Nascimento</Label>
-                                    <Input
-                                        name="birthDate"
-                                        type="date"
-                                        defaultValue={employee.birthDate ? new Date(employee.birthDate).toISOString().split('T')[0] : ""}
-                                        className="h-9 rounded-xl border-slate-200"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-800">WhatsApp / Celular (Contato)</Label>
-                                    <Input name="phone" defaultValue={employee.phone || ""} placeholder="Ex: (41) 99999-9999 (Obrigatório para Assinatura Autentique)" className="h-9 rounded-xl border-slate-200 bg-white" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Email Pessoal</Label>
-                                    <Input name="email" type="email" defaultValue={employee.email || ""} placeholder="email@exemplo.com" className="h-9 rounded-xl border-slate-200 bg-white" />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Gênero</Label>
-                                    <Select name="gender" defaultValue={employee.gender || undefined}>
-                                        <SelectTrigger className="h-9 rounded-xl border-slate-200">
-                                            <SelectValue placeholder="Selecione" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Masculino">Masculino</SelectItem>
-                                            <SelectItem value="Feminino">Feminino</SelectItem>
-                                            <SelectItem value="Outro">Outro</SelectItem>
-                                            <SelectItem value="Prefiro não dizer">Prefiro não dizer</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Estado Civil</Label>
-                                    <Select value={estadoCivil} onValueChange={setEstadoCivil}>
-                                        <SelectTrigger className="h-9 rounded-xl border-slate-200">
-                                            <SelectValue placeholder="Selecione" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Solteiro(a)">Solteiro(a)</SelectItem>
-                                            <SelectItem value="Casado(a)">Casado(a)</SelectItem>
-                                            <SelectItem value="Divorciado(a)">Divorciado(a)</SelectItem>
-                                            <SelectItem value="Viúvo(a)">Viúvo(a)</SelectItem>
-                                            <SelectItem value="União Estável">União Estável</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Grau de Instrução</Label>
-                                    <Input value={grauInstrucao} onChange={e => setGrauInstrucao(e.target.value)} placeholder="Ex: Ensino Médio Completo" className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Nacionalidade</Label>
-                                    <Input value={nacionalidade} onChange={e => setNacionalidade(e.target.value)} placeholder="Ex: Brasileira" className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Cidade Natal</Label>
-                                    <Input value={naturalidadeCidade} onChange={e => setNaturalidadeCidade(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">UF Natal</Label>
-                                    <Input value={naturalidadeUf} onChange={e => setNaturalidadeUf(e.target.value)} placeholder="Ex: PR" maxLength={2} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Nome do Pai</Label>
-                                    <Input value={nomePai} onChange={e => setNomePai(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Nome da Mãe</Label>
-                                    <Input value={nomeMae} onChange={e => setNomeMae(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-                        </div>
-                    </details>
-
-                    {/* SEÇÃO 2: CONTATO E ENDEREÇO */}
-                    <details className="group border border-slate-200 rounded-2xl p-4 bg-white shadow-sm open:shadow-md transition-all space-y-4">
-                        <summary className="font-bold text-slate-800 cursor-pointer select-none flex items-center justify-between list-none">
-                            <span className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-700">
-                                <Users className="w-4 h-4 text-orange-500" /> Endereço & Contatos
-                            </span>
-                            <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-                        </summary>
-                        <div className="pt-3 space-y-3">
-                            <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">Endereço Completo</Label>
-                                <Input name="address" defaultValue={employee.address || ""} placeholder="Rua, Número, Bairro, Cidade - UF" className="h-9 rounded-xl border-slate-200" />
-                            </div>
-                        </div>
-                    </details>
-
-                    {/* SEÇÃO 3: DADOS DE CONTRATO */}
-                    <details className="group border border-slate-200 rounded-2xl p-4 bg-white shadow-sm open:shadow-md transition-all space-y-4">
-                        <summary className="font-bold text-slate-800 cursor-pointer select-none flex items-center justify-between list-none">
-                            <span className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-700">
-                                <Briefcase className="w-4 h-4 text-orange-500" /> Contrato de Trabalho
-                            </span>
-                            <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-                        </summary>
-                        <div className="pt-3 space-y-3">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Matrícula</Label>
-                                    <Input value={matricula} onChange={e => setMatricula(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Carga Horária (h)</Label>
-                                    <Input name="workload" type="number" defaultValue={employee.workload} required className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Data de Admissão</Label>
-                                    <Input
-                                        name="admissionDate"
-                                        type="date"
-                                        defaultValue={employee.admissionDate ? new Date(employee.admissionDate).toISOString().split('T')[0] : ""}
-                                        required
-                                        className="h-9 rounded-xl border-slate-200"
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Situação Atual</Label>
-                                    <Select
-                                        name="situationId"
-                                        value={situationId || undefined}
-                                        onValueChange={(val) => {
-                                            setSituationId(val);
-                                            const selectedSituation = situations.find(s => s.id === val);
-                                            if (selectedSituation) {
-                                                const name = selectedSituation.name.toLowerCase();
-                                                if (name.includes("desligado") || name.includes("demitido")) {
-                                                    setStatus("Desligado");
-                                                } else if (name.includes("férias") || name.includes("ferias")) {
-                                                    setStatus("Férias");
-                                                } else if (name.includes("afastado")) {
-                                                    setStatus("Afastado");
-                                                } else {
-                                                    setStatus("Ativo");
-                                                }
-                                            }
-                                        }}
-                                    >
-                                        <SelectTrigger className="h-9 rounded-xl border-slate-200">
-                                            <SelectValue placeholder="Selecione" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {situations.map(s => (
-                                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">Tipo de Contrato</Label>
-                                <Select name="type" defaultValue={employee.type}>
-                                    <SelectTrigger className="h-9 rounded-xl border-slate-200">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="CLT">CLT (Efetivo)</SelectItem>
-                                        <SelectItem value="Reserva Técnica">Reserva Técnica</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">Cargo</Label>
-                                <Select name="roleId" defaultValue={employee.roleId} required>
-                                    <SelectTrigger className="h-9 rounded-xl border-slate-200">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {roles.map(r => (
-                                            <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">Empresa Vinculada</Label>
-                                <Select name="companyId" defaultValue={employee.companyId || "no_company"}>
-                                    <SelectTrigger className="h-9 rounded-xl border-slate-200">
-                                        <SelectValue placeholder="Selecione a empresa" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="no_company">Sem Empresa Vinculada</SelectItem>
-                                        {companies.map(c => (
-                                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            {status === "Desligado" && (
-                                <div className="bg-red-50 border border-red-100 rounded-lg p-4 space-y-4 animate-in fade-in slide-in-from-top-2">
-                                    <h4 className="text-sm font-semibold text-red-800">Detalhes do Desligamento</h4>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="dismissalReason" className="text-red-700 font-bold">Motivo</Label>
-                                        <Select name="dismissalReason" defaultValue={employee.dismissalReason || undefined}>
-                                            <SelectTrigger className="bg-white border-red-200 h-9 rounded-xl">
-                                                <SelectValue placeholder="Selecione o motivo" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="Baixa Performance">Baixa Performance</SelectItem>
-                                                <SelectItem value="Comportamental">Comportamental</SelectItem>
-                                                <SelectItem value="Corte de Custos">Corte de Custos</SelectItem>
-                                                <SelectItem value="Pedido de Demissão">Pedido de Demissão</SelectItem>
-                                                <SelectItem value="Término de Contrato">Término de Contrato</SelectItem>
-                                                <SelectItem value="Outros">Outros</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="dismissalNotes" className="text-red-700 font-bold">Relato do RH</Label>
-                                        <Textarea
-                                            id="dismissalNotes"
-                                            name="dismissalNotes"
-                                            defaultValue={employee.dismissalNotes || ""}
-                                            placeholder="Descreva brevemente o motivo..."
-                                            className="bg-white border-red-200 min-h-[80px]"
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </details>
-
-                    {/* SEÇÃO 4: FINANCEIRO & BENEFÍCIOS */}
-                    <details className="group border border-slate-200 rounded-2xl p-4 bg-white shadow-sm open:shadow-md transition-all space-y-4">
-                        <summary className="font-bold text-slate-800 cursor-pointer select-none flex items-center justify-between list-none">
-                            <span className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-700">
-                                <CreditCard className="w-4 h-4 text-orange-500" /> Salário & Benefícios
-                            </span>
-                            <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-                        </summary>
-                        <div className="pt-3 space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Salário Base (R$)</Label>
-                                    <Input name="salary" type="number" step="0.01" defaultValue={employee.salary} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Insalubridade (R$)</Label>
-                                    <Input name="insalubridade" type="number" step="0.01" defaultValue={employee.insalubridade} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Periculosidade (R$)</Label>
-                                    <Input name="periculosidade" type="number" step="0.01" defaultValue={employee.periculosidade} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Gratificacao CCT (R$)</Label>
-                                    <Input name="gratificacao" type="number" step="0.01" defaultValue={employee.gratificacao} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-                            <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">Outros Adicionais (R$)</Label>
-                                <Input name="outrosAdicionais" type="number" step="0.01" defaultValue={employee.outrosAdicionais} className="h-9 rounded-xl border-slate-200" />
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Dep. Salário-Família</Label>
-                                    <Input name="dependentsCount" type="number" step="1" defaultValue={employee.dependentsCount || 0} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Ajuda de Custo (R$)</Label>
-                                    <Input name="ajudaCusto" type="number" step="0.01" defaultValue={employee.ajudaCusto || 0} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Adic. Viagem (R$)</Label>
-                                    <Input name="adicionalViagem" type="number" step="0.01" defaultValue={employee.adicionalViagem || 0} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-
-                            <div className="pt-2 border-t border-slate-100 font-bold text-slate-800 text-[11px] uppercase tracking-wider mb-2">
-                                Vale Alimentação & Transporte Mensal
-                            </div>
-                            <div className="grid grid-cols-3 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Valor VA (R$)</Label>
-                                    <Input name="valeAlimentacao" type="number" step="0.01" defaultValue={employee.valeAlimentacao} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Valor VT 1 (R$)</Label>
-                                    <Input name="valeTransporte" type="number" step="0.01" value={vtOptIn ? valeTransporte : "0"} onChange={e => setValeTransporte(e.target.value)} disabled={!vtOptIn} className="h-9 rounded-xl border-slate-200 bg-white disabled:bg-slate-100" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Valor VT 2 (R$)</Label>
-                                    <Input name="valeTransporte2" type="number" step="0.01" value={vtOptIn ? valeTransporte2 : "0"} onChange={e => setValeTransporte2(e.target.value)} disabled={!vtOptIn} className="h-9 rounded-xl border-slate-200 bg-white disabled:bg-slate-100" />
-                                </div>
-                            </div>
-
-                            {/* OPÇÃO DE BENEFÍCIOS (VT/VA) */}
-                            <div className="pt-2 border-t border-slate-100 font-bold text-slate-800 text-[11px] uppercase tracking-wider">
-                                Integração de Depósito de Benefícios
-                            </div>
+                {/* CONTEÚDO PRINCIPAL */}
+                <div className="flex-1 overflow-hidden pt-2">
+                    {/* ABA 1: FICHA COMPLETA (ONVIO WIZARD) */}
+                    {activeTab === "onvio" && (
+                        <form onSubmit={handleFormSubmit} className="flex flex-col h-full overflow-hidden">
+                            <input type="hidden" name="id" value={employee.id} />
                             
-                            <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Optante VT?</Label>
-                                    <Select value={vtOptIn ? "true" : "false"} onValueChange={v => setVtOptIn(v === "true")}>
-                                        <SelectTrigger className="h-9 rounded-xl bg-white border-slate-200">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="true">Sim (Optante pelo VT)</SelectItem>
-                                            <SelectItem value="false">Não (Não Optante pelo VT)</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                {/* Sobrecargas de Porcentagem de Desconto CCT */}
-                                <div className="pt-2 border-t border-dashed border-slate-200/80 grid grid-cols-2 gap-4">
-                                    <div className="space-y-1">
-                                        <Label className="font-bold text-slate-700">Desconto VT Sobrecarga (%)</Label>
-                                        <Input 
-                                            name="vtDiscountPercentage" 
-                                            type="number" 
-                                            step="0.01" 
-                                            value={vtOptIn ? vtDiscountPercentage : ""} 
-                                            onChange={e => setVtDiscountPercentage(e.target.value)} 
-                                            placeholder="Padrão do Posto (6%)" 
-                                            disabled={!vtOptIn} 
-                                            className="h-9 rounded-xl border-slate-200 bg-white disabled:bg-slate-100" 
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="font-bold text-slate-700">Desconto VA Sobrecarga (%)</Label>
-                                        <Input 
-                                            name="vaDiscountPercentage" 
-                                            type="number" 
-                                            step="0.01" 
-                                            value={vaDiscountPercentage} 
-                                            onChange={e => setVaDiscountPercentage(e.target.value)} 
-                                            placeholder="Padrão do Posto (20%)" 
-                                            className="h-9 rounded-xl border-slate-200 bg-white" 
-                                        />
-                                    </div>
-                                </div>
-                                {vtOptIn && (
-                                    <div className="space-y-2 pt-2 border-t border-dashed border-slate-200/80">
-                                        <div className="space-y-1">
-                                            <div className="flex items-center justify-between">
-                                                <Label className="font-bold text-slate-700">Meio de Depósito do VT</Label>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setIsManagingVt(!isManagingVt);
-                                                        setEditingVtIndex(null);
-                                                    }}
-                                                    className="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-0.5 cursor-pointer"
-                                                >
-                                                    {isManagingVt ? "Fechar" : "Gerenciar"}
-                                                </button>
-                                            </div>
-
-                                            {isManagingVt ? (
-                                                <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2 mt-1">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Formas de VT Cadastradas</span>
-                                                    <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
-                                                        {vtOptions.map((opt, idx) => (
-                                                            <div key={opt} className="flex items-center justify-between gap-2 p-1.5 rounded-lg hover:bg-slate-50 border border-slate-100">
-                                                                {editingVtIndex === idx ? (
-                                                                    <div className="flex items-center gap-1 w-full">
-                                                                        <Input 
-                                                                            value={editingVtValue}
-                                                                            onChange={e => setEditingVtValue(e.target.value)}
-                                                                            className="h-7 text-xs rounded bg-white w-full"
-                                                                        />
-                                                                        <button 
-                                                                            type="button" 
-                                                                            onClick={() => {
-                                                                                const trimmed = editingVtValue.trim();
-                                                                                if (!trimmed) return;
-                                                                                setVtOptions(prev => prev.map((o, i) => i === idx ? trimmed : o));
-                                                                                if (vtPaymentMethod === opt) {
-                                                                                    setVtPaymentMethod(trimmed);
-                                                                                }
-                                                                                setEditingVtIndex(null);
-                                                                            }}
-                                                                            className="text-emerald-600 hover:text-emerald-700"
-                                                                        >
-                                                                            <Check className="w-3.5 h-3.5" />
-                                                                        </button>
-                                                                        <button 
-                                                                            type="button" 
-                                                                            onClick={() => setEditingVtIndex(null)}
-                                                                            className="text-red-500 hover:text-red-650"
-                                                                        >
-                                                                            <X className="w-3.5 h-3.5" />
-                                                                        </button>
-                                                                    </div>
-                                                                ) : (
-                                                                    <>
-                                                                        <span className="text-xs text-slate-700 font-bold">{opt}</span>
-                                                                        <div className="flex items-center gap-1.5">
-                                                                            <button 
-                                                                                type="button" 
-                                                                                onClick={() => {
-                                                                                    setEditingVtIndex(idx);
-                                                                                    setEditingVtValue(opt);
-                                                                                }}
-                                                                                className="text-slate-400 hover:text-slate-600"
-                                                                            >
-                                                                                <Pencil className="w-3.5 h-3.5" />
-                                                                            </button>
-                                                                            <button 
-                                                                                type="button" 
-                                                                                onClick={() => {
-                                                                                    setVtOptions(prev => prev.filter((_, i) => i !== idx));
-                                                                                    if (vtPaymentMethod === opt) {
-                                                                                        const remaining = vtOptions.filter((_, i) => i !== idx);
-                                                                                        setVtPaymentMethod(remaining[0] || "");
-                                                                                    }
-                                                                                }}
-                                                                                className="text-red-400 hover:text-red-655"
-                                                                            >
-                                                                                <Trash2 className="w-3.5 h-3.5" />
-                                                                            </button>
-                                                                        </div>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                    
-                                                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                                                        <Input 
-                                                            value={newVtMethodName}
-                                                            onChange={e => setNewVtMethodName(e.target.value)}
-                                                            placeholder="Nova operadora de VT..."
-                                                            className="h-8 rounded bg-white text-xs"
-                                                        />
-                                                        <Button
-                                                            type="button"
-                                                            size="sm"
-                                                            onClick={() => {
-                                                                const name = newVtMethodName.trim();
-                                                                if (!name) return;
-                                                                if (vtOptions.includes(name)) {
-                                                                    toast.error("Essa opção já existe.");
-                                                                    return;
-                                                                }
-                                                                setVtOptions(prev => [...prev, name]);
-                                                                setVtPaymentMethod(name);
-                                                                setNewVtMethodName("");
-                                                            }}
-                                                            className="bg-orange-600 hover:bg-orange-700 text-white rounded h-8 text-xs px-2"
-                                                        >
-                                                            Add
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-2">
-                                                    <Select value={vtPaymentMethod} onValueChange={setVtPaymentMethod}>
-                                                        <SelectTrigger className="h-9 rounded-xl bg-white border-slate-200">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {vtOptions.map(opt => (
-                                                                <SelectItem key={opt} value={opt}>
-                                                                    {opt === "PIX" ? "Depósito em PIX (Reserva)" : opt}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-
-                                                    {/* Campos Dinâmicos do Cartão / Chave para VT 1 */}
-                                                    {vtPaymentMethod === "Urbs" ? (
-                                                        <div className="grid grid-cols-2 gap-3 pt-1">
-                                                            <div className="space-y-1">
-                                                                <Label className="text-xs font-semibold text-slate-600">Nº Cartão Urbs (CQ/CT/NF)</Label>
-                                                                <Input 
-                                                                    value={urbsCqCtNf} 
-                                                                    onChange={e => setUrbsCqCtNf(e.target.value)} 
-                                                                    placeholder="Ex: 65587807795766533" 
-                                                                    className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
-                                                                />
-                                                            </div>
-                                                            <div className="space-y-1">
-                                                                <Label className="text-xs font-semibold text-slate-600">Código SIC Urbs (Matrícula)</Label>
-                                                                <Input 
-                                                                    value={urbsSic} 
-                                                                    onChange={e => setUrbsSic(e.target.value)} 
-                                                                    placeholder="Ex: 00064599439" 
-                                                                    className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    ) : vtPaymentMethod === "PIX" ? (
-                                                        <div className="space-y-1 pt-1">
-                                                            <Label className="text-xs font-semibold text-slate-600">Chave PIX para Depósito do VT 1</Label>
-                                                            <Input 
-                                                                value={chavePix} 
-                                                                onChange={e => setChavePix(e.target.value)} 
-                                                                placeholder="Ex: CPF, Telefone, E-mail ou Chave Aleatória" 
-                                                                className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
-                                                            />
-                                                            <p className="text-[10px] text-slate-400">Puxada automaticamente do cadastro / dados bancários.</p>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="space-y-1 pt-1">
-                                                            <Label className="text-xs font-semibold text-slate-600">
-                                                                {vtPaymentMethod.toLowerCase().includes("metrocard") ? "Nº do Cartão Metrocard" : `Nº do Cartão / Detalhes (${vtPaymentMethod})`}
-                                                            </Label>
-                                                            <Input 
-                                                                value={vtCustomPaymentDetails} 
-                                                                onChange={e => setVtCustomPaymentDetails(e.target.value)} 
-                                                                placeholder={vtPaymentMethod.toLowerCase().includes("metrocard") ? "Ex: 01.12.00289123-4" : "Número do cartão de transporte ou identificador..."} 
-                                                                className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
-                                                            />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="space-y-1 pt-2 border-t border-dashed border-slate-200/80">
-                                            <div className="flex items-center justify-between">
-                                                <Label className="font-bold text-slate-700">Meio de Depósito do VT 2</Label>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setIsManagingVt2(!isManagingVt2);
-                                                        setEditingVtIndex2(null);
-                                                    }}
-                                                    className="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-0.5 cursor-pointer"
-                                                >
-                                                    {isManagingVt2 ? "Fechar" : "Gerenciar"}
-                                                </button>
-                                            </div>
-
-                                            {isManagingVt2 ? (
-                                                <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2 mt-1">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Formas de VT 2 Cadastradas</span>
-                                                    <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
-                                                        {vtOptions2.map((opt, idx) => (
-                                                            <div key={opt} className="flex items-center justify-between gap-2 p-1.5 rounded-lg hover:bg-slate-50 border border-slate-100">
-                                                                {editingVtIndex2 === idx ? (
-                                                                    <div className="flex items-center gap-1 w-full">
-                                                                        <Input 
-                                                                            value={editingVtValue2}
-                                                                            onChange={e => setEditingVtValue2(e.target.value)}
-                                                                            className="h-7 text-xs rounded bg-white w-full"
-                                                                        />
-                                                                        <button 
-                                                                            type="button" 
-                                                                            onClick={() => {
-                                                                                const trimmed = editingVtValue2.trim();
-                                                                                if (!trimmed) return;
-                                                                                setVtOptions2(prev => prev.map((o, i) => i === idx ? trimmed : o));
-                                                                                if (vtPaymentMethod2 === opt) {
-                                                                                    setVtPaymentMethod2(trimmed);
-                                                                                }
-                                                                                setEditingVtIndex2(null);
-                                                                            }}
-                                                                            className="text-emerald-600 hover:text-emerald-700"
-                                                                        >
-                                                                            <Check className="w-3.5 h-3.5" />
-                                                                        </button>
-                                                                        <button 
-                                                                            type="button" 
-                                                                            onClick={() => setEditingVtIndex2(null)}
-                                                                            className="text-red-500 hover:text-red-655"
-                                                                        >
-                                                                            <X className="w-3.5 h-3.5" />
-                                                                        </button>
-                                                                    </div>
-                                                                ) : (
-                                                                    <>
-                                                                        <span className="text-xs text-slate-700 font-bold">{opt}</span>
-                                                                        <div className="flex items-center gap-1.5">
-                                                                            <button 
-                                                                                type="button" 
-                                                                                onClick={() => {
-                                                                                    setEditingVtIndex2(idx);
-                                                                                    setEditingVtValue2(opt);
-                                                                                }}
-                                                                                className="text-slate-400 hover:text-slate-600"
-                                                                            >
-                                                                                <Pencil className="w-3.5 h-3.5" />
-                                                                            </button>
-                                                                            <button 
-                                                                                type="button" 
-                                                                                onClick={() => {
-                                                                                    setVtOptions2(prev => prev.filter((_, i) => i !== idx));
-                                                                                    if (vtPaymentMethod2 === opt) {
-                                                                                        const remaining = vtOptions2.filter((_, i) => i !== idx);
-                                                                                        setVtPaymentMethod2(remaining[0] || "");
-                                                                                    }
-                                                                                }}
-                                                                                className="text-red-400 hover:text-red-655"
-                                                                            >
-                                                                                <Trash2 className="w-3.5 h-3.5" />
-                                                                            </button>
-                                                                        </div>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                    
-                                                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                                                        <Input 
-                                                            value={newVtMethodName2}
-                                                            onChange={e => setNewVtMethodName2(e.target.value)}
-                                                            placeholder="Nova operadora de VT..."
-                                                            className="h-8 rounded bg-white text-xs"
-                                                        />
-                                                        <Button
-                                                            type="button"
-                                                            size="sm"
-                                                            onClick={() => {
-                                                                const name = newVtMethodName2.trim();
-                                                                if (!name) return;
-                                                                if (vtOptions2.includes(name)) {
-                                                                    toast.error("Essa opção já existe.");
-                                                                    return;
-                                                                }
-                                                                setVtOptions2(prev => [...prev, name]);
-                                                                setVtPaymentMethod2(name);
-                                                                setNewVtMethodName2("");
-                                                            }}
-                                                            className="bg-orange-600 hover:bg-orange-700 text-white rounded h-8 text-xs px-2"
-                                                        >
-                                                            Add
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-2">
-                                                    <Select value={vtPaymentMethod2} onValueChange={setVtPaymentMethod2}>
-                                                        <SelectTrigger className="h-9 rounded-xl bg-white border-slate-200">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {vtOptions2.map(opt => (
-                                                                <SelectItem key={opt} value={opt}>
-                                                                    {opt === "PIX" ? "Depósito em PIX (Reserva)" : opt}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-
-                                                    {/* Campos Dinâmicos do Cartão / Chave para VT 2 */}
-                                                    {vtPaymentMethod2 === "Urbs" ? (
-                                                        <div className="grid grid-cols-2 gap-3 pt-1">
-                                                            <div className="space-y-1">
-                                                                <Label className="text-xs font-semibold text-slate-600">Nº Cartão Urbs (CQ/CT/NF)</Label>
-                                                                <Input 
-                                                                    value={urbsCqCtNf} 
-                                                                    onChange={e => setUrbsCqCtNf(e.target.value)} 
-                                                                    placeholder="Ex: 65587807795766533" 
-                                                                    className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
-                                                                />
-                                                            </div>
-                                                            <div className="space-y-1">
-                                                                <Label className="text-xs font-semibold text-slate-600">Código SIC Urbs (Matrícula)</Label>
-                                                                <Input 
-                                                                    value={urbsSic} 
-                                                                    onChange={e => setUrbsSic(e.target.value)} 
-                                                                    placeholder="Ex: 00064599439" 
-                                                                    className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    ) : vtPaymentMethod2 === "PIX" ? (
-                                                        <div className="space-y-1 pt-1">
-                                                            <Label className="text-xs font-semibold text-slate-600">Chave PIX (VT 2)</Label>
-                                                            <Input 
-                                                                value={chavePix} 
-                                                                onChange={e => setChavePix(e.target.value)} 
-                                                                placeholder="Ex: CPF, Telefone, E-mail ou Chave Aleatória" 
-                                                                className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
-                                                            />
-                                                        </div>
-                                                    ) : (
-                                                        <div className="space-y-1 pt-1">
-                                                            <Label className="text-xs font-semibold text-slate-600">
-                                                                {vtPaymentMethod2.toLowerCase().includes("metrocard") ? "Nº do Cartão Metrocard (VT 2)" : `Nº do Cartão / Detalhes (${vtPaymentMethod2})`}
-                                                            </Label>
-                                                            <Input 
-                                                                value={vtCustomPaymentDetails2} 
-                                                                onChange={e => setVtCustomPaymentDetails2(e.target.value)} 
-                                                                placeholder={vtPaymentMethod2.toLowerCase().includes("metrocard") ? "Ex: 01.12.00289123-4" : "Número do cartão de transporte ou identificador..."} 
-                                                                className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
-                                                            />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
+                            <div className="flex-1 overflow-y-auto pr-3 space-y-4">
+                                <EmployeeOnvioWizard
+                                    initialData={employee}
+                                    situations={situations}
+                                    roles={roles}
+                                    companies={companies}
+                                    postos={postos}
+                                    departments={departments}
+                                    costCenters={costCenters}
+                                    unions={unions}
+                                    jobFunctions={jobFunctions}
+                                />
                             </div>
 
-                            <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
-                                <div className="space-y-1">
-                                    <div className="flex items-center justify-between">
-                                        <Label className="font-bold text-slate-700">Meio de Depósito do VA</Label>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setIsManagingVa(!isManagingVa);
-                                                setEditingVaIndex(null);
-                                            }}
-                                            className="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-0.5 cursor-pointer"
-                                        >
-                                            {isManagingVa ? "Fechar" : "Gerenciar"}
-                                        </button>
-                                    </div>
+                            {/* Rodapé com botão de salvar */}
+                            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 bg-white">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setOpen(false)}
+                                    className="h-10 text-xs font-bold rounded-xl"
+                                >
+                                    Cancelar
+                                </Button>
 
-                                    {isManagingVa ? (
-                                        <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2 mt-1">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Formas de VA Cadastradas</span>
-                                            <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
-                                                {vaOptions.map((opt, idx) => (
-                                                    <div key={opt} className="flex items-center justify-between gap-2 p-1.5 rounded-lg hover:bg-slate-50 border border-slate-100">
-                                                        {editingVaIndex === idx ? (
-                                                            <div className="flex items-center gap-1 w-full">
-                                                                <Input 
-                                                                    value={editingVaValue}
-                                                                    onChange={e => setEditingVaValue(e.target.value)}
-                                                                    className="h-7 text-xs rounded bg-white w-full"
-                                                                />
-                                                                <button 
-                                                                    type="button" 
-                                                                    onClick={() => {
-                                                                        const trimmed = editingVaValue.trim();
-                                                                        if (!trimmed) return;
-                                                                        setVaOptions(prev => prev.map((o, i) => i === idx ? trimmed : o));
-                                                                        if (vaPaymentMethod === opt) {
-                                                                            setVaPaymentMethod(trimmed);
-                                                                        }
-                                                                        setEditingVaIndex(null);
-                                                                    }}
-                                                                    className="text-emerald-600 hover:text-emerald-700"
-                                                                >
-                                                                    <Check className="w-3.5 h-3.5" />
-                                                                </button>
-                                                                <button 
-                                                                    type="button" 
-                                                                    onClick={() => setEditingVaIndex(null)}
-                                                                    className="text-red-500 hover:text-red-650"
-                                                                >
-                                                                    <X className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <>
-                                                                <span className="text-xs text-slate-700 font-bold">{opt}</span>
-                                                                <div className="flex items-center gap-1.5">
-                                                                    <button 
-                                                                        type="button" 
-                                                                        onClick={() => {
-                                                                            setEditingVaIndex(idx);
-                                                                            setEditingVaValue(opt);
-                                                                        }}
-                                                                        className="text-slate-400 hover:text-slate-600"
-                                                                    >
-                                                                        <Pencil className="w-3.5 h-3.5" />
-                                                                    </button>
-                                                                    <button 
-                                                                        type="button" 
-                                                                        onClick={() => {
-                                                                            setVaOptions(prev => prev.filter((_, i) => i !== idx));
-                                                                            if (vaPaymentMethod === opt) {
-                                                                                const remaining = vaOptions.filter((_, i) => i !== idx);
-                                                                                setVaPaymentMethod(remaining[0] || "");
-                                                                            }
-                                                                        }}
-                                                                        className="text-red-400 hover:text-red-650"
-                                                                    >
-                                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                                    </button>
-                                                                </div>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                ))}
+                                <div className="flex items-center gap-2">
+                                    <Button 
+                                        type="button" 
+                                        variant="outline"
+                                        onClick={() => {
+                                            const extraFieldsInput = document.querySelector('input[name="extraFields"]') as HTMLInputElement;
+                                            const extraFields = extraFieldsInput ? JSON.parse(extraFieldsInput.value) : {};
+
+                                            const event = new CustomEvent("workforceRpaCapture", {
+                                                detail: {
+                                                    name: employee.name,
+                                                    cpf: employee.cpf,
+                                                    phone: employee.phone,
+                                                    email: employee.email,
+                                                    role: employee.role?.name,
+                                                    salary: employee.salary,
+                                                    company: employee.company?.name,
+                                                    startDate: employee.admissionDate ? new Date(employee.admissionDate).toLocaleDateString('pt-BR') : "",
+                                                    birthDate: employee.birthDate ? new Date(employee.birthDate).toLocaleDateString('pt-BR') : "",
+                                                    gender: employee.gender,
+                                                    address: employee.address,
+                                                    ...extraFields
+                                                }
+                                            });
+                                            document.dispatchEvent(event);
+                                            toast.success("Dados copiados para a extensão da Thomson Reuters!");
+                                        }}
+                                        className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 text-xs font-bold h-10 rounded-xl"
+                                    >
+                                        ⚡ Preencher Onvio / Thomson
+                                    </Button>
+
+                                    <Button 
+                                        type="submit" 
+                                        disabled={isSubmitting} 
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 px-6 rounded-xl shadow-xs text-xs"
+                                    >
+                                        {isSubmitting ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                                <span>Salvando Alterações...</span>
+                                            </>
+                                        ) : (
+                                            <span>Salvar Alterações</span>
+                                        )}
+                                    </Button>
+                                </div>
+                            </div>
+                        </form>
+                    )}
+
+                    {/* ABA 2: HISTÓRICO DE FÉRIAS */}
+                    {activeTab === "vacations" && (
+                        <div className="h-full overflow-y-auto pr-2 space-y-4">
+                            <VacationHistory 
+                                employeeId={employee.id} 
+                                vacations={employee.vacations || []} 
+                                hasActivePosto={employee.assignments?.some((a: any) => !a.endDate)}
+                            />
+                        </div>
+                    )}
+
+                    {/* ABA 3: MEDIDAS DISCIPLINARES */}
+                    {activeTab === "disciplinary" && (
+                        <div className="h-full overflow-y-auto pr-2 space-y-4">
+                            <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                <div>
+                                    <h4 className="font-extrabold text-sm text-slate-900">Medidas Disciplinares Registradas</h4>
+                                    <p className="text-xs text-slate-500">Histórico de advertências e suspensões aplicadas ao colaborador.</p>
+                                </div>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => setOpenAdHocDialog(true)}
+                                    className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs h-9 px-3 rounded-xl shadow-xs"
+                                >
+                                    <Plus className="w-4 h-4 mr-1.5" /> Registrar Medida com IA
+                                </Button>
+                            </div>
+
+                            <div className="space-y-3">
+                                {(!employee.disciplinaryMeasures || employee.disciplinaryMeasures.length === 0) ? (
+                                    <div className="p-8 text-center bg-white border border-dashed rounded-2xl">
+                                        <Scale className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                                        <p className="text-xs font-bold text-slate-500">Nenhuma medida disciplinar registrada para este colaborador.</p>
+                                    </div>
+                                ) : (
+                                    employee.disciplinaryMeasures.map((m: any) => (
+                                        <div key={m.id} className="p-4 bg-white border border-slate-200/80 rounded-2xl shadow-xs flex items-center justify-between gap-4">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                                                        m.type === 'SUSPENSAO' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
+                                                    }`}>
+                                                        {m.type}
+                                                    </span>
+                                                    <span className="text-xs text-slate-400 font-medium">
+                                                        Data: {new Date(m.occurrenceDate || m.createdAt).toLocaleDateString('pt-BR')}
+                                                    </span>
+                                                </div>
+                                                <h5 className="font-bold text-xs text-slate-800">{m.cltArticle || "Motivo disciplinar"}</h5>
+                                                {m.description && <p className="text-xs text-slate-500 line-clamp-2">{m.description}</p>}
                                             </div>
-                                            
-                                            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                                                <Input 
-                                                    value={newVaMethodName}
-                                                    onChange={e => setNewVaMethodName(e.target.value)}
-                                                    placeholder="Nova operadora de VA..."
-                                                    className="h-8 rounded bg-white text-xs"
-                                                />
+
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                {m.fileData && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            const link = document.createElement("a");
+                                                            link.href = m.fileData;
+                                                            link.download = m.fileName || `Medida_${m.type}.pdf`;
+                                                            link.click();
+                                                        }}
+                                                        className="h-8 px-2 text-xs font-bold text-slate-700"
+                                                    >
+                                                        <Download className="w-3.5 h-3.5 mr-1 text-indigo-500" />
+                                                        Documento
+                                                    </Button>
+                                                )}
                                                 <Button
                                                     type="button"
+                                                    variant="ghost"
                                                     size="sm"
-                                                    onClick={() => {
-                                                        const name = newVaMethodName.trim();
-                                                        if (!name) return;
-                                                        if (vaOptions.includes(name)) {
-                                                            toast.error("Essa opção já existe.");
-                                                            return;
-                                                        }
-                                                        setVaOptions(prev => [...prev, name]);
-                                                        setVaPaymentMethod(name);
-                                                        setNewVaMethodName("");
-                                                    }}
-                                                    className="bg-orange-650 hover:bg-orange-700 text-white rounded h-8 text-xs px-2"
-                                                >
-                                                    Add
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <Select value={vaPaymentMethod} onValueChange={setVaPaymentMethod}>
-                                            <SelectTrigger className="h-9 rounded-xl bg-white border-slate-200">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {vaOptions.map(opt => (
-                                                    <SelectItem key={opt} value={opt}>
-                                                        {opt}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </details>
-
-                    {/* SEÇÃO 5: DADOS DE CONTROLE DE PONTO & AVANÇADOS ONVIO */}
-                    <details className="group border border-slate-200 rounded-2xl p-4 bg-white shadow-sm open:shadow-md transition-all space-y-4">
-                        <summary className="font-bold text-slate-800 cursor-pointer select-none flex items-center justify-between list-none">
-                            <span className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-700">
-                                <ShieldAlert className="w-4 h-4 text-orange-500" /> Informações Profissionais (Onvio/Thomson)
-                            </span>
-                            <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-                        </summary>
-                        <div className="pt-3 space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Função (Onvio)</Label>
-                                    <Input value={funcao} onChange={e => setFuncao(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Departamento</Label>
-                                    <Input value={departamento} onChange={e => setDepartamento(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Centro de Custo</Label>
-                                    <Input value={centroCusto} onChange={e => setCentroCusto(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Sindicato</Label>
-                                    <Input value={sindicato} onChange={e => setSindicato(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Categoria Admissão</Label>
-                                    <Input value={categoriaAdmissao} onChange={e => setCategoriaAdmissao(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Vínculo Empregatício</Label>
-                                    <Input value={vinculoEmpregaticio} onChange={e => setVinculoEmpregaticio(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Experiência (Dias 1)</Label>
-                                    <Input value={experienciaDias1} onChange={e => setExperienciaDias1(e.target.value)} type="number" className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Experiência (Dias 2)</Label>
-                                    <Input value={experienciaDias2} onChange={e => setExperienciaDias2(e.target.value)} type="number" className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Escala de Horário</Label>
-                                    <Input value={escalaHorario} onChange={e => setEscalaHorario(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Jornada de Horas</Label>
-                                    <Input value={jornadaHoras} onChange={e => setJornadaHoras(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-
-                            <div className="pt-2 border-t border-slate-100 font-bold text-slate-800 text-[11px] uppercase tracking-wider">
-                                Documentos Profissionais (CTPS / PIS)
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">CTPS Número</Label>
-                                    <Input value={ctpsNumero} onChange={e => setCtpsNumero(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">CTPS Série</Label>
-                                    <Input value={ctpsSerie} onChange={e => setCtpsSerie(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">CTPS UF</Label>
-                                    <Input value={ctpsUf} onChange={e => setCtpsUf(e.target.value)} maxLength={2} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">CTPS Data Emissão</Label>
-                                    <Input value={ctpsDataEmissao} onChange={e => setCtpsDataEmissao(e.target.value)} type="date" className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">Número do PIS</Label>
-                                <Input value={pisNumero} onChange={e => setPisNumero(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                            </div>
-
-                            <div className="pt-2 border-t border-slate-100 font-bold text-slate-800 text-[11px] uppercase tracking-wider">
-                                FGTS & Conta Vinculada
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">FGTS Opção</Label>
-                                    <Input value={fgtsOpcao} onChange={e => setFgtsOpcao(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">FGTS Data Opção</Label>
-                                    <Input value={fgtsDataOpcao} onChange={e => setFgtsDataOpcao(e.target.value)} type="date" className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-                            <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">FGTS Banco Depositário</Label>
-                                <Input value={fgtsBanco} onChange={e => setFgtsBanco(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                            </div>
-
-                            <div className="pt-2 border-t border-slate-100 font-bold text-slate-800 text-[11px] uppercase tracking-wider">
-                                Dados de Pagamento (PIX)
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Forma de Pagamento</Label>
-                                    <Select value={formaPagamento} onValueChange={setFormaPagamento}>
-                                        <SelectTrigger className="h-9 rounded-xl border-slate-200">
-                                            <SelectValue placeholder="Selecione a forma" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
-                                            <SelectItem value="CHEQUE">Cheque</SelectItem>
-                                            <SelectItem value="CREDITO_CONTA">Crédito em Conta</SelectItem>
-                                            <SelectItem value="PIX">PIX</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Tipo de Chave PIX</Label>
-                                    <Select value={tipoChavePix} onValueChange={setTipoChavePix}>
-                                        <SelectTrigger className="h-9 rounded-xl border-slate-200">
-                                            <SelectValue placeholder="Selecione o tipo" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="CPF">CPF</SelectItem>
-                                            <SelectItem value="CELULAR">Celular</SelectItem>
-                                            <SelectItem value="EMAIL">E-mail</SelectItem>
-                                            <SelectItem value="CHAVE_ALEATORIA">Chave Aleatória</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                            <div className="space-y-1">
-                                <Label className="font-bold text-slate-700">Chave PIX</Label>
-                                <Input value={chavePix} onChange={e => setChavePix(e.target.value)} placeholder="Ex: CPF, Telefone, E-mail, ou Chave Aleatória" className="h-9 rounded-xl border-slate-200" />
-                            </div>
-
-                            <div className="pt-2 border-t border-slate-100 font-bold text-slate-800 text-[11px] uppercase tracking-wider">
-                                Conselhos de Classe (CRM/COREN/etc.)
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Conselho Nome</Label>
-                                    <Input value={conselhoNome} onChange={e => setConselhoNome(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Conselho Número</Label>
-                                    <Input value={conselhoNumero} onChange={e => setConselhoNumero(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Conselho UF</Label>
-                                    <Input value={conselhoUf} onChange={e => setConselhoUf(e.target.value)} maxLength={2} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Conselho Validade</Label>
-                                    <Input value={conselhoValidade} onChange={e => setConselhoValidade(e.target.value)} type="date" className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-                        </div>
-                    </details>
-
-                    {/* SEÇÃO 6: OUTROS DOCUMENTOS PESSOAIS */}
-                    <details className="group border border-slate-200 rounded-2xl p-4 bg-white shadow-sm open:shadow-md transition-all space-y-4">
-                        <summary className="font-bold text-slate-800 cursor-pointer select-none flex items-center justify-between list-none">
-                            <span className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-700">
-                                <FileText className="w-4 h-4 text-orange-500" /> Documentos de Identificação (RG/CNH/Eleitor)
-                            </span>
-                            <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-                        </summary>
-                        <div className="pt-3 space-y-4">
-                            <div className="pt-1 font-bold text-slate-800 text-[11px] uppercase tracking-wider">
-                                Registro Geral (RG)
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">RG Número</Label>
-                                    <Input value={rgNumero} onChange={e => setRgNumero(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">RG Órgão Emissor</Label>
-                                    <Input value={rgOrgaoEmissor} onChange={e => setRgOrgaoEmissor(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">RG Data Emissão</Label>
-                                    <Input value={rgDataEmissao} onChange={e => setRgDataEmissao(e.target.value)} type="date" className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">RG UF</Label>
-                                    <Input value={rgUf} onChange={e => setRgUf(e.target.value)} maxLength={2} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-
-                            <div className="pt-2 border-t border-slate-100 font-bold text-slate-800 text-[11px] uppercase tracking-wider">
-                                Carteira Nacional de Habilitação (CNH)
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">CNH Número</Label>
-                                    <Input value={cnhNumero} onChange={e => setCnhNumero(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">CNH Categoria</Label>
-                                    <Input value={cnhCategoria} onChange={e => setCnhCategoria(e.target.value)} placeholder="Ex: AB" className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">CNH Validade</Label>
-                                    <Input value={cnhValidade} onChange={e => setCnhValidade(e.target.value)} type="date" className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">CNH UF</Label>
-                                    <Input value={cnhUf} onChange={e => setCnhUf(e.target.value)} maxLength={2} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-
-                            <div className="pt-2 border-t border-slate-100 font-bold text-slate-800 text-[11px] uppercase tracking-wider">
-                                Título de Eleitor & Reservista (Se aplicável)
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Título Eleitor Número</Label>
-                                    <Input value={tituloEleitorNumero} onChange={e => setTituloEleitorNumero(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Título Eleitor Zona</Label>
-                                    <Input value={tituloEleitorZona} onChange={e => setTituloEleitorZona(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Título Eleitor Seção</Label>
-                                    <Input value={tituloEleitorSecao} onChange={e => setTituloEleitorSecao(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Título Eleitor UF</Label>
-                                    <Input value={tituloEleitorUf} onChange={e => setTituloEleitorUf(e.target.value)} maxLength={2} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Certificado Reservista</Label>
-                                    <Input value={reservistaNumero} onChange={e => setReservistaNumero(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="font-bold text-slate-700">Categoria Reservista</Label>
-                                    <Input value={reservistaCategoria} onChange={e => setReservistaCategoria(e.target.value)} className="h-9 rounded-xl border-slate-200" />
-                                </div>
-                            </div>
-                        </div>
-                    </details>
-
-                    {/* SEÇÃO 7: DEPENDENTES */}
-                    <details className="group border border-slate-200 rounded-2xl p-4 bg-white shadow-sm open:shadow-md transition-all space-y-4">
-                        <summary className="font-bold text-slate-800 cursor-pointer select-none flex items-center justify-between list-none">
-                            <span className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-700">
-                                <Users className="w-4 h-4 text-orange-500" /> Dependentes ({dependents.length})
-                            </span>
-                            <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-                        </summary>
-                        <div className="pt-3 space-y-4">
-                            {dependents.length === 0 ? (
-                                <div className="text-center py-4 bg-slate-50 text-slate-400 font-bold border border-dashed rounded-xl">
-                                    Nenhum dependente cadastrado.
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {dependents.map((dep, idx) => (
-                                        <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3 relative group">
-                                            <Button 
-                                                type="button" 
-                                                variant="ghost" 
-                                                size="sm"
-                                                onClick={() => removeDependent(idx)}
-                                                className="absolute top-2 right-2 text-rose-500 hover:text-rose-700 h-7 w-7 p-0 rounded-lg hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </Button>
-
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div className="space-y-1">
-                                                    <Label className="font-bold text-slate-700">Nome do Dependente</Label>
-                                                    <Input 
-                                                        value={dep.nome || ""} 
-                                                        onChange={e => updateDependent(idx, "nome", e.target.value)} 
-                                                        className="h-8 rounded-lg bg-white border-slate-200 text-xs" 
-                                                    />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <Label className="font-bold text-slate-700">Parentesco / Relação</Label>
-                                                    <Input 
-                                                        value={dep.parentesco || ""} 
-                                                        onChange={e => updateDependent(idx, "parentesco", e.target.value)} 
-                                                        className="h-8 rounded-lg bg-white border-slate-200 text-xs" 
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div className="space-y-1">
-                                                    <Label className="font-bold text-slate-700">CPF do Dependente</Label>
-                                                    <Input 
-                                                        value={dep.cpf || ""} 
-                                                        onChange={e => updateDependent(idx, "cpf", e.target.value)} 
-                                                        className="h-8 rounded-lg bg-white border-slate-200 text-xs" 
-                                                    />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <Label className="font-bold text-slate-700">Data de Nascimento</Label>
-                                                    <Input 
-                                                        type="date"
-                                                        value={dep.dataNascimento || ""} 
-                                                        onChange={e => updateDependent(idx, "dataNascimento", e.target.value)} 
-                                                        className="h-8 rounded-lg bg-white border-slate-200 text-xs" 
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div className="space-y-1">
-                                                    <Label className="font-bold text-slate-700">Salário Família?</Label>
-                                                    <Select value={dep.salarioFamilia || "Não"} onValueChange={v => updateDependent(idx, "salarioFamilia", v)}>
-                                                        <SelectTrigger className="h-8 rounded-lg bg-white border-slate-200 text-xs">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="Sim">Sim</SelectItem>
-                                                            <SelectItem value="Não">Não</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <Label className="font-bold text-slate-700">Dependente IRRF?</Label>
-                                                    <Select value={dep.irrf || "Não"} onValueChange={v => updateDependent(idx, "irrf", v)}>
-                                                        <SelectTrigger className="h-8 rounded-lg bg-white border-slate-200 text-xs">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="Sim">Sim</SelectItem>
-                                                            <SelectItem value="Não">Não</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            <Button 
-                                type="button" 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={addDependent}
-                                className="w-full h-9 rounded-xl border-dashed border-slate-300 text-slate-600 gap-1.5 font-bold hover:bg-slate-50"
-                            >
-                                <Plus className="w-4 h-4" /> Adicionar Dependente
-                            </Button>
-                        </div>
-                    </details>
-
-                    {/* SEÇÃO 8: DOCUMENTOS ANEXADOS (ARQUIVOS) */}
-                    <details className="group border border-slate-200 rounded-2xl p-4 bg-white shadow-sm open:shadow-md transition-all space-y-4">
-                        <summary className="font-bold text-slate-800 cursor-pointer select-none flex items-center justify-between list-none">
-                            <span className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-700">
-                                <Paperclip className="w-4 h-4 text-orange-500" /> Documentos Anexados ({attachments.length})
-                            </span>
-                            <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-                        </summary>
-                        <div className="pt-3 space-y-4">
-                            {attachments.length === 0 ? (
-                                <div className="text-center py-4 bg-slate-50 text-slate-400 font-bold border border-dashed rounded-xl">
-                                    Nenhum arquivo anexado.
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    {attachments.map((doc, idx) => (
-                                        <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-3">
-                                            <div className="flex items-center gap-2.5 overflow-hidden">
-                                                <FileText className="w-5 h-5 text-indigo-600 shrink-0" />
-                                                <div className="text-left overflow-hidden">
-                                                    <div className="font-black text-slate-800 truncate">{doc.name}</div>
-                                                    <div className="text-[9px] text-slate-400 truncate">{doc.fileName}</div>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <Button 
-                                                    type="button" 
-                                                    variant="ghost" 
-                                                    size="sm"
-                                                    onClick={() => handleDownloadFile(doc.fileData, doc.fileName)}
-                                                    className="h-8 w-8 p-0 rounded-lg text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
-                                                    title="Baixar arquivo"
-                                                >
-                                                    <Download className="w-4 h-4" />
-                                                </Button>
-                                                <Button 
-                                                    type="button" 
-                                                    variant="ghost" 
-                                                    size="sm"
-                                                    onClick={() => handleDeleteAttachment(doc.name)}
-                                                    className="h-8 w-8 p-0 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                                                    title="Remover arquivo"
+                                                    onClick={() => handleDeleteDisciplinary(m.id)}
+                                                    className="h-8 w-8 p-0 text-slate-400 hover:text-red-600"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Uploader de Novos Documentos */}
-                            <div className="pt-2 border-t border-slate-100 space-y-2">
-                                <Label className="font-bold text-slate-700">Subir Novo Documento</Label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {[
-                                        "RG", 
-                                        "Comprovante de Residência", 
-                                        "CNH", 
-                                        "CTPS", 
-                                        "PIS", 
-                                        "Outro Documento"
-                                    ].map((slotName, i) => (
-                                        <div key={i} className="relative bg-slate-50 border border-slate-200 hover:border-slate-350 rounded-xl p-2 flex items-center justify-between text-[11px] gap-2 font-bold cursor-pointer group">
-                                            <span className="truncate text-slate-600">{slotName}</span>
-                                            <UploadCloud className="w-4 h-4 text-slate-400 group-hover:text-orange-500 shrink-0" />
-                                            <input 
-                                                type="file" 
-                                                onChange={e => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file) handleUploadAttachment(file, slotName);
-                                                }}
-                                                className="absolute inset-0 opacity-0 cursor-pointer" 
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </details>
-
-                    {/* SEÇÃO: MEDIDAS DISCIPLINARES */}
-                    <details className="group border border-slate-200 rounded-2xl p-4 bg-white shadow-sm open:shadow-md transition-all space-y-4">
-                        <summary className="font-bold text-slate-800 cursor-pointer select-none flex items-center justify-between list-none">
-                            <span className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-700">
-                                <ShieldAlert className="w-4 h-4 text-rose-500" /> Medidas Disciplinares ({(employee.disciplinaryMeasures || []).length})
-                            </span>
-                            <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-                        </summary>
-                        <div className="pt-3 space-y-4">
-                            {/* Medida Direct Launch Button */}
-                            <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border">
-                                <span className="text-xs text-slate-500 font-bold">Lançar advertência avulsa direta (com leitura IA)</span>
-                                <Button 
-                                    type="button" 
-                                    size="sm" 
-                                    className="bg-rose-600 hover:bg-rose-700 text-white font-bold h-8 text-[10px]"
-                                    onClick={() => {
-                                        setAdHocType("ADVERTENCIA");
-                                        setAdHocCltArticle("Artigo 482, alínea e - Desídia (Faltas/Atrasos)");
-                                        setAdHocOccurrenceDate(new Date().toISOString().split('T')[0]);
-                                        setAdHocDescription("");
-                                        setAdHocFile(null);
-                                        setAdHocFileName("");
-                                        setAdHocFileData("");
-                                        setOpenAdHocDialog(true);
-                                    }}
-                                >
-                                    <Plus className="w-3.5 h-3.5 mr-1" /> Novo Lançamento
-                                </Button>
-                            </div>
-
-                            {(!employee.disciplinaryMeasures || employee.disciplinaryMeasures.length === 0) ? (
-                                <div className="text-center py-4 bg-slate-50 text-slate-400 font-bold border border-dashed rounded-xl text-xs">
-                                    Nenhuma medida disciplinar registrada.
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    {employee.disciplinaryMeasures.map((measure: any) => {
-                                        const dateLabel = new Date(measure.occurrenceDate).toLocaleDateString("pt-BR");
-                                        const createdLabel = new Date(measure.createdAt).toLocaleDateString("pt-BR");
-                                        return (
-                                            <div key={measure.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col gap-2 text-left">
-                                                <div className="flex items-center justify-between">
-                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-                                                        measure.type === "SUSPENSAO" 
-                                                            ? "bg-orange-50 text-orange-700 border-orange-200" 
-                                                            : "bg-rose-50 text-rose-700 border-rose-200"
-                                                    }`}>
-                                                        {measure.type === "SUSPENSAO" ? "Suspensão" : "Advertência"}
-                                                    </span>
-                                                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${
-                                                        measure.status === "CONCLUIDO" 
-                                                            ? "bg-emerald-50 text-emerald-700" 
-                                                            : "bg-amber-50 text-amber-700"
-                                                    }`}>
-                                                        {measure.status === "CONCLUIDO" ? "Assinado/Arquivado" : "Pendente"}
-                                                    </span>
-                                                </div>
-
-                                                <div className="text-xs text-slate-700 font-medium font-sans">
-                                                    <strong>Fato em:</strong> {dateLabel} <br/>
-                                                    {measure.cltArticle && <span><strong>Motivo CLT:</strong> {measure.cltArticle} <br/></span>}
-                                                    <strong>Descrição:</strong> <span className="italic">"{measure.description}"</span>
-                                                </div>
-
-                                                <div className="text-[10px] text-slate-400 border-t pt-2 mt-1 flex items-center justify-between font-sans">
-                                                    <span>Aplicador: {measure.supervisor?.name || "Administração"}</span>
-                                                    <span>Criado em: {createdLabel}</span>
-                                                </div>
-
-                                                <div className="flex justify-end gap-1.5 pt-1.5">
-                                                    {measure.status === "PENDENTE" && (
-                                                        <Button 
-                                                            type="button" 
-                                                            variant="outline" 
-                                                            size="sm"
-                                                            onClick={async () => {
-                                                                const res = await resendDisciplinaryWhatsApp(measure.id);
-                                                                if (res.success) {
-                                                                    toast.success("Notificação enviada com sucesso!");
-                                                                } else {
-                                                                    toast.error(res.error || "Erro ao enviar.");
-                                                                }
-                                                            }}
-                                                            className="h-7 text-[10px] font-bold text-slate-700"
-                                                            title="Cobrar Supervisor via WhatsApp"
-                                                        >
-                                                            Cobrar
-                                                        </Button>
-                                                    )}
-                                                    {measure.attachmentData && (
-                                                        <Button 
-                                                            type="button" 
-                                                            variant="outline" 
-                                                            size="sm"
-                                                            onClick={() => handleDownloadFile(measure.attachmentData, measure.attachmentName || "advertencia.jpg")}
-                                                            className="h-7 text-[10px] font-bold text-indigo-600 gap-1"
-                                                        >
-                                                            <Download className="w-3.5 h-3.5" /> Baixar Assinado
-                                                        </Button>
-                                                    )}
-                                                    <Button 
-                                                        type="button" 
-                                                        variant="ghost" 
-                                                        size="sm"
-                                                        onClick={async () => {
-                                                            if (confirm("Deseja realmente excluir esta medida disciplinar?")) {
-                                                                const res = await deleteDisciplinaryMeasure(measure.id);
-                                                                if (res.success) {
-                                                                    toast.success("Medida disciplinar excluída.");
-                                                                    setOpen(false);
-                                                                } else {
-                                                                    toast.error(res.error || "Erro ao excluir.");
-                                                                }
-                                                            }
-                                                        }}
-                                                        className="h-7 w-7 p-0 rounded text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                                                    >
-                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    </details>
-
-                    {/* FÉRIAS (HISTÓRICO INTEGRADO) */}
-                    <details className="group border border-slate-200 rounded-2xl p-4 bg-white shadow-sm open:shadow-md transition-all space-y-4">
-                        <summary className="font-bold text-slate-800 cursor-pointer select-none flex items-center justify-between list-none">
-                            <span className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-700">
-                                <ChevronDown className="w-4 h-4 text-orange-500" /> Histórico de Férias CLT
-                            </span>
-                            <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-                        </summary>
-                        <div className="pt-3">
-                            <VacationHistory
-                                employeeId={employee.id}
-                                vacations={employee.vacations || []}
-                                hasActivePosto={employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name !== "ROTATIVO")}
-                            />
-                        </div>
-                    </details>
-
-                    </div>
-
-                    {/* Actions Block */}
-                    <div className="p-6 border-t border-slate-100 bg-white flex gap-2 shrink-0 shadow-[0_-8px_20px_-8px_rgba(0,0,0,0.08)]">
-                        <Button type="submit" disabled={isSubmitting} className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold h-10 rounded-xl flex items-center justify-center gap-2">
-                            {isSubmitting ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    <span>Salvando Alterações...</span>
-                                </>
-                            ) : (
-                                <span>Salvar Alterações</span>
-                            )}
-                        </Button>
-                    </div>
-                </form>
-            {/* Dialog for launching Ad-hoc Disciplinary Measure with Gemini OCR */}
-            <Dialog open={openAdHocDialog} onOpenChange={setOpenAdHocDialog}>
-                <DialogContent className="sm:max-w-[480px]">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-rose-600">
-                            <Scale className="w-5 h-5" />
-                            Lançar Medida Disciplinar Direta
-                        </DialogTitle>
-                        <DialogDescription>
-                            Anexe o arquivo assinado. A Inteligência Artificial lerá o documento para preencher o formulário automaticamente.
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4 py-2 text-left">
-                        {/* File Upload Selector */}
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Anexar Documento Assinado (Foto ou PDF)</label>
-                            <div className="relative border border-dashed border-slate-200 hover:border-rose-350 rounded-lg p-3 flex flex-col items-center justify-center cursor-pointer bg-slate-50">
-                                <input 
-                                    type="file" 
-                                    accept="image/*,application/pdf"
-                                    onChange={handleAdHocFileChange}
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                    disabled={isAnalyzingDoc || isSubmittingAdHoc}
-                                />
-                                {adHocFile ? (
-                                    <div className="text-center">
-                                        <p className="text-xs font-bold text-emerald-600">✓ {adHocFileName}</p>
-                                        <p className="text-[9px] text-slate-400">Clique ou arraste para substituir</p>
-                                    </div>
-                                ) : (
-                                    <div className="text-center text-slate-400">
-                                        <p className="text-xs font-bold">Selecionar arquivo...</p>
-                                        <p className="text-[9px]">A IA iniciará a leitura imediata após selecionar</p>
-                                    </div>
+                                    ))
                                 )}
                             </div>
-                            {isAnalyzingDoc && (
-                                <p className="text-[10px] text-rose-600 animate-pulse font-bold mt-1">
-                                    ⏳ Inteligência Artificial está lendo o documento, aguarde...
-                                </p>
-                            )}
                         </div>
+                    )}
+                </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Tipo de Medida</label>
-                                <select
-                                    value={adHocType}
-                                    onChange={(e) => setAdHocType(e.target.value)}
-                                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none"
-                                >
-                                    <option value="ADVERTENCIA">Advertência Escrita</option>
-                                    <option value="SUSPENSAO">Suspensão</option>
-                                    <option value="OUTRO">Outra Medida</option>
-                                </select>
+                {/* Dialog para Anexar / Registrar Medida Disciplinar com IA */}
+                <Dialog open={openAdHocDialog} onOpenChange={setOpenAdHocDialog}>
+                    <DialogContent className="max-w-lg rounded-2xl">
+                        <DialogHeader>
+                            <DialogTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+                                <Scale className="w-5 h-5 text-rose-600" /> Registrar Medida Disciplinar
+                            </DialogTitle>
+                            <DialogDescription className="text-xs text-slate-500">
+                                Envie o documento assinado para extração automática via Inteligência Artificial ou preencha manualmente.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-4 text-xs">
+                            {/* Upload com IA */}
+                            <div className="border border-dashed border-slate-300 rounded-xl p-4 bg-slate-50 text-center space-y-2">
+                                <UploadCloud className="w-8 h-8 text-indigo-500 mx-auto" />
+                                <div>
+                                    <span className="font-bold text-slate-700 block">Anexe o documento assinado (PDF/Foto)</span>
+                                    <span className="text-[11px] text-slate-400">A IA lerá o tipo, artigo da CLT e data automaticamente.</span>
+                                </div>
+                                <input
+                                    type="file"
+                                    accept=".pdf,.png,.jpg,.jpeg"
+                                    onChange={handleAdHocFileChange}
+                                    disabled={isAnalyzingDoc}
+                                    className="text-xs file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                />
                             </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold">Tipo da Medida</Label>
+                                    <Select value={adHocType} onValueChange={setAdHocType}>
+                                        <SelectTrigger className="h-9 text-xs rounded-xl bg-white">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ADVERTENCIA">Advertência Escrita</SelectItem>
+                                            <SelectItem value="SUSPENSAO">Suspensão Disciplinar</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold">Data da Ocorrência</Label>
+                                    <Input
+                                        type="date"
+                                        value={adHocOccurrenceDate}
+                                        onChange={e => setAdHocOccurrenceDate(e.target.value)}
+                                        className="h-9 text-xs rounded-xl bg-white"
+                                    />
+                                </div>
+                            </div>
+
                             <div className="space-y-1">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Data da Ocorrência</label>
+                                <Label className="text-xs font-bold">Enquadramento Legal / Artigo CLT</Label>
                                 <Input
-                                    type="date"
-                                    value={adHocOccurrenceDate}
-                                    onChange={(e) => setAdHocOccurrenceDate(e.target.value)}
-                                    className="h-10 text-xs border-slate-200"
+                                    value={adHocCltArticle}
+                                    onChange={e => setAdHocCltArticle(e.target.value)}
+                                    className="h-9 text-xs rounded-xl bg-white"
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <Label className="text-xs font-bold">Descrição dos Fatos</Label>
+                                <Textarea
+                                    value={adHocDescription}
+                                    onChange={e => setAdHocDescription(e.target.value)}
+                                    placeholder="Detalhes da conduta e aplicação da penalidade..."
+                                    rows={3}
+                                    className="text-xs rounded-xl bg-white"
                                 />
                             </div>
                         </div>
 
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Enquadramento Legal (CLT)</label>
-                            <select
-                                value={adHocCltArticle}
-                                onChange={(e) => setAdHocCltArticle(e.target.value)}
-                                className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none"
-                            >
-                                <option value="Artigo 482, alínea e - Desídia (Faltas/Atrasos)">Artigo 482, alínea e - Desídia (Faltas/Atrasos)</option>
-                                <option value="Artigo 482, alínea h - Indisciplina ou Insubordinação">Artigo 482, alínea h - Indisciplina ou Insubordinação</option>
-                                <option value="Artigo 482, alínea b - Mau procedimento ou Incontinência de conduta">Artigo 482, alínea b - Mau procedimento ou Incontinência de conduta</option>
-                                <option value="Artigo 482, alínea a - Ato de improbidade">Artigo 482, alínea a - Ato de improbidade</option>
-                                <option value="Artigo 482, alínea i - Abandono de emprego">Artigo 482, alínea i - Abandono de emprego</option>
-                                <option value="Outro Artigo/Motivo administrativo">Outro Artigo/Motivo administrativo</option>
-                            </select>
-                        </div>
-
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Descrição Extraída do Documento</label>
-                            <textarea
-                                value={adHocDescription}
-                                onChange={(e) => setAdHocDescription(e.target.value)}
-                                rows={4}
-                                className="flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none min-h-[80px]"
-                                placeholder="Descrição extraída ou inserida manualmente..."
-                            />
-                        </div>
-
-                        <DialogFooter className="pt-2 border-t">
-                            <Button 
+                        <DialogFooter className="gap-2 pt-2 border-t">
+                            <Button
                                 type="button"
-                                variant="outline" 
+                                variant="outline"
                                 onClick={() => setOpenAdHocDialog(false)}
-                                className="h-10 text-xs font-bold"
-                                disabled={isSubmittingAdHoc || isAnalyzingDoc}
+                                className="h-9 text-xs font-bold rounded-xl"
                             >
                                 Cancelar
                             </Button>
-                            <Button 
+                            <Button
                                 type="button"
                                 onClick={handleSaveAdHoc}
-                                className="bg-rose-600 hover:bg-rose-700 text-white font-bold h-10 text-xs"
-                                disabled={isSubmittingAdHoc || isAnalyzingDoc || !adHocFileData}
+                                disabled={isSubmittingAdHoc}
+                                className="bg-rose-600 hover:bg-rose-700 text-white font-bold h-9 text-xs rounded-xl shadow-xs"
                             >
                                 {isSubmittingAdHoc ? "Salvando..." : "Salvar Medida"}
                             </Button>
                         </DialogFooter>
-                    </div>
-                </DialogContent>
-            </Dialog>
+                    </DialogContent>
+                </Dialog>
             </SheetContent>
         </Sheet>
     );
