@@ -605,7 +605,7 @@ export async function sendHrWhatsAppMessage(data: {
             senderType: "ATTENDANT",
             senderName: user.name,
             messageType: "TEXT",
-            content: data.message, // salva sem carimbo no banco
+            content: data.message,
             status: zapiMessageId ? "SENT" : "FAILED",
             zapiMessageId,
         },
@@ -630,42 +630,83 @@ export async function sendHrWhatsAppFile(data: {
     const cleanPhone = data.phone.replace(/\D/g, "");
     const finalPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
 
-    const isImage = data.mimeType.startsWith("image/");
-    const isAudio = data.mimeType.startsWith("audio/");
+    const isBase64 = data.fileUrl.startsWith("data:");
+    const mime = (data.mimeType || "").toLowerCase();
+    const ext = (data.fileName || "").split(".").pop()?.toLowerCase() || "";
 
-    let endpoint = "send-document/by-url";
-    let body: Record<string, unknown> = {
-        phone: finalPhone,
-        document: data.fileUrl,
-        fileName: data.fileName,
-        caption: data.caption || "",
-    };
-
-    if (isImage) {
-        endpoint = "send-image";
-        body = { phone: finalPhone, image: data.fileUrl, caption: data.caption || "" };
-    } else if (isAudio) {
-        endpoint = "send-audio";
-        body = { phone: finalPhone, audio: data.fileUrl };
-    }
+    const isImage = mime.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(ext);
+    const isAudio = mime.startsWith("audio/") || ["mp3", "ogg", "wav", "m4a", "opus", "aac", "webm"].includes(ext);
+    const isVideo = mime.startsWith("video/") || ["mp4", "mov", "avi", "mkv"].includes(ext);
 
     let zapiMessageId: string | null = null;
+
+    // Tentativa 1: Endpoint Específico
     try {
+        let endpoint = "";
+        let body: Record<string, unknown> = {};
+
+        if (isImage) {
+            endpoint = isBase64 ? "send-image/by-base64" : "send-image";
+            body = { phone: finalPhone, image: data.fileUrl, caption: data.caption || "" };
+        } else if (isAudio) {
+            endpoint = isBase64 ? "send-audio/by-base64" : "send-audio";
+            body = { phone: finalPhone, audio: data.fileUrl };
+        } else if (isVideo) {
+            endpoint = isBase64 ? "send-video/by-base64" : "send-video";
+            body = { phone: finalPhone, video: data.fileUrl, caption: data.caption || "" };
+        } else {
+            endpoint = isBase64 ? "send-document/by-base64" : "send-document/by-url";
+            body = {
+                phone: finalPhone,
+                document: data.fileUrl,
+                fileName: data.fileName,
+                caption: data.caption || "",
+            };
+        }
+
         const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/${endpoint}`;
         const res = await fetch(url, {
             method: "POST",
             headers: zapiHeaders(),
             body: JSON.stringify(body),
         });
+
         if (res.ok) {
             const json = await res.json();
             zapiMessageId = json.zaapId || json.messageId || json.id || null;
+        } else {
+            console.warn(`[HR sendFile Primary Failed (${endpoint})]:`, await res.text());
         }
     } catch (e) {
-        console.error("[HR sendFile] Z-API error:", e);
+        console.error("[HR sendFile Primary Exception]:", e);
     }
 
-    const messageType = isImage ? "IMAGE" : isAudio ? "AUDIO" : "DOCUMENT";
+    // Fallback Inteligente: Se falhou e for base64, tentar como Documento genérico
+    if (!zapiMessageId && isBase64) {
+        try {
+            const fallbackUrl = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-document/by-base64`;
+            const fallbackRes = await fetch(fallbackUrl, {
+                method: "POST",
+                headers: zapiHeaders(),
+                body: JSON.stringify({
+                    phone: finalPhone,
+                    document: data.fileUrl,
+                    fileName: data.fileName,
+                    caption: data.caption || ""
+                }),
+            });
+            if (fallbackRes.ok) {
+                const json = await fallbackRes.json();
+                zapiMessageId = json.zaapId || json.messageId || json.id || null;
+            }
+        } catch (fbErr) {
+            console.error("[HR sendFile Fallback Error]:", fbErr);
+        }
+    }
+
+    const messageType = isImage ? "IMAGE" : isAudio ? "AUDIO" : isVideo ? "VIDEO" : "DOCUMENT";
+    
+    // Gravar mensagem no histórico
     const saved = await prisma.hrTicketMessage.create({
         data: {
             ticketId: data.ticketId,
@@ -681,7 +722,23 @@ export async function sendHrWhatsAppFile(data: {
         },
     });
 
+    // Gravar também na tabela de anexos do CRM
+    try {
+        await prisma.hrTicketAttachment.create({
+            data: {
+                ticketId: data.ticketId,
+                fileName: data.fileName,
+                fileUrl: data.fileUrl,
+                mimeType: data.mimeType,
+                uploadedById: user.id
+            }
+        });
+    } catch (attErr) {
+        console.error("[HR Attachment Log Error]:", attErr);
+    }
+
     await prisma.hrTicket.update({ where: { id: data.ticketId }, data: { updatedAt: new Date() } });
+
     return { success: true, message: saved };
 }
 
@@ -1000,50 +1057,96 @@ export async function syncTicketWhatsAppHistory(ticketId: string, days = 30) {
 async function insertZapiMessages(ticketId: string, contactName: string, msgs: any[], minDate: Date) {
     let count = 0;
     for (const m of msgs) {
-        const text = m.text?.message || m.text || m.body || m.caption || (m.image ? "[Foto]" : m.audio ? "[Áudio]" : m.document ? "[Documento]" : null);
+        let text = m.text?.message || m.text || m.body || m.caption || (m.image ? "📷 Foto" : m.audio ? "🎙️ Áudio" : m.document ? `📎 ${m.document?.fileName || "Documento"}` : null);
+        
+        // Tratar notificações de grupo se houver
+        const isGroupNotification = m.type === "GroupNotification" || m.notificationType || m.action;
+        if (isGroupNotification && !text) {
+            const actor = m.senderName || m.author || "Um participante";
+            if (m.action === "leave" || m.action === "remove") {
+                text = `🚪 ${actor} saiu do grupo`;
+            } else if (m.action === "add") {
+                text = `➕ ${actor} entrou no grupo`;
+            } else {
+                text = `ℹ️ ${actor} atualizou o grupo`;
+            }
+        }
+
         if (!text) continue;
 
-        const isFromMe = m.fromMe === true || m.fromMe === "true" || m.isSentByMe === true;
+        // Detecção ultra-robusta de mensagens enviadas por nós (fromMe)
+        const isFromMe = m.fromMe === true || 
+                         m.fromMe === "true" || 
+                         m.isSentByMe === true || 
+                         m.sentByMe === true || 
+                         m.key?.fromMe === true || 
+                         m.status === "PENDING" || 
+                         m.status === "SERVER_ACK" || 
+                         m.status === "DELIVERY_ACK" || 
+                         m.status === "READ" ||
+                         m.senderType === "ATTENDANT";
+
         const msgDate = m.momment ? new Date(m.momment) : (m.timestamp ? new Date(m.timestamp * 1000) : (m.createdAt ? new Date(m.createdAt) : new Date()));
         
         if (msgDate < minDate) continue;
 
         const msgId = m.zaapId || m.messageId || m.id || null;
 
+        let messageType = isGroupNotification ? "SYSTEM" : "TEXT";
+        let mediaUrl: string | null = null;
+        let mediaFileName: string | null = null;
+        let mediaMimeType: string | null = null;
+
+        if (m.image) {
+            messageType = "IMAGE";
+            mediaUrl = m.image.imageUrl || m.image.url || m.image;
+        } else if (m.audio) {
+            messageType = "AUDIO";
+            mediaUrl = m.audio.audioUrl || m.audio.url || m.audio;
+            mediaMimeType = "audio/ogg";
+        } else if (m.document) {
+            messageType = "DOCUMENT";
+            mediaUrl = m.document.documentUrl || m.document.url || m.document;
+            mediaFileName = m.document.fileName || "documento.pdf";
+        }
+
+        const senderType = isGroupNotification ? "SYSTEM" : (isFromMe ? "ATTENDANT" : "EMPLOYEE");
+        const senderName = isFromMe ? "Atendente RH" : (m.senderName || m.author || contactName);
+
         const exists = await prisma.hrTicketMessage.findFirst({
             where: {
                 ticketId,
                 OR: [
                     ...(msgId ? [{ zapiMessageId: String(msgId) }] : []),
-                    { content: String(text), createdAt: { gte: new Date(msgDate.getTime() - 45000), lte: new Date(msgDate.getTime() + 45000) } }
+                    { createdAt: { gte: new Date(msgDate.getTime() - 4000), lte: new Date(msgDate.getTime() + 4000) } }
                 ]
             }
         });
 
-        if (!exists) {
-            let messageType = "TEXT";
-            let mediaUrl: string | null = null;
-            let mediaFileName: string | null = null;
-            let mediaMimeType: string | null = null;
-
-            if (m.image) {
-                messageType = "IMAGE";
-                mediaUrl = m.image.imageUrl || m.image.url || m.image;
-            } else if (m.audio) {
-                messageType = "AUDIO";
-                mediaUrl = m.audio.audioUrl || m.audio.url || m.audio;
-                mediaMimeType = "audio/ogg";
-            } else if (m.document) {
-                messageType = "DOCUMENT";
-                mediaUrl = m.document.documentUrl || m.document.url || m.document;
-                mediaFileName = m.document.fileName || "documento.pdf";
+        if (exists) {
+            // Se já existe mas tinha conteúdo genérico "Mensagem enviada" ou senderType incorreto, atualizar!
+            if (exists.content === "Mensagem enviada" || exists.senderType !== senderType || (mediaUrl && !exists.mediaUrl)) {
+                await prisma.hrTicketMessage.update({
+                    where: { id: exists.id },
+                    data: {
+                        senderType,
+                        senderName,
+                        messageType,
+                        content: String(text),
+                        mediaUrl: typeof mediaUrl === "string" ? mediaUrl : exists.mediaUrl,
+                        mediaFileName: typeof mediaFileName === "string" ? mediaFileName : exists.mediaFileName,
+                        mediaMimeType: mediaMimeType || exists.mediaMimeType,
+                        status: isFromMe ? "SENT" : "DELIVERED"
+                    }
+                });
+                count++;
             }
-
+        } else {
             await prisma.hrTicketMessage.create({
                 data: {
                     ticketId,
-                    senderType: isFromMe ? "ATTENDANT" : "EMPLOYEE",
-                    senderName: isFromMe ? "Atendente RH" : (m.senderName || contactName),
+                    senderType,
+                    senderName,
                     messageType,
                     content: String(text),
                     mediaUrl: typeof mediaUrl === "string" ? mediaUrl : null,

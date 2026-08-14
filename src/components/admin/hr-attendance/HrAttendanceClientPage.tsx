@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -94,11 +94,14 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
     const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
 
-    // Ticket Selecionado
+    // Ticket Selecionado no Chat 3-Colunas
     const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
-    const [modalInitialTab, setModalInitialTab] = useState<"chat" | "notes" | "activities" | "value">("chat");
     const [ticketDetail, setTicketDetail] = useState<any>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
+
+    // Ticket Selecionado no Kanban (Separado para nunca abrir sozinho ao trocar de aba)
+    const [kanbanModalTicketId, setKanbanModalTicketId] = useState<string | null>(null);
+    const [modalInitialTab, setModalInitialTab] = useState<"chat" | "notes" | "activities" | "value">("chat");
 
     // Painel CRM WaSeller da Direita
     const [showCrmPanel, setShowCrmPanel] = useState(true);
@@ -117,6 +120,13 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
     const [useStamp, setUseStamp] = useState(true);
     const [syncingHistory, setSyncingHistory] = useState(false);
 
+    // Gravação de Áudio ao Vivo
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingTime, setRecordingTime] = useState(0);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+    const timerRef = useRef<NodeJS.Timeout | null>(null);
+
     // Edição rápida de contato
     const [isEditingContact, setIsEditingContact] = useState(false);
     const [contactNameInput, setContactNameInput] = useState("");
@@ -124,6 +134,117 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Iniciar Gravação de Áudio pelo Microfone
+    const handleStartRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = recorder;
+            audioChunksRef.current = [];
+
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunksRef.current.push(e.data);
+            };
+
+            recorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+                stream.getTracks().forEach(t => t.stop());
+                if (audioChunksRef.current.length === 0) return;
+
+                const reader = new FileReader();
+                reader.onloadend = async () => {
+                    const base64Audio = reader.result as string;
+                    if (ticketDetail) {
+                        setSending(true);
+                        try {
+                            const res = await sendHrWhatsAppFile({
+                                ticketId: ticketDetail.id,
+                                phone: ticketDetail.contactPhone,
+                                fileUrl: base64Audio,
+                                fileName: `audio_${Date.now()}.ogg`,
+                                mimeType: "audio/ogg",
+                                caption: "🎤 Mensagem de Voz"
+                            });
+                            if (res.success && res.message) {
+                                setTicketDetail((prev: any) => ({
+                                    ...prev,
+                                    messages: [...(prev?.messages || []), res.message]
+                                }));
+                                toast.success("Áudio enviado com sucesso!");
+                            }
+                            loadData();
+                        } catch (e: any) {
+                            toast.error("Erro ao enviar áudio gravado");
+                        } finally {
+                            setSending(false);
+                        }
+                    }
+                };
+                reader.readAsDataURL(audioBlob);
+            };
+
+            recorder.start();
+            setIsRecording(true);
+            setRecordingTime(0);
+            timerRef.current = setInterval(() => {
+                setRecordingTime(prev => prev + 1);
+            }, 1000);
+        } catch (err: any) {
+            toast.error("Permissão de microfone negada ou indisponível.");
+        }
+    };
+
+    // Parar e Enviar / Cancelar Gravação
+    const handleStopRecording = (shouldSend = true) => {
+        if (!mediaRecorderRef.current) return;
+        if (!shouldSend) {
+            audioChunksRef.current = [];
+        }
+        mediaRecorderRef.current.stop();
+        setIsRecording(false);
+        if (timerRef.current) clearInterval(timerRef.current);
+    };
+
+    // Upload de arquivo (Todas as extensões)
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !ticketDetail) return;
+
+        // Reset input value to allow uploading same file again if needed
+        e.target.value = "";
+
+        setSending(true);
+        const toastId = toast.loading(`Enviando ${file.name}...`);
+        try {
+            const reader = new FileReader();
+            reader.onload = async () => {
+                const dataUrl = reader.result as string;
+                const res = await sendHrWhatsAppFile({
+                    ticketId: ticketDetail.id,
+                    phone: ticketDetail.contactPhone,
+                    fileUrl: dataUrl,
+                    fileName: file.name,
+                    mimeType: file.type || "application/octet-stream"
+                });
+                if (res.success && res.message) {
+                    setTicketDetail((prev: any) => ({
+                        ...prev,
+                        messages: [...(prev?.messages || []), res.message]
+                    }));
+                    toast.success(`${file.name} enviado com sucesso!`, { id: toastId });
+                } else {
+                    toast.error("Falha no envio do arquivo", { id: toastId });
+                }
+                loadData();
+            };
+            reader.readAsDataURL(file);
+        } catch (e: any) {
+            toast.error("Erro no envio do arquivo", { id: toastId });
+        } finally {
+            setSending(false);
+        }
+    };
 
     // Carregar dados iniciais
     const loadData = useCallback(async () => {
@@ -255,40 +376,6 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         }
     };
 
-    // Upload de arquivo
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file || !ticketDetail) return;
-
-        setSending(true);
-        try {
-            const reader = new FileReader();
-            reader.onload = async () => {
-                const dataUrl = reader.result as string;
-                const res = await sendHrWhatsAppFile({
-                    ticketId: ticketDetail.id,
-                    phone: ticketDetail.contactPhone,
-                    fileUrl: dataUrl,
-                    fileName: file.name,
-                    mimeType: file.type || "application/pdf"
-                });
-                if (res.success && res.message) {
-                    setTicketDetail((prev: any) => ({
-                        ...prev,
-                        messages: [...(prev?.messages || []), res.message]
-                    }));
-                    toast.success("Arquivo enviado com sucesso!");
-                }
-                loadData();
-            };
-            reader.readAsDataURL(file);
-        } catch (e: any) {
-            toast.error("Erro no envio do arquivo");
-        } finally {
-            setSending(false);
-        }
-    };
-
     // Puxar Histórico dos Últimos 30 Dias via Z-API
     const handleSyncHistory30Days = async () => {
         if (!ticketDetail) return;
@@ -379,29 +466,29 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
 
     return (
         <div className="flex flex-col h-screen bg-[#f0f2f5] overflow-hidden select-none font-sans">
-            {/* TOP BAR SUPERIOR - WaAtendimento CRM Pro */}
-            <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between shadow-2xs z-20 flex-shrink-0">
+            {/* Top Bar Ultra-Premium WaSeller */}
+            <div className="h-14 bg-white border-b border-slate-200/80 px-4 flex items-center justify-between z-20 flex-shrink-0 shadow-2xs">
                 <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white font-black text-xs shadow-xs">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white font-black text-sm shadow-xs">
                         WA
                     </div>
                     <div>
-                        <h1 className="font-black text-xs text-slate-900 leading-none flex items-center gap-1.5">
-                            WaAtendimento CRM Pro
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="WhatsApp Conectado ao Vivo" />
-                        </h1>
-                        <span className="text-[9px] text-emerald-600 font-bold tracking-wider uppercase">Central Omnichannel RH</span>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-sm font-bold text-slate-900 leading-tight">Central de Atendimento</h1>
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Conexão WhatsApp Z-API Ativa" />
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-medium leading-none mt-0.5">WhatsApp CRM • {tickets.length} atendimentos</p>
                     </div>
                 </div>
 
-                {/* Alternador de Visões: Chat WaSeller vs Kanban */}
-                <div className="flex items-center gap-2">
-                    <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-2.5">
+                    {/* Alternador de Visão: Chat 3-Colunas vs Kanban */}
+                    <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200/80">
                         <button
-                            onClick={() => setMainView("chat")}
-                            className={`px-3 py-1.5 text-xs font-black rounded-lg transition flex items-center gap-1.5 ${
+                            onClick={() => React.startTransition(() => setMainView("chat"))}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
                                 mainView === "chat"
-                                    ? "bg-emerald-600 text-white shadow-xs"
+                                    ? "bg-white text-emerald-700 shadow-2xs font-extrabold"
                                     : "text-slate-600 hover:text-slate-900"
                             }`}
                         >
@@ -409,10 +496,13 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                             Chat WaSeller
                         </button>
                         <button
-                            onClick={() => setMainView("kanban")}
-                            className={`px-3 py-1.5 text-xs font-black rounded-lg transition flex items-center gap-1.5 ${
+                            onClick={() => React.startTransition(() => {
+                                setKanbanModalTicketId(null);
+                                setMainView("kanban");
+                            })}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
                                 mainView === "kanban"
-                                    ? "bg-emerald-600 text-white shadow-xs"
+                                    ? "bg-white text-emerald-700 shadow-2xs font-extrabold"
                                     : "text-slate-600 hover:text-slate-900"
                             }`}
                         >
@@ -424,10 +514,10 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                     <Button
                         variant="outline"
                         size="sm"
-                        className="h-8 text-xs gap-1.5 border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 font-extrabold rounded-xl"
+                        className="h-8 text-xs gap-1.5 border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 font-bold rounded-xl"
                         onClick={() => setShowQuickReplies(true)}
                     >
-                        <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" /> Respostas Rápidas
+                        <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" /> Templates RH
                     </Button>
 
                     {currentUser?.role === "ADMIN" && (
@@ -445,17 +535,17 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
 
             {/* SELETOR DE ETAPAS HORIZONTAL NO TOPO (MODO CHAT) */}
             {mainView === "chat" && (
-                <div className="bg-[#f0f2f5] border-b border-slate-200 px-4 py-2 flex items-center gap-2 overflow-x-auto no-scrollbar shadow-2xs z-10 flex-shrink-0">
+                <div className="bg-slate-50 border-b border-slate-200/80 px-4 py-2 flex items-center gap-2 overflow-x-auto no-scrollbar flex-shrink-0">
                     <button
                         onClick={() => setSelectedStageId(null)}
-                        className={`px-3 py-1 rounded-full text-xs font-black transition flex-shrink-0 flex items-center gap-1.5 border ${
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition flex-shrink-0 flex items-center gap-1.5 border ${
                             selectedStageId === null
-                                ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                                ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
                                 : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                         }`}
                     >
-                        <span>Todas as Etapas</span>
-                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${selectedStageId === null ? "bg-slate-700 text-white" : "bg-slate-200 text-slate-700"}`}>
+                        <span>Todas</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${selectedStageId === null ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-600"}`}>
                             {tickets.length}
                         </span>
                     </button>
@@ -463,21 +553,21 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                     {stages.map((stg) => {
                         const count = tickets.filter(t => t.stageId === stg.id).length;
                         const isSelected = selectedStageId === stg.id;
+                        const stgColor = stg.color || "#10b981";
 
                         return (
                             <button
                                 key={stg.id}
-                                onClick={() => setSelectedStageId(stg.id)}
-                                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black transition flex-shrink-0 border whitespace-nowrap ${
+                                onClick={() => setSelectedStageId(isSelected ? null : stg.id)}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold transition flex-shrink-0 flex items-center gap-1.5 border ${
                                     isSelected
-                                        ? "text-white shadow-xs border-transparent"
+                                        ? "bg-white text-slate-900 border-emerald-600 shadow-2xs ring-2 ring-emerald-500/20"
                                         : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                                 }`}
-                                style={isSelected ? { backgroundColor: stg.color || "#10b981" } : {}}
                             >
-                                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stg.color || "#10b981" }} />
+                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: stgColor }} />
                                 <span>{stg.name}</span>
-                                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${isSelected ? "bg-black/20 text-white" : "bg-slate-100 text-slate-700"}`}>
+                                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${isSelected ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>
                                     {count}
                                 </span>
                             </button>
@@ -847,31 +937,66 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                                                 </div>
                                                             )}
 
-                                                            {/* Exibição de PDF */}
-                                                            {msg.messageType === "DOCUMENT" && msg.mediaUrl && (
-                                                                <div className="flex items-center gap-3 p-2.5 bg-slate-100/90 rounded-xl mb-2 border border-slate-200">
-                                                                    <div className="w-9 h-9 rounded-lg bg-rose-500 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
-                                                                        PDF
-                                                                    </div>
-                                                                    <div className="overflow-hidden flex-1">
-                                                                        <span className="font-bold text-slate-800 block truncate text-xs">
-                                                                            {msg.mediaFileName || "Documento.pdf"}
-                                                                        </span>
-                                                                        <span className="text-[10px] text-slate-500">Documento RH</span>
-                                                                    </div>
-                                                                    <a
-                                                                        href={msg.mediaUrl}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        download={msg.mediaFileName || "documento.pdf"}
-                                                                        className="text-xs bg-emerald-600 text-white font-bold px-2.5 py-1 rounded-lg hover:bg-emerald-700 transition flex-shrink-0"
-                                                                    >
-                                                                        Baixar
-                                                                    </a>
+                                                            {/* Exibição de Vídeo */}
+                                                            {msg.messageType === "VIDEO" && msg.mediaUrl && (
+                                                                <div className="my-1 overflow-hidden rounded-xl border border-slate-200 bg-black/90">
+                                                                    <video controls src={msg.mediaUrl.startsWith("http") ? `/api/whatsapp/media-proxy?url=${encodeURIComponent(msg.mediaUrl)}` : msg.mediaUrl} className="max-w-xs max-h-72 rounded-xl" />
                                                                 </div>
                                                             )}
 
-                                                            {!isAudioMsg && <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>}
+                                                            {/* Exibição de Documentos e Todas as Extensões (PDF, Word, Excel, ZIP, etc.) */}
+                                                            {msg.messageType === "DOCUMENT" && msg.mediaUrl && (() => {
+                                                                const fileName = msg.mediaFileName || "arquivo";
+                                                                const ext = fileName.split(".").pop()?.toLowerCase() || "";
+                                                                
+                                                                let badgeBg = "bg-slate-600";
+                                                                let badgeLabel = ext.toUpperCase() || "DOC";
+
+                                                                if (ext === "pdf") {
+                                                                    badgeBg = "bg-rose-600";
+                                                                    badgeLabel = "PDF";
+                                                                } else if (["xls", "xlsx", "csv"].includes(ext)) {
+                                                                    badgeBg = "bg-emerald-600";
+                                                                    badgeLabel = "XLS";
+                                                                } else if (["doc", "docx"].includes(ext)) {
+                                                                    badgeBg = "bg-blue-600";
+                                                                    badgeLabel = "DOC";
+                                                                } else if (["zip", "rar", "7z", "tar"].includes(ext)) {
+                                                                    badgeBg = "bg-amber-600";
+                                                                    badgeLabel = "ZIP";
+                                                                }
+
+                                                                const downloadUrl = msg.mediaUrl.startsWith("http")
+                                                                    ? `/api/whatsapp/media-proxy?url=${encodeURIComponent(msg.mediaUrl)}`
+                                                                    : msg.mediaUrl;
+
+                                                                return (
+                                                                    <div className="flex items-center gap-3 p-2.5 bg-slate-100/95 rounded-xl mb-1.5 border border-slate-200 shadow-2xs">
+                                                                        <div className={`w-9 h-9 rounded-lg ${badgeBg} text-white flex items-center justify-center font-black text-[10px] flex-shrink-0 shadow-2xs`}>
+                                                                            {badgeLabel}
+                                                                        </div>
+                                                                        <div className="overflow-hidden flex-1 min-w-0">
+                                                                            <span className="font-bold text-slate-800 block truncate text-xs" title={fileName}>
+                                                                                {fileName}
+                                                                            </span>
+                                                                            <span className="text-[10px] text-slate-500 font-mono">Arquivo • {ext.toUpperCase()}</span>
+                                                                        </div>
+                                                                        <a
+                                                                            href={downloadUrl}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            download={fileName}
+                                                                            className="text-xs bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-1.5 rounded-lg transition flex-shrink-0 shadow-2xs"
+                                                                        >
+                                                                            Baixar
+                                                                        </a>
+                                                                    </div>
+                                                                );
+                                                            })()}
+
+                                                            {!isAudioMsg && msg.content && !msg.content.startsWith("📎 ") && (
+                                                                <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                                                            )}
 
                                                             <div className="flex items-center justify-end gap-1 text-[9px] text-slate-500 mt-1 font-mono">
                                                                 <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -885,7 +1010,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                         <div ref={messagesEndRef} />
                                     </div>
 
-                                    {/* Composer de Mensagens WaSeller */}
+                                    {/* Composer de Mensagens WaSeller com Gravação de Áudio ao Vivo */}
                                     <div className="bg-[#f0f2f5] border-t border-slate-300 p-3 flex flex-col gap-2 flex-shrink-0 z-20">
                                         <div className="flex items-center justify-between text-[10px] text-slate-500 px-1">
                                             <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-700">
@@ -906,38 +1031,83 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                             </button>
                                         </div>
 
-                                        <div className="flex items-center gap-2">
-                                            <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-                                            <button
-                                                type="button"
-                                                className="text-slate-500 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-200 transition cursor-pointer"
-                                                onClick={() => fileInputRef.current?.click()}
-                                                title="Anexar arquivo"
-                                            >
-                                                <Paperclip className="w-5 h-5" />
-                                            </button>
+                                        {/* Barra de Digitação ou Gravação */}
+                                        {isRecording ? (
+                                            <div className="flex items-center justify-between bg-rose-50 border border-rose-200 rounded-xl px-4 py-2 text-rose-800 animate-pulse">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-3 h-3 rounded-full bg-rose-600 animate-ping" />
+                                                    <span className="text-xs font-bold font-mono">
+                                                        Gravando áudio: {Math.floor(recordingTime / 60).toString().padStart(2, "0")}:{(recordingTime % 60).toString().padStart(2, "0")}
+                                                    </span>
+                                                </div>
 
-                                            <Textarea
-                                                value={messageText}
-                                                onChange={(e) => setMessageText(e.target.value)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === "Enter" && !e.shiftKey) {
-                                                        e.preventDefault();
-                                                        handleSendMessage();
-                                                    }
-                                                }}
-                                                placeholder="Digite sua mensagem para o colaborador (Enter para enviar, Shift+Enter para nova linha)..."
-                                                className="flex-1 text-xs resize-none h-11 min-h-[44px] bg-white border-none rounded-xl px-4 py-3 shadow-2xs focus:ring-1 focus:ring-emerald-500"
-                                            />
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => handleStopRecording(false)}
+                                                        className="h-8 text-xs font-bold text-slate-600 hover:text-rose-600"
+                                                    >
+                                                        <X className="w-4 h-4 mr-1" /> Cancelar
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => handleStopRecording(true)}
+                                                        className="h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-xs"
+                                                    >
+                                                        <Send className="w-3.5 h-3.5 mr-1" /> Enviar Áudio
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="file"
+                                                    ref={fileInputRef}
+                                                    onChange={handleFileUpload}
+                                                    className="hidden"
+                                                    accept="*/*"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    className="text-slate-500 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-200 transition cursor-pointer"
+                                                    onClick={() => fileInputRef.current?.click()}
+                                                    title="Anexar arquivo (PDFs, Fotos, Planilhas, Docs, etc.)"
+                                                >
+                                                    <Paperclip className="w-5 h-5" />
+                                                </button>
 
-                                            <Button
-                                                onClick={handleSendMessage}
-                                                disabled={sending || !messageText.trim()}
-                                                className="bg-emerald-600 hover:bg-emerald-700 text-white h-11 w-11 p-0 rounded-xl flex items-center justify-center shadow-xs flex-shrink-0 cursor-pointer"
-                                            >
-                                                <Send className="w-4 h-4 ml-0.5" />
-                                            </Button>
-                                        </div>
+                                                <button
+                                                    type="button"
+                                                    className="text-slate-500 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50 transition cursor-pointer"
+                                                    onClick={handleStartRecording}
+                                                    title="Gravar mensagem de voz"
+                                                >
+                                                    <Mic className="w-5 h-5" />
+                                                </button>
+
+                                                <Textarea
+                                                    value={messageText}
+                                                    onChange={(e) => setMessageText(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter" && !e.shiftKey) {
+                                                            e.preventDefault();
+                                                            handleSendMessage();
+                                                        }
+                                                    }}
+                                                    placeholder="Digite sua mensagem para o colaborador (Enter para enviar, Shift+Enter para nova linha)..."
+                                                    className="flex-1 text-xs resize-none h-11 min-h-[44px] bg-white border-none rounded-xl px-4 py-3 shadow-2xs focus:ring-1 focus:ring-emerald-500"
+                                                />
+
+                                                <Button
+                                                    onClick={handleSendMessage}
+                                                    disabled={sending || !messageText.trim()}
+                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-11 w-11 p-0 rounded-xl flex items-center justify-center shadow-xs flex-shrink-0 cursor-pointer"
+                                                >
+                                                    <Send className="w-4 h-4 ml-0.5" />
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -963,24 +1133,24 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 </div>
             )}
 
-            {/* VISÃO 2: PIPELINE KANBAN (Abre modal de chat ao clicar no card) */}
+            {/* VISÃO 2: PIPELINE KANBAN */}
             {mainView === "kanban" && (
                 <>
                     <HrKanbanView
                         stages={stages}
                         tickets={tickets}
                         onSelectTicket={(id, tab) => {
-                            setSelectedTicketId(id);
+                            setKanbanModalTicketId(id);
                             if (tab) setModalInitialTab(tab);
                         }}
                         onStagesUpdated={loadData}
                     />
 
-                    {selectedTicketId && (
+                    {kanbanModalTicketId && (
                         <HrTicketModal
-                            ticketId={selectedTicketId}
+                            ticketId={kanbanModalTicketId}
                             initialTab={modalInitialTab}
-                            onClose={() => setSelectedTicketId(null)}
+                            onClose={() => setKanbanModalTicketId(null)}
                             onUpdated={loadData}
                             availableUsers={allUsers}
                             availableLabels={labels}

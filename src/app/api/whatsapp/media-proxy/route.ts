@@ -20,13 +20,13 @@ export async function GET(req: NextRequest) {
             return NextResponse.redirect(mediaUrl);
         }
 
-        const contentType = response.headers.get("content-type") || "audio/mpeg";
+        const contentType = response.headers.get("content-type") || "application/octet-stream";
         const buffer = await response.arrayBuffer();
 
         return new NextResponse(buffer, {
             status: 200,
             headers: {
-                "Content-Type": contentType.includes("audio") ? contentType : "audio/mpeg",
+                "Content-Type": contentType,
                 "Content-Length": buffer.byteLength.toString(),
                 "Accept-Ranges": "bytes",
                 "Access-Control-Allow-Origin": "*",

@@ -264,50 +264,93 @@ function parseMessageBody(body: any) {
     let mediaFileName: string | undefined;
     let mediaMimeType: string | undefined;
 
+    // 1. Extração de texto de múltiplos formatos Z-API / Baileys
     if (typeof body.text === "string") content = body.text;
     else if (body.text?.message) content = body.text.message;
     else if (typeof body.message === "string") content = body.message;
     else if (typeof body.body === "string") content = body.body;
     else if (typeof body.caption === "string") content = body.caption;
     else if (typeof body.content === "string") content = body.content;
+    else if (body.message?.conversation) content = body.message.conversation;
+    else if (body.message?.extendedTextMessage?.text) content = body.message.extendedTextMessage.text;
+    else if (body.message?.imageMessage?.caption) content = body.message.imageMessage.caption;
+    else if (body.message?.documentMessage?.caption) content = body.message.documentMessage.caption;
+    else if (body.message?.videoMessage?.caption) content = body.message.videoMessage.caption;
+    else if (body.message?.buttonsResponseMessage?.selectedDisplayText) content = body.message.buttonsResponseMessage.selectedDisplayText;
+    else if (body.message?.listResponseMessage?.title) content = body.message.listResponseMessage.title;
+    else if (body.message?.templateButtonReplyMessage?.selectedDisplayText) content = body.message.templateButtonReplyMessage.selectedDisplayText;
 
-    if (body.image) {
-        messageType = "IMAGE";
-        mediaUrl = body.image.imageUrl || body.image.url || body.image.base64;
-        content = body.image.caption || content || "📷 Imagem";
-    } else if (body.document) {
-        messageType = "DOCUMENT";
-        mediaUrl = body.document.documentUrl || body.document.url;
-        mediaFileName = body.document.fileName || body.document.name || "documento";
-        mediaMimeType = body.document.mimeType || "application/pdf";
-        content = body.document.caption || content || `📎 ${mediaFileName}`;
-    } else if (body.audio || body.ptt || body.type === "audio" || body.type === "ptt") {
-        messageType = "AUDIO";
-        mediaUrl = body.audio?.audioUrl || body.audio?.url || (typeof body.audio === "string" ? body.audio : undefined) || body.mediaUrl || body.url || body.file || body.ptt?.audioUrl || body.ptt?.url;
-        content = "🎙️ Mensagem de Voz";
-    } else if (body.sticker) {
-        messageType = "IMAGE";
-        mediaUrl = body.sticker.stickerUrl || body.sticker.url;
-        content = "🎨 Sticker";
-    } else if (body.video) {
-        messageType = "VIDEO";
-        mediaUrl = body.video.videoUrl || body.video.url;
-        content = body.video.caption || "🎥 Vídeo";
-    } else if (body.contact || body.vcard) {
-        messageType = "CONTACT";
-        const cName = body.contact?.displayName || body.contact?.name || body.vcard?.displayName || "Contato";
-        content = `👤 ${cName} (Contato enviado)`;
+    // 2. Tratar Notificações de Grupo (Entrou, Saiu, Removido, Convidado, etc.)
+    const eventType = body.type || body.event || body.notificationType || "";
+    const action = body.action || body.subType || "";
+    const participantName = body.senderName || body.pushName || body.participantPhone || body.author || "Um participante";
+
+    if (eventType === "GroupNotification" || eventType === "group_notification" || eventType === "group-update" || action) {
+        messageType = "SYSTEM";
+        if (action === "leave" || action === "remove" || eventType.toLowerCase().includes("leave") || eventType.toLowerCase().includes("remove")) {
+            content = `🚪 ${participantName} saiu do grupo`;
+        } else if (action === "add" || action === "invite" || eventType.toLowerCase().includes("add")) {
+            content = `➕ ${participantName} entrou no grupo`;
+        } else if (action === "promote" || action === "admin") {
+            content = `⭐ ${participantName} agora é administrador do grupo`;
+        } else if (action === "demote") {
+            content = `👤 ${participantName} não é mais administrador`;
+        } else if (body.groupInviteMessage || body.inviteCode) {
+            content = `✉️ Convite enviado para o grupo`;
+        }
     }
 
-    // Tratar Mensagem Citada (Quoted Message)
+    // 3. Mídias
+    if (body.image || body.message?.imageMessage) {
+        messageType = "IMAGE";
+        const img = body.image || body.message?.imageMessage;
+        mediaUrl = img.imageUrl || img.url || img.base64 || (typeof img === "string" ? img : undefined);
+        content = img.caption || content || "📷 Imagem";
+    } else if (body.document || body.message?.documentMessage) {
+        messageType = "DOCUMENT";
+        const doc = body.document || body.message?.documentMessage;
+        mediaUrl = doc.documentUrl || doc.url;
+        mediaFileName = doc.fileName || doc.name || doc.title || "documento";
+        mediaMimeType = doc.mimeType || doc.mimetype || "application/pdf";
+        content = doc.caption || content || `📎 ${mediaFileName}`;
+    } else if (body.audio || body.ptt || body.type === "audio" || body.type === "ptt" || body.message?.audioMessage) {
+        messageType = "AUDIO";
+        const aud = body.audio || body.ptt || body.message?.audioMessage;
+        mediaUrl = aud?.audioUrl || aud?.url || (typeof aud === "string" ? aud : undefined) || body.mediaUrl || body.url || body.file;
+        content = "🎙️ Mensagem de Voz";
+    } else if (body.sticker || body.message?.stickerMessage) {
+        messageType = "IMAGE";
+        const stk = body.sticker || body.message?.stickerMessage;
+        mediaUrl = stk.stickerUrl || stk.url;
+        content = "🎨 Figurinha";
+    } else if (body.video || body.message?.videoMessage) {
+        messageType = "VIDEO";
+        const vid = body.video || body.message?.videoMessage;
+        mediaUrl = vid.videoUrl || vid.url;
+        content = vid.caption || "🎥 Vídeo";
+    } else if (body.contact || body.vcard || body.message?.contactMessage) {
+        messageType = "CONTACT";
+        const cName = body.contact?.displayName || body.contact?.name || body.vcard?.displayName || "Contato";
+        content = `👤 ${cName} (Contato compartilhado)`;
+    } else if (body.reaction || body.message?.reactionMessage) {
+        messageType = "SYSTEM";
+        const emoji = body.reaction?.text || body.message?.reactionMessage?.text || "👍";
+        content = `Reação: ${emoji}`;
+    }
+
+    // 4. Tratar Mensagem Citada (Quoted Message)
     if (body.quotedMessage) {
-        const quotedText = body.quotedMessage.text || body.quotedMessage.body || body.quotedMessage.caption || "Mensagem";
+        const quotedText = body.quotedMessage.text || body.quotedMessage.body || body.quotedMessage.caption || body.quotedMessage.content || "Mensagem";
         content = `> ${quotedText}\n${content}`;
     }
 
     const msgId = body.messageId || body.id || body.msgId || body.zaapId || null;
 
-    return { messageType, content: content || "Mensagem enviada", mediaUrl, mediaFileName, mediaMimeType, msgId };
+    if (!content) {
+        content = messageType === "IMAGE" ? "📷 Imagem" : messageType === "AUDIO" ? "🎙️ Áudio" : messageType === "DOCUMENT" ? "📎 Documento" : "💬 Mensagem";
+    }
+
+    return { messageType, content, mediaUrl, mediaFileName, mediaMimeType, msgId };
 }
 
 

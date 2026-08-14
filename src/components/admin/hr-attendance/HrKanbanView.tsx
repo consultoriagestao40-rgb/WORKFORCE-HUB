@@ -3,9 +3,9 @@
 import {
     ClipboardList, Calendar, MessageSquare, Plus, Trash2,
     GripVertical, UserCheck, Clock, Sparkles, Filter, Search,
-    RefreshCw, MoreHorizontal, Check, AlertCircle, Phone
+    RefreshCw, MoreHorizontal, Check, AlertCircle, Phone, ArrowRight
 } from "lucide-react";
-import { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, memo } from "react";
 import {
     DndContext,
     closestCenter,
@@ -40,34 +40,39 @@ interface Props {
 }
 
 const PRESET_COLORS = [
-    "#6366f1", "#f59e0b", "#3b82f6", "#8b5cf6", "#10b981",
-    "#ec4899", "#ef4444", "#14b8a6", "#64748b", "#84cc16",
-    "#06b6d4", "#d97706", "#4f46e5", "#059669", "#dc2626"
+    "#10b981", "#6366f1", "#f59e0b", "#3b82f6", "#8b5cf6",
+    "#ec4899", "#ef4444", "#14b8a6", "#64748b", "#06b6d4"
 ];
 
-// Helper to calculate SLA
-function getTicketSla(ticket: any) {
-    const updatedAt = new Date(ticket.updatedAt || ticket.createdAt);
+function formatTimeAgo(dateInput: any) {
+    if (!dateInput) return "";
+    const d = new Date(dateInput);
     const now = new Date();
-    const diffMin = Math.floor((now.getTime() - updatedAt.getTime()) / (1000 * 60));
-    
-    if (diffMin < 15) {
-        return { label: `${diffMin}m`, color: "bg-emerald-50 text-emerald-700 border-emerald-200" };
-    }
-    if (diffMin < 60) {
-        return { label: `${diffMin}m`, color: "bg-amber-50 text-amber-700 border-amber-200" };
-    }
-    const hours = Math.floor(diffMin / 60);
-    return { label: `${hours}h atrás`, color: "bg-rose-50 text-rose-700 border-rose-200 font-bold" };
+    const diffMin = Math.floor((now.getTime() - d.getTime()) / (1000 * 60));
+    if (diffMin < 1) return "agora";
+    if (diffMin < 60) return `${diffMin}m`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours}h`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d`;
 }
 
-// CARD VISUAL DO KANBAN (Ultra Premium WaSeller)
-function TicketCardUI({ ticket, onSelectTicket, isDragging = false }: { ticket: any; onSelectTicket?: (id: string, tab?: any) => void; isDragging?: boolean }) {
+// CARD COMPACTO, ULTRA-MODERNO E SEDUTOR (Linear/WaSeller Standard)
+const TicketCardUI = memo(function TicketCardUI({
+    ticket,
+    onSelectTicket,
+    isDragging = false
+}: {
+    ticket: any;
+    onSelectTicket?: (id: string, tab?: any) => void;
+    isDragging?: boolean;
+}) {
     const lastMsg = ticket.messages?.[0];
     const unreadCount = ticket.unreadCount || 0;
     const clickPosRef = useRef({ x: 0, y: 0, time: 0 });
-    const sla = getTicketSla(ticket);
+    const timeAgo = formatTimeAgo(ticket.updatedAt || ticket.createdAt);
     const employee = ticket.employee;
+    const isGroup = ticket.contactPhone?.includes("-group") || ticket.contactName?.toLowerCase().includes("grupo");
 
     return (
         <div
@@ -78,33 +83,37 @@ function TicketCardUI({ ticket, onSelectTicket, isDragging = false }: { ticket: 
                 const dx = Math.abs(e.clientX - clickPosRef.current.x);
                 const dy = Math.abs(e.clientY - clickPosRef.current.y);
                 const dt = Date.now() - clickPosRef.current.time;
-                if (dx < 6 && dy < 6 && dt < 450) {
-                    setTimeout(() => onSelectTicket?.(ticket.id, "chat"), 0);
+                if (dx < 6 && dy < 6 && dt < 400) {
+                    onSelectTicket?.(ticket.id, "chat");
                 }
             }}
-            className={`bg-white rounded-2xl border transition-all duration-200 group flex flex-col justify-between cursor-pointer p-3.5 select-none relative overflow-hidden ${
+            className={`bg-white rounded-xl border transition-all duration-150 group flex flex-col justify-between cursor-pointer p-3 select-none relative overflow-hidden ${
                 isDragging
-                    ? "border-emerald-500 shadow-2xl scale-105 rotate-1 opacity-95 bg-white ring-4 ring-emerald-500/20 z-50"
-                    : "border-slate-200/90 hover:border-emerald-500 hover:shadow-lg hover:-translate-y-0.5"
+                    ? "border-emerald-500 shadow-2xl scale-105 rotate-1 bg-white ring-2 ring-emerald-500/20 z-50"
+                    : "border-slate-200/80 hover:border-emerald-500 hover:shadow-md hover:-translate-y-0.5"
             }`}
         >
-            {/* Header: Avatar WhatsApp + Nome + Telefone + SLA Badge */}
-            <div className="flex items-start gap-3">
+            {/* Header: Foto + Nome + Telefone + Badge */}
+            <div className="flex items-start gap-2.5">
                 <div className="relative flex-shrink-0">
                     {ticket.contactPhotoUrl && ticket.contactPhotoUrl !== "null" ? (
                         <img
                             src={ticket.contactPhotoUrl}
                             alt=""
-                            className="w-10 h-10 rounded-2xl object-cover border-2 border-slate-100 shadow-2xs"
+                            className="w-9 h-9 rounded-xl object-cover border border-slate-200/80 shadow-2xs"
                         />
+                    ) : isGroup ? (
+                        <div className="w-9 h-9 rounded-xl bg-amber-500 text-white font-bold text-sm flex items-center justify-center shadow-2xs">
+                            👥
+                        </div>
                     ) : (
-                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-700 text-white font-black text-xs flex items-center justify-center border-2 border-slate-100 shadow-2xs">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-slate-900 to-slate-700 text-white font-bold text-xs flex items-center justify-center shadow-2xs">
                             {ticket.contactName?.charAt(0).toUpperCase() || "?"}
                         </div>
                     )}
 
                     {unreadCount > 0 && (
-                        <span className="absolute -bottom-1 -right-1 bg-[#25d366] text-white text-[9px] font-black min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 border-2 border-white shadow-xs animate-pulse">
+                        <span className="absolute -bottom-1 -right-1 bg-emerald-500 text-white text-[9px] font-black min-w-[17px] h-[17px] rounded-full flex items-center justify-center px-1 border-2 border-white shadow-xs animate-pulse">
                             {unreadCount}
                         </span>
                     )}
@@ -112,10 +121,12 @@ function TicketCardUI({ ticket, onSelectTicket, isDragging = false }: { ticket: 
 
                 <div className="overflow-hidden flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1">
-                        <h4 className="text-xs font-black text-slate-900 truncate leading-tight group-hover:text-emerald-700 transition">
+                        <h4 className="text-xs font-bold text-slate-900 truncate leading-tight group-hover:text-emerald-600 transition">
                             {ticket.contactName}
                         </h4>
-                        <GripVertical className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                        <span className="text-[10px] font-mono text-slate-400 flex-shrink-0">
+                            {timeAgo}
+                        </span>
                     </div>
 
                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -123,19 +134,19 @@ function TicketCardUI({ ticket, onSelectTicket, isDragging = false }: { ticket: 
                             {ticket.contactPhone}
                         </span>
                         {employee && (
-                            <span className="text-[9px] px-1 rounded bg-slate-100 text-slate-600 font-bold truncate max-w-[90px]">
-                                {employee.role?.name || "Colaborador"}
+                            <span className="text-[9px] px-1 rounded bg-slate-100 text-slate-600 font-bold truncate max-w-[85px]">
+                                {employee.role?.name || "CLT"}
                             </span>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* Mensagem Preview */}
-            <div className="my-2.5 bg-slate-50/80 p-2 rounded-xl border border-slate-100 text-[11px] text-slate-600 line-clamp-2 leading-relaxed">
+            {/* Preview da Mensagem (1 linha limpa) */}
+            <div className="mt-2 text-[11px] text-slate-600 truncate leading-snug">
                 {lastMsg ? (
                     <span>
-                        <strong className="text-slate-700">{lastMsg.senderType === "ATTENDANT" ? "✓ Você: " : ""}</strong>
+                        <span className="text-slate-400 font-medium">{lastMsg.senderType === "ATTENDANT" ? "Você: " : ""}</span>
                         {lastMsg.content}
                     </span>
                 ) : (
@@ -143,64 +154,45 @@ function TicketCardUI({ ticket, onSelectTicket, isDragging = false }: { ticket: 
                 )}
             </div>
 
-            {/* Etiquetas & SLA */}
-            <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                <div className="flex items-center gap-1 flex-wrap">
-                    {ticket.labels?.map((lbl: any) => (
+            {/* Rodapé: Tags + Atendente + Ações Rápidas */}
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-slate-400">
+                <div className="flex items-center gap-1 overflow-hidden max-w-[160px]">
+                    <span className="text-[9px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded truncate">
+                        👤 {ticket.assignee?.name ? ticket.assignee.name.split(" ")[0] : "Fila"}
+                    </span>
+                    {ticket.labels?.slice(0, 1).map((lbl: any) => (
                         <span
                             key={lbl.id}
-                            className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-white shadow-2xs"
+                            className="text-[9px] font-bold px-1.5 py-0.2 rounded text-white shadow-2xs truncate"
                             style={{ backgroundColor: lbl.color }}
                         >
                             {lbl.name}
                         </span>
                     ))}
-                    <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border ${sla.color} flex items-center gap-1`}>
-                        <Clock className="w-2.5 h-2.5" /> {sla.label}
-                    </span>
                 </div>
 
-                {/* Atendente Badge */}
-                <div className="text-[9px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    👤 {ticket.assignee?.name ? ticket.assignee.name.split(" ")[0] : "Fila Geral"}
-                </div>
-            </div>
-
-            {/* Barra de Ações Rápidas WaSeller */}
-            <div className="flex items-center justify-between pt-2.5 mt-2.5 border-t border-slate-100 text-slate-400">
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition">
                     <button
-                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 transition"
-                        title="Abrir Chat WhatsApp"
-                        onClick={(e) => { e.stopPropagation(); setTimeout(() => onSelectTicket?.(ticket.id, "chat"), 0); }}
+                        className="p-1 rounded hover:bg-emerald-50 hover:text-emerald-600 transition"
+                        title="Abrir Chat"
+                        onClick={(e) => { e.stopPropagation(); onSelectTicket?.(ticket.id, "chat"); }}
                     >
-                        <MessageSquare className="w-3.5 h-3.5" />
+                        <MessageSquare className="w-3 h-3" />
                     </button>
                     <button
-                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-amber-50 text-slate-500 hover:text-amber-700 transition"
-                        title="Anotações Internas"
-                        onClick={(e) => { e.stopPropagation(); setTimeout(() => onSelectTicket?.(ticket.id, "notes"), 0); }}
+                        className="p-1 rounded hover:bg-amber-50 hover:text-amber-600 transition"
+                        title="Anotações"
+                        onClick={(e) => { e.stopPropagation(); onSelectTicket?.(ticket.id, "notes"); }}
                     >
-                        <ClipboardList className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-500 hover:text-indigo-700 transition"
-                        title="Agendar Tarefa"
-                        onClick={(e) => { e.stopPropagation(); setTimeout(() => onSelectTicket?.(ticket.id, "activities"), 0); }}
-                    >
-                        <Calendar className="w-3.5 h-3.5" />
+                        <ClipboardList className="w-3 h-3" />
                     </button>
                 </div>
-
-                <span className="text-[9px] font-mono text-slate-400 font-medium">
-                    {new Date(ticket.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
             </div>
         </div>
     );
-}
+});
 
-// ITEM SORTABLE INDIVIDUAL
+// ITEM SORTABLE
 function SortableTicketCard({ ticket, onSelectTicket }: { ticket: any; onSelectTicket: (id: string, tab?: any) => void }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id: ticket.id,
@@ -220,8 +212,8 @@ function SortableTicketCard({ ticket, onSelectTicket }: { ticket: any; onSelectT
     );
 }
 
-// COLUNA KANBAN
-function DroppableKanbanColumn({ stage, stageTickets, onSelectTicket, onUpdateStage, onDeleteStage }: any) {
+// COLUNA KANBAN MODERNA
+function KanbanColumn({ stage, stageTickets, onSelectTicket, onUpdateStage, onDeleteStage }: any) {
     const { setNodeRef: setDroppableRef, isOver } = useDroppable({
         id: stage.id,
         data: { type: "STAGE", stage }
@@ -249,105 +241,105 @@ function DroppableKanbanColumn({ stage, stageTickets, onSelectTicket, onUpdateSt
         }
     };
 
-    const stageColor = stage.color || "#6366f1";
+    const stageColor = stage.color || "#10b981";
+
+    // Slice to max 50 visible tickets per column for instantaneous 60fps rendering
+    const visibleTickets = stageTickets.slice(0, 50);
 
     return (
         <div
             ref={setSortableRef}
             style={style}
-            className="flex-shrink-0 w-80 max-w-[85vw] flex flex-col h-full bg-[#f8fafc] rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden"
+            className="flex-shrink-0 w-72 flex flex-col h-full bg-slate-100/70 rounded-2xl border border-slate-200/70 overflow-hidden"
         >
-            {/* Header da Coluna com Barra Colorida */}
-            <div className="p-3.5 bg-white border-b border-slate-200 flex flex-col gap-2 flex-shrink-0">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 overflow-hidden flex-1">
-                        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-600">
-                            <GripVertical className="w-4 h-4" />
-                        </div>
-
-                        {/* Indicador de Cor */}
-                        <div className="relative">
-                            <button
-                                onClick={() => setShowColorPicker(!showColorPicker)}
-                                className="w-3.5 h-3.5 rounded-full ring-2 ring-white shadow-xs flex-shrink-0 transition hover:scale-110"
-                                style={{ backgroundColor: stageColor }}
-                            />
-                            {showColorPicker && (
-                                <div className="absolute top-6 left-0 z-50 bg-white p-2.5 rounded-xl shadow-xl border border-slate-200 grid grid-cols-5 gap-1.5 w-44">
-                                    {PRESET_COLORS.map(c => (
-                                        <button
-                                            key={c}
-                                            onClick={() => {
-                                                setShowColorPicker(false);
-                                                onUpdateStage(stage.id, { color: c });
-                                            }}
-                                            className="w-6 h-6 rounded-full border border-white shadow-2xs hover:scale-110 transition"
-                                            style={{ backgroundColor: c }}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Nome da Etapa */}
-                        {isEditingName ? (
-                            <Input
-                                autoFocus
-                                value={nameInput}
-                                onChange={e => setNameInput(e.target.value)}
-                                onBlur={handleSaveName}
-                                onKeyDown={e => e.key === "Enter" && handleSaveName()}
-                                className="h-7 text-xs font-black px-2 py-0"
-                            />
-                        ) : (
-                            <h3
-                                onDoubleClick={() => setIsEditingName(true)}
-                                className="font-black text-slate-800 text-xs truncate cursor-pointer hover:text-emerald-700 transition"
-                                title="Clique duplo para renomear"
-                            >
-                                {stage.name}
-                            </h3>
-                        )}
+            {/* Header da Coluna */}
+            <div className="p-3 bg-white border-b border-slate-200/80 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-2 overflow-hidden flex-1">
+                    <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-600">
+                        <GripVertical className="w-3.5 h-3.5" />
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                        <span
-                            className="text-[10px] font-black px-2 py-0.5 rounded-full text-white shadow-2xs"
+                    <div className="relative flex-shrink-0">
+                        <button
+                            onClick={() => setShowColorPicker(!showColorPicker)}
+                            className="w-2.5 h-2.5 rounded-full ring-2 ring-white shadow-2xs hover:scale-125 transition"
                             style={{ backgroundColor: stageColor }}
-                        >
-                            {stageTickets.length}
-                        </span>
-
-                        {stage.name !== "INBOX" && (
-                            <button
-                                onClick={() => onDeleteStage(stage.id)}
-                                className="p-1 text-slate-300 hover:text-rose-600 rounded transition"
-                                title="Excluir Coluna"
-                            >
-                                <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                        />
+                        {showColorPicker && (
+                            <div className="absolute top-6 left-0 z-50 bg-white p-2 rounded-xl shadow-xl border border-slate-200 grid grid-cols-5 gap-1.5 w-40">
+                                {PRESET_COLORS.map(c => (
+                                    <button
+                                        key={c}
+                                        onClick={() => {
+                                            setShowColorPicker(false);
+                                            onUpdateStage(stage.id, { color: c });
+                                        }}
+                                        className="w-5 h-5 rounded-full border border-white shadow-2xs hover:scale-110 transition"
+                                        style={{ backgroundColor: c }}
+                                    />
+                                ))}
+                            </div>
                         )}
                     </div>
+
+                    {isEditingName ? (
+                        <Input
+                            autoFocus
+                            value={nameInput}
+                            onChange={e => setNameInput(e.target.value)}
+                            onBlur={handleSaveName}
+                            onKeyDown={e => e.key === "Enter" && handleSaveName()}
+                            className="h-6 text-xs font-bold px-1.5 py-0"
+                        />
+                    ) : (
+                        <h3
+                            onDoubleClick={() => setIsEditingName(true)}
+                            className="font-bold text-slate-800 text-xs truncate cursor-pointer hover:text-emerald-600 transition"
+                            title="Clique duplo para renomear"
+                        >
+                            {stage.name}
+                        </h3>
+                    )}
+                </div>
+
+                <div className="flex items-center gap-1">
+                    <span className="text-[11px] font-bold font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                        {stageTickets.length}
+                    </span>
+
+                    {stage.name !== "INBOX" && (
+                        <button
+                            onClick={() => onDeleteStage(stage.id)}
+                            className="p-1 text-slate-300 hover:text-rose-600 rounded transition"
+                            title="Excluir Coluna"
+                        >
+                            <Trash2 className="w-3 h-3" />
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {/* Lista de Cards da Coluna (Área Droppable) */}
+            {/* Área Droppable com os Cards */}
             <div
                 ref={setDroppableRef}
-                className={`flex-1 overflow-y-auto p-3 space-y-3 min-h-[150px] transition-colors ${
-                    isOver ? "bg-emerald-50/50 ring-2 ring-emerald-500/30 inset-0" : ""
+                className={`flex-1 overflow-y-auto p-2 space-y-2 min-h-[150px] transition-colors ${
+                    isOver ? "bg-emerald-50/60 ring-2 ring-emerald-500/20" : ""
                 }`}
             >
-                {stageTickets.length === 0 ? (
-                    <div className="h-32 border-2 border-dashed border-slate-200/80 rounded-2xl flex flex-col items-center justify-center text-slate-400 text-center p-4">
-                        <Sparkles className="w-5 h-5 text-slate-300 mb-1" />
-                        <span className="text-[11px] font-medium">Nenhum atendimento</span>
-                        <span className="text-[9px] text-slate-400">Arraste um card para esta etapa</span>
+                {visibleTickets.length === 0 ? (
+                    <div className="h-28 border-2 border-dashed border-slate-200/80 rounded-xl flex flex-col items-center justify-center text-slate-400 text-center p-3">
+                        <span className="text-xs font-medium text-slate-400">Vazio</span>
                     </div>
                 ) : (
-                    stageTickets.map((t: any) => (
+                    visibleTickets.map((t: any) => (
                         <SortableTicketCard key={t.id} ticket={t} onSelectTicket={onSelectTicket} />
                     ))
+                )}
+
+                {stageTickets.length > 50 && (
+                    <div className="text-center py-2 text-[10px] text-slate-400 font-bold">
+                        + {stageTickets.length - 50} atendimentos nesta etapa
+                    </div>
                 )}
             </div>
         </div>
@@ -360,21 +352,28 @@ export function HrKanbanView({ stages, tickets, onSelectTicket, onStagesUpdated 
     const [search, setSearch] = useState("");
     const [syncing, setSyncing] = useState(false);
 
+    const [localTickets, setLocalTickets] = useState(tickets);
+    const justDraggedRef = useRef(false);
+
+    // Sincronizar tickets locais quando a prop mudar
+    React.useEffect(() => {
+        setLocalTickets(tickets);
+    }, [tickets]);
+
     const sensors = useSensors(
-        useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
     );
 
-    // Filtrar tickets por busca
     const filteredTickets = useMemo(() => {
-        if (!search.trim()) return tickets;
+        if (!search.trim()) return localTickets;
         const q = search.toLowerCase();
-        return tickets.filter(t =>
+        return localTickets.filter(t =>
             t.contactName?.toLowerCase().includes(q) ||
             t.contactPhone?.includes(q) ||
             t.employee?.name?.toLowerCase().includes(q)
         );
-    }, [tickets, search]);
+    }, [localTickets, search]);
 
     const handleSyncChats = async () => {
         setSyncing(true);
@@ -420,6 +419,7 @@ export function HrKanbanView({ stages, tickets, onSelectTicket, onStagesUpdated 
     };
 
     const handleDragStart = (event: DragStartEvent) => {
+        justDraggedRef.current = true;
         const { active } = event;
         setActiveId(String(active.id));
         setActiveType(active.data.current?.type || null);
@@ -430,9 +430,13 @@ export function HrKanbanView({ stages, tickets, onSelectTicket, onStagesUpdated 
         setActiveId(null);
         setActiveType(null);
 
+        // Manter flag para suprimir cliques imediatos no card após drag
+        setTimeout(() => {
+            justDraggedRef.current = false;
+        }, 400);
+
         if (!over) return;
 
-        // Arrastando Coluna
         if (active.data.current?.type === "COLUMN" && over.data.current?.type === "COLUMN") {
             if (active.id !== over.id) {
                 const oldIndex = stages.findIndex(s => s.id === active.id);
@@ -444,20 +448,41 @@ export function HrKanbanView({ stages, tickets, onSelectTicket, onStagesUpdated 
             return;
         }
 
-        // Arrastando Ticket
         if (active.data.current?.type === "TICKET") {
             const ticket = active.data.current.ticket;
             let targetStageId: string | null = null;
 
-            if (over.data.current?.type === "STAGE") {
+            if (over.data.current?.type === "STAGE" || over.data.current?.type === "COLUMN") {
                 targetStageId = over.data.current.stage.id;
             } else if (over.data.current?.type === "TICKET") {
                 targetStageId = over.data.current.ticket.stageId;
+            } else {
+                const foundStage = stages.find(s => s.id === over.id);
+                if (foundStage) {
+                    targetStageId = foundStage.id;
+                } else {
+                    const foundTicket = localTickets.find(t => t.id === over.id);
+                    if (foundTicket) {
+                        targetStageId = foundTicket.stageId;
+                    }
+                }
             }
 
             if (targetStageId && targetStageId !== ticket.stageId) {
-                await updateHrTicketStage(ticket.id, targetStageId);
-                toast.success("Atendimento movido para nova etapa!");
+                // Atualização Otimista Instantânea na tela
+                setLocalTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, stageId: targetStageId } : t));
+                
+                try {
+                    const res = await updateHrTicketStage(ticket.id, targetStageId);
+                    if (res?.success) {
+                        toast.success("Atendimento movido!");
+                    } else {
+                        // Reverter em caso de erro
+                        setLocalTickets(tickets);
+                    }
+                } catch {
+                    setLocalTickets(tickets);
+                }
                 onStagesUpdated();
             }
         }
@@ -475,17 +500,17 @@ export function HrKanbanView({ stages, tickets, onSelectTicket, onStagesUpdated 
     }, [activeId, activeType, tickets, stages]);
 
     return (
-        <div className="flex-1 flex flex-col overflow-hidden bg-[#f0f2f5]">
-            {/* Top Toolbar do Kanban */}
-            <div className="bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between gap-4 flex-shrink-0 shadow-2xs z-10">
-                <div className="flex items-center gap-3 flex-1 max-w-md">
+        <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+            {/* Top Toolbar Minimalista */}
+            <div className="bg-white border-b border-slate-200/80 px-4 py-2.5 flex items-center justify-between gap-4 flex-shrink-0 z-10">
+                <div className="flex items-center gap-3 flex-1 max-w-sm">
                     <div className="relative w-full">
-                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                         <Input
                             value={search}
                             onChange={e => setSearch(e.target.value)}
-                            placeholder="Buscar no Pipeline (nome, telefone, cargo)..."
-                            className="h-9 pl-9 text-xs rounded-xl bg-slate-50 border-slate-200"
+                            placeholder="Buscar no Pipeline..."
+                            className="h-8 pl-8 text-xs rounded-xl bg-slate-50 border-slate-200"
                         />
                     </div>
                 </div>
@@ -496,7 +521,7 @@ export function HrKanbanView({ stages, tickets, onSelectTicket, onStagesUpdated 
                         variant="outline"
                         onClick={handleSyncChats}
                         disabled={syncing}
-                        className="h-9 text-xs font-bold gap-1.5 border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl"
+                        className="h-8 text-xs font-bold gap-1.5 border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl"
                     >
                         <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
                         {syncing ? "Sincronizando..." : "Sincronizar Celular"}
@@ -505,15 +530,15 @@ export function HrKanbanView({ stages, tickets, onSelectTicket, onStagesUpdated 
                     <Button
                         size="sm"
                         onClick={handleAddStage}
-                        className="h-9 text-xs font-bold gap-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-xs"
+                        className="h-8 text-xs font-bold gap-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl"
                     >
-                        <Plus className="w-4 h-4" /> Nova Etapa
+                        <Plus className="w-3.5 h-3.5" /> Nova Etapa
                     </Button>
                 </div>
             </div>
 
-            {/* Kanban Columns Board (Horizontal Scroll) */}
-            <div className="flex-1 overflow-x-auto overflow-y-hidden p-6 flex gap-5 select-none">
+            {/* Kanban Columns (Horizontal Scroll Suave) */}
+            <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 flex gap-4 select-none">
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -524,7 +549,7 @@ export function HrKanbanView({ stages, tickets, onSelectTicket, onStagesUpdated 
                         {stages.map((stage) => {
                             const stageTickets = filteredTickets.filter(t => t.stageId === stage.id);
                             return (
-                                <DroppableKanbanColumn
+                                <KanbanColumn
                                     key={stage.id}
                                     stage={stage}
                                     stageTickets={stageTickets}
@@ -538,7 +563,7 @@ export function HrKanbanView({ stages, tickets, onSelectTicket, onStagesUpdated 
 
                     <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: "0.5" } } }) }}>
                         {activeType === "TICKET" && activeItem && (
-                            <div className="w-80 rotate-2">
+                            <div className="w-72 rotate-1">
                                 <TicketCardUI ticket={activeItem} isDragging={true} />
                             </div>
                         )}
