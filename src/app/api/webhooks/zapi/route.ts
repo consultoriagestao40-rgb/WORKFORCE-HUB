@@ -24,6 +24,46 @@ async function fetchZapiProfilePic(phone: string): Promise<string | null> {
 }
 
 
+const lidCache = new Map<string, string>();
+let lastLidSync = 0;
+
+async function resolveLidToPhone(phoneOrLid: string): Promise<string> {
+    const clean = phoneOrLid.replace(/\D/g, "");
+    if (!clean) return clean;
+    if (clean.startsWith("120363") || (clean.startsWith("55") && clean.length <= 13)) {
+        return clean;
+    }
+
+    if (lidCache.has(clean)) {
+        return lidCache.get(clean)!;
+    }
+
+    const now = Date.now();
+    if (now - lastLidSync > 60000) {
+        lastLidSync = now;
+        try {
+            for (let page = 1; page <= 5; page++) {
+                const res = await fetch(`https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/chats?page=${page}&pageSize=100`, {
+                    headers: { "Content-Type": "application/json", "Client-Token": ZAPI_CLIENT_TOKEN },
+                    next: { revalidate: 0 }
+                });
+                if (!res.ok) break;
+                const chats = await res.json();
+                if (!Array.isArray(chats) || chats.length === 0) break;
+                for (const c of chats) {
+                    if (c.phone && c.lid) {
+                        lidCache.set(c.lid.replace(/\D/g, ""), c.phone.replace(/\D/g, ""));
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("[LID Resolve Error]", e);
+        }
+    }
+
+    return lidCache.get(clean) || clean;
+}
+
 /**
  * WEBHOOK Z-API — Central de Atendimento RH + Recrutamento
  * Recebe todas as mensagens (enviadas e recebidas)
@@ -56,7 +96,10 @@ export async function POST(req: Request) {
             return NextResponse.json({ status: "ignored_no_phone" });
         }
 
-        const cleanPhone = rawPhone.toString().replace(/\D/g, "").replace(/@.+$/, "");
+        let cleanPhone = rawPhone.toString().replace(/\D/g, "").replace(/@.+$/, "");
+        // Resolver LID para Telefone Real
+        cleanPhone = await resolveLidToPhone(cleanPhone);
+
         const phoneShort = cleanPhone.startsWith("55") ? cleanPhone.slice(2) : cleanPhone;
         const phoneSearch = phoneShort.slice(-9);
 
@@ -185,7 +228,16 @@ async function processHrAttendanceMessage(cleanPhone: string, phoneSearch: strin
     });
 
     const employee = employees.length > 0 ? employees[0] : null;
-    const contactName = body.senderName || body.pushName || (employee ? employee.name : `Contato (${cleanPhone.slice(-4)})`);
+    let contactName = employee ? employee.name : null;
+    if (!isFromMe && (body.senderName || body.pushName)) {
+        const rawName = body.senderName || body.pushName;
+        if (rawName !== "Recursos Humanos" && rawName !== "RH" && rawName !== "Workforce") {
+            contactName = rawName;
+        }
+    }
+    if (!contactName) {
+        contactName = `Contato (${cleanPhone.slice(-4)})`;
+    }
 
     // Buscar foto de perfil no Z-API se o remetente for o funcionário
     let contactPhotoUrl: string | null = null;
