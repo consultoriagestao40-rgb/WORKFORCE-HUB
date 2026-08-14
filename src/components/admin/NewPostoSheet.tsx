@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Loader2 } from "lucide-react";
 import { createPosto } from "@/app/actions";
 
+import { toast } from "sonner";
+
 interface NewPostoSheetProps {
     clientId: string;
     schedules: { id: string; name: string }[];
@@ -26,9 +28,11 @@ export function NewPostoSheet({ clientId, schedules, roles }: NewPostoSheetProps
         try {
             const formData = new FormData(e.currentTarget);
             await createPosto(formData);
+            toast.success("Novo posto cadastrado com sucesso!");
             setOpen(false);
         } catch (error) {
             console.error(error);
+            toast.error("Erro ao cadastrar novo posto.");
         } finally {
             setIsSubmitting(false);
         }

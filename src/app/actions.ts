@@ -1446,6 +1446,8 @@ export async function updatePosto(formData: FormData) {
     }
 
     revalidatePath(`/admin/clients/${posto.clientId}`);
+    revalidatePath("/admin/payroll-preview");
+    revalidatePath("/admin/benefits");
 }
 
 export async function updateEmployee(formData: FormData) {

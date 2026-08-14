@@ -327,13 +327,13 @@ export async function getPayrollPreview(year: number, month: number) {
             vtBaseValue = Math.round(((benefitInfo.vtBaseValue || 0) + (benefitInfo.vtBaseValue2 || 0)) * 100) / 100;
             vtNetValue = Math.round(((benefitInfo.vtTotalValue || 0) + (benefitInfo.vtTotalValue2 || 0)) * 100) / 100;
             vtPayrollDiscount = benefitInfo.vtPayrollDiscount || 0;
-            vtDiscountPercentage = benefitInfo.vtDiscountPercentage || 6.0;
+            vtDiscountPercentage = benefitInfo.vtDiscountPercentage !== undefined && benefitInfo.vtDiscountPercentage !== null ? benefitInfo.vtDiscountPercentage : 6.0;
 
             vaBaseValue = benefitInfo.vaBaseValue || 0;
             vaDeductionValue = benefitInfo.vaDeductionValue || 0;
             vaNetValue = benefitInfo.vaTotalValue || 0;
             vaPayrollDiscount = benefitInfo.vaPayrollDiscount || 0;
-            vaDiscountPercentage = benefitInfo.vaDiscountPercentage || 20.0;
+            vaDiscountPercentage = benefitInfo.vaDiscountPercentage !== undefined && benefitInfo.vaDiscountPercentage !== null ? benefitInfo.vaDiscountPercentage : 20.0;
         } else {
             // Fallback
             if (emp.vtOptIn) {

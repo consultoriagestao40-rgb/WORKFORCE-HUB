@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Edit } from "lucide-react";
+import { Edit, Loader2 } from "lucide-react";
 import { updatePosto } from "@/app/actions";
+import { toast } from "sonner";
 
 interface EditPostoSheetProps {
     posto: {
@@ -44,10 +45,20 @@ interface EditPostoSheetProps {
 
 export function EditPostoSheet({ posto, schedules, roles }: EditPostoSheetProps) {
     const [open, setOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     async function handleSubmit(formData: FormData) {
-        await updatePosto(formData);
-        setOpen(false);
+        setIsSaving(true);
+        try {
+            await updatePosto(formData);
+            toast.success("Posto e regras de CCT atualizados com sucesso!");
+            setOpen(false);
+        } catch (error) {
+            console.error("Erro ao atualizar posto:", error);
+            toast.error("Erro ao salvar alterações do posto.");
+        } finally {
+            setIsSaving(false);
+        }
     }
 
     return (
@@ -305,7 +316,14 @@ export function EditPostoSheet({ posto, schedules, roles }: EditPostoSheetProps)
                         </Label>
                     </div>
 
-                    <Button type="submit" className="w-full">Salvar Alterações</Button>
+                    <Button type="submit" className="w-full" disabled={isSaving}>
+                        {isSaving ? (
+                            <span className="flex items-center gap-2">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Salvando Alterações...
+                            </span>
+                        ) : "Salvar Alterações"}
+                    </Button>
                 </form>
             </SheetContent>
         </Sheet>
