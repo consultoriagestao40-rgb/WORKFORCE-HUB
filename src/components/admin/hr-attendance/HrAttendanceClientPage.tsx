@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
     Search, Paperclip, Send, CheckCheck, Clock, ShieldCheck,
-    ArrowRightLeft, UserCheck, Lock, RefreshCw, X, Plus, Calendar, StickyNote, Filter,
-    Phone, Video, MoreVertical, MessageSquare, DollarSign, ClipboardList, Smile, Mic
+    ArrowRightLeft, UserCheck, Lock, RefreshCw, X, Plus, Calendar,
+    StickyNote, Filter, Phone, Video, MoreVertical, MessageSquare,
+    DollarSign, ClipboardList, Smile, Mic, Sparkles, ExternalLink,
+    Zap, Check, Users, ShieldAlert, ArrowLeft, ChevronRight
 } from "lucide-react";
 import {
     getHrPipelineStages,
@@ -15,6 +17,7 @@ import {
     getHrLabels,
     seedDefaultPipeline,
     syncZapiChats,
+    syncTicketWhatsAppHistory,
     getHrTicketDetail,
     sendHrWhatsAppMessage,
     sendHrWhatsAppFile,
@@ -23,6 +26,7 @@ import {
     assumeHrTicket,
     transferHrTicket,
     closeHrTicket,
+    reopenHrTicket,
     addHrTicketNote,
     completeHrTicketActivity,
     applyLabelToTicket,
@@ -36,6 +40,11 @@ import { HrLabelView } from "./HrLabelView";
 import { HrAccessManager } from "./HrAccessManager";
 import { HrTicketModal } from "./HrTicketModal";
 import { HrScheduleActivityModal } from "./HrScheduleActivityModal";
+import { HrCrmSidePanel } from "./HrCrmSidePanel";
+import { HrCloseTicketModal } from "./HrCloseTicketModal";
+import { HrQuickRepliesModal } from "./HrQuickRepliesModal";
+import { toast } from "sonner";
+import Link from "next/link";
 
 function formatDynamicDateLabel(dateInput: any) {
     if (!dateInput) return "HOJE";
@@ -72,7 +81,7 @@ interface Props {
 }
 
 export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
-    // Alternador de Visões: 'chat' (WhatsApp Web Real) ou 'kanban' (Pipeline Kanban)
+    // Alternador de Visões: 'chat' (WaSeller 3-Colunas) ou 'kanban' (Pipeline Kanban)
     const [mainView, setMainView] = useState<"chat" | "kanban">("chat");
 
     const [stages, setStages] = useState<any[]>([]);
@@ -80,8 +89,10 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
     const [labels, setLabels] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Filtro de Etapa no Topo (null = Todas)
+    // Filtros de Categoria WaSeller
+    const [categoryTab, setCategoryTab] = useState<"my" | "unassigned" | "all" | "closed" | "groups">("my");
     const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
 
     // Ticket Selecionado
     const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
@@ -89,93 +100,27 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
     const [ticketDetail, setTicketDetail] = useState<any>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
 
+    // Painel CRM WaSeller da Direita
+    const [showCrmPanel, setShowCrmPanel] = useState(true);
+
+    // Modais
     const [selectedImageZoom, setSelectedImageZoom] = useState<string | null>(null);
     const [showScheduleAct, setShowScheduleAct] = useState(false);
-    const [showImportModal, setShowImportModal] = useState(false);
-    const [importJsonText, setImportJsonText] = useState("");
-    const [importing, setImporting] = useState(false);
+    const [showCloseModal, setShowCloseModal] = useState(false);
+    const [showQuickReplies, setShowQuickReplies] = useState(false);
+    const [showTransferSelect, setShowTransferSelect] = useState(false);
+    const [showAccessManager, setShowAccessManager] = useState(false);
 
-    const handleProcessImportJson = async () => {
-        if (!importJsonText.trim()) return;
-        setImporting(true);
-        try {
-            let payload: any = null;
-            const text = importJsonText.trim();
-
-            // 1. Tentar parsear JSON direto
-            try {
-                payload = JSON.parse(text);
-            } catch (e) {
-                // 2. Fallback: Extrair mensagens de texto colado
-                const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-                const extractedMsgs: any[] = [];
-                for (const line of lines) {
-                    if (line.startsWith("const") || line.startsWith("function") || line.startsWith("alert") || line.startsWith("copy")) continue;
-                    extractedMsgs.push({
-                        senderType: line.toLowerCase().startsWith("você:") || line.toLowerCase().startsWith("atendente:") ? "ATTENDANT" : "EMPLOYEE",
-                        senderName: ticketDetail?.contactName || "Contato",
-                        content: line,
-                        createdAt: new Date().toISOString()
-                    });
-                }
-                if (extractedMsgs.length > 0) {
-                    payload = {
-                        phone: ticketDetail?.contactPhone || "5541999999999",
-                        contactName: ticketDetail?.contactName || "Contato WhatsApp",
-                        messages: extractedMsgs
-                    };
-                }
-            }
-
-            // Se o usuário colou o próprio código JS
-            if (text.includes("exportWhatsAppChat") || text.includes("function") || text.includes("copy(finalJSON)")) {
-                alert("⚠️ Você colou o CÓDIGO JavaScript!\n\nPasso a passo simples:\n1. Cole esse código no Console (F12) do WhatsApp Web (web.whatsapp.com).\n2. Aperte Enter no WhatsApp Web.\n3. O WhatsApp Web vai copiar as mensagens e exibir um OK.\n4. Depois volte aqui no sistema, dê Ctrl+V para colar o resultado e clique em Salvar!");
-                return;
-            }
-
-            if (!payload || !payload.messages) {
-                alert("❌ Cole o resultado da cópia (JSON) ou as linhas da conversa para salvar.");
-                return;
-            }
-
-            const res = await fetch("/api/whatsapp/import-history", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
-            const data = await res.json();
-            if (data.success) {
-                alert(`✅ SUCESSO! ${data.totalInserted} mensagens salvas no banco de dados!`);
-                setShowImportModal(false);
-                setImportJsonText("");
-                loadData();
-                if (selectedTicketId) loadTicketDetail(selectedTicketId);
-            } else {
-                alert("❌ Erro ao importar: " + (data.error || "Formato inválido."));
-            }
-        } catch (e: any) {
-            alert("❌ Erro ao processar o texto: " + e.message);
-        } finally {
-            setImporting(false);
-        }
-    };
-
-    // Busca e Filtros
-    const [searchQuery, setSearchQuery] = useState("");
-    const [filterMode, setFilterMode] = useState<"all" | "unread" | "groups">("all");
-
-    // Chat State
-    const [chatRightTab, setChatRightTab] = useState<"chat" | "notes">("chat");
+    // Estado do Envio de Mensagem
     const [messageText, setMessageText] = useState("");
     const [sending, setSending] = useState(false);
+    const [useStamp, setUseStamp] = useState(true);
+    const [syncingHistory, setSyncingHistory] = useState(false);
 
     // Edição rápida de contato
     const [isEditingContact, setIsEditingContact] = useState(false);
     const [contactNameInput, setContactNameInput] = useState("");
     const [contactPhoneInput, setContactPhoneInput] = useState("");
-
-    const [showAccessManager, setShowAccessManager] = useState(false);
-    const [noteText, setNoteText] = useState("");
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -195,21 +140,23 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
             setLabels(lbls);
 
             if (tcks.length > 0 && !selectedTicketId) {
-                setSelectedTicketId(tcks[0].id);
+                // Auto selecionar primeiro se ainda não selecionou
+                const myFirst = tcks.find((t: any) => t.assigneeId === currentUser?.id);
+                setSelectedTicketId(myFirst?.id || tcks[0].id);
             }
         } finally {
             setLoading(false);
         }
-    }, [searchQuery]);
+    }, [searchQuery, currentUser?.id, selectedTicketId]);
 
-    // Polling inteligente a cada 6s
+    // Polling inteligente a cada 5s
     useEffect(() => {
         loadData();
         const interval = setInterval(async () => {
             if (document.hidden) return;
             const tcks = await getHrTickets({ search: searchQuery });
             setTickets(tcks);
-        }, 6000);
+        }, 5000);
         return () => clearInterval(interval);
     }, [loadData, searchQuery]);
 
@@ -258,12 +205,10 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
 
     // Scroll automático no chat
     useEffect(() => {
-        if (chatRightTab === "chat") {
-            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        }
-    }, [ticketDetail?.messages, chatRightTab]);
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [ticketDetail?.messages]);
 
-    // Enviar mensagem
+    // Enviar mensagem com carimbo de operador
     const handleSendMessage = async (e?: React.FormEvent) => {
         e?.preventDefault();
         if (!messageText.trim() || sending || !ticketDetail) return;
@@ -276,7 +221,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         const tempMsg = {
             id: tempId,
             senderType: "ATTENDANT",
-            senderName: "Você",
+            senderName: currentUser?.name || "Você",
             content: textToSend,
             status: "SENDING",
             createdAt: new Date().toISOString()
@@ -288,10 +233,12 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         }));
 
         try {
+            const stamp = useStamp ? `*${currentUser?.name || "Atendente RH"}*` : undefined;
             const res = await sendHrWhatsAppMessage({
                 ticketId: ticketDetail.id,
                 phone: ticketDetail.contactPhone,
-                message: textToSend
+                message: textToSend,
+                stamp
             });
 
             if (res.message) {
@@ -301,6 +248,8 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 }));
             }
             loadData();
+        } catch (e: any) {
+            toast.error(e.message || "Erro ao enviar mensagem");
         } finally {
             setSending(false);
         }
@@ -328,40 +277,61 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                         ...prev,
                         messages: [...(prev?.messages || []), res.message]
                     }));
+                    toast.success("Arquivo enviado com sucesso!");
                 }
                 loadData();
             };
             reader.readAsDataURL(file);
+        } catch (e: any) {
+            toast.error("Erro no envio do arquivo");
         } finally {
             setSending(false);
+        }
+    };
+
+    // Puxar Histórico dos Últimos 30 Dias via Z-API
+    const handleSyncHistory30Days = async () => {
+        if (!ticketDetail) return;
+        setSyncingHistory(true);
+        try {
+            toast.info("Conectando ao WhatsApp para recuperar histórico dos últimos 30 dias...");
+            const res = await syncTicketWhatsAppHistory(ticketDetail.id, 30);
+            if (res.success) {
+                toast.success(`Histórico sincronizado! ${res.count} mensagens recuperadas.`);
+                loadTicketDetail(ticketDetail.id);
+                loadData();
+            } else {
+                toast.error(res.error || "Não foi possível puxar histórico");
+            }
+        } catch (e: any) {
+            toast.error(e.message || "Erro ao sincronizar mensagens");
+        } finally {
+            setSyncingHistory(false);
         }
     };
 
     const handleAssume = async () => {
         if (!selectedTicketId) return;
         await assumeHrTicket(selectedTicketId);
+        toast.success("Atendimento assumido por você!");
         loadData();
         loadTicketDetail(selectedTicketId);
     };
 
-    const handleCloseTicket = async () => {
+    const handleTransfer = async (toUserId: string) => {
         if (!selectedTicketId) return;
-        await closeHrTicket(selectedTicketId);
+        await transferHrTicket(selectedTicketId, toUserId);
+        setShowTransferSelect(false);
+        toast.success("Atendimento transferido!");
         loadData();
         loadTicketDetail(selectedTicketId);
     };
 
-    const handleChangeStage = async (stageId: string) => {
+    const handleReopen = async () => {
         if (!selectedTicketId) return;
-        await updateHrTicketStage(selectedTicketId, stageId);
+        await reopenHrTicket(selectedTicketId);
+        toast.success("Atendimento reaberto!");
         loadData();
-        loadTicketDetail(selectedTicketId);
-    };
-
-    const handleAddNote = async () => {
-        if (!selectedTicketId || !noteText.trim()) return;
-        await addHrTicketNote(selectedTicketId, noteText.trim());
-        setNoteText("");
         loadTicketDetail(selectedTicketId);
     };
 
@@ -372,90 +342,120 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
             phone: contactPhoneInput.trim()
         });
         setIsEditingContact(false);
+        toast.success("Contato atualizado!");
         loadData();
         loadTicketDetail(selectedTicketId);
     };
 
+    // Contadores para as Abas WaSeller
+    const counts = useMemo(() => {
+        return {
+            my: tickets.filter(t => t.status === "OPEN" && t.assigneeId === currentUser?.id).length,
+            unassigned: tickets.filter(t => t.status === "OPEN" && !t.assigneeId).length,
+            all: tickets.filter(t => t.status === "OPEN").length,
+            closed: tickets.filter(t => t.status === "CLOSED").length,
+            groups: tickets.filter(t => t.contactPhone?.includes("-group") || t.contactName?.toLowerCase().includes("grupo") || t.contactName?.toLowerCase().includes("rh -")).length
+        };
+    }, [tickets, currentUser?.id]);
+
     // Filtragem de Tickets na Lista Esquerda
-    const filteredTickets = tickets.filter(t => {
-        if (selectedStageId && t.stageId !== selectedStageId) return false;
-        if (filterMode === "unread" && t.unreadCount === 0) return false;
-        if (filterMode === "groups") {
-            const isGroup = t.contactPhone?.includes("-group") || t.contactName?.toLowerCase().includes("grupo") || t.contactName?.toLowerCase().includes("rh -");
-            if (!isGroup) return false;
-        }
-        return true;
-    });
+    const filteredTickets = useMemo(() => {
+        return tickets.filter(t => {
+            // Filtro por Etapa do Pipeline
+            if (selectedStageId && t.stageId !== selectedStageId) return false;
+
+            // Filtro por Categoria WaSeller
+            if (categoryTab === "my" && (t.status !== "OPEN" || t.assigneeId !== currentUser?.id)) return false;
+            if (categoryTab === "unassigned" && (t.status !== "OPEN" || t.assigneeId !== null)) return false;
+            if (categoryTab === "all" && t.status !== "OPEN") return false;
+            if (categoryTab === "closed" && t.status !== "CLOSED") return false;
+            if (categoryTab === "groups") {
+                const isGroup = t.contactPhone?.includes("-group") || t.contactName?.toLowerCase().includes("grupo") || t.contactName?.toLowerCase().includes("rh -");
+                if (!isGroup) return false;
+            }
+            return true;
+        });
+    }, [tickets, selectedStageId, categoryTab, currentUser?.id]);
 
     return (
-        <div className="flex flex-col h-screen bg-[#f0f2f5] overflow-hidden select-none">
-            {/* TOP BAR SUPERIOR - Estilo WaAtendimento CRM */}
+        <div className="flex flex-col h-screen bg-[#f0f2f5] overflow-hidden select-none font-sans">
+            {/* TOP BAR SUPERIOR - WaAtendimento CRM Pro */}
             <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between shadow-2xs z-20 flex-shrink-0">
                 <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white font-black text-xs shadow-xs">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white font-black text-xs shadow-xs">
                         WA
                     </div>
                     <div>
                         <h1 className="font-black text-xs text-slate-900 leading-none flex items-center gap-1.5">
-                            WaAtendimento
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Z-API Conectado ao Vivo" />
+                            WaAtendimento CRM Pro
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="WhatsApp Conectado ao Vivo" />
                         </h1>
-                        <span className="text-[9px] text-emerald-600 font-bold tracking-wider uppercase">WhatsApp RH CRM</span>
+                        <span className="text-[9px] text-emerald-600 font-bold tracking-wider uppercase">Central Omnichannel RH</span>
                     </div>
                 </div>
 
-                {/* Alternador de Visão + Acessos */}
+                {/* Alternador de Visões: Chat WaSeller vs Kanban */}
                 <div className="flex items-center gap-2">
-                    <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                    <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200">
                         <button
                             onClick={() => setMainView("chat")}
-                            className={`px-3 py-1 text-xs font-extrabold rounded-md transition ${mainView === "chat" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
+                            className={`px-3 py-1.5 text-xs font-black rounded-lg transition flex items-center gap-1.5 ${
+                                mainView === "chat"
+                                    ? "bg-emerald-600 text-white shadow-xs"
+                                    : "text-slate-600 hover:text-slate-900"
+                            }`}
                         >
-                            💬 Chat WhatsApp
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            Chat WaSeller
                         </button>
                         <button
                             onClick={() => setMainView("kanban")}
-                            className={`px-3 py-1 text-xs font-extrabold rounded-md transition ${mainView === "kanban" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
+                            className={`px-3 py-1.5 text-xs font-black rounded-lg transition flex items-center gap-1.5 ${
+                                mainView === "kanban"
+                                    ? "bg-emerald-600 text-white shadow-xs"
+                                    : "text-slate-600 hover:text-slate-900"
+                            }`}
                         >
-                            📊 Pipeline Kanban
+                            <ClipboardList className="w-3.5 h-3.5" />
+                            Pipeline Kanban
                         </button>
                     </div>
 
                     <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 text-xs gap-1 border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-extrabold"
-                        onClick={() => setShowImportModal(true)}
+                        className="h-8 text-xs gap-1.5 border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 font-extrabold rounded-xl"
+                        onClick={() => setShowQuickReplies(true)}
                     >
-                        📥 Importar Histórico
+                        <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" /> Respostas Rápidas
                     </Button>
 
                     {currentUser?.role === "ADMIN" && (
                         <Button
                             variant="outline"
                             size="sm"
-                            className="h-7 text-xs gap-1 border-slate-300 text-slate-700 font-bold"
+                            className="h-8 text-xs gap-1.5 border-slate-200 text-slate-700 font-bold rounded-xl"
                             onClick={() => setShowAccessManager(true)}
                         >
-                            <Lock className="w-3 h-3" /> Acessos
+                            <Lock className="w-3.5 h-3.5 text-slate-500" /> Acessos
                         </Button>
                     )}
                 </div>
             </div>
 
-            {/* TOP BAR - LINHA 2: Carrossel de Etapas Kanban do CRM (Foto 01) */}
+            {/* SELETOR DE ETAPAS HORIZONTAL NO TOPO (MODO CHAT) */}
             {mainView === "chat" && (
-                <div className="bg-[#f0f2f5] border-b border-slate-200/80 px-4 py-2 flex items-center gap-2 overflow-x-auto no-scrollbar shadow-2xs z-10">
+                <div className="bg-[#f0f2f5] border-b border-slate-200 px-4 py-2 flex items-center gap-2 overflow-x-auto no-scrollbar shadow-2xs z-10 flex-shrink-0">
                     <button
                         onClick={() => setSelectedStageId(null)}
-                        className={`px-3 py-1 rounded-full text-xs font-extrabold transition flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 border ${
+                        className={`px-3 py-1 rounded-full text-xs font-black transition flex-shrink-0 flex items-center gap-1.5 border ${
                             selectedStageId === null
-                                ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                                ? "bg-slate-900 text-white border-slate-900 shadow-xs"
                                 : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                         }`}
                     >
-                        <span>Todas</span>
-                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${selectedStageId === null ? "bg-emerald-800 text-white" : "bg-slate-200 text-slate-700"}`}>
+                        <span>Todas as Etapas</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${selectedStageId === null ? "bg-slate-700 text-white" : "bg-slate-200 text-slate-700"}`}>
                             {tickets.length}
                         </span>
                     </button>
@@ -468,15 +468,16 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                             <button
                                 key={stg.id}
                                 onClick={() => setSelectedStageId(stg.id)}
-                                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold transition flex-shrink-0 border whitespace-nowrap ${
+                                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black transition flex-shrink-0 border whitespace-nowrap ${
                                     isSelected
-                                        ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                                        ? "text-white shadow-xs border-transparent"
                                         : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                                 }`}
+                                style={isSelected ? { backgroundColor: stg.color || "#10b981" } : {}}
                             >
                                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stg.color || "#10b981" }} />
                                 <span>{stg.name}</span>
-                                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${isSelected ? "bg-slate-700 text-white" : "bg-emerald-600 text-white"}`}>
+                                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${isSelected ? "bg-black/20 text-white" : "bg-slate-100 text-slate-700"}`}>
                                     {count}
                                 </span>
                             </button>
@@ -485,114 +486,147 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 </div>
             )}
 
-            {/* VISÃO 1: CHAT WHATSAPP WEB REAL (Conexão ao vivo) */}
+            {/* VISÃO 1: CHAT WHATSAPP CRM (3 COLUNAS INTEGRADAS) */}
             {mainView === "chat" && (
                 <div className="flex flex-1 overflow-hidden">
-                    {/* Painel Esquerdo: Lista de Conversas do WhatsApp (Pixel-Perfect WhatsApp Web) */}
-                    <div className="w-96 border-r border-slate-200 bg-white flex flex-col overflow-hidden flex-shrink-0">
-                        {/* Header com Busca e Filtros (Foto 01) */}
-                        <div className="p-3 border-b border-slate-200 bg-[#f0f2f5] space-y-2">
-                            <div className="flex items-center justify-between mb-1">
-                                <h2 className="text-base font-black text-slate-900 tracking-tight">WhatsApp</h2>
-                                <div className="flex items-center gap-2 text-slate-500">
-                                    <button className="hover:text-slate-800 p-1" title="Nova mensagem"><Plus className="w-4 h-4" /></button>
-                                    <button className="hover:text-slate-800 p-1" title="Mais opções"><MoreVertical className="w-4 h-4" /></button>
-                                </div>
+                    {/* COLUNA 1: FILTROS E LISTA DE CONVERSAS WASELLER */}
+                    <div className="w-80 md:w-96 border-r border-slate-200 bg-white flex flex-col overflow-hidden flex-shrink-0">
+                        {/* Header com Abas WaSeller */}
+                        <div className="p-3 border-b border-slate-200 bg-slate-50/70 space-y-2 flex-shrink-0">
+                            {/* Abas de Fila e Atendimentos */}
+                            <div className="grid grid-cols-4 gap-1 p-1 bg-slate-200/70 rounded-xl">
+                                <button
+                                    onClick={() => setCategoryTab("my")}
+                                    className={`py-1 text-[10px] font-black rounded-lg transition flex flex-col items-center justify-center ${
+                                        categoryTab === "my" ? "bg-white text-emerald-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                                    }`}
+                                >
+                                    <span>Meus</span>
+                                    <span className="text-[9px] opacity-80">({counts.my})</span>
+                                </button>
+                                <button
+                                    onClick={() => setCategoryTab("unassigned")}
+                                    className={`py-1 text-[10px] font-black rounded-lg transition flex flex-col items-center justify-center ${
+                                        categoryTab === "unassigned" ? "bg-white text-amber-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                                    }`}
+                                >
+                                    <span>Fila</span>
+                                    <span className="text-[9px] opacity-80">({counts.unassigned})</span>
+                                </button>
+                                <button
+                                    onClick={() => setCategoryTab("all")}
+                                    className={`py-1 text-[10px] font-black rounded-lg transition flex flex-col items-center justify-center ${
+                                        categoryTab === "all" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                                    }`}
+                                >
+                                    <span>Todos</span>
+                                    <span className="text-[9px] opacity-80">({counts.all})</span>
+                                </button>
+                                <button
+                                    onClick={() => setCategoryTab("closed")}
+                                    className={`py-1 text-[10px] font-black rounded-lg transition flex flex-col items-center justify-center ${
+                                        categoryTab === "closed" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                                    }`}
+                                >
+                                    <span>Histórico</span>
+                                    <span className="text-[9px] opacity-80">({counts.closed})</span>
+                                </button>
                             </div>
 
+                            {/* Campo de Busca Rápida */}
                             <div className="relative">
                                 <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                                 <Input
-                                    placeholder="Pesquisar ou começar uma nova conversa"
+                                    placeholder="Buscar por nome, telefone ou CPF..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-9 text-xs h-9 bg-white border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500"
+                                    className="pl-9 text-xs h-9 bg-white border-slate-200 rounded-xl focus:ring-1 focus:ring-emerald-500"
                                 />
-                            </div>
-
-                            <div className="flex items-center gap-1.5 pt-0.5 overflow-x-auto no-scrollbar">
-                                <button
-                                    onClick={() => setFilterMode("all")}
-                                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition flex-shrink-0 ${filterMode === "all" ? "bg-slate-900 text-white" : "bg-slate-200/80 text-slate-600 hover:bg-slate-300"}`}
-                                >
-                                    Tudo
-                                </button>
-                                <button
-                                    onClick={() => setFilterMode("unread")}
-                                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition flex-shrink-0 ${filterMode === "unread" ? "bg-slate-900 text-white" : "bg-slate-200/80 text-slate-600 hover:bg-slate-300"}`}
-                                >
-                                    Não lidas ({tickets.filter(t => t.unreadCount > 0).length})
-                                </button>
-                                <button
-                                    onClick={() => setFilterMode("groups")}
-                                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition flex-shrink-0 ${filterMode === "groups" ? "bg-slate-900 text-white" : "bg-slate-200/80 text-slate-600 hover:bg-slate-300"}`}
-                                >
-                                    Grupos ({tickets.filter(t => t.contactPhone?.includes("-group") || t.contactName?.toLowerCase().includes("grupo") || t.contactName?.toLowerCase().includes("rh -")).length})
-                                </button>
                             </div>
                         </div>
 
-                        {/* Lista de Contatos WhatsApp Web (Foto 01) */}
+                        {/* Lista de Conversas do CRM */}
                         <div className="flex-1 overflow-y-auto divide-y divide-slate-100 min-h-0">
                             {loading ? (
-                                <div className="p-6 text-center text-xs text-slate-400">Carregando conversas...</div>
+                                <div className="p-8 text-center text-xs text-slate-400">Carregando atendimentos...</div>
                             ) : filteredTickets.length === 0 ? (
-                                <div className="p-6 text-center text-xs text-slate-400">Nenhuma conversa encontrada.</div>
+                                <div className="p-8 text-center text-xs text-slate-400">Nenhum atendimento nesta categoria.</div>
                             ) : (
                                 filteredTickets.map((t) => {
                                     const isSelected = selectedTicketId === t.id;
-                                    const lastMsg = t.messages?.[t.messages.length - 1];
-                                    const isGroup = t.contactPhone?.includes("-group") || t.contactName?.toLowerCase().includes("grupo") || t.contactName?.toLowerCase().includes("rh -");
+                                    const lastMsg = t.messages?.[0];
+                                    const isGroup = t.contactPhone?.includes("-group") || t.contactName?.toLowerCase().includes("grupo");
+                                    const employee = t.employee;
 
                                     return (
                                         <div
                                             key={t.id}
                                             onClick={() => setSelectedTicketId(t.id)}
-                                            className={`p-3 flex items-center gap-3 cursor-pointer transition relative ${
-                                                isSelected ? "bg-[#f0f2f5] border-l-4 border-l-emerald-500" : "hover:bg-slate-50"
+                                            className={`p-3 flex items-start gap-3 cursor-pointer transition relative ${
+                                                isSelected ? "bg-emerald-50/70 border-l-4 border-l-emerald-600" : "hover:bg-slate-50"
                                             }`}
                                         >
-                                            <div className="relative flex-shrink-0">
+                                            <div className="relative flex-shrink-0 mt-0.5">
                                                 {t.contactPhotoUrl && t.contactPhotoUrl !== "null" ? (
                                                     <img
                                                         src={t.contactPhotoUrl}
                                                         alt=""
-                                                        className="w-11 h-11 rounded-full object-cover border border-slate-200 shadow-2xs"
+                                                        className="w-11 h-11 rounded-2xl object-cover border border-slate-200 shadow-2xs"
                                                     />
                                                 ) : isGroup ? (
-                                                    <div className="w-11 h-11 rounded-full bg-amber-600 text-white font-bold text-base flex items-center justify-center shadow-2xs">
+                                                    <div className="w-11 h-11 rounded-2xl bg-amber-600 text-white font-bold text-base flex items-center justify-center shadow-2xs">
                                                         👥
                                                     </div>
                                                 ) : (
-                                                    <div className="w-11 h-11 rounded-full bg-emerald-700 text-white font-bold text-sm flex items-center justify-center shadow-2xs">
+                                                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-700 text-white font-bold text-sm flex items-center justify-center shadow-2xs">
                                                         {t.contactName?.charAt(0).toUpperCase() || "?"}
                                                     </div>
                                                 )}
+
+                                                {t.unreadCount > 0 && (
+                                                    <span className="absolute -bottom-1 -right-1 bg-[#25d366] text-white text-[10px] font-black min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 border-2 border-white shadow-2xs animate-pulse">
+                                                        {t.unreadCount}
+                                                    </span>
+                                                )}
                                             </div>
 
-                                            <div className="overflow-hidden flex-1">
+                                            <div className="overflow-hidden flex-1 min-w-0">
                                                 <div className="flex items-center justify-between mb-0.5">
                                                     <h4 className="text-xs font-black text-slate-900 truncate">{t.contactName}</h4>
-                                                    <span className={`text-[10px] font-mono flex-shrink-0 ${t.unreadCount > 0 ? "text-emerald-600 font-extrabold" : "text-slate-400"}`}>
+                                                    <span className={`text-[10px] font-mono flex-shrink-0 ${t.unreadCount > 0 ? "text-emerald-600 font-black" : "text-slate-400"}`}>
                                                         {new Date(t.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </span>
                                                 </div>
 
-                                                <div className="flex items-center justify-between gap-1">
-                                                    <p className="text-[11px] text-slate-500 truncate leading-snug flex-1">
-                                                        {lastMsg ? (
-                                                            <span>{lastMsg.senderType === "ATTENDANT" ? "✓ Você: " : ""}{lastMsg.content}</span>
-                                                        ) : (
-                                                            <span className="italic text-slate-400">Atendimento iniciado</span>
-                                                        )}
-                                                    </p>
-
-                                                    {/* Bolinha Verde do WhatsApp Web com a Quantidade de Não Lidas */}
-                                                    {t.unreadCount > 0 && (
-                                                        <span className="bg-[#25d366] text-white text-[10px] font-extrabold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 flex-shrink-0 shadow-2xs">
-                                                            {t.unreadCount}
+                                                <div className="flex items-center gap-1 mb-1">
+                                                    <span className="text-[10px] text-slate-400 font-mono truncate">{t.contactPhone}</span>
+                                                    {employee && (
+                                                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-bold truncate max-w-[100px]">
+                                                            {employee.role?.name || "CLT"}
                                                         </span>
                                                     )}
+                                                </div>
+
+                                                <p className="text-[11px] text-slate-500 truncate leading-snug">
+                                                    {lastMsg ? (
+                                                        <span>{lastMsg.senderType === "ATTENDANT" ? "✓ Você: " : ""}{lastMsg.content}</span>
+                                                    ) : (
+                                                        <span className="italic text-slate-400">Atendimento iniciado</span>
+                                                    )}
+                                                </p>
+
+                                                {/* Badges de Etapa e Atendente no Rodapé do Card */}
+                                                <div className="flex items-center justify-between mt-1.5 pt-1 border-t border-slate-100/80">
+                                                    <span
+                                                        className="text-[9px] font-black px-1.5 py-0.2 rounded text-white shadow-2xs truncate max-w-[110px]"
+                                                        style={{ backgroundColor: t.stage?.color || "#6366f1" }}
+                                                    >
+                                                        {t.stage?.name}
+                                                    </span>
+
+                                                    <span className="text-[9px] font-bold text-slate-500">
+                                                        👤 {t.assignee?.name ? t.assignee.name.split(" ")[0] : "Fila Geral"}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
@@ -602,246 +636,330 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                         </div>
                     </div>
 
-                    {/* Painel Direito: Chat WhatsApp Web Real (Foto 01) */}
+                    {/* COLUNA 2: CHAT AO VIVO WHATSAPP WASELLER */}
                     <div className="flex-1 flex flex-col bg-[#efeae2] relative overflow-hidden">
                         {!ticketDetail ? (
                             <div className="flex-1 flex flex-col items-center justify-center text-xs text-slate-400 bg-[#f0f2f5] p-6 text-center">
-                                <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-black text-xl mb-3">
+                                <div className="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-black text-2xl mb-3 shadow-xs">
                                     💬
                                 </div>
-                                <h3 className="text-base font-bold text-slate-700 mb-1">WaAtendimento — WhatsApp Web</h3>
-                                <p className="text-xs text-slate-500 max-w-sm">Selecione uma conversa na lista à esquerda para visualizar o histórico de mensagens, ouvir áudios e interagir.</p>
+                                <h3 className="text-base font-bold text-slate-800 mb-1">Central WaAtendimento Pro</h3>
+                                <p className="text-xs text-slate-500 max-w-sm">
+                                    Selecione um atendimento à esquerda para conversar, aplicar carimbo de atendente, gerenciar SLA e registrar anotações internas.
+                                </p>
                             </div>
                         ) : (
                             <div className="flex flex-1 flex-col h-full overflow-hidden">
-                                {/* Header da Conversa (Foto 01 Limpo e Elegante) */}
-                                <div className="h-16 bg-[#f0f2f5] border-b border-slate-300 px-4 flex items-center justify-between z-10 shadow-2xs gap-3">
+                                {/* Top Bar do Chat Ativo */}
+                                <div className="h-16 bg-[#f0f2f5] border-b border-slate-300 px-4 flex items-center justify-between z-10 shadow-2xs gap-3 flex-shrink-0">
                                     <div className="flex items-center gap-3 overflow-hidden min-w-0">
                                         {ticketDetail.contactPhotoUrl && ticketDetail.contactPhotoUrl !== "null" ? (
-                                            <img src={ticketDetail.contactPhotoUrl} alt="" className="w-10 h-10 rounded-full object-cover border flex-shrink-0" />
+                                            <img src={ticketDetail.contactPhotoUrl} alt="" className="w-10 h-10 rounded-2xl object-cover border flex-shrink-0 shadow-2xs" />
                                         ) : (
-                                            <div className="w-10 h-10 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+                                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-700 text-white font-black text-xs flex items-center justify-center flex-shrink-0 shadow-2xs">
                                                 {ticketDetail.contactName?.charAt(0).toUpperCase()}
                                             </div>
                                         )}
                                         <div className="overflow-hidden min-w-0 flex-1">
                                             <div className="flex items-center gap-1.5">
-                                                <h3 className="text-xs font-black text-slate-900 truncate max-w-[220px] leading-tight" title={ticketDetail.contactName}>
+                                                <h3 className="text-xs font-black text-slate-900 truncate max-w-[200px] leading-tight" title={ticketDetail.contactName}>
                                                     {ticketDetail.contactName}
                                                 </h3>
-                                                <button onClick={() => setIsEditingContact(true)} className="text-slate-400 hover:text-slate-600 text-xs flex-shrink-0" title="Editar nome">
+                                                <button onClick={() => setIsEditingContact(true)} className="text-slate-400 hover:text-slate-600 text-xs flex-shrink-0" title="Editar contato">
                                                     ✏️
                                                 </button>
                                             </div>
-                                            <span className="text-[10px] text-slate-500 font-mono block truncate">{ticketDetail.contactPhone}</span>
+                                            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
+                                                <span>{ticketDetail.contactPhone}</span>
+                                                {ticketDetail.employee && (
+                                                    <Link
+                                                        href={`/admin/employees/${ticketDetail.employee.id}`}
+                                                        target="_blank"
+                                                        className="text-emerald-700 font-bold hover:underline flex items-center gap-0.5 font-sans"
+                                                    >
+                                                        CLT: {ticketDetail.employee.role?.name || "Funcionário"} <ExternalLink className="w-2.5 h-2.5" />
+                                                    </Link>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
 
-                                    {/* Controles de Ação do RH no Chat (Foto 01) */}
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                        <div className="flex bg-slate-200/80 p-0.5 rounded-lg flex-shrink-0">
-                                            <button
-                                                onClick={() => setChatRightTab("chat")}
-                                                className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${chatRightTab === "chat" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
-                                            >
-                                                💬 Chat ({ticketDetail.messages?.length || 0})
-                                            </button>
-                                            <button
-                                                onClick={() => setChatRightTab("notes")}
-                                                className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${chatRightTab === "notes" ? "bg-white text-emerald-600 shadow-2xs" : "text-slate-600 hover:text-slate-900"}`}
-                                            >
-                                                📝 Notas ({ticketDetail.notes?.length || 0})
-                                            </button>
-                                        </div>
-
+                                    {/* Ações Rápidas do Cabeçalho */}
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        {/* Botão Puxar Histórico 30 Dias */}
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="h-7 text-xs font-bold gap-1 bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 flex-shrink-0 px-2.5"
-                                            onClick={() => setShowScheduleAct(true)}
+                                            onClick={handleSyncHistory30Days}
+                                            disabled={syncingHistory}
+                                            className="h-8 text-xs font-bold gap-1 bg-white border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-xl"
+                                            title="Sincronizar mensagens dos últimos 30 dias diretamente do WhatsApp"
                                         >
-                                            📅 Agendar
+                                            <RefreshCw className={`w-3.5 h-3.5 ${syncingHistory ? "animate-spin" : ""}`} />
+                                            <span className="hidden lg:inline">{syncingHistory ? "Puxando..." : "Puxar 30 Dias"}</span>
                                         </Button>
 
-                                        {/* Dropdown de Etapa do Pipeline */}
-                                        <select
-                                            value={ticketDetail.stageId}
-                                            onChange={(e) => handleChangeStage(e.target.value)}
-                                            className="bg-white border border-slate-300 text-slate-800 font-black text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-emerald-500 shadow-2xs flex-shrink-0"
-                                        >
-                                            {stages.map((stg) => (
-                                                <option key={stg.id} value={stg.id}>{stg.name}</option>
-                                            ))}
-                                        </select>
-
-                                        {!ticketDetail.assignee && (
-                                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7 font-bold flex-shrink-0 px-2.5" onClick={handleAssume}>
+                                        {/* Assumir ou Transferir */}
+                                        {!ticketDetail.assigneeId || ticketDetail.assigneeId !== currentUser?.id ? (
+                                            <Button
+                                                size="sm"
+                                                onClick={handleAssume}
+                                                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 font-bold px-3 rounded-xl shadow-2xs"
+                                            >
                                                 Assumir
+                                            </Button>
+                                        ) : null}
+
+                                        {/* Seletor de Atendente / Transferência */}
+                                        <div className="relative">
+                                            <select
+                                                value={ticketDetail.assigneeId || ""}
+                                                onChange={(e) => handleTransfer(e.target.value)}
+                                                className="h-8 bg-white border border-slate-300 text-slate-800 font-bold text-xs rounded-xl px-2 focus:outline-none focus:border-emerald-500 shadow-2xs"
+                                            >
+                                                <option value="">👤 Fila Geral (Livre)</option>
+                                                {allUsers.map(u => (
+                                                    <option key={u.id} value={u.id}>👤 {u.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* Botão de Encerramento ou Reabertura */}
+                                        {ticketDetail.status === "OPEN" ? (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-8 text-xs text-rose-700 border-rose-200 bg-rose-50 hover:bg-rose-100 font-bold rounded-xl"
+                                                onClick={() => setShowCloseModal(true)}
+                                            >
+                                                <Lock className="w-3.5 h-3.5 mr-1 text-rose-600" /> Encerrar
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                size="sm"
+                                                className="h-8 text-xs bg-slate-900 text-white font-bold rounded-xl"
+                                                onClick={handleReopen}
+                                            >
+                                                Reabrir Atendimento
                                             </Button>
                                         )}
 
-                                        <Button variant="ghost" size="sm" className="h-7 text-xs text-red-600 hover:bg-red-50 font-bold flex-shrink-0 px-2" onClick={handleCloseTicket}>
-                                            Encerrar
+                                        {/* Alternador do Painel CRM */}
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => setShowCrmPanel(!showCrmPanel)}
+                                            className={`h-8 px-2.5 rounded-xl font-bold text-xs ${showCrmPanel ? "bg-slate-200 text-slate-800" : "text-slate-600"}`}
+                                            title="Abrir/Fechar Painel CRM"
+                                        >
+                                            <Sparkles className="w-4 h-4 text-emerald-600" />
                                         </Button>
                                     </div>
                                 </div>
 
-                                {/* Área de Mensagens do Chat com Papel de Parede Oficial (Foto 01) */}
-                                {chatRightTab === "chat" && (
-                                    <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-[#efeae2] relative">
-                                        <div
-                                            className="absolute inset-0 bg-[#efeae2] bg-repeat opacity-95 pointer-events-none z-0"
-                                            style={{ backgroundImage: `url('/whatsapp-bg-official.png')`, backgroundSize: '500px 380px' }}
-                                        />
+                                {/* Feed de Mensagens WhatsApp com Carimbo de Atendente */}
+                                <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-[#efeae2] relative">
+                                    <div
+                                        className="absolute inset-0 bg-[#efeae2] bg-repeat opacity-95 pointer-events-none z-0"
+                                        style={{ backgroundImage: `url('/whatsapp-bg-official.png')`, backgroundSize: '500px 380px' }}
+                                    />
 
-                                        <div className="flex-1 overflow-y-auto p-4 space-y-2.5 relative z-10 min-h-0">
-                                            {ticketDetail.messages?.map((msg: any, idx: number) => {
-                                                const isAttendant = msg.senderType === "ATTENDANT" || msg.fromMe === true;
-                                                const isGroupTicket = ticketDetail.contactPhone?.includes("-group") || ticketDetail.contactPhone?.length > 13 || ticketDetail.title?.toLowerCase().includes("grupo") || ticketDetail.title?.includes("Taxas") || ticketDetail.title?.includes("Mesa") || ticketDetail.title?.includes("RH - ATESTADO");
-                                                const showSenderHeader = isGroupTicket && !isAttendant && msg.senderName;
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-2.5 relative z-10 min-h-0">
+                                        {ticketDetail.messages?.map((msg: any, idx: number) => {
+                                            const isAttendant = msg.senderType === "ATTENDANT" || msg.fromMe === true;
+                                            const isSystem = msg.senderType === "SYSTEM";
 
-                                                const currentDateStr = new Date(msg.createdAt).toLocaleDateString("pt-BR");
-                                                const prevMsg = idx > 0 ? ticketDetail.messages[idx - 1] : null;
-                                                const prevDateStr = prevMsg ? new Date(prevMsg.createdAt).toLocaleDateString("pt-BR") : null;
-                                                const showDateDivider = idx === 0 || currentDateStr !== prevDateStr;
+                                            const currentDateStr = new Date(msg.createdAt).toLocaleDateString("pt-BR");
+                                            const prevMsg = idx > 0 ? ticketDetail.messages[idx - 1] : null;
+                                            const prevDateStr = prevMsg ? new Date(prevMsg.createdAt).toLocaleDateString("pt-BR") : null;
+                                            const showDateDivider = idx === 0 || currentDateStr !== prevDateStr;
 
-                                                const dateLabel = formatDynamicDateLabel(msg.createdAt);
-                                                const isAudioMsg = msg.messageType === "AUDIO" || msg.content?.includes("Áudio") || msg.content?.includes("Voice Note") || (msg.mediaUrl && msg.mediaUrl.match(/\.(mp3|ogg|wav|opus|m4a)/i));
+                                            const dateLabel = formatDynamicDateLabel(msg.createdAt);
+                                            const isAudioMsg = msg.messageType === "AUDIO" || msg.content?.includes("Áudio") || (msg.mediaUrl && msg.mediaUrl.match(/\.(mp3|ogg|wav|opus|m4a)/i));
 
+                                            if (isSystem) {
                                                 return (
-                                                    <div key={msg.id} className="space-y-2.5">
-                                                        {showDateDivider && (
-                                                            <div className="flex justify-center my-3">
-                                                                <span className="bg-white/90 text-slate-600 text-[10px] font-bold px-3 py-1 rounded-full shadow-2xs border border-slate-200/50 uppercase tracking-wider">
-                                                                    {dateLabel}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                        <div className={`flex ${isAttendant ? "justify-end" : "justify-start"}`}>
-                                                            <div className={`max-w-[70%] p-2.5 rounded-lg shadow-2xs text-xs ${isAttendant ? "bg-[#d9fdd3] text-slate-900 rounded-tr-none" : "bg-white text-slate-900 rounded-tl-none"}`}>
-                                                                {/* Nome do Colaborador que postou no grupo (apenas em Grupos) */}
-                                                                {showSenderHeader && (
-                                                                    <div className="text-[11px] font-extrabold text-emerald-700 mb-1">
-                                                                        {msg.senderName}
-                                                                    </div>
-                                                                )}
-
-                                                                {/* Exibição de Imagem com Zoom e Download ao Clicar */}
-                                                                {msg.mediaUrl && (msg.messageType === "IMAGE" || msg.mediaUrl.match(/\.(jpg|jpeg|png|webp)/i)) && (
-                                                                    <div className="relative group cursor-pointer my-1 overflow-hidden rounded-lg border border-slate-200" onClick={() => setSelectedImageZoom(msg.mediaUrl)}>
-                                                                        <img src={msg.mediaUrl} alt="Mídia" className="max-w-xs rounded-lg max-h-72 object-cover transition group-hover:scale-105" />
-                                                                    </div>
-                                                                )}
-
-                                                                {/* Player de Áudio / Mensagem de Voz Real */}
-                                                                {isAudioMsg && (
-                                                                    <div className="my-1 p-2.5 bg-slate-100/90 rounded-lg border border-slate-200 space-y-1.5 min-w-[220px]">
-                                                                        <div className="flex items-center justify-between gap-2 text-slate-800 font-bold text-xs">
-                                                                            <div className="flex items-center gap-1.5 overflow-hidden min-w-0">
-                                                                                <Mic className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                                                                                <span className="truncate">{msg.content || "Mensagem de Voz"}</span>
-                                                                            </div>
-                                                                            {msg.mediaUrl && (
-                                                                                <a
-                                                                                    href={msg.mediaUrl.startsWith("http") ? `/api/whatsapp/media-proxy?url=${encodeURIComponent(msg.mediaUrl)}` : msg.mediaUrl}
-                                                                                    target="_blank"
-                                                                                    rel="noopener noreferrer"
-                                                                                    download="audio_whatsapp.mp3"
-                                                                                    className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded hover:bg-emerald-700 transition flex-shrink-0 cursor-pointer"
-                                                                                >
-                                                                                    Baixar Áudio
-                                                                                </a>
-                                                                            )}
-                                                                        </div>
-                                                                        {msg.mediaUrl ? (
-                                                                            <audio controls preload="auto" src={msg.mediaUrl.startsWith("http") ? `/api/whatsapp/media-proxy?url=${encodeURIComponent(msg.mediaUrl)}` : msg.mediaUrl} className="w-full h-8 rounded-md" />
-                                                                        ) : (
-                                                                            <span className="text-[10px] text-slate-500 italic block pt-0.5">Áudio enviado via WhatsApp Web</span>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-
-                                                                {/* Exibição de PDF Real */}
-                                                                {msg.messageType === "DOCUMENT" && msg.mediaUrl && (
-                                                                    <div className="flex items-center gap-3 p-2.5 bg-slate-100/90 rounded-lg mb-2 border border-slate-200">
-                                                                        <div className="w-9 h-9 rounded bg-red-500 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
-                                                                            PDF
-                                                                        </div>
-                                                                        <div className="overflow-hidden flex-1">
-                                                                            <span className="font-bold text-slate-800 block truncate text-xs">
-                                                                                {msg.mediaFileName || "Documento.pdf"}
-                                                                            </span>
-                                                                            <span className="text-[10px] text-slate-500">Documento • PDF</span>
-                                                                        </div>
-                                                                        <a
-                                                                            href={msg.mediaUrl}
-                                                                            target="_blank"
-                                                                            rel="noopener noreferrer"
-                                                                            download={msg.mediaFileName || "documento.pdf"}
-                                                                            className="text-xs bg-emerald-600 text-white font-bold px-2.5 py-1 rounded-md hover:bg-emerald-700 transition flex-shrink-0"
-                                                                        >
-                                                                            Baixar
-                                                                        </a>
-                                                                    </div>
-                                                                )}
-
-                                                                {!isAudioMsg && <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>}
-                                                                <div className="flex items-center justify-end gap-1 text-[9px] text-slate-500 mt-1 font-mono">
-                                                                    <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                                    {isAttendant && <CheckCheck className="w-3.5 h-3.5 text-emerald-600 inline" />}
-                                                                </div>
-                                                            </div>
+                                                    <div key={msg.id} className="flex justify-center my-2">
+                                                        <div className="bg-amber-100/90 text-amber-900 border border-amber-200/60 text-[10px] font-bold px-3 py-1 rounded-full shadow-2xs text-center max-w-md">
+                                                            {msg.content}
                                                         </div>
                                                     </div>
                                                 );
-                                            })}
-                                            <div ref={messagesEndRef} />
+                                            }
+
+                                            return (
+                                                <div key={msg.id} className="space-y-2.5">
+                                                    {showDateDivider && (
+                                                        <div className="flex justify-center my-3">
+                                                            <span className="bg-white/90 text-slate-600 text-[10px] font-black px-3 py-1 rounded-full shadow-2xs border border-slate-200/50 uppercase tracking-wider">
+                                                                {dateLabel}
+                                                            </span>
+                                                        </div>
+                                                    )}
+
+                                                    <div className={`flex ${isAttendant ? "justify-end" : "justify-start"}`}>
+                                                        <div className={`max-w-[75%] p-2.5 rounded-2xl shadow-2xs text-xs ${isAttendant ? "bg-[#d9fdd3] text-slate-900 rounded-tr-xs" : "bg-white text-slate-900 rounded-tl-xs"}`}>
+                                                            {/* Carimbo de Atendente no Topo da Mensagem */}
+                                                            {isAttendant && msg.senderName && (
+                                                                <div className="text-[10px] font-extrabold text-emerald-800 mb-0.5 flex items-center gap-1 border-b border-emerald-500/20 pb-0.5">
+                                                                    <span>👤 {msg.senderName}</span>
+                                                                </div>
+                                                            )}
+
+                                                            {!isAttendant && msg.senderName && (
+                                                                <div className="text-[10px] font-extrabold text-slate-700 mb-0.5">
+                                                                    {msg.senderName}
+                                                                </div>
+                                                            )}
+
+                                                            {/* Exibição de Imagem com Zoom */}
+                                                            {msg.mediaUrl && (msg.messageType === "IMAGE" || msg.mediaUrl.match(/\.(jpg|jpeg|png|webp)/i)) && (
+                                                                <div className="relative group cursor-pointer my-1 overflow-hidden rounded-xl border border-slate-200" onClick={() => setSelectedImageZoom(msg.mediaUrl)}>
+                                                                    <img src={msg.mediaUrl} alt="Mídia" className="max-w-xs rounded-xl max-h-72 object-cover transition group-hover:scale-105" />
+                                                                </div>
+                                                            )}
+
+                                                            {/* Player de Áudio */}
+                                                            {isAudioMsg && (
+                                                                <div className="my-1 p-2.5 bg-slate-100/90 rounded-xl border border-slate-200 space-y-1.5 min-w-[220px]">
+                                                                    <div className="flex items-center justify-between gap-2 text-slate-800 font-bold text-xs">
+                                                                        <div className="flex items-center gap-1.5 overflow-hidden min-w-0">
+                                                                            <Mic className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                                                            <span className="truncate">{msg.content || "Mensagem de Voz"}</span>
+                                                                        </div>
+                                                                        {msg.mediaUrl && (
+                                                                            <a
+                                                                                href={msg.mediaUrl.startsWith("http") ? `/api/whatsapp/media-proxy?url=${encodeURIComponent(msg.mediaUrl)}` : msg.mediaUrl}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                download="audio_whatsapp.mp3"
+                                                                                className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-lg hover:bg-emerald-700 transition flex-shrink-0"
+                                                                            >
+                                                                                Baixar
+                                                                            </a>
+                                                                        )}
+                                                                    </div>
+                                                                    {msg.mediaUrl ? (
+                                                                        <audio controls preload="auto" src={msg.mediaUrl.startsWith("http") ? `/api/whatsapp/media-proxy?url=${encodeURIComponent(msg.mediaUrl)}` : msg.mediaUrl} className="w-full h-8 rounded-md" />
+                                                                    ) : (
+                                                                        <span className="text-[10px] text-slate-500 italic block pt-0.5">Áudio gravado via WhatsApp</span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+
+                                                            {/* Exibição de PDF */}
+                                                            {msg.messageType === "DOCUMENT" && msg.mediaUrl && (
+                                                                <div className="flex items-center gap-3 p-2.5 bg-slate-100/90 rounded-xl mb-2 border border-slate-200">
+                                                                    <div className="w-9 h-9 rounded-lg bg-rose-500 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                                                        PDF
+                                                                    </div>
+                                                                    <div className="overflow-hidden flex-1">
+                                                                        <span className="font-bold text-slate-800 block truncate text-xs">
+                                                                            {msg.mediaFileName || "Documento.pdf"}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-slate-500">Documento RH</span>
+                                                                    </div>
+                                                                    <a
+                                                                        href={msg.mediaUrl}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        download={msg.mediaFileName || "documento.pdf"}
+                                                                        className="text-xs bg-emerald-600 text-white font-bold px-2.5 py-1 rounded-lg hover:bg-emerald-700 transition flex-shrink-0"
+                                                                    >
+                                                                        Baixar
+                                                                    </a>
+                                                                </div>
+                                                            )}
+
+                                                            {!isAudioMsg && <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>}
+
+                                                            <div className="flex items-center justify-end gap-1 text-[9px] text-slate-500 mt-1 font-mono">
+                                                                <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                                {isAttendant && <CheckCheck className="w-3.5 h-3.5 text-emerald-600 inline" />}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        <div ref={messagesEndRef} />
+                                    </div>
+
+                                    {/* Composer de Mensagens WaSeller */}
+                                    <div className="bg-[#f0f2f5] border-t border-slate-300 p-3 flex flex-col gap-2 flex-shrink-0 z-20">
+                                        <div className="flex items-center justify-between text-[10px] text-slate-500 px-1">
+                                            <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-700">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={useStamp}
+                                                    onChange={e => setUseStamp(e.target.checked)}
+                                                    className="rounded text-emerald-600"
+                                                />
+                                                <span>Assinar como <strong>{currentUser?.name || "Operador"}</strong></span>
+                                            </label>
+
+                                            <button
+                                                onClick={() => setShowQuickReplies(true)}
+                                                className="text-emerald-700 hover:text-emerald-800 font-black flex items-center gap-1"
+                                            >
+                                                <Zap className="w-3 h-3 text-amber-500 fill-amber-400" /> Templates RH
+                                            </button>
                                         </div>
 
-                                        {/* Barra de Digitação Estilo WhatsApp Web Fixa no Rodapé (Foto 01) */}
-                                        <div className="h-16 bg-[#f0f2f5] border-t border-slate-300 px-4 flex items-center gap-3 flex-shrink-0 z-20">
+                                        <div className="flex items-center gap-2">
                                             <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-                                            <button type="button" className="text-slate-500 hover:text-slate-700 p-1 cursor-pointer" onClick={() => fileInputRef.current?.click()} title="Anexar arquivo">
+                                            <button
+                                                type="button"
+                                                className="text-slate-500 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-200 transition cursor-pointer"
+                                                onClick={() => fileInputRef.current?.click()}
+                                                title="Anexar arquivo"
+                                            >
                                                 <Paperclip className="w-5 h-5" />
                                             </button>
-                                            <button type="button" className="text-slate-500 hover:text-slate-700 p-1 cursor-pointer" title="Emojis">
-                                                <Smile className="w-5 h-5" />
-                                            </button>
+
                                             <Textarea
                                                 value={messageText}
                                                 onChange={(e) => setMessageText(e.target.value)}
-                                                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                                                placeholder="Digite uma mensagem..."
-                                                className="flex-1 text-xs resize-none h-10 min-h-[40px] bg-white border-none rounded-lg px-4 py-2.5 shadow-2xs focus:ring-1 focus:ring-emerald-500"
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter" && !e.shiftKey) {
+                                                        e.preventDefault();
+                                                        handleSendMessage();
+                                                    }
+                                                }}
+                                                placeholder="Digite sua mensagem para o colaborador (Enter para enviar, Shift+Enter para nova linha)..."
+                                                className="flex-1 text-xs resize-none h-11 min-h-[44px] bg-white border-none rounded-xl px-4 py-3 shadow-2xs focus:ring-1 focus:ring-emerald-500"
                                             />
-                                            <Button onClick={handleSendMessage} disabled={sending || !messageText.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 w-10 p-0 rounded-full flex items-center justify-center shadow-xs flex-shrink-0 cursor-pointer">
+
+                                            <Button
+                                                onClick={handleSendMessage}
+                                                disabled={sending || !messageText.trim()}
+                                                className="bg-emerald-600 hover:bg-emerald-700 text-white h-11 w-11 p-0 rounded-xl flex items-center justify-center shadow-xs flex-shrink-0 cursor-pointer"
+                                            >
                                                 <Send className="w-4 h-4 ml-0.5" />
                                             </Button>
                                         </div>
                                     </div>
-                                )}
-
-                                {/* Notas */}
-                                {chatRightTab === "notes" && (
-                                    <div className="flex-1 p-6 bg-slate-100 overflow-y-auto space-y-4">
-                                        <div className="bg-white p-4 rounded-xl border shadow-2xs space-y-3">
-                                            <h4 className="text-xs font-bold text-slate-800">Nova Anotação Interna</h4>
-                                            <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Anotação interna..." className="text-xs h-20" />
-                                            <div className="flex justify-end">
-                                                <Button size="sm" onClick={handleAddNote} className="bg-emerald-600 text-xs font-bold">Salvar Nota</Button>
-                                            </div>
-                                        </div>
-                                        {ticketDetail.notes?.map((n: any) => (
-                                            <div key={n.id} className="bg-white p-3 rounded-xl border shadow-2xs">
-                                                <div className="text-xs font-bold text-slate-800">{n.author?.name}</div>
-                                                <p className="text-xs text-slate-600 mt-1">{n.content}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                                </div>
                             </div>
                         )}
                     </div>
+
+                    {/* COLUNA 3: PAINEL CRM WASELLER DO CONTATO */}
+                    {showCrmPanel && ticketDetail && (
+                        <HrCrmSidePanel
+                            ticket={ticketDetail}
+                            currentUser={currentUser}
+                            allUsers={allUsers}
+                            availableStages={stages}
+                            availableLabels={labels}
+                            onUpdated={() => {
+                                loadTicketDetail(ticketDetail.id);
+                                loadData();
+                            }}
+                            onOpenScheduleModal={() => setShowScheduleAct(true)}
+                            onClosePanel={() => setShowCrmPanel(false)}
+                        />
+                    )}
                 </div>
             )}
 
@@ -858,7 +976,6 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                         onStagesUpdated={loadData}
                     />
 
-                    {/* Modal do Chat do WhatsApp Web ao Clicar no Card do Kanban */}
                     {selectedTicketId && (
                         <HrTicketModal
                             ticketId={selectedTicketId}
@@ -873,11 +990,11 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 </>
             )}
 
-            {/* MODAL LIGHTBOX / ZOOM DE IMAGEM */}
+            {/* MODAL ZOOM DE IMAGEM */}
             {selectedImageZoom && (
                 <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setSelectedImageZoom(null)}>
                     <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                        <img src={selectedImageZoom} alt="Visualização" className="max-w-full max-h-[80vh] object-contain rounded-xl shadow-2xl border border-slate-700" />
+                        <img src={selectedImageZoom} alt="Visualização" className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-slate-700" />
                         <div className="flex items-center gap-3">
                             <a
                                 href={selectedImageZoom}
@@ -899,6 +1016,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                 </div>
             )}
 
+            {/* MODAL AGENDAR ATIVIDADE */}
             {showScheduleAct && selectedTicketId && (
                 <HrScheduleActivityModal
                     open={showScheduleAct}
@@ -907,36 +1025,33 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                     onCreated={() => {
                         setShowScheduleAct(false);
                         loadData();
+                        if (ticketDetail) loadTicketDetail(ticketDetail.id);
                     }}
                 />
             )}
 
-            {showImportModal && (
-                <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-                    <div className="bg-white p-6 rounded-2xl max-w-lg w-full space-y-4 shadow-2xl border border-slate-200" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-between border-b pb-3">
-                            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                                📥 Importar Histórico do WhatsApp Web
-                            </h3>
-                            <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
-                        </div>
-                        <p className="text-xs text-slate-600 leading-relaxed">
-                            Cole abaixo o código ou texto copiado do seu WhatsApp Web para salvar todas as mensagens no banco de dados do seu sistema.
-                        </p>
-                        <Textarea
-                            value={importJsonText}
-                            onChange={(e) => setImportJsonText(e.target.value)}
-                            placeholder="Cole o código/JSON aqui (Ctrl+V)..."
-                            className="h-44 text-xs font-mono bg-slate-50 border-slate-300 rounded-xl"
-                        />
-                        <div className="flex items-center justify-end gap-2 pt-2">
-                            <Button variant="ghost" size="sm" onClick={() => setShowImportModal(false)} className="text-xs font-bold">Cancelar</Button>
-                            <Button size="sm" onClick={handleProcessImportJson} disabled={importing || !importJsonText.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs">
-                                {importing ? "Importando..." : "Salvar no Banco de Dados"}
-                            </Button>
-                        </div>
-                    </div>
-                </div>
+            {/* MODAL ENCERRAMENTO COM MOTIVO */}
+            {showCloseModal && ticketDetail && (
+                <HrCloseTicketModal
+                    ticket={ticketDetail}
+                    open={showCloseModal}
+                    onOpenChange={setShowCloseModal}
+                    onClosed={() => {
+                        loadData();
+                        loadTicketDetail(ticketDetail.id);
+                    }}
+                />
+            )}
+
+            {/* MODAL RESPOSTAS RÁPIDAS / TEMPLATES */}
+            {showQuickReplies && (
+                <HrQuickRepliesModal
+                    open={showQuickReplies}
+                    onOpenChange={setShowQuickReplies}
+                    onSelectReply={(text) => {
+                        setMessageText(prev => prev ? `${prev}\n${text}` : text);
+                    }}
+                />
             )}
 
             <HrAccessManager open={showAccessManager} onClose={() => setShowAccessManager(false)} />

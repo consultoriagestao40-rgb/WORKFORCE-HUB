@@ -162,12 +162,15 @@ export async function deleteHrLabel(id: string) {
 
 // ─── TICKETS ─────────────────────────────────────────────────────────────────
 
+// ─── TICKETS ─────────────────────────────────────────────────────────────────
+
 export async function getHrTickets(filters?: {
     stageId?: string;
     labelId?: string;
     status?: string;
     assigneeId?: string;
     search?: string;
+    filterMode?: "my" | "unassigned" | "all" | "closed" | "groups";
 }) {
     const user = await getCurrentUser();
     if (!user) return [];
@@ -175,41 +178,96 @@ export async function getHrTickets(filters?: {
 
     const where: Record<string, unknown> = {};
     if (filters?.stageId) where.stageId = filters.stageId;
-    if (filters?.status) where.status = filters.status;
-    else where.status = "OPEN";
+    
+    // Status filter
+    if (filters?.filterMode === "closed") {
+        where.status = "CLOSED";
+    } else if (filters?.status) {
+        where.status = filters.status;
+    } else {
+        where.status = "OPEN";
+    }
+
+    // Filter mode
+    if (filters?.filterMode === "my") {
+        where.assigneeId = user.id;
+    } else if (filters?.filterMode === "unassigned") {
+        where.assigneeId = null;
+    } else if (filters?.filterMode === "groups") {
+        where.OR = [
+            { contactPhone: { contains: "-group" } },
+            { contactName: { contains: "grupo", mode: "insensitive" } },
+            { contactName: { contains: "rh -", mode: "insensitive" } },
+            { title: { contains: "grupo", mode: "insensitive" } }
+        ];
+    }
 
     if (filters?.labelId) where.labels = { some: { id: filters.labelId } };
 
     // Visibilidade: tickets privados só aparecem para o atendente responsável (ou admin)
-    if (!isAdmin) {
-        where.OR = [
+    if (!isAdmin && filters?.filterMode !== "unassigned") {
+        const visibilityConditions = [
             { isPrivate: false },
             { assigneeId: user.id },
             { participantIds: { has: user.id } },
         ];
+        if (where.OR) {
+            where.AND = [{ OR: where.OR }, { OR: visibilityConditions }];
+            delete where.OR;
+        } else {
+            where.OR = visibilityConditions;
+        }
     }
 
     if (filters?.search) {
-        where.OR = [
+        const searchConditions = [
             { contactName: { contains: filters.search, mode: "insensitive" } },
             { contactPhone: { contains: filters.search } },
             { title: { contains: filters.search, mode: "insensitive" } },
+            { employee: { name: { contains: filters.search, mode: "insensitive" } } },
+            { employee: { cpf: { contains: filters.search } } }
         ];
+        if (where.AND) {
+            (where.AND as any[]).push({ OR: searchConditions });
+        } else if (where.OR) {
+            where.AND = [{ OR: where.OR }, { OR: searchConditions }];
+            delete where.OR;
+        } else {
+            where.OR = searchConditions;
+        }
     }
 
     return prisma.hrTicket.findMany({
         where,
         include: {
             stage: true,
-            assignee: { select: { id: true, name: true } },
+            assignee: { select: { id: true, name: true, username: true } },
             labels: true,
-            employee: { select: { id: true, name: true, phone: true } },
+            employee: {
+                select: {
+                    id: true,
+                    name: true,
+                    phone: true,
+                    cpf: true,
+                    salary: true,
+                    admissionDate: true,
+                    role: { select: { name: true } },
+                    company: { select: { name: true } }
+                }
+            },
             messages: {
                 orderBy: { createdAt: "desc" },
                 take: 1,
-                select: { content: true, createdAt: true, senderType: true },
+                select: { content: true, createdAt: true, senderType: true, senderName: true, status: true },
             },
-            _count: { select: { messages: true } },
+            _count: {
+                select: {
+                    messages: true,
+                    notes: true,
+                    activities: true,
+                    attachments: true
+                }
+            },
         },
         orderBy: { updatedAt: "desc" },
     });
@@ -218,19 +276,33 @@ export async function getHrTickets(filters?: {
 export async function getHrTicketDetail(ticketId: string) {
     const user = await getCurrentUser();
     if (!user) return null;
-    const isAdmin = user.role === "ADMIN";
 
     const ticket = await prisma.hrTicket.findUnique({
         where: { id: ticketId },
         include: {
             stage: true,
-            assignee: { select: { id: true, name: true } },
+            assignee: { select: { id: true, name: true, username: true } },
             labels: true,
-            employee: { select: { id: true, name: true, phone: true, birthDate: true } },
+            employee: {
+                include: {
+                    role: true,
+                    company: true,
+                    situation: true,
+                    assignments: {
+                        where: { endDate: null },
+                        include: {
+                            posto: {
+                                include: { client: true }
+                            }
+                        },
+                        take: 1
+                    }
+                }
+            },
             messages: { orderBy: { createdAt: "asc" } },
             notes: {
                 include: { author: { select: { id: true, name: true } } },
-                orderBy: { createdAt: "asc" },
+                orderBy: { createdAt: "desc" },
             },
             attachments: {
                 include: { uploadedBy: { select: { id: true, name: true } } },
@@ -393,6 +465,18 @@ export async function addParticipantToTicket(ticketId: string, userId: string) {
         ? ticket.participantIds
         : [...ticket.participantIds, userId];
     await prisma.hrTicket.update({ where: { id: ticketId }, data: { participantIds: ids } });
+    revalidatePath("/admin/atendimento");
+    return { success: true };
+}
+
+export async function removeParticipantFromTicket(ticketId: string, userId: string) {
+    const user = await getCurrentUser();
+    if (!user) return { error: "Não autenticado" };
+    const ticket = await prisma.hrTicket.findUnique({ where: { id: ticketId }, select: { participantIds: true } });
+    if (!ticket) return { error: "Ticket não encontrado" };
+    const ids = ticket.participantIds.filter(id => id !== userId);
+    await prisma.hrTicket.update({ where: { id: ticketId }, data: { participantIds: ids } });
+    revalidatePath("/admin/atendimento");
     return { success: true };
 }
 
@@ -413,6 +497,67 @@ export async function closeHrTicket(ticketId: string) {
             status: "SENT",
         },
     });
+    revalidatePath("/admin/atendimento");
+    return { success: true };
+}
+
+export async function closeHrTicketWithReason(ticketId: string, data: { reason?: string; resolutionNote?: string }) {
+    const user = await getCurrentUser();
+    if (!user) return { error: "Não autenticado" };
+
+    const reasonText = data.reason ? `Motivo: ${data.reason}` : "";
+    const noteText = data.resolutionNote ? ` | Nota: ${data.resolutionNote}` : "";
+    const content = `🔒 Atendimento encerrado por ${user.name} (${reasonText}${noteText})`;
+
+    await prisma.$transaction([
+        prisma.hrTicket.update({
+            where: { id: ticketId },
+            data: { status: "CLOSED", closedAt: new Date(), isPrivate: false, updatedAt: new Date() },
+        }),
+        prisma.hrTicketMessage.create({
+            data: {
+                ticketId,
+                senderType: "SYSTEM",
+                senderName: "Sistema",
+                content,
+                status: "SENT",
+            },
+        }),
+        ...(data.resolutionNote ? [
+            prisma.hrTicketNote.create({
+                data: {
+                    ticketId,
+                    content: `[Resolução de Encerramento] ${data.reason ? `(${data.reason}) ` : ""}${data.resolutionNote}`,
+                    authorId: user.id
+                }
+            })
+        ] : [])
+    ]);
+
+    revalidatePath("/admin/atendimento");
+    return { success: true };
+}
+
+export async function reopenHrTicket(ticketId: string) {
+    const user = await getCurrentUser();
+    if (!user) return { error: "Não autenticado" };
+
+    await prisma.$transaction([
+        prisma.hrTicket.update({
+            where: { id: ticketId },
+            data: { status: "OPEN", closedAt: null, updatedAt: new Date() },
+        }),
+        prisma.hrTicketMessage.create({
+            data: {
+                ticketId,
+                senderType: "SYSTEM",
+                senderName: "Sistema",
+                content: `🔓 Atendimento reaberto por ${user.name}`,
+                status: "SENT",
+            },
+        })
+    ]);
+
     revalidatePath("/admin/atendimento");
     return { success: true };
 }
@@ -797,6 +942,164 @@ export async function syncZapiChats() {
         console.error("[Z-API Sync Error]:", e.message);
         return { error: e.message };
     }
+}
+
+/** Sincroniza histórico dos últimos 30 dias de uma conversa específica diretamente via Z-API */
+export async function syncTicketWhatsAppHistory(ticketId: string, days = 30) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { error: "Não autenticado" };
+
+        const ticket = await prisma.hrTicket.findUnique({ where: { id: ticketId } });
+        if (!ticket) return { error: "Ticket não encontrado" };
+
+        const phone = ticket.contactPhone.replace(/\D/g, "");
+        const isGroup = ticket.contactPhone.includes("-group") || ticket.contactPhone.length > 13;
+        const phoneToQuery = isGroup ? (ticket.contactPhone.endsWith("-group") ? ticket.contactPhone : `${ticket.contactPhone}-group`) : (phone.startsWith("55") ? phone : `55${phone}`);
+
+        let totalImported = 0;
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - days);
+
+        for (let page = 1; page <= 5; page++) {
+            const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/chat-messages/${phoneToQuery}?page=${page}&pageSize=50`;
+            const res = await fetch(url, { headers: zapiHeaders(), next: { revalidate: 0 } });
+
+            if (!res.ok) {
+                const altUrl = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/messages?phone=${phoneToQuery}&page=${page}&pageSize=50`;
+                const altRes = await fetch(altUrl, { headers: zapiHeaders(), next: { revalidate: 0 } });
+                if (!altRes.ok) break;
+                const msgs = await altRes.json();
+                if (!Array.isArray(msgs) || msgs.length === 0) break;
+                const inserted = await insertZapiMessages(ticket.id, ticket.contactName, msgs, cutoffDate);
+                totalImported += inserted;
+                if (inserted === 0) break;
+                continue;
+            }
+
+            const msgs = await res.json();
+            if (!Array.isArray(msgs) || msgs.length === 0) break;
+            const inserted = await insertZapiMessages(ticket.id, ticket.contactName, msgs, cutoffDate);
+            totalImported += inserted;
+            if (inserted === 0 && msgs.length > 0) {
+                // If all messages on this page were older than cutoffDate or already exist
+                const oldestOnPage = msgs[msgs.length - 1];
+                const oldestDate = oldestOnPage?.momment ? new Date(oldestOnPage.momment) : (oldestOnPage?.timestamp ? new Date(oldestOnPage.timestamp * 1000) : null);
+                if (oldestDate && oldestDate < cutoffDate) break;
+            }
+        }
+
+        revalidatePath("/admin/atendimento");
+        return { success: true, count: totalImported };
+    } catch (e: any) {
+        console.error("[Sync 30 Days Error]:", e.message);
+        return { error: e.message };
+    }
+}
+
+async function insertZapiMessages(ticketId: string, contactName: string, msgs: any[], minDate: Date) {
+    let count = 0;
+    for (const m of msgs) {
+        const text = m.text?.message || m.text || m.body || m.caption || (m.image ? "[Foto]" : m.audio ? "[Áudio]" : m.document ? "[Documento]" : null);
+        if (!text) continue;
+
+        const isFromMe = m.fromMe === true || m.fromMe === "true" || m.isSentByMe === true;
+        const msgDate = m.momment ? new Date(m.momment) : (m.timestamp ? new Date(m.timestamp * 1000) : (m.createdAt ? new Date(m.createdAt) : new Date()));
+        
+        if (msgDate < minDate) continue;
+
+        const msgId = m.zaapId || m.messageId || m.id || null;
+
+        const exists = await prisma.hrTicketMessage.findFirst({
+            where: {
+                ticketId,
+                OR: [
+                    ...(msgId ? [{ zapiMessageId: String(msgId) }] : []),
+                    { content: String(text), createdAt: { gte: new Date(msgDate.getTime() - 45000), lte: new Date(msgDate.getTime() + 45000) } }
+                ]
+            }
+        });
+
+        if (!exists) {
+            let messageType = "TEXT";
+            let mediaUrl: string | null = null;
+            let mediaFileName: string | null = null;
+            let mediaMimeType: string | null = null;
+
+            if (m.image) {
+                messageType = "IMAGE";
+                mediaUrl = m.image.imageUrl || m.image.url || m.image;
+            } else if (m.audio) {
+                messageType = "AUDIO";
+                mediaUrl = m.audio.audioUrl || m.audio.url || m.audio;
+                mediaMimeType = "audio/ogg";
+            } else if (m.document) {
+                messageType = "DOCUMENT";
+                mediaUrl = m.document.documentUrl || m.document.url || m.document;
+                mediaFileName = m.document.fileName || "documento.pdf";
+            }
+
+            await prisma.hrTicketMessage.create({
+                data: {
+                    ticketId,
+                    senderType: isFromMe ? "ATTENDANT" : "EMPLOYEE",
+                    senderName: isFromMe ? "Atendente RH" : (m.senderName || contactName),
+                    messageType,
+                    content: String(text),
+                    mediaUrl: typeof mediaUrl === "string" ? mediaUrl : null,
+                    mediaFileName: typeof mediaFileName === "string" ? mediaFileName : null,
+                    mediaMimeType,
+                    status: isFromMe ? "SENT" : "DELIVERED",
+                    zapiMessageId: msgId ? String(msgId) : null,
+                    createdAt: msgDate
+                }
+            });
+            count++;
+        }
+    }
+    return count;
+}
+
+/** Respostas Rápidas / Templates de Atendimento RH */
+export async function getHrQuickReplies() {
+    return [
+        {
+            id: "1",
+            title: "📄 Solicitação de Atestado Médico",
+            category: "Atestados",
+            content: "Olá! Por favor, nos envie a foto legível do seu atestado médico contendo data de emissão, carimbo com CRM do médico e a quantidade de dias de afastamento para lançamento no sistema."
+        },
+        {
+            id: "2",
+            title: "📋 Documentação de Admissão",
+            category: "Admissão",
+            content: "Olá! Para darmos andamento na sua admissão, por favor envie as fotos de: RG, CPF, Comprovante de Residência atualizado, Título de Eleitor e Carteira de Trabalho digital."
+        },
+        {
+            id: "3",
+            title: "🚌 Informações sobre Vale Transporte",
+            category: "Benefícios",
+            content: "Olá! O seu benefício de Vale Transporte é calculado e recarregado mensalmente de acordo com a sua escala. Caso precise de alteração de rota ou suporte no cartão, envie os detalhes aqui."
+        },
+        {
+            id: "4",
+            title: "🏖️ Programação de Férias",
+            category: "Férias",
+            content: "Olá! Informamos que o seu período de férias foi registrado. O adiantamento com 1/3 constitucional será creditado em sua conta bancária até 2 dias antes do início do descanso."
+        },
+        {
+            id: "5",
+            title: "💰 Holerite / Comprovante de Pagamento",
+            category: "Financeiro",
+            content: "Olá! O seu demonstrativo de pagamento já foi emitido pelo DP e está disponível. Segue para conferência. Qualquer dúvida sobre os valores, estamos à disposição!"
+        },
+        {
+            id: "6",
+            title: "✅ Encerramento de Atendimento",
+            category: "Finalização",
+            content: "Ficamos felizes em te atender! O seu chamado foi concluído. Caso precise de mais alguma informação, basta nos enviar uma nova mensagem por aqui. Tenha um excelente dia!"
+        }
+    ];
 }
 
 
