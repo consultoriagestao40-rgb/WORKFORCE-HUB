@@ -19,6 +19,7 @@ import { ImportEmployeesDialog } from "@/components/admin/ImportEmployeesDialog"
 import { UpdateEmployeesFinanceDialog } from "@/components/admin/UpdateEmployeesFinanceDialog";
 import { deleteEmployee, deleteEmployeesBatch } from "@/app/actions";
 import { NewRhRequestDialog } from "@/components/admin/NewRhRequestDialog";
+import { Combobox } from "@/components/ui/combobox";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
@@ -262,48 +263,51 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                                 </div>
 
                                 <div className="flex items-center gap-2 w-full flex-wrap md:flex-nowrap">
-                                    <div className="flex gap-2 flex-wrap">
+                                    <div className="flex gap-2 flex-wrap items-center">
                                         {/* Company Filter */}
-                                        <div className="relative">
-                                            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                            <select
-                                                className="h-10 pl-9 pr-4 rounded-xl border-slate-200 bg-white text-sm font-medium text-slate-600 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none appearance-none cursor-pointer hover:bg-slate-50 border"
+                                        <div className="w-[180px]">
+                                            <Combobox
+                                                options={[
+                                                    { value: "all", label: "Empresa (Todas)" },
+                                                    ...(companies || []).map(c => ({ value: c.id, label: c.name })),
+                                                    { value: "no_company", label: "Sem Empresa" }
+                                                ]}
                                                 value={companyFilter}
-                                                onChange={(e) => setCompanyFilter(e.target.value)}
-                                            >
-                                                <option value="all">Empresa (Todas)</option>
-                                                {companies.map(c => (
-                                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                                ))}
-                                                <option value="no_company">Sem Empresa</option>
-                                            </select>
+                                                onChange={setCompanyFilter}
+                                                placeholder="Empresa..."
+                                                searchPlaceholder="Buscar empresa..."
+                                                className="h-10"
+                                            />
                                         </div>
 
-                                        <div className="relative">
-                                            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                            <select
-                                                className="h-10 pl-9 pr-4 rounded-xl border-slate-200 bg-white text-sm font-medium text-slate-600 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none appearance-none cursor-pointer hover:bg-slate-50 border"
+                                        <div className="w-[180px]">
+                                            <Combobox
+                                                options={[
+                                                    { value: "all", label: "Alocação (Todos)" },
+                                                    { value: "allocated", label: "Alocados em Posto" },
+                                                    { value: "unallocated", label: "Sem Alocação (Reserva)" }
+                                                ]}
                                                 value={allocationFilter}
-                                                onChange={(e) => setAllocationFilter(e.target.value)}
-                                            >
-                                                <option value="all">Alocação (Todos)</option>
-                                                <option value="allocated">Alocados em Posto</option>
-                                                <option value="unallocated">Sem Alocação (Reserva)</option>
-                                            </select>
+                                                onChange={setAllocationFilter}
+                                                placeholder="Alocação..."
+                                                searchPlaceholder="Buscar alocação..."
+                                                className="h-10"
+                                            />
                                         </div>
-                                        <div className="relative">
-                                            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                            <select
-                                                className="h-10 pl-9 pr-4 rounded-xl border-slate-200 bg-white text-sm font-medium text-slate-600 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none appearance-none cursor-pointer hover:bg-slate-50 border"
+
+                                        <div className="w-[180px]">
+                                            <Combobox
+                                                options={[
+                                                    { value: "all", label: "Situação (Todas)" },
+                                                    ...situations.map(s => ({ value: s.name, label: s.name })),
+                                                    { value: "Sem Situação", label: "Sem Situação" }
+                                                ]}
                                                 value={situationFilter}
-                                                onChange={(e) => setSituationFilter(e.target.value)}
-                                            >
-                                                <option value="all">Situação (Todas)</option>
-                                                {situations.map(s => (
-                                                    <option key={s.id} value={s.name}>{s.name}</option>
-                                                ))}
-                                                <option value="Sem Situação">Sem Situação</option>
-                                            </select>
+                                                onChange={setSituationFilter}
+                                                placeholder="Situação..."
+                                                searchPlaceholder="Buscar situação..."
+                                                className="h-10"
+                                            />
                                         </div>
                                     </div>
                                     <div className="relative flex-1 group min-w-[200px]">

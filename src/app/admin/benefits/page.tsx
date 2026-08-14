@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Combobox } from "@/components/ui/combobox";
 import { toast } from "sonner";
 import { getBenefitsCalculation, updateBenefitsConfig, markBenefitAsPaid, getSystemUsers, markMultipleBenefitsAsPaid, BenefitsCalculationItem } from "@/actions/benefits";
 import { syncSecullumOccurrences, testSecullumConnectionAction } from "@/actions/secullum";
@@ -1064,31 +1065,31 @@ export default function BenefitsPage() {
                             </div>
 
                             <div className="flex flex-col gap-1 w-full col-span-1">
-                                <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-                                    <SelectTrigger className="w-full h-9 text-xs font-bold rounded-xl border-slate-200 bg-slate-50">
-                                        <SelectValue placeholder="Filtrar por Empresa" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Todas as Empresas</SelectItem>
-                                        {uniqueCompanies.map(c => (
-                                            <SelectItem key={c} value={c}>{c}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Combobox
+                                    options={[
+                                        { value: "all", label: "Todas as Empresas" },
+                                        ...uniqueCompanies.map(c => ({ value: c, label: c }))
+                                    ]}
+                                    value={selectedCompany}
+                                    onChange={setSelectedCompany}
+                                    placeholder="Filtrar por Empresa"
+                                    searchPlaceholder="Buscar empresa..."
+                                    className="h-9"
+                                />
                             </div>
 
                             <div className="flex flex-col gap-1 w-full col-span-1">
-                                <Select value={selectedClient} onValueChange={setSelectedClient}>
-                                    <SelectTrigger className="w-full h-9 text-xs font-bold rounded-xl border-slate-200 bg-slate-50">
-                                        <SelectValue placeholder="Filtrar por Contrato" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Todos os Contratos</SelectItem>
-                                        {uniqueClients.map(c => (
-                                            <SelectItem key={c} value={c}>{c}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Combobox
+                                    options={[
+                                        { value: "all", label: "Todos os Contratos" },
+                                        ...uniqueClients.map(c => ({ value: c, label: c }))
+                                    ]}
+                                    value={selectedClient}
+                                    onChange={setSelectedClient}
+                                    placeholder="Filtrar por Contrato"
+                                    searchPlaceholder="Buscar contrato..."
+                                    className="h-9"
+                                />
                             </div>
 
                             <div className="flex flex-col gap-1 w-full col-span-1">
@@ -2495,36 +2496,32 @@ export default function BenefitsPage() {
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
                         <div className="space-y-1.5">
                             <Label className="font-bold text-slate-700">Empresa</Label>
-                            <Select value={cajuSelectedCompany} onValueChange={setCajuSelectedCompany}>
-                                <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
-                                    <SelectValue placeholder="Selecione a Empresa" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todas as Empresas</SelectItem>
-                                    {uniqueCompanies.map((company, index) => (
-                                        <SelectItem key={index} value={company}>
-                                            {company}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Combobox
+                                options={[
+                                    { value: "all", label: "Todas as Empresas" },
+                                    ...uniqueCompanies.map(c => ({ value: c, label: c }))
+                                ]}
+                                value={cajuSelectedCompany}
+                                onChange={setCajuSelectedCompany}
+                                placeholder="Selecione a Empresa"
+                                searchPlaceholder="Buscar empresa..."
+                                className="h-9"
+                            />
                         </div>
 
                         <div className="space-y-1.5">
                             <Label className="font-bold text-slate-700">Contrato / Centro de Custo</Label>
-                            <Select value={cajuSelectedClient} onValueChange={setCajuSelectedClient}>
-                                <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
-                                    <SelectValue placeholder="Selecione o Contrato" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todos os Contratos</SelectItem>
-                                    {uniqueClients.map((client, index) => (
-                                        <SelectItem key={index} value={client}>
-                                            {client}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Combobox
+                                options={[
+                                    { value: "all", label: "Todos os Contratos" },
+                                    ...uniqueClients.map(c => ({ value: c, label: c }))
+                                ]}
+                                value={cajuSelectedClient}
+                                onChange={setCajuSelectedClient}
+                                placeholder="Selecione o Contrato"
+                                searchPlaceholder="Buscar contrato..."
+                                className="h-9"
+                            />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">

@@ -26,6 +26,7 @@ import { NewClientSheet } from "@/components/admin/NewClientSheet";
 import { EditClientSheet } from "@/components/admin/EditClientSheet";
 import { DeleteClientButton } from "@/components/admin/DeleteClientButton";
 import { VacantPostosDialog } from "@/components/admin/VacantPostosDialog";
+import { Combobox, ComboboxOption } from "@/components/ui/combobox";
 
 interface ClientsListProps {
     initialClients: any[];
@@ -96,6 +97,29 @@ export function ClientsList({
     const activeCount = initialClients.filter(c => c.isActive !== false).length;
     const linkedCount = initialClients.filter(c => c.companyId).length;
 
+    const companyOptions: ComboboxOption[] = [
+        { value: "all", label: "Todas as Empresas" },
+        ...companies.map(c => ({ value: c.id, label: c.name })),
+        { value: "unlinked", label: "Não Vinculadas" }
+    ];
+
+    const managerOptions: ComboboxOption[] = [
+        { value: "all", label: "Todos os Gerentes" },
+        ...systemUsers.map(u => ({ value: u.id, label: u.name })),
+        { value: "unassigned", label: "Sem Gerente" }
+    ];
+
+    const clientOptions: ComboboxOption[] = [
+        { value: "all", label: "Todos os Clientes" },
+        ...[...initialClients]
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map(c => ({
+                value: c.id,
+                label: c.name,
+                sublabel: c.company?.name || undefined
+            }))
+    ];
+
     return (
         <div className="space-y-6 pb-12">
             {/* Top Header */}
@@ -107,17 +131,17 @@ export function ClientsList({
                         <span>Gestão de Contratos & Sites</span>
                     </div>
                     <h1 className="text-2xl md:text-3xl font-black tracking-tight">Clientes & Postos</h1>
-                    <p className="text-sm text-slate-300 max-w-xl font-normal">
+                    <p className="text-xs md:text-sm text-slate-300 max-w-xl">
                         Gerenciamento centralizado de contratos, locais de trabalho, alocações operacionais e inteligência de vacância.
                     </p>
                 </div>
 
-                <div className="relative z-10 flex items-center gap-3">
+                <div className="relative z-10">
                     <NewClientSheet companies={companies} systemUsers={systemUsers} />
                 </div>
             </div>
 
-            {/* KPI Cards */}
+            {/* Quick KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="border border-slate-200/80 shadow-sm bg-white rounded-3xl overflow-hidden hover:shadow-md transition-shadow">
                     <CardHeader className="pb-2 flex flex-row items-center justify-between">
@@ -217,51 +241,40 @@ export function ClientsList({
                             )}
                         </div>
 
-                        {/* Company Filter (Takes 2.5 columns) */}
-                        <div className="lg:col-span-2 relative">
-                            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                            <select
-                                className="h-10 w-full pl-8 pr-8 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white focus:bg-white text-xs font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none cursor-pointer truncate transition-all"
+                        {/* Company Filter (Takes 2 columns) */}
+                        <div className="lg:col-span-2">
+                            <Combobox
+                                options={companyOptions}
                                 value={companyFilter}
-                                onChange={(e) => setCompanyFilter(e.target.value)}
-                            >
-                                <option value="all">🏢 Todas as Empresas</option>
-                                {companies.map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                                <option value="unlinked">Não Vinculadas</option>
-                            </select>
+                                onChange={setCompanyFilter}
+                                placeholder="Empresa..."
+                                searchPlaceholder="Buscar empresa..."
+                                icon={<Briefcase className="w-3.5 h-3.5" />}
+                            />
                         </div>
 
-                        {/* Account Manager Filter (Takes 2.5 columns) */}
-                        <div className="lg:col-span-2 relative">
-                            <UserCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                            <select
-                                className="h-10 w-full pl-8 pr-8 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white focus:bg-white text-xs font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none cursor-pointer truncate transition-all"
+                        {/* Account Manager Filter (Takes 2 columns) */}
+                        <div className="lg:col-span-2">
+                            <Combobox
+                                options={managerOptions}
                                 value={accountManagerFilter}
-                                onChange={(e) => setAccountManagerFilter(e.target.value)}
-                            >
-                                <option value="all">👤 Todos os Gerentes</option>
-                                {systemUsers.map(u => (
-                                    <option key={u.id} value={u.id}>{u.name}</option>
-                                ))}
-                                <option value="unassigned">Sem Gerente</option>
-                            </select>
+                                onChange={setAccountManagerFilter}
+                                placeholder="Gerente..."
+                                searchPlaceholder="Buscar gerente..."
+                                icon={<UserCheck className="w-3.5 h-3.5" />}
+                            />
                         </div>
 
-                        {/* Client Filter (Takes 2 columns) */}
-                        <div className="lg:col-span-3 relative">
-                            <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                            <select
-                                className="h-10 w-full pl-8 pr-8 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white focus:bg-white text-xs font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none cursor-pointer truncate transition-all"
+                        {/* Client Filter (Takes 3 columns) */}
+                        <div className="lg:col-span-3">
+                            <Combobox
+                                options={clientOptions}
                                 value={clientFilter}
-                                onChange={(e) => setClientFilter(e.target.value)}
-                            >
-                                <option value="all">📍 Todos os Clientes</option>
-                                {initialClients.sort((a, b) => a.name.localeCompare(b.name)).map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                            </select>
+                                onChange={setClientFilter}
+                                placeholder="Cliente / Contrato..."
+                                searchPlaceholder="Buscar cliente / contrato..."
+                                icon={<Building className="w-3.5 h-3.5" />}
+                            />
                         </div>
                     </div>
                 </div>

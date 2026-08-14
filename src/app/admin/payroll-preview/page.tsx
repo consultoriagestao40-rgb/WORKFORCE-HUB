@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Combobox } from "@/components/ui/combobox";
 import { toast } from "sonner";
 import { getPayrollPreview, PayrollPreviewItem, updateMonthlyDeductions } from "@/actions/payroll";
 import { syncSecullumOccurrences } from "@/actions/secullum";
@@ -764,33 +765,33 @@ export default function PayrollPreviewPage() {
                     {/* Filtro Empresa */}
                     <div className="flex flex-col gap-1.5 w-full col-span-1">
                         <Label className="text-[10px] font-black text-slate-500 uppercase tracking-wider pl-1">Filtrar por Empresa</Label>
-                        <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-                            <SelectTrigger className="w-full h-9 text-xs font-bold rounded-xl border-slate-200 bg-slate-50">
-                                <SelectValue placeholder="Todas as Empresas" />
-                            </SelectTrigger>
-                            <SelectContent className="text-xs">
-                                <SelectItem value="all">Todas as Empresas</SelectItem>
-                                {uniqueCompanies.map(c => (
-                                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <Combobox
+                            options={[
+                                { value: "all", label: "Todas as Empresas" },
+                                ...uniqueCompanies.map(c => ({ value: c, label: c }))
+                            ]}
+                            value={selectedCompany}
+                            onChange={setSelectedCompany}
+                            placeholder="Todas as Empresas"
+                            searchPlaceholder="Buscar empresa..."
+                            className="h-9"
+                        />
                     </div>
 
                     {/* Filtro Cliente */}
                     <div className="flex flex-col gap-1.5 w-full col-span-1">
                         <Label className="text-[10px] font-black text-slate-500 uppercase tracking-wider pl-1">Filtrar por Contrato</Label>
-                        <Select value={selectedClient} onValueChange={setSelectedClient}>
-                            <SelectTrigger className="w-full h-9 text-xs font-bold rounded-xl border-slate-200 bg-slate-50">
-                                <SelectValue placeholder="Todos os Contratos" />
-                            </SelectTrigger>
-                            <SelectContent className="text-xs">
-                                <SelectItem value="all">Todos os Contratos</SelectItem>
-                                {uniqueClients.map(c => (
-                                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <Combobox
+                            options={[
+                                { value: "all", label: "Todos os Contratos" },
+                                ...uniqueClients.map(c => ({ value: c, label: c }))
+                            ]}
+                            value={selectedClient}
+                            onChange={setSelectedClient}
+                            placeholder="Todos os Contratos"
+                            searchPlaceholder="Buscar contrato..."
+                            className="h-9"
+                        />
                     </div>
 
                     {/* Agrupamento */}
@@ -2079,36 +2080,32 @@ export default function PayrollPreviewPage() {
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
                         <div className="space-y-1.5">
                             <Label className="font-bold text-slate-700">Empresa</Label>
-                            <Select value={exportSelectedCompany} onValueChange={setExportSelectedCompany}>
-                                <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
-                                    <SelectValue placeholder="Todas as Empresas" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todas as Empresas</SelectItem>
-                                    {uniqueCompanies.map((company, index) => (
-                                        <SelectItem key={index} value={company}>
-                                            {company}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Combobox
+                                options={[
+                                    { value: "all", label: "Todas as Empresas" },
+                                    ...uniqueCompanies.map(c => ({ value: c, label: c }))
+                                ]}
+                                value={exportSelectedCompany}
+                                onChange={setExportSelectedCompany}
+                                placeholder="Todas as Empresas"
+                                searchPlaceholder="Buscar empresa..."
+                                className="h-9"
+                            />
                         </div>
 
                         <div className="space-y-1.5">
                             <Label className="font-bold text-slate-700">Contrato / Centro de Custo</Label>
-                            <Select value={exportSelectedClient} onValueChange={setExportSelectedClient}>
-                                <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
-                                    <SelectValue placeholder="Todos os Contratos" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todos os Contratos</SelectItem>
-                                    {uniqueClients.map((client, index) => (
-                                        <SelectItem key={index} value={client}>
-                                            {client}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Combobox
+                                options={[
+                                    { value: "all", label: "Todos os Contratos" },
+                                    ...uniqueClients.map(c => ({ value: c, label: c }))
+                                ]}
+                                value={exportSelectedClient}
+                                onChange={setExportSelectedClient}
+                                placeholder="Todos os Contratos"
+                                searchPlaceholder="Buscar contrato..."
+                                className="h-9"
+                            />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
