@@ -1180,5 +1180,20 @@ model HrScheduledMessage {
   @@index([phone])
 }
 
+// Templates editáveis de Avisos Prévios e Rescisões de Contrato
+model DismissalTemplate {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  title       String
+  category    String   // 'DISPENSA_COM_AVISO' | 'DISPENSA_SEM_AVISO' | 'TERMINO_EXP_ANTECIPADO' | 'TERMINO_EXP_PRAZO' | 'OUTROS'
+  description String?
+  bodyText    String   @db.Text
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+}
+
 
 

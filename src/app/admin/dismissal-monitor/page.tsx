@@ -14,6 +14,8 @@ import { ResignationLetterDownloadButton } from "@/components/admin/ResignationL
 import { InitiateDismissalDialog } from "@/components/admin/InitiateDismissalDialog";
 import { DismissalAlertsDialog } from "@/components/admin/DismissalAlertsDialog";
 import { DPAlertSettingsDialog } from "@/components/admin/DPAlertSettingsDialog";
+import { DismissalNoticeButtons } from "@/components/admin/DismissalNoticeButtons";
+import { DismissalTemplatesModal } from "@/components/admin/DismissalTemplatesModal";
 import { getCurrentUser } from "@/lib/auth";
 import { getGlobalAlerts } from "@/actions/globalAlerts";
 
@@ -349,6 +351,7 @@ export default async function DismissalMonitorPage({
                     <p className="text-slate-500">Gestão de prazos de Aviso Prévio, Abandono de Posto, Términos de Experiência e Prazos CLT de DP</p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <DismissalTemplatesModal />
                     <DismissalAlertsDialog 
                         alerts={allAlerts} 
                         alertUserId={dismissalAlertUserId}
@@ -533,6 +536,14 @@ export default async function DismissalMonitorPage({
                                     </td>
                                     <td className="px-5 py-4 text-right">
                                         <div className="flex justify-end items-center gap-2">
+                                            {emp.dismissalProcess?.type && (
+                                                <DismissalNoticeButtons 
+                                                    employeeId={emp.id}
+                                                    employeeName={emp.name}
+                                                    employeePhone={emp.phone}
+                                                    dismissalProcess={emp.dismissalProcess}
+                                                />
+                                            )}
                                             {emp.dismissalProcess?.attachment && (
                                                 <ResignationLetterDownloadButton 
                                                     fileName={emp.dismissalProcess.attachment.fileName} 
