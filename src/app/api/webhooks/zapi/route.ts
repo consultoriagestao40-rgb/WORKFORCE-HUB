@@ -33,16 +33,24 @@ export async function POST(req: Request) {
         const body = await req.json();
         console.log("[Z-API Webhook]:", JSON.stringify(body).slice(0, 500));
 
-        // Ignorar acks, presenças e recibos de leitura
-        const eventType = body.type || body.event || "";
-        if (["ReadReceipt", "DeliveryReceipt", "presence"].includes(eventType)) {
-            return NextResponse.json({ status: "ack_ignored" });
+        // Ignorar presenças simples (digitando, gravando áudio)
+        const eventType = (body.type || body.event || "").toString();
+        if (eventType === "presence" || body.presence) {
+            return NextResponse.json({ status: "presence_ignored" });
         }
 
-        const isFromMe = body.fromMe === true || body.fromMe === "true" || body.from === "me" || body.isSentByMe === true || body.isSentByMe === "true";
+        const isFromMe = body.fromMe === true || 
+                         body.fromMe === "true" || 
+                         body.from === "me" || 
+                         body.isSentByMe === true || 
+                         body.isSentByMe === "true" || 
+                         body.key?.fromMe === true ||
+                         eventType === "on-message-send" ||
+                         eventType === "MessageSent";
+
         const rawPhone = isFromMe
-            ? (body.to || body.phone || body.recipient || "")
-            : (body.phone || body.from || body.sender || body.senderPhone || "");
+            ? (body.phone || body.to || body.recipient || body.chatId || body.remoteJid || body.key?.remoteJid || "")
+            : (body.phone || body.from || body.sender || body.senderPhone || body.chatId || body.remoteJid || body.key?.remoteJid || "");
 
         if (!rawPhone) {
             return NextResponse.json({ status: "ignored_no_phone" });
@@ -185,11 +193,14 @@ async function processHrAttendanceMessage(cleanPhone: string, phoneSearch: strin
         contactPhotoUrl = await fetchZapiProfilePic(cleanPhone);
     }
 
-    // Buscar se já existe um ticket em aberto para esse telefone
+    // Buscar se já existe um ticket para esse telefone
     let ticket = await prisma.hrTicket.findFirst({
         where: {
-            contactPhone: { contains: phoneSearch },
-            status: "OPEN"
+            OR: [
+                { contactPhone: { contains: phoneSearch } },
+                { contactPhone: { contains: cleanPhone } },
+                { contactPhone: { contains: phoneShort } }
+            ]
         },
         orderBy: { updatedAt: "desc" }
     });
