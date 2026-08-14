@@ -734,7 +734,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
             ? emp.vaDiscountPercentage
             : (posto?.vaDiscountPercentage !== null && posto?.vaDiscountPercentage !== undefined ? posto.vaDiscountPercentage : 20.0);
         
-        const vaPayrollDiscount = Math.round((vaBaseValue * (vaDiscountPercentage / 100)) * 100) / 100;
+        const vaPayrollDiscount = Math.round((vaTotalValue * (vaDiscountPercentage / 100)) * 100) / 100;
 
         // Payment destinations
         const vtDestination = emp.vtPaymentMethod === "Outro"

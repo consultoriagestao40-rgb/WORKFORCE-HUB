@@ -553,8 +553,14 @@ export default function PayrollPreviewPage() {
                     "Desc. DSR (R$)": item.dsrDeduction,
                     "Atestados (Dias)": item.atestadosCount || 0,
                     "Datas dos Atestados": atestadosDatesStr,
-                    "Desc. VT (R$)": item.vtPayrollDiscount,
-                    "Desc. VA (R$)": item.vaPayrollDiscount,
+                    "VT Líquido Creditado (R$)": item.vtNetValue,
+                    "Alíquota Desc. VT (%)": item.vtDiscountPercentage,
+                    "Desc. VT em Folha (R$)": item.vtPayrollDiscount,
+                    "VA Valor Bruto (R$)": item.vaBaseValue,
+                    "VA Abatimento Faltas (R$)": item.vaDeductionValue,
+                    "VA Líquido Creditado (R$)": item.vaNetValue,
+                    "Alíquota Desc. VA (%)": item.vaDiscountPercentage,
+                    "Desc. VA em Folha (R$)": item.vaPayrollDiscount,
                     "Descontos Diversos (R$)": item.diversosDescontos,
                     "Empréstimos (R$)": item.emprestimos,
                     "Convênios (R$)": item.convenios,
@@ -1450,17 +1456,20 @@ export default function PayrollPreviewPage() {
                                                             -{formatCurrency(item.vaPayrollDiscount)}
                                                         </button>
                                                     </PopoverTrigger>
-                                                    <PopoverContent className="w-60 p-3 text-xs space-y-1.5">
-                                                        <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Desconto VA em Folha</div>
-                                                        <div className="space-y-1 text-[10px] text-slate-655 font-medium">
-                                                            <div className="flex justify-between"><span>Alíquota Desconto:</span><span>{item.vaDiscountPercentage}%</span></div>
+                                                    <PopoverContent className="w-64 p-3 text-xs space-y-1.5">
+                                                        <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Desconto VA em Folha (CCT)</div>
+                                                        <div className="space-y-1 text-[10px] text-slate-600 font-medium">
+                                                            {item.vaBaseValue > 0 && <div className="flex justify-between"><span>VA Bruto Previsto:</span><span>{formatCurrency(item.vaBaseValue)}</span></div>}
+                                                            {item.vaDeductionValue > 0 && <div className="flex justify-between text-red-500"><span>(-) Abatimento Faltas:</span><span>-{formatCurrency(item.vaDeductionValue)}</span></div>}
+                                                            <div className="flex justify-between font-bold text-slate-800"><span>VA Líquido Creditado:</span><span>{formatCurrency(item.vaNetValue)}</span></div>
+                                                            <div className="flex justify-between"><span>Alíquota Desconto (Posto):</span><span>{item.vaDiscountPercentage}%</span></div>
                                                             <div className="flex justify-between text-orange-600 border-t border-slate-100 pt-1 font-bold">
-                                                                <span>Desconto Calculado:</span>
+                                                                <span>Desconto em Folha:</span>
                                                                 <span>{formatCurrency(item.vaPayrollDiscount)}</span>
                                                             </div>
                                                         </div>
-                                                        <p className="text-[9px] text-slate-450 italic leading-normal border-t pt-1">
-                                                            Nota: Percentual sobre o VA base (descontado em folha do colaborador).
+                                                        <p className="text-[9px] text-slate-400 italic leading-normal border-t pt-1">
+                                                            Nota: {item.vaDiscountPercentage}% calculado sobre o saldo líquido creditado ({formatCurrency(item.vaNetValue)}).
                                                         </p>
                                                     </PopoverContent>
                                                 </Popover>
@@ -1994,7 +2003,28 @@ export default function PayrollPreviewPage() {
                                                                                     {sub.vtPayrollDiscount > 0 ? `-${formatCurrency(sub.vtPayrollDiscount)}` : "-"}
                                                                                 </td>
                                                                                 <td className="py-2.5 px-3 text-right text-orange-655 whitespace-nowrap">
-                                                                                    {sub.vaPayrollDiscount > 0 ? `-${formatCurrency(sub.vaPayrollDiscount)}` : "-"}
+                                                                                     {sub.vaPayrollDiscount > 0 ? (
+                                                                                         <Popover>
+                                                                                             <PopoverTrigger asChild>
+                                                                                                 <button className="underline decoration-dashed cursor-pointer font-bold">
+                                                                                                     -{formatCurrency(sub.vaPayrollDiscount)}
+                                                                                                 </button>
+                                                                                             </PopoverTrigger>
+                                                                                             <PopoverContent className="w-64 p-3 text-xs space-y-1.5">
+                                                                                                 <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">Desconto VA em Folha (CCT)</div>
+                                                                                                 <div className="space-y-1 text-[10px] text-slate-600 font-medium">
+                                                                                                     {sub.vaBaseValue > 0 && <div className="flex justify-between"><span>VA Bruto:</span><span>{formatCurrency(sub.vaBaseValue)}</span></div>}
+                                                                                                     {sub.vaDeductionValue > 0 && <div className="flex justify-between text-red-500"><span>(-) Faltas:</span><span>-{formatCurrency(sub.vaDeductionValue)}</span></div>}
+                                                                                                     <div className="flex justify-between font-bold text-slate-800"><span>VA Líquido Creditado:</span><span>{formatCurrency(sub.vaNetValue)}</span></div>
+                                                                                                     <div className="flex justify-between"><span>Alíquota (Posto):</span><span>{sub.vaDiscountPercentage}%</span></div>
+                                                                                                     <div className="flex justify-between text-orange-600 border-t border-slate-100 pt-1 font-bold">
+                                                                                                         <span>Desconto em Folha:</span>
+                                                                                                         <span>{formatCurrency(sub.vaPayrollDiscount)}</span>
+                                                                                                     </div>
+                                                                                                 </div>
+                                                                                             </PopoverContent>
+                                                                                         </Popover>
+                                                                                     ) : "-"}
                                                                                 </td>
                                                                                 <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
                                                                                     {sub.diversosDescontos > 0 ? `-${formatCurrency(sub.diversosDescontos)}` : "-"}

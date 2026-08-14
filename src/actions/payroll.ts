@@ -34,9 +34,14 @@ export interface PayrollPreviewItem {
     dsrDeductionsCount: number;
     dsrDeduction: number;
     
-    // Benefits Discounts
+    // Benefits Discounts & Bases
+    vtBaseValue: number;
+    vtNetValue: number;
     vtPayrollDiscount: number;
     vtDiscountPercentage: number;
+    vaBaseValue: number;
+    vaDeductionValue: number;
+    vaNetValue: number;
     vaPayrollDiscount: number;
     vaDiscountPercentage: number;
     
@@ -307,14 +312,26 @@ export async function getPayrollPreview(year: number, month: number) {
 
         const benefitInfo = benefitsMap.get(emp.id);
 
+        let vtBaseValue = 0;
+        let vtNetValue = 0;
         let vtPayrollDiscount = 0;
         let vtDiscountPercentage = 6.0;
+
+        let vaBaseValue = 0;
+        let vaDeductionValue = 0;
+        let vaNetValue = 0;
         let vaPayrollDiscount = 0;
         let vaDiscountPercentage = 20.0;
 
         if (benefitInfo) {
+            vtBaseValue = Math.round(((benefitInfo.vtBaseValue || 0) + (benefitInfo.vtBaseValue2 || 0)) * 100) / 100;
+            vtNetValue = Math.round(((benefitInfo.vtTotalValue || 0) + (benefitInfo.vtTotalValue2 || 0)) * 100) / 100;
             vtPayrollDiscount = benefitInfo.vtPayrollDiscount || 0;
             vtDiscountPercentage = benefitInfo.vtDiscountPercentage || 6.0;
+
+            vaBaseValue = benefitInfo.vaBaseValue || 0;
+            vaDeductionValue = benefitInfo.vaDeductionValue || 0;
+            vaNetValue = benefitInfo.vaTotalValue || 0;
             vaPayrollDiscount = benefitInfo.vaPayrollDiscount || 0;
             vaDiscountPercentage = benefitInfo.vaDiscountPercentage || 20.0;
         } else {
@@ -325,6 +342,8 @@ export async function getPayrollPreview(year: number, month: number) {
                     : (posto?.vtDiscountPercentage !== null && posto?.vtDiscountPercentage !== undefined ? posto.vtDiscountPercentage : 6.0);
                 const rawDiscount = Math.round((emp.salary * (vtDiscountPercentage / 100)) * 100) / 100;
                 vtPayrollDiscount = rawDiscount;
+                vtBaseValue = emp.valeTransporte || 0;
+                vtNetValue = emp.valeTransporte || 0;
             }
 
             vaDiscountPercentage = emp.vaDiscountPercentage !== null && emp.vaDiscountPercentage !== undefined
@@ -332,6 +351,8 @@ export async function getPayrollPreview(year: number, month: number) {
                 : (posto?.vaDiscountPercentage !== null && posto?.vaDiscountPercentage !== undefined ? posto.vaDiscountPercentage : 20.0);
             const rawBaseVaValue = emp.valeAlimentacao || 0;
             const baseVaValue = (rawBaseVaValue > 0 && posto?.vaMealsProvidedOnSite) ? 494.00 : rawBaseVaValue;
+            vaBaseValue = baseVaValue;
+            vaNetValue = baseVaValue;
             vaPayrollDiscount = Math.round((baseVaValue * (vaDiscountPercentage / 100)) * 100) / 100;
         }
 
@@ -367,8 +388,13 @@ export async function getPayrollPreview(year: number, month: number) {
             faltaDeduction,
             dsrDeductionsCount,
             dsrDeduction,
+            vtBaseValue,
+            vtNetValue,
             vtPayrollDiscount,
             vtDiscountPercentage,
+            vaBaseValue,
+            vaDeductionValue,
+            vaNetValue,
             vaPayrollDiscount,
             vaDiscountPercentage,
             inssDeduction,
