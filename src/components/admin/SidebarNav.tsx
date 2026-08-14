@@ -77,7 +77,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
 
                 <SectionHeader title="Estrutura & Cargos" />
                 <NavLink href="/admin/schedules" icon={Clock} label="Escalas de Posto" />
-                <NavLink href="/admin/roles" icon={Briefcase} label="Cargos/Funções" />
+                <NavLink href="/admin/roles" icon={Briefcase} label="Cargos & Ordens de Serviço" colorClass="text-emerald-400 font-bold" />
                 <NavLink href="/admin/allowance-types" icon={DollarSign} label="Tipos de Adicionais" />
                 <NavLink href="/admin/situations" icon={ShieldAlert} label="Situações de RH" colorClass="text-primary" />
 

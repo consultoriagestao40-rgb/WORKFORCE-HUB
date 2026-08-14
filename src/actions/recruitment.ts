@@ -413,7 +413,8 @@ export async function getRecruitmentBoardData() {
     // Helper to map vacancy object to Kanban card structure
     const createVacancyCard = (v: typeof openVacancies[0], totalCandidates: number) => {
         const customReq = (v.customRequirements as any) || {};
-        const selectedCand = customReq.selectedCandidateId ? v.candidates.find(c => c.id === customReq.selectedCandidateId) : null;
+        const selectedId = (typeof customReq === 'object' && !Array.isArray(customReq)) ? customReq.selectedCandidateId : null;
+        const selectedCand = selectedId ? v.candidates.find(c => c.id === selectedId) : null;
         return {
             id: `VAC-${v.id}`, // Unique ID across the whole board
             realId: v.id,
@@ -1609,7 +1610,14 @@ export async function updateCandidateEvaluation(candidateId: string, evaluation:
             where: { candidates: { some: { id: candidateId } } }
         });
         
-        const vacancyReqs = (vacancy?.customRequirements as any[]) || [];
+        const customReqs = vacancy?.customRequirements;
+        const vacancyReqs: any[] = Array.isArray(customReqs)
+            ? customReqs
+            : (Array.isArray((customReqs as any)?.items)
+                ? (customReqs as any).items
+                : (Array.isArray((customReqs as any)?.requirements)
+                    ? (customReqs as any).requirements
+                    : []));
         const total = vacancyReqs.length;
         
         if (total > 0) {

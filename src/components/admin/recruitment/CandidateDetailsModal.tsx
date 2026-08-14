@@ -37,6 +37,31 @@ interface CandidateDetailsModalProps {
     recruiters?: any[];
 }
 
+function extractChecklistReqs(customReqs: any): { id: string, name: string, isKnockout: boolean }[] {
+    if (!customReqs) return [];
+    if (Array.isArray(customReqs)) {
+        return customReqs.filter(r => r && typeof r === 'object' && r.id && r.name);
+    }
+    if (typeof customReqs === 'object') {
+        if (Array.isArray(customReqs.items)) {
+            return customReqs.items.filter((r: any) => r && typeof r === 'object' && r.id && r.name);
+        }
+        if (Array.isArray(customReqs.requirements)) {
+            return customReqs.requirements.filter((r: any) => r && typeof r === 'object' && r.id && r.name);
+        }
+    }
+    return [];
+}
+
+function extractSelectedCandidateId(vacancy: any): string {
+    if (!vacancy) return "";
+    const cr = vacancy.customRequirements;
+    if (cr && typeof cr === 'object' && !Array.isArray(cr) && cr.selectedCandidateId) {
+        return String(cr.selectedCandidateId);
+    }
+    return vacancy.selectedCandidateId ? String(vacancy.selectedCandidateId) : "";
+}
+
 export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdrawSuccess, stages = [], currentUser, recruiters = [] }: CandidateDetailsModalProps) {
     const router = useRouter();
     const [timeline, setTimeline] = useState<any[]>([]);
@@ -69,14 +94,14 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
     // Admission & Selection State
     const [selectedAdmissionCandidateId, setSelectedAdmissionCandidateId] = useState<string>("");
     const [selectedCandidateForVacancyId, setSelectedCandidateForVacancyId] = useState<string>(
-        candidate?.vacancy?.customRequirements?.selectedCandidateId || candidate?.vacancy?.selectedCandidateId || ""
+        extractSelectedCandidateId(candidate?.vacancy)
     );
     const [notes, setNotes] = useState("");
     const [isVacancyReqsExpanded, setIsVacancyReqsExpanded] = useState(false);
     const [isReevaluatingAi, setIsReevaluatingAi] = useState(false);
 
     useEffect(() => {
-        const selId = candidate?.vacancy?.customRequirements?.selectedCandidateId || candidate?.vacancy?.selectedCandidateId;
+        const selId = extractSelectedCandidateId(candidate?.vacancy);
         if (selId) {
             setSelectedCandidateForVacancyId(selId);
             setSelectedAdmissionCandidateId(selId);
@@ -138,6 +163,9 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
 
     const handleAddVacancyReq = async () => {
         if (!newReqText.trim() || !candidate?.vacancy?.id) return;
+        const currentReqsObj = (typeof candidate.vacancy?.customRequirements === 'object' && !Array.isArray(candidate.vacancy?.customRequirements))
+            ? candidate.vacancy.customRequirements
+            : {};
         const updated = [
             ...vacancyReqs,
             { id: `req-${Date.now()}`, name: newReqText.trim(), isKnockout: newReqIsKnockout }
@@ -146,16 +174,29 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
         setNewReqText("");
         setNewReqIsKnockout(false);
         
-        await updateVacancy(candidate.vacancy.id, { customRequirements: updated });
+        await updateVacancy(candidate.vacancy.id, {
+            customRequirements: {
+                ...currentReqsObj,
+                items: updated
+            }
+        });
         toast.success("Checklist da vaga atualizado!");
         router.refresh();
     };
 
     const handleRemoveVacancyReq = async (id: string) => {
         if (!candidate?.vacancy?.id) return;
+        const currentReqsObj = (typeof candidate.vacancy?.customRequirements === 'object' && !Array.isArray(candidate.vacancy?.customRequirements))
+            ? candidate.vacancy.customRequirements
+            : {};
         const updated = vacancyReqs.filter(r => r.id !== id);
         setVacancyReqs(updated);
-        await updateVacancy(candidate.vacancy.id, { customRequirements: updated });
+        await updateVacancy(candidate.vacancy.id, {
+            customRequirements: {
+                ...currentReqsObj,
+                items: updated
+            }
+        });
         toast.success("Requisito removido!");
         router.refresh();
     };
@@ -171,7 +212,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                 e.reqId === reqId ? { ...e, value: newValue } : e
             );
         } else {
-            const reqObj = (candidate.vacancy?.customRequirements as any[] || []).find(r => r.id === reqId);
+            const reqObj = vacancyReqs.find(r => r.id === reqId);
             if (reqObj) {
                 updatedEvaluations.push({ reqId, name: reqObj.name, value: newValue });
             }
@@ -316,7 +357,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
             setReqAgeMax(candidate.vacancy?.reqAgeMax?.toString() || "");
             setReqKnowledge(candidate.vacancy?.reqKnowledge || "");
             setPlannedStartDate(candidate.vacancy?.plannedStartDate ? new Date(candidate.vacancy.plannedStartDate).toISOString().split('T')[0] : "");
-            setVacancyReqs(candidate.vacancy?.customRequirements ? (candidate.vacancy.customRequirements as any[]) : []);
+            setVacancyReqs(extractChecklistReqs(candidate.vacancy?.customRequirements));
             setNotes(candidate.requirementsEvaluation?.notes || "");
 
             if (candidate.type === 'VACANCY') {
@@ -1399,14 +1440,14 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                     )}
 
                                     {/* ✅ CHECKLIST — SEMPRE VISÍVEL */}
-                                    {(candidate.vacancy?.customRequirements as any[] || []).length > 0 ? (
+                                    {vacancyReqs.length > 0 ? (
                                         <div className="bg-white border rounded-xl p-4 space-y-3 shadow-sm">
                                             <div className="border-b pb-2">
                                                 <h3 className="font-bold text-slate-800 text-sm">✅ Checklist de Requisitos</h3>
                                                 <p className="text-xs text-slate-400">Avalie se o candidato atende ou não atende aos requisitos definidos para a vaga.</p>
                                             </div>
                                             {(() => {
-                                                const reqs: any[] = (candidate.vacancy?.customRequirements as any[] || []);
+                                                const reqs = vacancyReqs;
                                                 const evals: any[] = (candidate.requirementsEvaluation?.customEvaluations as any[] || []);
                                                 const checked = reqs.filter(req => { const e = evals.find((ev: any) => ev.reqId === req.id); return e ? (e.value === true || e.value === 'true') : false; }).length;
                                                 const pct = reqs.length > 0 ? Math.round((checked / reqs.length) * 100) : 0;
@@ -1423,7 +1464,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                 );
                                             })()}
                                             <div className="space-y-2">
-                                                {(candidate.vacancy?.customRequirements as any[] || []).map((req) => {
+                                                {vacancyReqs.map((req) => {
                                                     const evalItem = ((candidate.requirementsEvaluation?.customEvaluations as any[]) || []).find((e: any) => e.reqId === req.id);
                                                     
                                                     // Três estados: true (atende), false (não atende), null (não avaliado)
