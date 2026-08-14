@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import {
     Phone, Video, Search, MoreVertical, Paperclip, Smile, Mic, Send,
-    Calendar, StickyNote, Tag, UserCheck, ArrowRightLeft, CheckCheck, Clock, ShieldCheck, X, Zap, Download
+    Calendar, StickyNote, Tag, UserCheck, ArrowRightLeft, CheckCheck, Clock,
+    ShieldCheck, X, Zap, Download, RefreshCw, Lock, Sparkles, User, ExternalLink,
+    Briefcase, Building2, ChevronRight, FileText
 } from "lucide-react";
 
 import {
@@ -25,16 +27,19 @@ import {
     updateHrTicketStage,
     updateContactInfo,
     updateTicketStamp,
-    refreshContactInfo
+    syncTicketWhatsAppHistory
 } from "@/actions/hr-attendance";
 import { HrScheduleMessageModal } from "./HrScheduleMessageModal";
 import { HrScheduleActivityModal } from "./HrScheduleActivityModal";
 import { HrCloseTicketModal } from "./HrCloseTicketModal";
+import { HrQuickRepliesModal } from "./HrQuickRepliesModal";
 import { toast } from "sonner";
 
 interface Props {
     ticketId: string | null;
     initialTab?: "chat" | "notes" | "activities" | "value";
+    currentUser?: any;
+    allUsers?: any[];
     onClose: () => void;
     onUpdated?: () => void;
     availableUsers?: any[];
@@ -45,12 +50,15 @@ interface Props {
 export function HrTicketModal({
     ticketId,
     initialTab = "chat",
+    currentUser,
+    allUsers = [],
     onClose,
     onUpdated,
     availableUsers = [],
     availableLabels = [],
     availableStages = []
 }: Props) {
+    const usersList = availableUsers.length > 0 ? availableUsers : allUsers;
     const [ticket, setTicket] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<"chat" | "notes" | "activities" | "value">(initialTab);
@@ -58,6 +66,7 @@ export function HrTicketModal({
     const [messageText, setMessageText] = useState("");
     const [sending, setSending] = useState(false);
     const [useStamp, setUseStamp] = useState(true);
+    const [syncingHistory, setSyncingHistory] = useState(false);
 
     // Gravação de Áudio ao Vivo
     const [isRecording, setIsRecording] = useState(false);
@@ -66,9 +75,11 @@ export function HrTicketModal({
     const audioChunksRef = useRef<Blob[]>([]);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-    const [showScheduleMsg, setShowScheduleMsg] = useState(false);
+    // Modais
     const [showScheduleAct, setShowScheduleAct] = useState(false);
     const [showCloseModal, setShowCloseModal] = useState(false);
+    const [showQuickReplies, setShowQuickReplies] = useState(false);
+    const [showTransferSelect, setShowTransferSelect] = useState(false);
 
     const [noteText, setNoteText] = useState("");
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -118,6 +129,60 @@ export function HrTicketModal({
         }
     }, [ticket?.messages, activeTab]);
 
+    // Iniciar Atendimento / Assumir (Padrão Bitrix24)
+    const handleStartAttendance = async () => {
+        if (!ticket) return;
+        const toastId = toast.loading("Iniciando atendimento...");
+        try {
+            const res = await assumeHrTicket(ticket.id);
+            if (res.success) {
+                toast.success("Você agora é o responsável pelo atendimento!", { id: toastId });
+                loadDetail();
+                onUpdated?.();
+            } else {
+                toast.error(res.error || "Erro ao assumir atendimento", { id: toastId });
+            }
+        } catch {
+            toast.error("Erro ao iniciar atendimento", { id: toastId });
+        }
+    };
+
+    // Transferir Atendimento
+    const handleTransfer = async (toUserId: string) => {
+        if (!ticket || !toUserId) return;
+        try {
+            await transferHrTicket(ticket.id, toUserId);
+            setShowTransferSelect(false);
+            toast.success("Atendimento transferido!");
+            loadDetail();
+            onUpdated?.();
+        } catch {
+            toast.error("Erro ao transferir atendimento");
+        }
+    };
+
+    // Puxar 30 Dias de Histórico do WhatsApp
+    const handleSyncHistory = async () => {
+        if (!ticket) return;
+        setSyncingHistory(true);
+        try {
+            toast.info("Puxando mensagens dos últimos 30 dias diretamente do WhatsApp...");
+            const res = await syncTicketWhatsAppHistory(ticket.id, 30);
+            if (res.success) {
+                toast.success(`Histórico sincronizado! ${res.count} mensagens atualizadas.`);
+                loadDetail();
+                onUpdated?.();
+            } else {
+                toast.error(res.error || "Erro ao sincronizar histórico");
+            }
+        } catch {
+            toast.error("Falha na sincronização com WhatsApp");
+        } finally {
+            setSyncingHistory(false);
+        }
+    };
+
+    // Enviar Mensagem
     const handleSendMessage = async (e?: React.FormEvent) => {
         e?.preventDefault();
         if (!messageText.trim() || sending || !ticket) return;
@@ -130,7 +195,7 @@ export function HrTicketModal({
         const tempMsg = {
             id: tempId,
             senderType: "ATTENDANT",
-            senderName: "Você",
+            senderName: currentUser?.name || "Você",
             content: textToSend,
             status: "SENDING",
             createdAt: new Date().toISOString()
@@ -142,7 +207,7 @@ export function HrTicketModal({
         }));
 
         try {
-            const stamp = useStamp ? "*Atendente RH*" : undefined;
+            const stamp = useStamp ? `*${currentUser?.name || "Atendente RH"}*` : undefined;
             const res = await sendHrWhatsAppMessage({
                 ticketId: ticket.id,
                 phone: ticket.contactPhone,
@@ -156,8 +221,9 @@ export function HrTicketModal({
                     messages: prev.messages.map((m: any) => m.id === tempId ? res.message : m)
                 }));
             }
+            loadDetail();
             onUpdated?.();
-        } catch (e: any) {
+        } catch {
             toast.error("Erro ao enviar mensagem");
         } finally {
             setSending(false);
@@ -202,6 +268,7 @@ export function HrTicketModal({
                                 }));
                                 toast.success("Áudio enviado com sucesso!");
                             }
+                            loadDetail();
                             onUpdated?.();
                         } catch {
                             toast.error("Erro ao enviar áudio");
@@ -220,7 +287,7 @@ export function HrTicketModal({
                 setRecordingTime(prev => prev + 1);
             }, 1000);
         } catch {
-            toast.error("Permissão de microfone negada");
+            toast.error("Permissão de microfone negada ou indisponível");
         }
     };
 
@@ -261,6 +328,7 @@ export function HrTicketModal({
                 } else {
                     toast.error("Falha ao enviar arquivo", { id: toastId });
                 }
+                loadDetail();
                 onUpdated?.();
             };
             reader.readAsDataURL(file);
@@ -269,14 +337,6 @@ export function HrTicketModal({
         } finally {
             setSending(false);
         }
-    };
-
-    const handleAssume = async () => {
-        if (!ticket) return;
-        await assumeHrTicket(ticket.id);
-        toast.success("Atendimento assumido!");
-        loadDetail();
-        onUpdated?.();
     };
 
     const handleAddNote = async () => {
@@ -299,109 +359,226 @@ export function HrTicketModal({
     if (!ticketId) return null;
 
     const isGroupTicket = ticket?.contactPhone?.includes("-group") || ticket?.contactName?.toLowerCase().includes("grupo");
+    const isAssignedToMe = ticket?.assigneeId === currentUser?.id;
+    const isUnassigned = !ticket?.assigneeId;
+    const employee = ticket?.employee;
 
     return (
         <Dialog open={!!ticketId} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="p-0 border-none bg-transparent max-w-5xl w-[92vw] shadow-none [&>button]:hidden">
+            <DialogContent className="p-0 border-none bg-transparent max-w-6xl w-[94vw] shadow-none [&>button]:hidden">
                 {loading || !ticket ? (
-                    <div className="bg-white p-8 rounded-2xl text-center text-xs text-slate-500 shadow-2xl border">
-                        Carregando atendimento...
+                    <div className="bg-white p-12 rounded-2xl text-center text-xs text-slate-500 shadow-2xl border flex flex-col items-center justify-center gap-3">
+                        <RefreshCw className="w-6 h-6 animate-spin text-emerald-600" />
+                        <span className="font-bold">Carregando atendimento...</span>
                     </div>
                 ) : (
-                    <div className="relative bg-white w-full h-[85vh] rounded-2xl shadow-2xl overflow-hidden flex border border-slate-200 z-50">
-                        {/* PAINEL LATERAL ESQUERDO: INFORMAÇÕES CRM */}
-                        <div className="w-72 bg-slate-50 border-r border-slate-200 p-4 flex flex-col justify-between overflow-y-auto space-y-4 flex-shrink-0">
+                    <div className="relative bg-white w-full h-[88vh] rounded-2xl shadow-2xl overflow-hidden flex border border-slate-200/90 z-50">
+                        {/* COLUNA ESQUERDA: PAINEL CRM & RESPONSÁVEL INTELIGENTE BITRIX24 */}
+                        <div className="w-80 bg-slate-50/90 border-r border-slate-200 p-4 flex flex-col justify-between overflow-y-auto space-y-4 flex-shrink-0">
                             <div className="space-y-4">
-                                <div className="text-center space-y-2 pb-3 border-b border-slate-200">
-                                    {ticket.contactPhotoUrl && ticket.contactPhotoUrl !== "null" ? (
-                                        <img src={ticket.contactPhotoUrl} alt="" className="w-16 h-16 rounded-2xl object-cover border-2 border-white shadow-sm mx-auto" />
-                                    ) : isGroupTicket ? (
-                                        <div className="w-16 h-16 rounded-2xl bg-amber-500 text-white font-bold text-2xl flex items-center justify-center shadow-sm mx-auto">
-                                            👥
+                                {/* Cabeçalho do Contato com Foto em Alta Resolução */}
+                                <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-2.5">
+                                    <div className="flex items-center gap-3">
+                                        <div className="relative flex-shrink-0">
+                                            {ticket.contactPhotoUrl && ticket.contactPhotoUrl !== "null" ? (
+                                                <img
+                                                    src={ticket.contactPhotoUrl}
+                                                    alt=""
+                                                    className="w-12 h-12 rounded-2xl object-cover border-2 border-slate-100 shadow-2xs"
+                                                />
+                                            ) : isGroupTicket ? (
+                                                <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white font-bold text-xl flex items-center justify-center shadow-2xs">
+                                                    👥
+                                                </div>
+                                            ) : (
+                                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-700 text-white font-bold text-base flex items-center justify-center shadow-2xs">
+                                                    {ticket.contactName?.charAt(0).toUpperCase() || "?"}
+                                                </div>
+                                            )}
                                         </div>
-                                    ) : (
-                                        <div className="w-16 h-16 rounded-2xl bg-slate-800 text-white font-black text-xl flex items-center justify-center shadow-sm mx-auto">
-                                            {ticket.contactName?.charAt(0).toUpperCase()}
-                                        </div>
-                                    )}
 
-                                    <div>
-                                        <h2 className="text-xs font-bold text-slate-900 leading-tight">{ticket.contactName}</h2>
-                                        <span className="text-[11px] text-slate-400 font-mono block mt-0.5">{ticket.contactPhone}</span>
+                                        <div className="overflow-hidden flex-1 min-w-0">
+                                            <h2 className="text-xs font-bold text-slate-900 leading-tight truncate" title={ticket.contactName}>
+                                                {ticket.contactName}
+                                            </h2>
+                                            <span className="text-[11px] text-slate-400 font-mono block mt-0.5">
+                                                {ticket.contactPhone}
+                                            </span>
+                                            {employee && (
+                                                <span className="inline-block text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 mt-1">
+                                                    CLT • {employee.role?.name || "Funcionário"}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">ETAPA NO PIPELINE</label>
+                                {/* CARD INTELIGENTE DE ATENDIMENTO BITRIX24 */}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                        RESPONSÁVEL PELO ATENDIMENTO
+                                    </label>
+
+                                    {isUnassigned ? (
+                                        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200/80 p-3.5 rounded-2xl shadow-2xs space-y-2.5">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                                                <span className="text-xs font-bold text-emerald-900">
+                                                    Atendimento Livre na Fila
+                                                </span>
+                                            </div>
+                                            <p className="text-[11px] text-emerald-700/90 leading-tight">
+                                                Nenhum operador está atendendo no momento.
+                                            </p>
+                                            <Button
+                                                onClick={handleStartAttendance}
+                                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-xl shadow-xs gap-1.5 transition"
+                                            >
+                                                <UserCheck className="w-4 h-4" /> Iniciar Atendimento
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-white border border-slate-200 p-3 rounded-2xl shadow-2xs space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-7 h-7 rounded-xl bg-slate-800 text-white font-bold text-xs flex items-center justify-center">
+                                                        {ticket.assignee?.name?.charAt(0) || "👤"}
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-xs font-bold text-slate-900">
+                                                            {isAssignedToMe ? "Você (Responsável)" : ticket.assignee?.name}
+                                                        </div>
+                                                        <span className="text-[10px] text-emerald-600 font-medium">● Em Atendimento</span>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    onClick={() => setShowTransferSelect(!showTransferSelect)}
+                                                    className="text-[10px] text-slate-500 hover:text-slate-800 font-bold px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 transition"
+                                                    title="Transferir para outro atendente"
+                                                >
+                                                    Transferir
+                                                </button>
+                                            </div>
+
+                                            {showTransferSelect && (
+                                                <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                                                    <label className="text-[10px] font-bold text-slate-500">Selecione o novo atendente:</label>
+                                                    <select
+                                                        onChange={(e) => handleTransfer(e.target.value)}
+                                                        className="w-full h-8 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-2 focus:ring-1 focus:ring-emerald-500"
+                                                        defaultValue=""
+                                                    >
+                                                        <option value="" disabled>Escolha um operador...</option>
+                                                        {usersList.map((u: any) => (
+                                                            <option key={u.id} value={u.id}>{u.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* SELETOR DE ETAPA DO PIPELINE */}
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                        ETAPA NO PIPELINE
+                                    </label>
                                     <select
                                         value={ticket.stageId}
                                         onChange={(e) => handleChangeStage(e.target.value)}
-                                        className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 shadow-2xs"
+                                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 shadow-2xs"
                                     >
                                         {availableStages.map((stg) => (
-                                            <option key={stg.id} value={stg.id}>{stg.name}</option>
+                                            <option key={stg.id} value={stg.id}>
+                                                {stg.name}
+                                            </option>
                                         ))}
                                     </select>
                                 </div>
-
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">ATENDENTE</label>
-                                    {ticket.assignee ? (
-                                        <div className="bg-white p-2 rounded-xl border border-slate-200 flex items-center justify-between text-xs font-bold text-slate-800">
-                                            <span>👤 {ticket.assignee.name}</span>
-                                        </div>
-                                    ) : (
-                                        <Button onClick={handleAssume} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 rounded-xl shadow-xs">
-                                            <UserCheck className="w-3.5 h-3.5 mr-1.5" /> Assumir Atendimento
-                                        </Button>
-                                    )}
-                                </div>
                             </div>
 
+                            {/* Ações Rápidas no Rodapé Lateral */}
                             <div className="space-y-2 pt-3 border-t border-slate-200">
-                                <Button onClick={() => setShowScheduleAct(true)} variant="outline" className="w-full text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200 text-xs font-bold justify-start rounded-xl">
-                                    📅 Agendar Retorno / Lembrete
+                                <Button
+                                    onClick={() => setShowQuickReplies(true)}
+                                    variant="outline"
+                                    className="w-full text-amber-800 bg-amber-50 hover:bg-amber-100 border-amber-200/80 text-xs font-bold justify-start rounded-xl gap-2 shadow-2xs"
+                                >
+                                    <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" /> Templates / Respostas Rápidas
                                 </Button>
-                                <Button onClick={() => setShowCloseModal(true)} variant="outline" className="w-full text-rose-700 bg-rose-50 hover:bg-rose-100 border-rose-200 text-xs font-bold justify-start rounded-xl">
-                                    🔒 Encerrar Atendimento
+                                <Button
+                                    onClick={() => setShowScheduleAct(true)}
+                                    variant="outline"
+                                    className="w-full text-slate-700 bg-white hover:bg-slate-100 border-slate-200 text-xs font-bold justify-start rounded-xl gap-2 shadow-2xs"
+                                >
+                                    <Calendar className="w-3.5 h-3.5 text-slate-500" /> Agendar Retorno / Lembrete
+                                </Button>
+                                <Button
+                                    onClick={() => setShowCloseModal(true)}
+                                    variant="outline"
+                                    className="w-full text-rose-700 bg-rose-50 hover:bg-rose-100 border-rose-200 text-xs font-bold justify-start rounded-xl gap-2 shadow-2xs"
+                                >
+                                    <Lock className="w-3.5 h-3.5 text-rose-600" /> Encerrar Atendimento
                                 </Button>
                             </div>
                         </div>
 
-                        {/* PAINEL DIREITO: CHAT WHATSAPP */}
+                        {/* COLUNA DIREITA: CHAT AO VIVO WHATSAPP WASELLER */}
                         <div className="flex-1 flex flex-col bg-[#efeae2] relative overflow-hidden text-slate-900">
-                            {/* WhatsApp Header Bar */}
-                            <div className="h-14 bg-[#f0f2f5] border-b border-slate-300 px-4 flex items-center justify-between z-10 shadow-2xs">
-                                <div className="flex items-center gap-3">
-                                    <div className="flex items-center gap-1 bg-slate-200/80 p-0.5 rounded-xl">
-                                        <button
-                                            onClick={() => setActiveTab("chat")}
-                                            className={`px-3 py-1 text-xs font-bold rounded-lg transition ${activeTab === "chat" ? "bg-white text-emerald-700 shadow-2xs font-extrabold" : "text-slate-600 hover:text-slate-900"}`}
-                                        >
-                                            💬 Chat ({ticket.messages?.length || 0})
-                                        </button>
-                                        <button
-                                            onClick={() => setActiveTab("notes")}
-                                            className={`px-3 py-1 text-xs font-bold rounded-lg transition ${activeTab === "notes" ? "bg-white text-emerald-700 shadow-2xs font-extrabold" : "text-slate-600 hover:text-slate-900"}`}
-                                        >
-                                            📝 Notas ({ticket.notes?.length || 0})
-                                        </button>
-                                        <button
-                                            onClick={() => setActiveTab("activities")}
-                                            className={`px-3 py-1 text-xs font-bold rounded-lg transition ${activeTab === "activities" ? "bg-white text-amber-700 shadow-2xs font-extrabold" : "text-slate-600 hover:text-slate-900"}`}
-                                        >
-                                            📅 Lembretes ({ticket.activities?.length || 0})
-                                        </button>
-                                    </div>
+                            {/* Top Bar do Chat */}
+                            <div className="h-14 bg-[#f0f2f5] border-b border-slate-300 px-4 flex items-center justify-between z-10 shadow-2xs gap-3 flex-shrink-0">
+                                <div className="flex items-center gap-1.5 bg-slate-200/80 p-0.5 rounded-xl">
+                                    <button
+                                        onClick={() => setActiveTab("chat")}
+                                        className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
+                                            activeTab === "chat" ? "bg-white text-emerald-700 shadow-2xs font-extrabold" : "text-slate-600 hover:text-slate-900"
+                                        }`}
+                                    >
+                                        💬 Chat ({ticket.messages?.length || 0})
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab("notes")}
+                                        className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
+                                            activeTab === "notes" ? "bg-white text-emerald-700 shadow-2xs font-extrabold" : "text-slate-600 hover:text-slate-900"
+                                        }`}
+                                    >
+                                        📝 Notas ({ticket.notes?.length || 0})
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab("activities")}
+                                        className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
+                                            activeTab === "activities" ? "bg-white text-amber-700 shadow-2xs font-extrabold" : "text-slate-600 hover:text-slate-900"
+                                        }`}
+                                    >
+                                        📅 Lembretes ({ticket.activities?.length || 0})
+                                    </button>
                                 </div>
 
-                                {/* Botão Fechar Modal X */}
-                                <button
-                                    onClick={onClose}
-                                    className="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center font-bold transition cursor-pointer"
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    {/* Botão Sincronizar Histórico 30 Dias */}
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={handleSyncHistory}
+                                        disabled={syncingHistory}
+                                        className="h-8 text-xs font-bold gap-1 bg-white border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-xl"
+                                        title="Sincronizar mensagens dos últimos 30 dias diretamente do WhatsApp"
+                                    >
+                                        <RefreshCw className={`w-3.5 h-3.5 ${syncingHistory ? "animate-spin" : ""}`} />
+                                        <span>{syncingHistory ? "Puxando..." : "Puxar 30 Dias"}</span>
+                                    </Button>
+
+                                    {/* Botão Fechar Modal X */}
+                                    <button
+                                        onClick={onClose}
+                                        className="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center font-bold transition cursor-pointer"
+                                        title="Fechar Modal"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Papel de Parede Oficial do WhatsApp */}
@@ -421,7 +598,7 @@ export function HrTicketModal({
                                             if (isSystem) {
                                                 return (
                                                     <div key={msg.id} className="flex justify-center my-2">
-                                                        <div className="bg-amber-100/90 text-amber-900 border border-amber-200 text-[10px] font-bold px-3 py-1 rounded-full shadow-2xs text-center">
+                                                        <div className="bg-amber-100/90 text-amber-900 border border-amber-200/80 text-[10px] font-bold px-3 py-1 rounded-full shadow-2xs text-center">
                                                             {msg.content}
                                                         </div>
                                                     </div>
@@ -431,41 +608,72 @@ export function HrTicketModal({
                                             return (
                                                 <div key={msg.id} className={`flex ${isAttendant ? "justify-end" : "justify-start"}`}>
                                                     <div className={`max-w-[75%] p-2.5 rounded-2xl shadow-2xs text-xs ${isAttendant ? "bg-[#d9fdd3] text-slate-900 rounded-tr-xs" : "bg-white text-slate-900 rounded-tl-xs"}`}>
-                                                        {isAttendant && (
+                                                        {isAttendant && msg.senderName && (
                                                             <div className="text-[10px] font-extrabold text-emerald-800 mb-0.5 border-b border-emerald-500/20 pb-0.5">
-                                                                👤 {msg.senderName || "Atendente RH"}
+                                                                👤 {msg.senderName}
                                                             </div>
                                                         )}
 
                                                         {!isAttendant && isGroupTicket && msg.senderName && (
-                                                            <div className="text-[10px] font-extrabold text-emerald-700 mb-0.5">
+                                                            <div className="text-[10px] font-extrabold text-slate-700 mb-0.5">
                                                                 {msg.senderName}
                                                             </div>
                                                         )}
 
+                                                        {/* Visualização de Imagem */}
                                                         {msg.mediaUrl && (msg.messageType === "IMAGE" || msg.mediaUrl.match(/\.(jpg|jpeg|png|webp)/i)) && (
-                                                            <img src={msg.mediaUrl} alt="" className="max-w-xs rounded-xl mb-1.5 max-h-60 object-cover border" />
+                                                            <img src={msg.mediaUrl} alt="" className="max-w-xs rounded-xl mb-1.5 max-h-60 object-cover border border-slate-200" />
                                                         )}
 
-                                                        {msg.messageType === "DOCUMENT" && msg.mediaUrl && (
-                                                            <div className="flex items-center gap-2.5 p-2 bg-slate-100/90 rounded-xl mb-1.5 border border-slate-200 shadow-2xs">
-                                                                <div className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-[10px] flex-shrink-0">
-                                                                    PDF
+                                                        {/* Visualização de Documentos (PDF, Word, Excel, ZIP) */}
+                                                        {msg.messageType === "DOCUMENT" && msg.mediaUrl && (() => {
+                                                            const fileName = msg.mediaFileName || "documento";
+                                                            const ext = fileName.split(".").pop()?.toLowerCase() || "pdf";
+                                                            const badgeBg = ext === "pdf" ? "bg-rose-600" : ["xls", "xlsx", "csv"].includes(ext) ? "bg-emerald-600" : "bg-slate-700";
+
+                                                            return (
+                                                                <div className="flex items-center gap-2.5 p-2 bg-slate-100/90 rounded-xl mb-1.5 border border-slate-200 shadow-2xs">
+                                                                    <div className={`w-8 h-8 rounded-lg ${badgeBg} text-white flex items-center justify-center font-bold text-[10px] flex-shrink-0`}>
+                                                                        {ext.toUpperCase()}
+                                                                    </div>
+                                                                    <div className="overflow-hidden flex-1 min-w-0">
+                                                                        <span className="font-bold text-slate-800 block truncate text-xs" title={fileName}>
+                                                                            {fileName}
+                                                                        </span>
+                                                                    </div>
+                                                                    <a
+                                                                        href={msg.mediaUrl}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        download={fileName}
+                                                                        className="text-xs bg-slate-800 hover:bg-slate-900 text-white font-bold px-2.5 py-1 rounded-lg transition"
+                                                                    >
+                                                                        Baixar
+                                                                    </a>
                                                                 </div>
-                                                                <div className="overflow-hidden flex-1 min-w-0">
-                                                                    <span className="font-bold text-slate-800 block truncate text-xs">
-                                                                        {msg.mediaFileName || "Documento"}
-                                                                    </span>
+                                                            );
+                                                        })()}
+
+                                                        {/* Áudio Player */}
+                                                        {msg.messageType === "AUDIO" && (
+                                                            <div className="my-1 p-2 bg-slate-100 rounded-xl border border-slate-200 space-y-1">
+                                                                <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                                                                    <span>🎙️ Mensagem de Voz</span>
+                                                                    {msg.mediaUrl && (
+                                                                        <a
+                                                                            href={msg.mediaUrl.startsWith("http") ? `/api/whatsapp/media-proxy?url=${encodeURIComponent(msg.mediaUrl)}` : msg.mediaUrl}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            download="audio.ogg"
+                                                                            className="text-[10px] text-emerald-600 font-bold hover:underline"
+                                                                        >
+                                                                            Baixar
+                                                                        </a>
+                                                                    )}
                                                                 </div>
-                                                                <a
-                                                                    href={msg.mediaUrl}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    download={msg.mediaFileName || "documento.pdf"}
-                                                                    className="text-xs bg-slate-800 text-white font-bold px-2.5 py-1 rounded-lg"
-                                                                >
-                                                                    Baixar
-                                                                </a>
+                                                                {msg.mediaUrl && (
+                                                                    <audio controls src={msg.mediaUrl.startsWith("http") ? `/api/whatsapp/media-proxy?url=${encodeURIComponent(msg.mediaUrl)}` : msg.mediaUrl} className="w-full h-8 rounded-md" />
+                                                                )}
                                                             </div>
                                                         )}
 
@@ -484,8 +692,27 @@ export function HrTicketModal({
                                         <div ref={messagesEndRef} />
                                     </div>
 
-                                    {/* BARRA DE ENVIO */}
+                                    {/* BARRA DE DIGITAÇÃO E COMPOSER WASELLER */}
                                     <div className="bg-[#f0f2f5] border-t border-slate-300 p-2.5 flex flex-col gap-1.5 z-20">
+                                        <div className="flex items-center justify-between text-[10px] text-slate-500 px-1">
+                                            <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-700">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={useStamp}
+                                                    onChange={e => setUseStamp(e.target.checked)}
+                                                    className="rounded text-emerald-600"
+                                                />
+                                                <span>Assinar como <strong>{currentUser?.name || "Operador"}</strong></span>
+                                            </label>
+
+                                            <button
+                                                onClick={() => setShowQuickReplies(true)}
+                                                className="text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1"
+                                            >
+                                                <Zap className="w-3 h-3 text-amber-500 fill-amber-400" /> Templates RH
+                                            </button>
+                                        </div>
+
                                         {isRecording ? (
                                             <div className="flex items-center justify-between bg-rose-50 border border-rose-200 rounded-xl px-4 py-2 text-rose-800 animate-pulse">
                                                 <span className="text-xs font-bold font-mono">
@@ -505,7 +732,7 @@ export function HrTicketModal({
                                                 <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="*/*" />
                                                 <button
                                                     type="button"
-                                                    className="text-slate-500 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-200 transition"
+                                                    className="text-slate-500 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-200 transition cursor-pointer"
                                                     onClick={() => fileInputRef.current?.click()}
                                                     title="Anexar arquivo"
                                                 >
@@ -514,7 +741,7 @@ export function HrTicketModal({
 
                                                 <button
                                                     type="button"
-                                                    className="text-slate-500 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50 transition"
+                                                    className="text-slate-500 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50 transition cursor-pointer"
                                                     onClick={handleStartRecording}
                                                     title="Gravar áudio"
                                                 >
@@ -530,14 +757,14 @@ export function HrTicketModal({
                                                             handleSendMessage();
                                                         }
                                                     }}
-                                                    placeholder="Digite sua resposta..."
-                                                    className="flex-1 text-xs resize-none h-9 min-h-[36px] bg-white border-none rounded-xl px-3 py-2 shadow-2xs"
+                                                    placeholder="Digite sua mensagem para o colaborador..."
+                                                    className="flex-1 text-xs resize-none h-10 min-h-[40px] bg-white border-none rounded-xl px-3 py-2.5 shadow-2xs focus:ring-1 focus:ring-emerald-500"
                                                 />
 
                                                 <Button
                                                     onClick={handleSendMessage}
                                                     disabled={sending || !messageText.trim()}
-                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-9 w-9 p-0 rounded-xl flex items-center justify-center shadow-xs flex-shrink-0"
+                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 w-10 p-0 rounded-xl flex items-center justify-center shadow-xs flex-shrink-0 cursor-pointer"
                                                 >
                                                     <Send className="w-4 h-4 ml-0.5" />
                                                 </Button>
@@ -550,22 +777,22 @@ export function HrTicketModal({
                             {/* NOTAS INTERNAS */}
                             {activeTab === "notes" && (
                                 <div className="flex-1 p-5 bg-slate-100 overflow-y-auto space-y-3 relative z-10">
-                                    <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                                    <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
                                         <h4 className="text-xs font-bold text-slate-800">Nova Anotação Interna</h4>
                                         <Textarea
                                             value={noteText}
                                             onChange={(e) => setNoteText(e.target.value)}
                                             placeholder="Registrar anotação interna sobre este atendimento..."
-                                            className="text-xs h-16"
+                                            className="text-xs h-20"
                                         />
                                         <div className="flex justify-end">
-                                            <Button size="sm" onClick={handleAddNote} className="bg-emerald-600 text-xs font-bold">
+                                            <Button size="sm" onClick={handleAddNote} className="bg-emerald-600 text-xs font-bold rounded-xl">
                                                 Salvar Nota
                                             </Button>
                                         </div>
                                     </div>
                                     {ticket.notes?.map((n: any) => (
-                                        <div key={n.id} className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                                        <div key={n.id} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
                                             <div className="text-xs font-bold text-slate-800">{n.author?.name || "Atendente"}</div>
                                             <p className="text-xs text-slate-600 mt-1">{n.content}</p>
                                         </div>
@@ -579,9 +806,9 @@ export function HrTicketModal({
                                     <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
                                         <div>
                                             <h4 className="text-xs font-bold text-slate-800">📅 Agendar Retorno</h4>
-                                            <p className="text-[11px] text-slate-500">Defina um horário para retornar o contato.</p>
+                                            <p className="text-[11px] text-slate-500">Defina um horário para retornar o contato com este colaborador.</p>
                                         </div>
-                                        <Button onClick={() => setShowScheduleAct(true)} className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl">
+                                        <Button onClick={() => setShowScheduleAct(true)} className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs">
                                             + Novo Lembrete
                                         </Button>
                                     </div>
@@ -609,6 +836,7 @@ export function HrTicketModal({
                     </div>
                 )}
 
+                {/* MODAL DE AGENDAMENTO DE ATIVIDADE */}
                 {showScheduleAct && ticket && (
                     <HrScheduleActivityModal
                         open={showScheduleAct}
@@ -622,6 +850,7 @@ export function HrTicketModal({
                     />
                 )}
 
+                {/* MODAL DE ENCERRAMENTO DE ATENDIMENTO */}
                 {showCloseModal && ticket && (
                     <HrCloseTicketModal
                         open={showCloseModal}
@@ -634,6 +863,15 @@ export function HrTicketModal({
                         }}
                     />
                 )}
+
+                {/* MODAL DE RESPOSTAS RÁPIDAS */}
+                <HrQuickRepliesModal
+                    open={showQuickReplies}
+                    onOpenChange={setShowQuickReplies}
+                    onSelectReply={(text) => {
+                        setMessageText(prev => prev ? `${prev}\n${text}` : text);
+                    }}
+                />
             </DialogContent>
         </Dialog>
     );

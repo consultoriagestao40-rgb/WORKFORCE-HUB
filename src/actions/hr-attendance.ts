@@ -430,10 +430,54 @@ export async function applyLabelToTicket(ticketId: string, labelId: string, appl
 export async function assumeHrTicket(ticketId: string) {
     const user = await getCurrentUser();
     if (!user) return { error: "Não autenticado" };
+
+    const ticket = await prisma.hrTicket.findUnique({
+        where: { id: ticketId },
+        include: { stage: true }
+    });
+    if (!ticket) return { error: "Atendimento não encontrado" };
+
+    // Se estiver em INBOX ou etapa inicial, avançar automaticamente para 'Em Atendimento'
+    let nextStageId = ticket.stageId;
+    if (ticket.stage?.name?.toUpperCase() === "INBOX" || ticket.stage?.isDefault) {
+        const inProgressStage = await prisma.hrPipelineStage.findFirst({
+            where: {
+                OR: [
+                    { name: { contains: "Em Atendimento", mode: "insensitive" } },
+                    { name: { contains: "Atendimento", mode: "insensitive" } },
+                    { order: 1 }
+                ]
+            },
+            orderBy: { order: "asc" }
+        });
+        if (inProgressStage) {
+            nextStageId = inProgressStage.id;
+        }
+    }
+
     await prisma.hrTicket.update({
         where: { id: ticketId },
-        data: { assigneeId: user.id, isPrivate: true, updatedAt: new Date() },
+        data: {
+            assigneeId: user.id,
+            stageId: nextStageId,
+            isPrivate: true,
+            status: "OPEN",
+            updatedAt: new Date()
+        },
     });
+
+    // Registrar evento de sistema no chat
+    await prisma.hrTicketMessage.create({
+        data: {
+            ticketId,
+            senderType: "SYSTEM",
+            senderName: "Sistema",
+            messageType: "SYSTEM",
+            content: `🚀 ${user.name} iniciou o atendimento e assumiu a responsabilidade`,
+            status: "DELIVERED"
+        }
+    });
+
     revalidatePath("/admin/atendimento");
     return { success: true };
 }
@@ -611,7 +655,12 @@ export async function sendHrWhatsAppMessage(data: {
         },
     });
 
-    await prisma.hrTicket.update({ where: { id: data.ticketId }, data: { updatedAt: new Date() } });
+    const ticket = await prisma.hrTicket.findUnique({ where: { id: data.ticketId } });
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    if (ticket && !ticket.assigneeId) {
+        updateData.assigneeId = user.id;
+    }
+    await prisma.hrTicket.update({ where: { id: data.ticketId }, data: updateData });
 
     return { success: true, message: saved };
 }
