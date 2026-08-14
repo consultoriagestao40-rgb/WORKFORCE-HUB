@@ -284,87 +284,33 @@ export async function getHrTicketDetail(ticketId: string) {
             assignee: { select: { id: true, name: true, username: true } },
             labels: true,
             employee: {
-                include: {
-                    role: true,
-                    company: true,
-                    situation: true,
-                    assignments: {
-                        where: { endDate: null },
-                        include: {
-                            posto: {
-                                include: { client: true }
-                            }
-                        },
-                        take: 1
-                    }
+                select: {
+                    id: true,
+                    name: true,
+                    phone: true,
+                    cpf: true,
+                    role: { select: { name: true } },
                 }
             },
-            messages: { orderBy: { createdAt: "asc" } },
+            messages: {
+                orderBy: { createdAt: "asc" },
+                take: 150
+            },
             notes: {
                 include: { author: { select: { id: true, name: true } } },
                 orderBy: { createdAt: "desc" },
-            },
-            attachments: {
-                include: { uploadedBy: { select: { id: true, name: true } } },
-                orderBy: { createdAt: "desc" },
+                take: 20
             },
             activities: {
                 include: { assignee: { select: { id: true, name: true } } },
                 orderBy: { dueAt: "asc" },
-            },
-            scheduledMsgs: { where: { status: "PENDING" }, orderBy: { scheduledAt: "asc" } },
-            transfers: {
-                include: {
-                    fromUser: { select: { id: true, name: true } },
-                    toUser: { select: { id: true, name: true } },
-                },
-                orderBy: { createdAt: "desc" },
+                take: 20
             },
         },
     });
 
-    if (!ticket) return null;
-
-    if (ticket && ticket.messages.length === 0) {
-        // Se nao tem nenhuma mensagem no banco, consultar o Z-API (tratando grupos e chats normais)
-        try {
-            const isGroup = ticket.contactPhone.length > 13 || ticket.contactPhone.includes("120363") || ticket.title.toLowerCase().includes("grupo") || ticket.title.includes("Taxas");
-            const phoneToQuery = isGroup ? (ticket.contactPhone.endsWith("-group") ? ticket.contactPhone : `${ticket.contactPhone}-group`) : ticket.contactPhone;
-
-            const endpoint = isGroup ? `group-metadata/${phoneToQuery}` : `chats/${phoneToQuery}`;
-            const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/${endpoint}`;
-            const res = await fetch(url, { headers: zapiHeaders(), next: { revalidate: 0 } });
-            
-            let messageContent = "Atendimento iniciado via WhatsApp";
-
-            if (res.ok) {
-                const data = await res.json();
-                if (isGroup && data) {
-                    const count = data.participants ? data.participants.length : 0;
-                    messageContent = `👥 [Grupo de WhatsApp]: ${data.subject || ticket.contactName} (${count} participantes)`;
-                } else if (data && (data.lastMessage || data.name)) {
-                    messageContent = data.lastMessage?.text?.message || data.lastMessage?.text || `Atendimento iniciado via WhatsApp com ${ticket.contactName}`;
-                }
-            }
-
-            const initialMsg = await prisma.hrTicketMessage.create({
-                data: {
-                    ticketId: ticket.id,
-                    senderType: "EMPLOYEE",
-                    senderName: ticket.contactName,
-                    content: messageContent,
-                    status: "DELIVERED"
-                }
-            });
-            ticket.messages = [initialMsg as any];
-        } catch (e) {
-            console.error("[Z-API Last Msg Error]", e);
-        }
-    }
-
     return ticket;
 }
-
 
 export async function updateContactInfo(ticketId: string, data: { name?: string; phone?: string }) {
     const user = await getCurrentUser();

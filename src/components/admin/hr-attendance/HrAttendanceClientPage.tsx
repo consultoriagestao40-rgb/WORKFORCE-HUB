@@ -288,15 +288,20 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         return () => clearInterval(interval);
     }, [loadData, searchQuery]);
 
+    const ticketCacheRef = useRef<Map<string, any>>(new Map());
+
     // Carregar detalhes do ticket selecionado
     const loadTicketDetail = useCallback(async (id: string) => {
-        setLoadingDetail(true);
         try {
             const res = await getHrTicketDetail(id);
             if (res) {
-                setTicketDetail(res);
-                setContactNameInput(res.contactName);
-                setContactPhoneInput(res.contactPhone);
+                ticketCacheRef.current.set(id, res);
+                setTicketDetail((prev: any) => {
+                    if (prev?.id === id || !prev) return res;
+                    return prev;
+                });
+                setContactNameInput(res.contactName || "");
+                setContactPhoneInput(res.contactPhone || "");
                 markHrTicketRead(id);
             }
         } finally {
@@ -304,11 +309,47 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
         }
     }, []);
 
+    const handleSelectTicket = useCallback((t: any) => {
+        if (!t || t.id === selectedTicketId) return;
+        setSelectedTicketId(t.id);
+
+        const cached = ticketCacheRef.current.get(t.id);
+        if (cached) {
+            setTicketDetail(cached);
+            setContactNameInput(cached.contactName || "");
+            setContactPhoneInput(cached.contactPhone || "");
+            setLoadingDetail(false);
+        } else {
+            // Preview instantâneo em 0ms a partir dos dados do card
+            setTicketDetail({
+                id: t.id,
+                title: t.title,
+                contactName: t.contactName,
+                contactPhone: t.contactPhone,
+                contactPhotoUrl: t.contactPhotoUrl,
+                stageId: t.stageId,
+                assigneeId: t.assigneeId,
+                assignee: t.assignee,
+                employee: t.employee,
+                status: t.status,
+                messages: t.messages || [],
+                notes: [],
+                activities: [],
+                labels: t.labels || []
+            });
+            setContactNameInput(t.contactName || "");
+            setContactPhoneInput(t.contactPhone || "");
+            setLoadingDetail(true);
+        }
+
+        loadTicketDetail(t.id);
+    }, [selectedTicketId, loadTicketDetail]);
+
     useEffect(() => {
-        if (selectedTicketId) {
+        if (selectedTicketId && !ticketDetail) {
             loadTicketDetail(selectedTicketId);
         }
-    }, [selectedTicketId, loadTicketDetail]);
+    }, [selectedTicketId, ticketDetail, loadTicketDetail]);
 
     // Polling de 2s para novas mensagens da conversa ativa (Tempo Real)
     useEffect(() => {
@@ -430,15 +471,23 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
     };
 
     const handleSaveContactEdit = async () => {
-        if (!selectedTicketId) return;
-        await updateContactInfo(selectedTicketId, {
-            name: contactNameInput.trim(),
-            phone: contactPhoneInput.trim()
-        });
+        if (!selectedTicketId || !contactNameInput.trim()) return;
+        const newName = contactNameInput.trim();
         setIsEditingContact(false);
-        toast.success("Contato atualizado!");
-        loadData();
-        loadTicketDetail(selectedTicketId);
+
+        // Atualização otimista imediata
+        setTicketDetail((prev: any) => prev ? { ...prev, contactName: newName } : prev);
+        setTickets((prev: any[]) => prev.map(t => t.id === selectedTicketId ? { ...t, contactName: newName } : t));
+
+        try {
+            await updateContactInfo(selectedTicketId, {
+                name: newName
+            });
+            toast.success("Nome do contato atualizado com sucesso!");
+            loadData();
+        } catch {
+            toast.error("Erro ao atualizar nome do contato");
+        }
     };
 
     // Contadores para as Abas WaSeller
@@ -658,7 +707,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                     return (
                                         <div
                                             key={t.id}
-                                            onClick={() => setSelectedTicketId(t.id)}
+                                            onClick={() => handleSelectTicket(t)}
                                             className={`p-3 flex items-start gap-3 cursor-pointer transition relative ${
                                                 isSelected ? "bg-emerald-50/70 border-l-4 border-l-emerald-600" : "hover:bg-slate-50"
                                             }`}
@@ -758,14 +807,54 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                                             </div>
                                         )}
                                         <div className="overflow-hidden min-w-0 flex-1">
-                                            <div className="flex items-center gap-1.5">
-                                                <h3 className="text-xs font-black text-slate-900 truncate max-w-[200px] leading-tight" title={ticketDetail.contactName}>
-                                                    {ticketDetail.contactName}
-                                                </h3>
-                                                <button onClick={() => setIsEditingContact(true)} className="text-slate-400 hover:text-slate-600 text-xs flex-shrink-0" title="Editar contato">
-                                                    ✏️
-                                                </button>
-                                            </div>
+                                            {isEditingContact ? (
+                                                <div className="flex items-center gap-1.5 py-0.5">
+                                                    <input
+                                                        type="text"
+                                                        value={contactNameInput}
+                                                        onChange={e => setContactNameInput(e.target.value)}
+                                                        onKeyDown={e => {
+                                                            if (e.key === "Enter") handleSaveContactEdit();
+                                                            if (e.key === "Escape") setIsEditingContact(false);
+                                                        }}
+                                                        autoFocus
+                                                        className="text-xs font-bold bg-white border border-emerald-500 rounded-lg px-2 py-1 w-44 shadow-2xs focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-900"
+                                                        placeholder="Nome do contato..."
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleSaveContactEdit}
+                                                        className="text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded-lg shadow-xs cursor-pointer transition"
+                                                        title="Salvar"
+                                                    >
+                                                        Salvar
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsEditingContact(false)}
+                                                        className="text-[11px] bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-1.5 py-1 rounded-lg cursor-pointer transition"
+                                                        title="Cancelar"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-1.5">
+                                                    <h3 className="text-xs font-black text-slate-900 truncate max-w-[200px] leading-tight" title={ticketDetail.contactName}>
+                                                        {ticketDetail.contactName}
+                                                    </h3>
+                                                    <button
+                                                        onClick={() => {
+                                                            setContactNameInput(ticketDetail.contactName || "");
+                                                            setIsEditingContact(true);
+                                                        }}
+                                                        className="text-slate-400 hover:text-emerald-700 text-xs flex-shrink-0 cursor-pointer p-0.5 transition"
+                                                        title="Editar nome do contato"
+                                                    >
+                                                        ✏️
+                                                    </button>
+                                                </div>
+                                            )}
                                             <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
                                                 <span>{ticketDetail.contactPhone}</span>
                                                 {ticketDetail.employee && (
