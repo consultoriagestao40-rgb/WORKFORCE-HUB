@@ -534,18 +534,26 @@ export async function moveCandidate(candidateId: string, newStageId: string, jus
     const user = await getCurrentUser();
     if (!user) throw new Error("Unauthorized");
 
-    // Support Vacancy card dragging: moves all candidates of that vacancy to the new stage
+    // Support Vacancy card dragging: moves the chosen candidate (or all) of that vacancy to the new stage
     if (candidateId.startsWith("VAC-")) {
         const vacancyId = candidateId.replace("VAC-", "");
         const newStage = await prisma.recruitmentStage.findUnique({ where: { id: newStageId } });
         if (!newStage) throw new Error("New stage not found");
+
+        const vacancy = await prisma.vacancy.findUnique({ where: { id: vacancyId } });
+        const customReq = (vacancy?.customRequirements as any) || {};
+        const selectedCandId = customReq.selectedCandidateId;
 
         const candidates = await prisma.recruitmentCandidate.findMany({
             where: { vacancyId },
             include: { stage: true }
         });
 
-        for (const cand of candidates) {
+        const targetCandidates = selectedCandId
+            ? candidates.filter(c => c.id === selectedCandId)
+            : candidates;
+
+        for (const cand of (targetCandidates.length > 0 ? targetCandidates : candidates)) {
             await prisma.recruitmentCandidate.update({
                 where: { id: cand.id },
                 data: {
@@ -561,7 +569,7 @@ export async function moveCandidate(candidateId: string, newStageId: string, jus
                     vacancyId,
                     candidateName: cand.name,
                     action: "MOVED",
-                    details: `Movido em lote para ${newStage.name} via arraste da vaga no Kanban.`,
+                    details: `Movido para ${newStage.name} via Kanban da vaga.`,
                     userId: user.id
                 }
             });

@@ -214,44 +214,45 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
         const sourceStageIndex = stages.findIndex(s => s.id === source.droppableId);
         const destStageIndex = stages.findIndex(s => s.id === destination.droppableId);
 
+        if (sourceStageIndex === -1 || destStageIndex === -1) {
+            return;
+        }
+
         // --- RESTRICTION: Prevent Backward Drag ---
         if (destStageIndex < sourceStageIndex) {
             toast.error("Movimentação de retorno não permitida manualmente. Use as opções de Reprovar ou Desistir.");
             return;
         }
 
-        const newStages = [...stages];
-        const newSourceStage = { ...newStages[sourceStageIndex] };
-        const newDestStage = { ...newStages[destStageIndex] };
+        // Clone deeply to prevent mutating state or initialStages directly
+        const newStages = stages.map(s => ({
+            ...s,
+            candidates: [...s.candidates]
+        }));
 
-        const [movedCandidate] = newSourceStage.candidates.splice(source.index, 1);
+        const sourceCandidates = newStages[sourceStageIndex]?.candidates;
+        if (!sourceCandidates || !sourceCandidates[source.index]) return;
+
+        const [movedCandidate] = sourceCandidates.splice(source.index, 1);
+        if (!movedCandidate) return;
 
         // Optimistic Update for Due Date if moving to a stage with SLA
-        if (newDestStage.slaDays && newDestStage.slaDays > 0) {
+        const destStage = newStages[destStageIndex];
+        if (destStage?.slaDays && destStage.slaDays > 0) {
             const newDueDate = new Date();
-            // This is just visual until server refresh
-            newDueDate.setDate(newDueDate.getDate() + newDestStage.slaDays);
+            newDueDate.setDate(newDueDate.getDate() + destStage.slaDays);
             movedCandidate.stageDueDate = newDueDate;
         } else {
             movedCandidate.stageDueDate = undefined;
         }
 
-        newDestStage.candidates.splice(destination.index, 0, movedCandidate);
-
-        newStages[sourceStageIndex] = newSourceStage;
-        newStages[destStageIndex] = newDestStage;
+        if (destStage?.candidates) {
+            destStage.candidates.splice(destination.index, 0, movedCandidate);
+        }
 
         setStages(newStages);
 
         try {
-            // If moving BACKWARDS (Rejecting) from an Approval Stage, we might need Justification.
-            // Drag and drop doesn't prompt for justification easily. 
-            // Ideally, dragging BACK from Approval should Open a Modal.
-            // For now, let's allow "Generic Move" via Drag. 
-            // If server requires justification (Rejecting from Approver Stage), it will throw.
-            // We should catch that and open a modal? Or just toast error "Use o detalhe para reprovar".
-
-            // Actually stages are array - assuming order matches index for simplicity in this view
             const isMovingBackIndex = destStageIndex < sourceStageIndex;
 
             if (sourceStage?.approverId && isMovingBackIndex) {
@@ -259,11 +260,11 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
             }
 
             await moveCandidate(draggableId, destination.droppableId);
-            toast.success("Candidato movido com sucesso");
+            toast.success("Card movido com sucesso!");
         } catch (error: any) {
             // Revert state
             console.error(error);
-            setStages(initialStages); // Reset to original
+            setStages(initialStages.map(s => ({ ...s, candidates: [...s.candidates] }))); // Reset to original
             toast.error(error.message || "Erro ao mover candidato");
         }
     };
@@ -565,12 +566,12 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                 {/* Indicador do Candidato Escolhido pelo Recrutador */}
                                                                 {candidate.type === 'VACANCY' && (
                                                                     <div className="mb-2">
-                                                                        {(candidate as any).selectedCandidate ? (
+                                                                        {(candidate as any).selectedCandidate && typeof (candidate as any).selectedCandidate === 'object' ? (
                                                                             <div className="p-1.5 rounded-lg bg-emerald-50 border border-emerald-300/80 flex items-center justify-between text-[11px] shadow-2xs">
                                                                                 <div className="flex items-center gap-1.5 overflow-hidden min-w-0">
                                                                                     <span className="text-emerald-700 font-black shrink-0">⭐</span>
-                                                                                    <span className="font-extrabold text-emerald-950 truncate max-w-[130px]" title={(candidate as any).selectedCandidate.name}>
-                                                                                        {(candidate as any).selectedCandidate.name}
+                                                                                    <span className="font-extrabold text-emerald-950 truncate max-w-[130px]" title={(candidate as any).selectedCandidate.name || 'Candidato'}>
+                                                                                        {(candidate as any).selectedCandidate.name || 'Candidato'}
                                                                                     </span>
                                                                                 </div>
                                                                                 <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-200 text-emerald-900 font-extrabold uppercase shrink-0">

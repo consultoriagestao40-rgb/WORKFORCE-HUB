@@ -77,9 +77,9 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
     };
 
     // Filter Logic for Kanban View
-    const filteredStages = stages.map(stage => ({
+    const filteredStages = (stages || []).map(stage => ({
         ...stage,
-        candidates: stage.candidates.filter((c: any) => {
+        candidates: (stage.candidates || []).filter((c: any) => {
             const clientName = c.vacancy?.posto?.client?.name || "";
             if (clientName === 'ROTATIVO') return false;
 
@@ -90,7 +90,7 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
             if (!searchTerm) return true;
 
             const searchLower = searchTerm.toLowerCase();
-            const title = c.type === 'VACANCY' ? c.vacancy.title : c.name;
+            const title = c.type === 'VACANCY' ? c.vacancy?.title : c.name;
             const roleName = c.vacancy?.role?.name || "";
             const companyName = c.vacancy?.company?.name || "";
 
