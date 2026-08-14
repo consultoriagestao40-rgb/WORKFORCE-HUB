@@ -144,7 +144,7 @@ export function HrCrmSidePanel({
             <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
                 <div className="flex items-center gap-1.5">
                     <Sparkles className="w-4 h-4 text-emerald-600" />
-                    <span className="font-black text-slate-800 tracking-tight text-xs">CRM WaSeller</span>
+                    <span className="font-black text-slate-800 tracking-tight text-xs">CRM Atendimento</span>
                 </div>
                 {onClosePanel && (
                     <button

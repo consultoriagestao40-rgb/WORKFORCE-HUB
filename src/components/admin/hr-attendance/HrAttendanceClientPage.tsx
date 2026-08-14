@@ -81,7 +81,7 @@ interface Props {
 }
 
 export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
-    // Alternador de Visões: 'chat' (WaSeller 3-Colunas) ou 'kanban' (Pipeline Kanban)
+    // Alternador de Visões: 'chat' (Atendimento 3-Colunas) ou 'kanban' (Pipeline Kanban)
     const [mainView, setMainView] = useState<"chat" | "kanban">("chat");
 
     const [stages, setStages] = useState<any[]>([]);
@@ -89,7 +89,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
     const [labels, setLabels] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Filtros de Categoria WaSeller
+    // Filtros de Categoria de Atendimento
     const [categoryTab, setCategoryTab] = useState<"my" | "unassigned" | "all" | "closed" | "groups">("my");
     const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
@@ -103,7 +103,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
     const [kanbanModalTicketId, setKanbanModalTicketId] = useState<string | null>(null);
     const [modalInitialTab, setModalInitialTab] = useState<"chat" | "notes" | "activities" | "value">("chat");
 
-    // Painel CRM WaSeller da Direita
+    // Painel CRM da Direita
     const [showCrmPanel, setShowCrmPanel] = useState(true);
 
     // Modais
@@ -549,7 +549,7 @@ export function HrAttendanceClientPage({ currentUser, allUsers }: Props) {
                             }`}
                         >
                             <MessageSquare className="w-3.5 h-3.5" />
-                            Chat WaSeller
+                            Chat WhatsApp
                         </button>
                         <button
                             onClick={() => React.startTransition(() => {
