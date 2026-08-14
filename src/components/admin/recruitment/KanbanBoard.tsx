@@ -152,11 +152,23 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
             }
         }
 
+        // Se for uma vaga com múltiplos candidatos e nenhum foi escolhido pelo recrutador
+        const movedItem = sourceStageRef?.candidates.find(c => c.id === draggableId);
+        if (movedItem && movedItem.type === 'VACANCY') {
+            const hasMultiple = (movedItem.vacancy?.candidates?.length || 0) > 0;
+            const selectedCand = (movedItem as any).selectedCandidate || movedItem.vacancy?.candidates?.find((c: any) => c.id === movedItem.vacancy?.customRequirements?.selectedCandidateId);
+            if (hasMultiple && !selectedCand) {
+                toast.info("Abra a vaga e escolha qual candidato deseja avançar no processo.");
+                setSelectedCandidate(movedItem);
+                setIsDetailsOpen(true);
+                return;
+            }
+        }
+
         const destStageRef = stages.find(s => s.id === destination.droppableId);
 
-        // --- ACTION 03: Intercept Move to "Posto" ---
-        if (destStageRef?.name?.toLowerCase() === 'posto') {
-            const sourceStageRef = stages.find(s => s.id === source.droppableId);
+        // --- ACTION 03: Intercept Move to "Posto" ou "Admissão" ---
+        if (destStageRef?.name?.toLowerCase() === 'posto' || destStageRef?.name?.toLowerCase().includes('admitido')) {
             const candidateToMove = sourceStageRef?.candidates[source.index];
 
             if (candidateToMove) {
@@ -164,17 +176,19 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                 setPendingMove(result);
 
                 // Extract the candidate from the vacancy card
-                const stageId = source.droppableId;
-                const candidatesInCurrentStage = candidateToMove.type === 'VACANCY'
-                    ? candidateToMove.vacancy.candidates?.filter((c: any) => c.stageId === stageId) || []
-                    : [];
-                const actualCandidate = candidatesInCurrentStage[0] || candidateToMove;
+                const selectedCand = (candidateToMove as any).selectedCandidate || candidateToMove.vacancy?.candidates?.find((c: any) => c.id === candidateToMove.vacancy?.customRequirements?.selectedCandidateId);
+                const actualCandidate = selectedCand || candidateToMove.vacancy?.candidates?.[0] || candidateToMove;
+                const extra = actualCandidate.extraFields || {};
 
-                // Try to pre-fill data
+                // Try to pre-fill data com IA e documentos extraídos
                 setPrefilledEmployee({
                     name: actualCandidate.name || "",
-                    email: actualCandidate.email || "",
-                    phone: actualCandidate.phone || "",
+                    email: actualCandidate.email || extra.email || "",
+                    phone: actualCandidate.phone || extra.phone || "",
+                    cpf: extra.cpf || actualCandidate.cpf || "",
+                    birthDate: extra.birthDate || "",
+                    gender: extra.gender || "",
+                    address: extra.address || "",
                     roleId: (candidateToMove.vacancy as any)?.roleId || (candidateToMove.vacancy as any)?.role?.id || "",
                     companyId: (candidateToMove.vacancy as any)?.companyId || (candidateToMove.vacancy as any)?.company?.id || "",
 
@@ -539,7 +553,7 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                 </div>
 
                                                                 {/* Subtitle: Role/Context */}
-                                                                <div className="text-[11px] text-slate-500 font-medium mb-2 flex items-center gap-1">
+                                                                <div className="text-[11px] text-slate-500 font-medium mb-1.5 flex items-center gap-1">
                                                                     <Briefcase className="w-3 h-3 text-slate-400 shrink-0" />
                                                                     <span className="truncate">
                                                                         {candidate.type === 'VACANCY'
@@ -547,6 +561,35 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                             : (candidate.vacancy?.role?.name || candidate.vacancy?.title || "Sem Vaga")}
                                                                     </span>
                                                                 </div>
+
+                                                                {/* Indicador do Candidato Escolhido pelo Recrutador */}
+                                                                {candidate.type === 'VACANCY' && (
+                                                                    <div className="mb-2">
+                                                                        {(candidate as any).selectedCandidate ? (
+                                                                            <div className="p-1.5 rounded-lg bg-emerald-50 border border-emerald-300/80 flex items-center justify-between text-[11px] shadow-2xs">
+                                                                                <div className="flex items-center gap-1.5 overflow-hidden min-w-0">
+                                                                                    <span className="text-emerald-700 font-black shrink-0">⭐</span>
+                                                                                    <span className="font-extrabold text-emerald-950 truncate max-w-[130px]" title={(candidate as any).selectedCandidate.name}>
+                                                                                        {(candidate as any).selectedCandidate.name}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-200 text-emerald-900 font-extrabold uppercase shrink-0">
+                                                                                    {(candidate as any).selectedCandidate.stageName || 'Ativo'}
+                                                                                </span>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="p-1 rounded-md bg-amber-50/80 border border-amber-200 text-[10px] text-amber-800 font-bold flex items-center justify-between">
+                                                                                <span className="flex items-center gap-1">
+                                                                                    <span>⚠️</span>
+                                                                                    <span>Escolha no Ranking</span>
+                                                                                </span>
+                                                                                <span className="text-[9px] text-amber-700 font-mono">
+                                                                                    {candidate.vacancy?.candidates?.length || 0} cand.
+                                                                                </span>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
 
                                                                 {/* Footer: Client, Due Date, Recruiter */}
                                                                 <div className="flex flex-col gap-1.5 pt-1.5 border-t border-slate-100">

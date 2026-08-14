@@ -22,6 +22,9 @@ export interface NewEmployeeSheetProps {
         name?: string;
         email?: string;
         cpf?: string;
+        birthDate?: string;
+        gender?: string;
+        address?: string;
         roleId?: string;
         companyId?: string;
         phone?: string;
@@ -123,11 +126,14 @@ export function NewEmployeeSheet({
             setEmail(initialData.email || "");
             setRoleId(initialData.roleId || "");
             setCompanyId(initialData.companyId || "");
+            if (initialData.birthDate) setBirthDate(initialData.birthDate);
+            if (initialData.gender) setGender(initialData.gender);
+            if (initialData.address) setAddress(initialData.address);
             if (initialData.postoId) {
                 handlePostoChange(initialData.postoId);
             }
         }
-    }, [open]);
+    }, [open, initialData]);
 
     const handleCancel = () => {
         setOpen(false);

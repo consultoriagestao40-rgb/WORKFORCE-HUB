@@ -8,7 +8,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { X, MessageSquare, Send, Paperclip, CheckCircle2, XCircle, Clock, Save, User, Mail, Phone, Calendar, Briefcase, MapPin, Building2, Building, DollarSign, AlertCircle, Trash2, Copy, FileText, Upload, AlertTriangle, ChevronDown, Sparkles, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate, updateVacancy, addVacancyParticipant, removeVacancyParticipant, addRecruitmentComment, getRecruitmentComments, getVacancyCandidates, evaluateCandidateWithAI, updateCandidateEvaluation } from "@/actions/recruitment";
+import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate, updateVacancy, addVacancyParticipant, removeVacancyParticipant, addRecruitmentComment, getRecruitmentComments, getVacancyCandidates, evaluateCandidateWithAI, updateCandidateEvaluation, selectCandidateForVacancy, advanceCandidateToStage } from "@/actions/recruitment";
 import { DocumentacaoPanel } from "./stages/DocumentacaoPanel";
 import { ExamePanel } from "./stages/ExamePanel";
 import { OnvioPanel } from "./stages/OnvioPanel";
@@ -66,11 +66,36 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
     const [expandedRankId, setExpandedRankId] = useState<string | null>(null);
     const [rankEvals, setRankEvals] = useState<Record<string, any[]>>({});
     
-    // Admission State
+    // Admission & Selection State
     const [selectedAdmissionCandidateId, setSelectedAdmissionCandidateId] = useState<string>("");
+    const [selectedCandidateForVacancyId, setSelectedCandidateForVacancyId] = useState<string>(
+        candidate?.vacancy?.customRequirements?.selectedCandidateId || candidate?.vacancy?.selectedCandidateId || ""
+    );
     const [notes, setNotes] = useState("");
     const [isVacancyReqsExpanded, setIsVacancyReqsExpanded] = useState(false);
     const [isReevaluatingAi, setIsReevaluatingAi] = useState(false);
+
+    useEffect(() => {
+        const selId = candidate?.vacancy?.customRequirements?.selectedCandidateId || candidate?.vacancy?.selectedCandidateId;
+        if (selId) {
+            setSelectedCandidateForVacancyId(selId);
+            setSelectedAdmissionCandidateId(selId);
+        }
+    }, [candidate]);
+
+    const handleSelectCandidateForProcess = async (cand: any) => {
+        const vacancyId = candidate?.vacancy?.id || (candidate?.type === 'VACANCY' ? (candidate.realId || candidate.id.replace('VAC-', '')) : null);
+        if (!vacancyId) return;
+        try {
+            await selectCandidateForVacancy(vacancyId, cand.id);
+            setSelectedCandidateForVacancyId(cand.id);
+            setSelectedAdmissionCandidateId(cand.id);
+            toast.success(`🏆 Candidato(a) "${cand.name}" foi escolhido(a) para seguir no processo da vaga!`);
+            router.refresh();
+        } catch (e: any) {
+            toast.error(e.message || "Erro ao selecionar candidato");
+        }
+    };
 
     // WhatsApp Chat Modal State
     const [waCandidate, setWaCandidate] = useState<any | null>(null);
@@ -936,9 +961,46 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                         <div className="border-b pb-2 flex items-center justify-between">
                                             <div>
                                                 <h3 className="font-bold text-slate-800 text-sm">Ranking de Candidatos ({rankedCandidates.length})</h3>
-                                                <p className="text-xs text-slate-400">Clique em um candidato para ver e avaliar os requisitos.</p>
+                                                <p className="text-xs text-slate-400">Escolha o candidato ideal para seguir no processo de contratação desta vaga.</p>
                                             </div>
                                         </div>
+
+                                        {/* Banner do Candidato Escolhido pelo Recrutador */}
+                                        {selectedCandidateForVacancyId && (() => {
+                                            const chosen = rankedCandidates.find(c => c.id === selectedCandidateForVacancyId);
+                                            if (!chosen) return null;
+                                            return (
+                                                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-400 rounded-xl p-3.5 flex items-center justify-between shadow-xs">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-base shadow-xs shrink-0">
+                                                            🏆
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">Candidato Escolhido para a Vaga</span>
+                                                                <span className="px-2 py-0.2 rounded-full bg-emerald-200 text-emerald-900 text-[10px] font-extrabold">Ativo</span>
+                                                            </div>
+                                                            <h4 className="font-extrabold text-slate-900 text-sm">{chosen.name}</h4>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                setSelectedAdmissionCandidateId(chosen.id);
+                                                                const atsTabBtn = document.querySelector('[data-state][value="documents"]') as HTMLElement;
+                                                                if (atsTabBtn) atsTabBtn.click();
+                                                            }}
+                                                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-8 px-3 shadow-xs"
+                                                        >
+                                                            <FileText className="w-3.5 h-3.5 mr-1" />
+                                                            Documentos & Admissão
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
 
                                         {isLoadingRanked ? (
                                             <div className="text-center py-6 text-xs text-slate-400">Carregando ranking...</div>
@@ -1033,6 +1095,27 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                          </div>
                                                                     </div>
                                                                     <div className="flex items-center gap-2 shrink-0">
+                                                                        {/* Botão de Escolha do Recrutador */}
+                                                                        {selectedCandidateForVacancyId === cand.id ? (
+                                                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-black text-[10px] shadow-xs uppercase tracking-wide">
+                                                                                <CheckCircle2 className="w-3 h-3" />
+                                                                                Escolhido
+                                                                            </span>
+                                                                        ) : (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleSelectCandidateForProcess(cand);
+                                                                                }}
+                                                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 font-bold text-[10px] shadow-2xs transition-all active:scale-95 cursor-pointer"
+                                                                                title="Escolher este candidato para seguir no processo da vaga"
+                                                                            >
+                                                                                <Sparkles className="w-3 h-3 text-emerald-600" />
+                                                                                <span>Escolher</span>
+                                                                            </button>
+                                                                        )}
+
                                                                         {isDisqualified ? (
                                                                             <span className="px-2 py-0.5 rounded bg-red-600 text-white text-[9px] font-black uppercase">Desclassificado</span>
                                                                         ) : (

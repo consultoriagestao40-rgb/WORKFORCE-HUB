@@ -411,65 +411,70 @@ export async function getRecruitmentBoardData() {
     });
 
     // Helper to map vacancy object to Kanban card structure
-    const createVacancyCard = (v: typeof openVacancies[0], totalCandidates: number) => ({
-        id: `VAC-${v.id}`, // Unique ID across the whole board
-        realId: v.id,
-        name: `${v.title} (${totalCandidates} candidato${totalCandidates !== 1 ? 's' : ''})`,
-        type: 'VACANCY' as const,
-        createdAt: v.createdAt,
-        vacancy: {
-            id: v.id,
-            title: `${v.title} (${totalCandidates} candidato${totalCandidates !== 1 ? 's' : ''})`,
-            priority: v.priority,
-            openingReason: (v as any).openingReason,
-            status: v.status,
-            role: v.role,
-            posto: v.posto,
-            company: v.company,
-            description: v.description,
-            recruiter: v.recruiter,
+    const createVacancyCard = (v: typeof openVacancies[0], totalCandidates: number) => {
+        const customReq = (v.customRequirements as any) || {};
+        const selectedCand = customReq.selectedCandidateId ? v.candidates.find(c => c.id === customReq.selectedCandidateId) : null;
+        return {
+            id: `VAC-${v.id}`, // Unique ID across the whole board
+            realId: v.id,
+            name: `${v.title} (${totalCandidates} candidato${totalCandidates !== 1 ? 's' : ''})`,
+            type: 'VACANCY' as const,
             createdAt: v.createdAt,
-            participants: v.participants,
-            reqGender: v.reqGender,
-            reqExperience: v.reqExperience,
-            reqKnowledge: v.reqKnowledge,
-            reqAgeMin: v.reqAgeMin,
-            reqAgeMax: v.reqAgeMax,
-            plannedStartDate: v.plannedStartDate,
-            customRequirements: v.customRequirements,
-            candidates: v.candidates
-        }
-    });
+            selectedCandidate: selectedCand ? {
+                id: selectedCand.id,
+                name: selectedCand.name,
+                phone: selectedCand.phone,
+                email: selectedCand.email,
+                stageName: selectedCand.stage?.name,
+                documentationStatus: selectedCand.documentationStatus,
+                asoStatus: selectedCand.asoStatus,
+                onvioLaunched: selectedCand.onvioLaunched
+            } : null,
+            vacancy: {
+                id: v.id,
+                title: `${v.title} (${totalCandidates} candidato${totalCandidates !== 1 ? 's' : ''})`,
+                priority: v.priority,
+                openingReason: (v as any).openingReason,
+                status: v.status,
+                role: v.role,
+                posto: v.posto,
+                company: v.company,
+                description: v.description,
+                recruiter: v.recruiter,
+                createdAt: v.createdAt,
+                participants: v.participants,
+                reqGender: v.reqGender,
+                reqExperience: v.reqExperience,
+                reqKnowledge: v.reqKnowledge,
+                reqAgeMin: v.reqAgeMin,
+                reqAgeMax: v.reqAgeMax,
+                plannedStartDate: v.plannedStartDate,
+                customRequirements: v.customRequirements,
+                selectedCandidateId: customReq.selectedCandidateId || null,
+                candidates: v.candidates
+            }
+        };
+    };
 
-    // 4. Place each vacancy in exactly one stage based on its candidates
+    // 4. Place each vacancy in exactly one stage based on the recruiter's chosen candidate
     openVacancies.forEach(v => {
         const totalCandidates = v.candidates.length;
+        const customReq = (v.customRequirements as any) || {};
+        const selectedCand = customReq.selectedCandidateId ? v.candidates.find(c => c.id === customReq.selectedCandidateId) : null;
+
         if (totalCandidates === 0) {
             // No candidates -> vacancy card stays in R&S
             stageCardsMap[rnsStageDb!.id].push(createVacancyCard(v, 0));
+        } else if (selectedCand && selectedCand.stageId && stageCardsMap[selectedCand.stageId]) {
+            // Recruiter selected a specific candidate -> place card in chosen candidate's stage
+            stageCardsMap[selectedCand.stageId].push(createVacancyCard(v, totalCandidates));
         } else {
-            // Filter candidates with valid stages (not matching the backlog stage itself)
-            const activeCandidates = v.candidates.filter(c => c.stage && c.stageId !== rnsStageDb!.id);
-            if (activeCandidates.length === 0) {
-                // If all candidates are somehow in backlog or without stage, keep vacancy in R&S
-                stageCardsMap[rnsStageDb!.id].push(createVacancyCard(v, totalCandidates));
+            // Multiple candidates or no candidate chosen yet -> stays in first standard stage (Seleção)
+            const firstStandard = standardStages[0];
+            if (firstStandard && stageCardsMap[firstStandard.id]) {
+                stageCardsMap[firstStandard.id].push(createVacancyCard(v, totalCandidates));
             } else {
-                // Find highest stage order among candidates
-                activeCandidates.sort((a, b) => (b.stage?.order || 0) - (a.stage?.order || 0));
-                const highestCandidate = activeCandidates[0];
-                const targetStageId = highestCandidate.stageId;
-
-                if (stageCardsMap[targetStageId]) {
-                    stageCardsMap[targetStageId].push(createVacancyCard(v, totalCandidates));
-                } else {
-                    // Fallback to first standard stage (Seleção)
-                    const firstStandard = standardStages[0];
-                    if (firstStandard) {
-                        stageCardsMap[firstStandard.id].push(createVacancyCard(v, totalCandidates));
-                    } else {
-                        stageCardsMap[rnsStageDb!.id].push(createVacancyCard(v, totalCandidates));
-                    }
-                }
+                stageCardsMap[rnsStageDb!.id].push(createVacancyCard(v, totalCandidates));
             }
         }
     });
@@ -2294,5 +2299,107 @@ export async function getPublicPortalVacancies() {
         console.error("Error in getPublicPortalVacancies:", error);
         return [];
     }
+}
+
+/**
+ * Recrutador escolhe explicitamente qual candidato segue no processo da vaga
+ */
+export async function selectCandidateForVacancy(vacancyId: string, candidateId: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autenticado");
+
+    const vacancy = await prisma.vacancy.findUnique({
+        where: { id: vacancyId },
+        include: { candidates: true }
+    });
+    if (!vacancy) throw new Error("Vaga não encontrada");
+
+    const candidate = await prisma.recruitmentCandidate.findUnique({
+        where: { id: candidateId }
+    });
+    if (!candidate) throw new Error("Candidato não encontrado");
+
+    // Salvar selectedCandidateId nos requisitos da vaga e no candidato
+    const currentReqs = (vacancy.customRequirements as Record<string, any>) || {};
+    const updatedReqs = {
+        ...currentReqs,
+        selectedCandidateId: candidateId,
+        selectedCandidateName: candidate.name,
+        selectedAt: new Date().toISOString(),
+        selectedByUserId: user.id
+    };
+
+    await prisma.vacancy.update({
+        where: { id: vacancyId },
+        data: { customRequirements: updatedReqs }
+    });
+
+    // Marcar no candidato
+    const candExtra = (candidate.extraFields as Record<string, any>) || {};
+    await prisma.recruitmentCandidate.update({
+        where: { id: candidateId },
+        data: {
+            extraFields: { ...candExtra, isSelectedForVacancy: true }
+        }
+    });
+
+    // Registrar na linha do tempo
+    await prisma.recruitmentTimeline.create({
+        data: {
+            candidateId,
+            vacancyId,
+            candidateName: candidate.name,
+            action: "CANDIDATE_SELECTED",
+            details: `Candidato ${candidate.name} escolhido pelo recrutador ${user.name} para seguir no processo da vaga.`,
+            userId: user.id
+        }
+    });
+
+    revalidatePath("/admin/recrutamento");
+    return { success: true, selectedCandidateId: candidateId, selectedCandidateName: candidate.name };
+}
+
+/**
+ * Avança o candidato selecionado para uma etapa específica da esteira
+ */
+export async function advanceCandidateToStage(candidateId: string, stageNameKeyword: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autenticado");
+
+    const candidate = await prisma.recruitmentCandidate.findUnique({
+        where: { id: candidateId },
+        include: { vacancy: true }
+    });
+    if (!candidate) throw new Error("Candidato não encontrado");
+
+    const targetStage = await prisma.recruitmentStage.findFirst({
+        where: {
+            name: { contains: stageNameKeyword, mode: "insensitive" }
+        }
+    });
+    if (!targetStage) throw new Error(`Etapa ${stageNameKeyword} não encontrada.`);
+
+    await prisma.recruitmentCandidate.update({
+        where: { id: candidateId },
+        data: {
+            stageId: targetStage.id,
+            stageDueDate: targetStage.slaDays > 0 ? addBusinessDays(new Date(), targetStage.slaDays) : null,
+            updatedAt: new Date()
+        }
+    });
+
+    await prisma.recruitmentTimeline.create({
+        data: {
+            candidateId,
+            vacancyId: candidate.vacancyId,
+            candidateName: candidate.name,
+            action: "MOVED",
+            details: `Avançado para a etapa "${targetStage.name}" pelo recrutador ${user.name}.`,
+            userId: user.id
+        }
+    });
+
+    revalidatePath("/admin/recrutamento");
+    return { success: true, stageId: targetStage.id, stageName: targetStage.name };
 }
 
