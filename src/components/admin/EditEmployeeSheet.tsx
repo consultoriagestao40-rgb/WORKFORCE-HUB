@@ -224,6 +224,8 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
 
     const [vtCustomPaymentDetails, setVtCustomPaymentDetails] = useState(employee.vtCustomPaymentDetails || "");
     const [vtCustomPaymentDetails2, setVtCustomPaymentDetails2] = useState(employee.vtCustomPaymentDetails2 || "");
+    const [urbsSic, setUrbsSic] = useState(employee.urbsSic || "");
+    const [urbsCqCtNf, setUrbsCqCtNf] = useState(employee.urbsCqCtNf || "");
     const [vaPaymentMethod, setVaPaymentMethod] = useState(employee.vaPaymentMethod || "Cartão Caju");
     const [vaOptions, setVaOptions] = useState<string[]>(["Cartão Caju"]);
     const [isManagingVa, setIsManagingVa] = useState(false);
@@ -489,6 +491,8 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                     <input type="hidden" name="vtPaymentMethod2" value={vtPaymentMethod2} />
                     <input type="hidden" name="vtCustomPaymentDetails" value={vtCustomPaymentDetails} />
                     <input type="hidden" name="vtCustomPaymentDetails2" value={vtCustomPaymentDetails2} />
+                    <input type="hidden" name="urbsSic" value={urbsSic} />
+                    <input type="hidden" name="urbsCqCtNf" value={urbsCqCtNf} />
                     <input type="hidden" name="vaPaymentMethod" value={vaPaymentMethod} />
                     <input type="hidden" name="vaCustomPaymentDetails" value={vaCustomPaymentDetails} />
                     <input type="hidden" name="extraFields" value={JSON.stringify(extraFieldsData)} />
@@ -993,18 +997,67 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <Select value={vtPaymentMethod} onValueChange={setVtPaymentMethod}>
-                                                    <SelectTrigger className="h-9 rounded-xl bg-white border-slate-200">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {vtOptions.map(opt => (
-                                                            <SelectItem key={opt} value={opt}>
-                                                                {opt === "PIX" ? "Depósito em PIX (Reserva)" : opt}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
+                                                <div className="space-y-2">
+                                                    <Select value={vtPaymentMethod} onValueChange={setVtPaymentMethod}>
+                                                        <SelectTrigger className="h-9 rounded-xl bg-white border-slate-200">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {vtOptions.map(opt => (
+                                                                <SelectItem key={opt} value={opt}>
+                                                                    {opt === "PIX" ? "Depósito em PIX (Reserva)" : opt}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+
+                                                    {/* Campos Dinâmicos do Cartão / Chave para VT 1 */}
+                                                    {vtPaymentMethod === "Urbs" ? (
+                                                        <div className="grid grid-cols-2 gap-3 pt-1">
+                                                            <div className="space-y-1">
+                                                                <Label className="text-xs font-semibold text-slate-600">Nº Cartão Urbs (CQ/CT/NF)</Label>
+                                                                <Input 
+                                                                    value={urbsCqCtNf} 
+                                                                    onChange={e => setUrbsCqCtNf(e.target.value)} 
+                                                                    placeholder="Ex: 65587807795766533" 
+                                                                    className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <Label className="text-xs font-semibold text-slate-600">Código SIC Urbs (Matrícula)</Label>
+                                                                <Input 
+                                                                    value={urbsSic} 
+                                                                    onChange={e => setUrbsSic(e.target.value)} 
+                                                                    placeholder="Ex: 00064599439" 
+                                                                    className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    ) : vtPaymentMethod === "PIX" ? (
+                                                        <div className="space-y-1 pt-1">
+                                                            <Label className="text-xs font-semibold text-slate-600">Chave PIX para Depósito do VT 1</Label>
+                                                            <Input 
+                                                                value={chavePix} 
+                                                                onChange={e => setChavePix(e.target.value)} 
+                                                                placeholder="Ex: CPF, Telefone, E-mail ou Chave Aleatória" 
+                                                                className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
+                                                            />
+                                                            <p className="text-[10px] text-slate-400">Puxada automaticamente do cadastro / dados bancários.</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-1 pt-1">
+                                                            <Label className="text-xs font-semibold text-slate-600">
+                                                                {vtPaymentMethod.toLowerCase().includes("metrocard") ? "Nº do Cartão Metrocard" : `Nº do Cartão / Detalhes (${vtPaymentMethod})`}
+                                                            </Label>
+                                                            <Input 
+                                                                value={vtCustomPaymentDetails} 
+                                                                onChange={e => setVtCustomPaymentDetails(e.target.value)} 
+                                                                placeholder={vtPaymentMethod.toLowerCase().includes("metrocard") ? "Ex: 01.12.00289123-4" : "Número do cartão de transporte ou identificador..."} 
+                                                                className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
 
@@ -1121,18 +1174,66 @@ export function EditEmployeeSheet({ employee, situations, roles, companies = [] 
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <Select value={vtPaymentMethod2} onValueChange={setVtPaymentMethod2}>
-                                                    <SelectTrigger className="h-9 rounded-xl bg-white border-slate-200">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {vtOptions2.map(opt => (
-                                                            <SelectItem key={opt} value={opt}>
-                                                                {opt === "PIX" ? "Depósito em PIX (Reserva)" : opt}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
+                                                <div className="space-y-2">
+                                                    <Select value={vtPaymentMethod2} onValueChange={setVtPaymentMethod2}>
+                                                        <SelectTrigger className="h-9 rounded-xl bg-white border-slate-200">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {vtOptions2.map(opt => (
+                                                                <SelectItem key={opt} value={opt}>
+                                                                    {opt === "PIX" ? "Depósito em PIX (Reserva)" : opt}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+
+                                                    {/* Campos Dinâmicos do Cartão / Chave para VT 2 */}
+                                                    {vtPaymentMethod2 === "Urbs" ? (
+                                                        <div className="grid grid-cols-2 gap-3 pt-1">
+                                                            <div className="space-y-1">
+                                                                <Label className="text-xs font-semibold text-slate-600">Nº Cartão Urbs (CQ/CT/NF)</Label>
+                                                                <Input 
+                                                                    value={urbsCqCtNf} 
+                                                                    onChange={e => setUrbsCqCtNf(e.target.value)} 
+                                                                    placeholder="Ex: 65587807795766533" 
+                                                                    className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <Label className="text-xs font-semibold text-slate-600">Código SIC Urbs (Matrícula)</Label>
+                                                                <Input 
+                                                                    value={urbsSic} 
+                                                                    onChange={e => setUrbsSic(e.target.value)} 
+                                                                    placeholder="Ex: 00064599439" 
+                                                                    className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    ) : vtPaymentMethod2 === "PIX" ? (
+                                                        <div className="space-y-1 pt-1">
+                                                            <Label className="text-xs font-semibold text-slate-600">Chave PIX (VT 2)</Label>
+                                                            <Input 
+                                                                value={chavePix} 
+                                                                onChange={e => setChavePix(e.target.value)} 
+                                                                placeholder="Ex: CPF, Telefone, E-mail ou Chave Aleatória" 
+                                                                className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-1 pt-1">
+                                                            <Label className="text-xs font-semibold text-slate-600">
+                                                                {vtPaymentMethod2.toLowerCase().includes("metrocard") ? "Nº do Cartão Metrocard (VT 2)" : `Nº do Cartão / Detalhes (${vtPaymentMethod2})`}
+                                                            </Label>
+                                                            <Input 
+                                                                value={vtCustomPaymentDetails2} 
+                                                                onChange={e => setVtCustomPaymentDetails2(e.target.value)} 
+                                                                placeholder={vtPaymentMethod2.toLowerCase().includes("metrocard") ? "Ex: 01.12.00289123-4" : "Número do cartão de transporte ou identificador..."} 
+                                                                className="h-9 rounded-xl border-slate-200 bg-white text-xs" 
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                     </div>

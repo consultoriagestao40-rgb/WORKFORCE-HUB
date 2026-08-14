@@ -225,8 +225,14 @@ export default async function EmployeeProfilePage(props: {
                             )}
                             {employee.urbsCqCtNf && (
                                 <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 flex flex-col">
-                                    <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest">CQ/CT/NF</span>
+                                    <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest">Cartão Urbs (CQ/CT/NF)</span>
                                     <span className="text-xs font-black text-slate-800">{employee.urbsCqCtNf}</span>
+                                </div>
+                            )}
+                            {employee.vtCustomPaymentDetails && (
+                                <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 flex flex-col">
+                                    <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest">Cartão VT (Metrocard)</span>
+                                    <span className="text-xs font-black text-slate-800">{employee.vtCustomPaymentDetails}</span>
                                 </div>
                             )}
                         </div>

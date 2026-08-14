@@ -502,6 +502,12 @@ export async function createEmployee(formData: FormData) {
         const valeTransporte2 = vtOptIn ? (parseFloat(formData.get("valeTransporte2") as string) || 0) : 0;
         const vtPaymentMethod = (formData.get("vtPaymentMethod") as string) || "Metrocard Metropolitana";
         const vtPaymentMethod2 = (formData.get("vtPaymentMethod2") as string) || "Urbs";
+        const vtCustomPaymentDetails = (formData.get("vtCustomPaymentDetails") as string) || null;
+        const vtCustomPaymentDetails2 = (formData.get("vtCustomPaymentDetails2") as string) || null;
+        const vaPaymentMethod = (formData.get("vaPaymentMethod") as string) || "Cartão Caju";
+        const vaCustomPaymentDetails = (formData.get("vaCustomPaymentDetails") as string) || null;
+        const urbsSic = (formData.get("urbsSic") as string) || null;
+        const urbsCqCtNf = (formData.get("urbsCqCtNf") as string) || null;
         
         const vtDiscountPercentage = formData.get("vtDiscountPercentage") ? parseFloat(formData.get("vtDiscountPercentage") as string) : null;
         const vaDiscountPercentage = formData.get("vaDiscountPercentage") ? parseFloat(formData.get("vaDiscountPercentage") as string) : null;
@@ -596,6 +602,12 @@ export async function createEmployee(formData: FormData) {
                         vtOptIn,
                         vtPaymentMethod,
                         vtPaymentMethod2,
+                        vtCustomPaymentDetails,
+                        vtCustomPaymentDetails2,
+                        vaPaymentMethod,
+                        vaCustomPaymentDetails,
+                        urbsSic,
+                        urbsCqCtNf,
                         vtDiscountPercentage,
                         vaDiscountPercentage,
                         address: (formData.get("address") as string) || existingCpf.address,
@@ -637,6 +649,12 @@ export async function createEmployee(formData: FormData) {
                         vtOptIn,
                         vtPaymentMethod,
                         vtPaymentMethod2,
+                        vtCustomPaymentDetails,
+                        vtCustomPaymentDetails2,
+                        vaPaymentMethod,
+                        vaCustomPaymentDetails,
+                        urbsSic,
+                        urbsCqCtNf,
                         vtDiscountPercentage,
                         vaDiscountPercentage,
                         address: (formData.get("address") as string) || null,
@@ -1483,6 +1501,8 @@ export async function updateEmployee(formData: FormData) {
         const vtCustomPaymentDetails2 = (formData.get("vtCustomPaymentDetails2") as string) || null;
         const vaPaymentMethod = (formData.get("vaPaymentMethod") as string) || null;
         const vaCustomPaymentDetails = (formData.get("vaCustomPaymentDetails") as string) || null;
+        const urbsSic = (formData.get("urbsSic") as string) || null;
+        const urbsCqCtNf = (formData.get("urbsCqCtNf") as string) || null;
 
         const vtDiscountPercentage = formData.get("vtDiscountPercentage") ? parseFloat(formData.get("vtDiscountPercentage") as string) : null;
         const vaDiscountPercentage = formData.get("vaDiscountPercentage") ? parseFloat(formData.get("vaDiscountPercentage") as string) : null;
@@ -1553,6 +1573,8 @@ export async function updateEmployee(formData: FormData) {
                     vtCustomPaymentDetails2,
                     vaPaymentMethod,
                     vaCustomPaymentDetails,
+                    urbsSic,
+                    urbsCqCtNf,
                     vtDiscountPercentage,
                     vaDiscountPercentage,
                     birthDate: parseDateString(formData.get("birthDate") as string),
