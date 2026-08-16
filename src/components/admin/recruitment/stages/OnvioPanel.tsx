@@ -307,19 +307,24 @@ Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[
                 />
             </div>
 
-            {/* Ações: Robô RPA Onvio, Executável Windows, Copiar Dados e Confirmação de Etapa */}
-            <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Ações: Envio Direto Onvio e Confirmação de Etapa */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                    <Bot className="w-4 h-4 text-teal-600 shrink-0" />
+                    <span>Os dados preenchidos serão transmitidos diretamente para o portal Onvio da contabilidade.</span>
+                </div>
+
+                <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                     <Button
                         type="button"
                         onClick={handleStartTransmission}
                         disabled={sendingRpa}
-                        className="bg-gradient-to-r from-teal-700 via-teal-800 to-[#042d36] hover:from-teal-800 hover:to-[#032229] text-white font-bold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2 shadow"
+                        className="bg-gradient-to-r from-teal-700 via-teal-800 to-[#042d36] hover:from-teal-800 hover:to-[#032229] text-white font-bold text-xs sm:text-sm h-11 px-5 rounded-xl flex items-center justify-center gap-2 shadow shrink-0"
                     >
                         {sendingRpa ? (
                             <>
                                 <Loader2 className="w-4 h-4 animate-spin text-teal-200" />
-                                <span>Robô Conectando...</span>
+                                <span>Transmitindo para o Onvio...</span>
                             </>
                         ) : (
                             <>
@@ -329,28 +334,9 @@ Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[
                         )}
                     </Button>
 
-                    <a
-                        href="/downloads/Robo-Onvio-RH.exe"
-                        download="Robo-Onvio-RH.exe"
-                        className="border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm bg-white"
-                        title="Executável Windows para assistir o robô preenchendo o Onvio em tempo real"
-                    >
-                        <span>💻 Baixar Executável (Windows)</span>
-                    </a>
-
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleOpenOnvioForm}
-                        className="border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm bg-white"
-                    >
-                        <ExternalLink className="w-4 h-4 text-slate-500" />
-                        <span>📋 Copiar Dados / Abrir Onvio</span>
-                    </Button>
-
                     {!onvioLaunched && (
                         <Button
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2 shadow"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm h-11 px-5 rounded-xl flex items-center justify-center gap-2 shadow shrink-0"
                             onClick={handleConfirm}
                             disabled={confirming}
                         >
