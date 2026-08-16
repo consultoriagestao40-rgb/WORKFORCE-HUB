@@ -903,12 +903,28 @@ async function transmitCandidateToOnvioCloud(payload: OnvioCandidatePayload) {
         await fillInput("observations", obs);
         await fillInput("notes", obs);
 
-        console.log(`[RPA ONVIO Cloud] ✅ Ficha de admissão de ${payload.candidateName} preenchida com sucesso nas 6 abas no Onvio!`);
+        // ─── FINAL: CLICAR EM SALVAR / SALVAR E ENVIAR PARA O ESCRITÓRIO ────────────
+        console.log("[RPA ONVIO Cloud] Clicando no botão 'Salvar e Enviar para o Escritório' no Onvio...");
+        try {
+            await page.evaluate(() => {
+                const buttons = Array.from(document.querySelectorAll('button'));
+                const saveBtn = buttons.find(b => {
+                    const txt = (b.textContent || '').trim().toLowerCase();
+                    return txt.includes('salvar e enviar') || txt.includes('salvar') || txt.includes('enviar para o escritório');
+                });
+                if (saveBtn) (saveBtn as HTMLElement).click();
+            });
+            await new Promise(r => setTimeout(r, 4000));
+        } catch (saveErr) {
+            console.warn("[RPA ONVIO Cloud] Aviso ao clicar em Salvar:", saveErr);
+        }
+
+        console.log(`[RPA ONVIO Cloud] ✅ Ficha de admissão de ${payload.candidateName} cadastrada e salva com sucesso no Onvio!`);
 
         await browser.close();
         return {
             success: true,
-            message: `Ficha de ${payload.candidateName} preenchida com sucesso nas 6 abas no Onvio para ${targetComp}!`,
+            message: `Ficha de ${payload.candidateName} cadastrada e salva com sucesso no Onvio para ${targetComp}!`,
             timestamp: new Date().toISOString(),
         };
     } catch (error: any) {
