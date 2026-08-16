@@ -1149,10 +1149,115 @@ export function EmployeeOnvioWizard({
         setDependentes(updated);
     };
 
+    const handleFillTestData = (type: 'brasileiro' | 'estrangeiro') => {
+        if (type === 'brasileiro') {
+            setName("Carlos Eduardo de Oliveira (TESTE)");
+            setCpf("123.456.789-00");
+            setBirthDate("1992-05-15");
+            setGender("Masculino");
+            setEstadoCivil("Casado(a)");
+            setGrauInstrucao("Ensino Médio Completo");
+            setNomePai("José Carlos de Oliveira");
+            setNomeMae("Maria Aparecida de Oliveira");
+            setNacionalidade("Brasileira");
+            setIsEstrangeiro(false);
+            setPaisOrigem("");
+            setNaturalidadeCidade("Curitiba");
+            setNaturalidadeUf("PR");
+            setRgNumero("10.987.654-3");
+            setRgOrgaoEmissor("SSP");
+            setRgDataEmissao("2018-04-10");
+            setRgUf("PR");
+            setCtpsNumero("1234567");
+            setCtpsSerie("0001");
+            setCtpsUf("PR");
+            setCtpsDataEmissao("2019-02-01");
+            setPisNumero("123.45678.90-1");
+            setAddress("Rua XV de Novembro, 1500, Centro, Curitiba - PR");
+            setPhone("(41) 98877-6655");
+            setEmail("carlos.teste@workforcehub.com.br");
+            setTituloEleitorNumero("123456789012");
+            setTituloEleitorZona("001");
+            setTituloEleitorSecao("0042");
+            setTituloEleitorUf("PR");
+            setReservistaNumero("1234567890");
+            setReservistaCategoria("1ª Categoria");
+            setFormaPagamento("PIX");
+            setTipoChavePix("CPF");
+            setChavePix("12345678900");
+            setFuncao("Auxiliar de Limpeza");
+            setSalary("1850.00");
+            setDependentes([
+                { nome: "Lucas de Oliveira", cpf: "111.222.333-44", dataNascimento: "2016-08-20", parentesco: "Filho(a)", salarioFamilia: "Sim", irrf: "Sim" }
+            ]);
+            setObservacoes("Admissão de Teste - Homologação RPA Onvio");
+        } else {
+            setName("Jean Baptiste Pierre (TESTE)");
+            setCpf("987.654.321-99");
+            setBirthDate("1988-11-22");
+            setGender("Masculino");
+            setEstadoCivil("Solteiro(a)");
+            setGrauInstrucao("Ensino Médio Completo");
+            setNomePai("Jean Pierre");
+            setNomeMae("Marie Pierre");
+            setNacionalidade("Haitiana");
+            setIsEstrangeiro(true);
+            setPaisOrigem("Haiti");
+            setNaturalidadeCidade("Porto Príncipe");
+            setNaturalidadeUf("");
+            setRnmNumero("V123456-A");
+            setRnmOrgaoEmissor("DPF");
+            setRnmDataEmissao("2021-06-15");
+            setRnmDataValidade("2031-06-15");
+            setRnmUf("PR");
+            setCtpsNumero("9876543");
+            setCtpsSerie("0001");
+            setCtpsUf("PR");
+            setCtpsDataEmissao("2021-07-01");
+            setPisNumero("987.65432.10-9");
+            setAddress("Av. Marechal Floriano Peixoto, 800 - Rebouças, Curitiba - PR");
+            setPhone("(41) 99112-2334");
+            setEmail("jean.pierre@workforcehub.com.br");
+            setTituloEleitorNumero("");
+            setReservistaNumero("");
+            setFormaPagamento("PIX");
+            setTipoChavePix("Telefone");
+            setChavePix("41991122334");
+            setFuncao("Auxiliar de Serviços Gerais");
+            setSalary("1850.00");
+            setDependentes([]);
+            setObservacoes("Admissão de Teste Estrangeiro (RNM) - Homologação RPA Onvio");
+        }
+    };
+
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             {/* Serialized JSON value to pass back to server action */}
             <input type="hidden" name="extraFields" value={JSON.stringify(extraFieldsData)} />
+
+            {/* Barra de Testes / Simulação de Homologação */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-teal-50/70 border border-teal-200/80 text-xs">
+                <div className="flex items-center gap-1.5 text-teal-900 font-semibold">
+                    <span>🧪 Simulação de Teste:</span>
+                    <span className="font-normal text-teal-700 hidden sm:inline">Preencha rapidamente todos os campos com 1 clique</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => handleFillTestData('brasileiro')}
+                        className="px-2.5 py-1 bg-white hover:bg-teal-100 text-teal-800 font-medium rounded-lg border border-teal-300 shadow-xs transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
+                    >
+                        <span>🇧🇷 Preencher Brasileiro</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleFillTestData('estrangeiro')}
+                        className="px-2.5 py-1 bg-white hover:bg-teal-100 text-teal-800 font-medium rounded-lg border border-teal-300 shadow-xs transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
+                    >
+                        <span>🌐 Preencher Estrangeiro</span>
+                    </button>
+                </div>
+            </div>
 
             {/* Stepper no Topo (Onvio Chevron style) */}
             <div className="flex w-full items-stretch border border-slate-200 rounded-xl overflow-hidden bg-slate-50/80 mb-4 text-[10px] font-semibold text-slate-500 shadow-sm flex-wrap md:flex-nowrap">
