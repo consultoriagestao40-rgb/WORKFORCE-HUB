@@ -5,7 +5,7 @@ import { transmitCandidateToOnvio, OnvioCandidatePayload } from "@/lib/rpa/onvio
 import { revalidatePath } from "next/cache";
 
 
-export async function sendCandidateToOnvioRpa(candidateId: string) {
+export async function sendCandidateToOnvioRpa(candidateId: string, customPayload?: any) {
     try {
         const candidate = await prisma.recruitmentCandidate.findUnique({
             where: { id: candidateId },
@@ -24,35 +24,52 @@ export async function sendCandidateToOnvioRpa(candidateId: string) {
             return { success: false, error: "Candidato não encontrado." };
         }
 
-        const extra = (candidate.extraFields as Record<string, any>) || {};
-        const cpfRaw = extra.cpf || (candidate as any).cpf || "";
+        // Se veio payload customizado da tela, mescla e persiste no banco
+        const existingExtra = (candidate.extraFields as Record<string, any>) || {};
+        const incomingExtra = customPayload?.extraFields || {};
+        const mergedExtra = { ...existingExtra, ...incomingExtra };
+
+        if (customPayload) {
+            await prisma.recruitmentCandidate.update({
+                where: { id: candidateId },
+                data: {
+                    extraFields: mergedExtra,
+                    email: customPayload.email || candidate.email,
+                    phone: customPayload.phone || candidate.phone
+                }
+            });
+        }
+
+        const extra = mergedExtra;
+        const cpfRaw = customPayload?.cpf || extra.cpf || (candidate as any).cpf || "";
         const cpfDigits = cpfRaw.replace(/\D/g, "");
-        const ctpsNum = cpfDigits.length >= 7 ? cpfDigits.slice(0, 7) : "";
-        const ctpsSerie = cpfDigits.length >= 11 ? cpfDigits.slice(7, 11) : (cpfDigits.length >= 4 ? cpfDigits.slice(-4) : "");
+        const ctpsNum = extra.ctpsNumero || extra.ctps || (cpfDigits.length >= 7 ? cpfDigits.slice(0, 7) : "");
+        const ctpsSerie = extra.ctpsSerie || extra.serie || (cpfDigits.length >= 11 ? cpfDigits.slice(7, 11) : (cpfDigits.length >= 4 ? cpfDigits.slice(-4) : ""));
 
         const payload: OnvioCandidatePayload = {
             candidateId: candidate.id,
-            candidateName: candidate.name,
+            candidateName: customPayload?.name || candidate.name,
             candidateCpf: cpfRaw,
-            candidateEmail: candidate.email || extra.email || undefined,
-            candidatePhone: candidate.phone || extra.phone || undefined,
-            vacancyTitle: candidate.vacancy?.role?.name || candidate.vacancy?.title || "Vaga Operacional",
-            companyName: candidate.vacancy?.company?.name || "Grupo JVS Serviços",
+            candidateEmail: customPayload?.email || candidate.email || extra.email || undefined,
+            candidatePhone: customPayload?.phone || candidate.phone || extra.phone || undefined,
+            vacancyTitle: customPayload?.roleTitle || candidate.vacancy?.role?.name || candidate.vacancy?.title || "Vaga Operacional",
+            companyName: customPayload?.companyName || candidate.vacancy?.company?.name || "JVS FACILITIES LTDA",
             clientName: candidate.vacancy?.posto?.client?.name || "",
-            baseSalary: candidate.vacancy?.posto?.baseSalary || 1900,
-            rgNumero: extra.rgNumero || extra.rg || "",
+            baseSalary: customPayload?.salary ? Number(customPayload.salary) : (candidate.vacancy?.posto?.baseSalary || 1900),
+            admissionDate: customPayload?.admissionDate || extra.admissionDate || new Date().toISOString().split('T')[0],
+            rgNumero: extra.rgNumero || extra.rg || customPayload?.rg || "",
             rgOrgaoEmissor: extra.rgOrgaoEmissor || extra.rgOrgao || "SSP",
             rgUf: extra.rgUf || "PR",
             rgDataEmissao: extra.rgDataEmissao || "",
-            ctpsNumero: extra.ctpsNumero || ctpsNum,
-            ctpsSerie: extra.ctpsSerie || ctpsSerie,
+            ctpsNumero: ctpsNum,
+            ctpsSerie: ctpsSerie,
             ctpsDataEmissao: extra.ctpsDataEmissao || "",
             pisNumero: extra.pisNumero || extra.pis || cpfRaw,
-            birthDate: extra.birthDate || "",
-            gender: extra.gender || "",
-            nomeMae: extra.nomeMae || "",
-            nomePai: extra.nomePai || "",
-            address: extra.address || "",
+            birthDate: customPayload?.birthDate || extra.birthDate || "",
+            gender: customPayload?.gender || extra.gender || "",
+            nomeMae: extra.nomeMae || extra.mae || "",
+            nomePai: extra.nomePai || extra.pai || "",
+            address: customPayload?.address || extra.address || "",
             escalaHorario: extra.escalaHorario || "12x36",
             jornadaHoras: extra.jornadaHoras || "10:00 às 22:00",
             // Documentos complementares
@@ -64,20 +81,20 @@ export async function sendCandidateToOnvioRpa(candidateId: string) {
             cnhValidade: extra.cnhValidade || "",
             reservistaNumero: extra.reservistaNumero || "",
             reservistaCategoria: extra.reservistaCategoria || "",
-            // Dependentes (extraídos via OCR de documentos dos filhos)
-            dependentes: Array.isArray(extra.dependents) ? extra.dependents.map((d: any) => ({
+            // Dependentes (extraídos via OCR ou editados no Wizard)
+            dependentes: Array.isArray(extra.dependentes) ? extra.dependentes : (Array.isArray(extra.dependents) ? extra.dependents.map((d: any) => ({
                 nome: d.nome || d.name || "",
                 cpf: d.cpf || "",
                 dataNascimento: d.dataNascimento || d.birthDate || "",
                 parentesco: d.parentesco || "",
                 salarioFamilia: d.salarioFamilia || "Não",
                 irrf: d.irrf || "Não",
-            })) : [],
-            // Observações automáticas
+            })) : []),
+            // Observações
             observacoes: extra.observacoes || "",
-            // PIX - chave do uniformData, fallback para CPF
-            pixKey: extra.uniformData?.pixKey || extra.pixKey || cpfRaw || "",
-            pixTipoChave: extra.pixTipoChave || (extra.uniformData?.pixKey ? "Outro" : "CPF"),
+            // PIX
+            pixKey: extra.chavePix || extra.uniformData?.pixKey || extra.pixKey || cpfRaw || "",
+            pixTipoChave: extra.tipoChavePix || extra.pixTipoChave || (extra.uniformData?.pixKey ? "Outro" : "CPF"),
         };
 
         try {
@@ -107,6 +124,22 @@ export async function sendCandidateToOnvioRpa(candidateId: string) {
 
 export async function createRpaJobAction(candidateId: string, payload: any) {
     try {
+        // Persistir dados atualizados na ficha do candidato
+        if (payload?.extraFields) {
+            const candidate = await prisma.recruitmentCandidate.findUnique({ where: { id: candidateId } });
+            if (candidate) {
+                const existing = (candidate.extraFields as Record<string, any>) || {};
+                await prisma.recruitmentCandidate.update({
+                    where: { id: candidateId },
+                    data: {
+                        extraFields: { ...existing, ...payload.extraFields },
+                        email: payload.email || candidate.email,
+                        phone: payload.phone || candidate.phone
+                    }
+                });
+            }
+        }
+
         const job = await prisma.rpaJob.create({
             data: {
                 candidateId,

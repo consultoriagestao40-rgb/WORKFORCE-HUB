@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, ChevronRight, ChevronLeft, CheckCircle2, FileText, Download, UploadCloud, Pencil, X, Check } from "lucide-react";
+import { Plus, Trash2, ChevronRight, ChevronLeft, CheckCircle2, FileText, Download, UploadCloud, Pencil, X, Check, AlertTriangle, Info, ShieldAlert } from "lucide-react";
 import { addDepartment, addCostCenter, addUnion, addJobFunction } from "@/app/actions";
 import { toast } from "sonner";
 
@@ -22,6 +22,7 @@ interface EmployeeOnvioWizardProps {
     costCenters?: { id: string; name: string }[];
     unions?: { id: string; name: string }[];
     jobFunctions?: { id: string; name: string }[];
+    onDataChange?: (data: any) => void;
 }
 
 const steps = [
@@ -127,7 +128,8 @@ export function EmployeeOnvioWizard({
     departments = [],
     costCenters = [],
     unions = [],
-    jobFunctions = []
+    jobFunctions = [],
+    onDataChange
 }: EmployeeOnvioWizardProps) {
     const [currentTabIdx, setCurrentTabIdx] = useState(0);
 
@@ -264,8 +266,15 @@ export function EmployeeOnvioWizard({
     const [nomePai, setNomePai] = useState("");
     const [nomeMae, setNomeMae] = useState("");
     const [nacionalidade, setNacionalidade] = useState("Brasileira");
+    const [isEstrangeiro, setIsEstrangeiro] = useState(false);
+    const [paisOrigem, setPaisOrigem] = useState("");
     const [naturalidadeCidade, setNaturalidadeCidade] = useState("");
     const [naturalidadeUf, setNaturalidadeUf] = useState("");
+
+    // PIX Requisito e Deliberação de Aprovação Superior
+    const [pixOverrideApproved, setPixOverrideApproved] = useState(false);
+    const [pixApprovalBy, setPixApprovalBy] = useState("");
+    const [pixApprovalReason, setPixApprovalReason] = useState("");
 
     const [attachments, setAttachments] = useState<{ name: string; fileName: string; fileData: string }[]>([]);
     const [loadingSlot, setLoadingSlot] = useState<string | null>(null);
@@ -274,6 +283,13 @@ export function EmployeeOnvioWizard({
     const [rgOrgaoEmissor, setRgOrgaoEmissor] = useState("");
     const [rgDataEmissao, setRgDataEmissao] = useState("");
     const [rgUf, setRgUf] = useState("");
+
+    // Documento Estrangeiro (RNM / RNE / Protocolo)
+    const [rnmNumero, setRnmNumero] = useState("");
+    const [rnmOrgaoEmissor, setRnmOrgaoEmissor] = useState("DPF");
+    const [rnmDataEmissao, setRnmDataEmissao] = useState("");
+    const [rnmDataValidade, setRnmDataValidade] = useState("");
+    const [rnmUf, setRnmUf] = useState("");
 
     const [cnhNumero, setCnhNumero] = useState("");
     const [cnhCategoria, setCnhCategoria] = useState("");
@@ -527,6 +543,11 @@ export function EmployeeOnvioWizard({
             setNomePai(extra.nomePai || extra.pai || extra.fatherName || "");
             setNomeMae(extra.nomeMae || extra.mae || extra.motherName || "");
             setNacionalidade(extra.nacionalidade || "Brasileira");
+            const isEstr = extra.isEstrangeiro !== undefined 
+                ? !!extra.isEstrangeiro 
+                : (extra.nacionalidade && !["brasileira", "brasileiro", "brasil"].includes(extra.nacionalidade.toLowerCase().trim()));
+            setIsEstrangeiro(isEstr || false);
+            setPaisOrigem(extra.paisOrigem || "");
             setNaturalidadeCidade(extra.naturalidadeCidade || extra.cidadeNatal || "");
             setNaturalidadeUf(extra.naturalidadeUf || extra.ufNatal || "");
 
@@ -534,6 +555,12 @@ export function EmployeeOnvioWizard({
             setRgOrgaoEmissor(extra.rgOrgaoEmissor || extra.orgaoEmissor || extra.rg_orgao_emissor || extra.orgaoExpedidor || "");
             setRgDataEmissao(safeFormatDate(extra.rgDataEmissao || extra.dataEmissaoRg || extra.rg_data_emissao || extra.dataExpedicao));
             setRgUf(extra.rgUf || extra.ufEmissao || extra.rg_uf || extra.ufRg || "");
+
+            setRnmNumero(extra.rnmNumero || extra.rneNumero || extra.rnm || extra.rne || "");
+            setRnmOrgaoEmissor(extra.rnmOrgaoEmissor || "DPF");
+            setRnmDataEmissao(safeFormatDate(extra.rnmDataEmissao));
+            setRnmDataValidade(safeFormatDate(extra.rnmDataValidade));
+            setRnmUf(extra.rnmUf || "");
 
             setCnhNumero(extra.cnhNumero || "");
             setCnhCategoria(extra.cnhCategoria || "");
@@ -551,6 +578,10 @@ export function EmployeeOnvioWizard({
             setFormaPagamento(extra.formaPagamento || "PIX");
             setTipoChavePix(extra.tipoChavePix || "");
 
+            setPixOverrideApproved(!!extra.pixOverrideApproved);
+            setPixApprovalBy(extra.pixApprovalBy || "");
+            setPixApprovalReason(extra.pixApprovalReason || "");
+
             if (initialData.urbsSic !== undefined) setUrbsSic(initialData.urbsSic || "");
             if (initialData.urbsCqCtNf !== undefined) setUrbsCqCtNf(initialData.urbsCqCtNf || "");
             if (initialData.vtCustomPaymentDetails !== undefined) setVtCustomPaymentDetails(initialData.vtCustomPaymentDetails || "");
@@ -561,6 +592,120 @@ export function EmployeeOnvioWizard({
             setAttachments(extra.attachments || []);
         }
     }, [initialData, postos]);
+
+    // Notifica componente pai sobre qualquer alteração em tempo real nas 6 abas
+    useEffect(() => {
+        if (!onDataChange) return;
+
+        const roleObj = roles.find(r => r.id === roleId);
+        const compObj = companies.find(c => c.id === companyId);
+        const postoObj = postos.find(p => p.id === currentPostoId);
+
+        onDataChange({
+            name,
+            cpf,
+            email,
+            phone,
+            birthDate,
+            gender,
+            address,
+            roleId,
+            roleTitle: roleObj?.name || initialData?.roleTitle || "",
+            companyId,
+            companyName: compObj?.name || initialData?.companyName || "JVS FACILITIES LTDA",
+            postoId: currentPostoId,
+            postoName: postoObj?.name || "",
+            salary,
+            admissionDate,
+            type,
+            status,
+            situationId,
+            insalubridade,
+            periculosidade,
+            gratificacao,
+            outrosAdicionais,
+            workload,
+            extraFields: {
+                ...(initialData?.extraFields || {}),
+                nomeSocial,
+                matricula,
+                funcao,
+                departamento,
+                centroCusto,
+                sindicato,
+                categoriaAdmissao,
+                vinculoEmpregaticio,
+                experienciaDias1,
+                experienciaDias2,
+                escalaHorario,
+                jornadaHoras,
+                ctpsNumero,
+                ctpsSerie,
+                ctpsUf,
+                ctpsDataEmissao,
+                pisNumero,
+                fgtsOpcao,
+                fgtsDataOpcao,
+                fgtsBanco,
+                conselhoNome,
+                conselhoNumero,
+                conselhoUf,
+                conselhoValidade,
+                formaPagamento,
+                tipoChavePix,
+                chavePix,
+                pixOverrideApproved,
+                pixApprovalBy,
+                pixApprovalReason,
+                estadoCivil,
+                grauInstrucao,
+                nomePai,
+                nomeMae,
+                nacionalidade,
+                isEstrangeiro,
+                paisOrigem,
+                naturalidadeCidade,
+                naturalidadeUf,
+                rgNumero: isEstrangeiro ? (rnmNumero || rgNumero) : rgNumero,
+                rgOrgaoEmissor: isEstrangeiro ? (rnmOrgaoEmissor || "DPF") : rgOrgaoEmissor,
+                rgDataEmissao: isEstrangeiro ? (rnmDataEmissao || rgDataEmissao) : rgDataEmissao,
+                rgUf: isEstrangeiro ? (rnmUf || rgUf) : rgUf,
+                rnmNumero,
+                rnmOrgaoEmissor,
+                rnmDataEmissao,
+                rnmDataValidade,
+                rnmUf,
+                cnhNumero,
+                cnhCategoria,
+                cnhValidade,
+                cnhUf,
+                tituloEleitorNumero: isEstrangeiro ? "" : tituloEleitorNumero,
+                tituloEleitorZona: isEstrangeiro ? "" : tituloEleitorZona,
+                tituloEleitorSecao: isEstrangeiro ? "" : tituloEleitorSecao,
+                tituloEleitorUf: isEstrangeiro ? "" : tituloEleitorUf,
+                reservistaNumero: isEstrangeiro ? "" : reservistaNumero,
+                reservistaCategoria: isEstrangeiro ? "" : reservistaCategoria,
+                dependentes,
+                observacoes,
+                pixKey: chavePix || cpf,
+                pixTipoChave: tipoChavePix || "CPF",
+            }
+        });
+    }, [
+        name, cpf, email, phone, birthDate, gender, address, roleId, companyId, currentPostoId,
+        salary, admissionDate, type, status, situationId, insalubridade, periculosidade,
+        gratificacao, outrosAdicionais, workload, nomeSocial, matricula, funcao,
+        departamento, centroCusto, sindicato, categoriaAdmissao, vinculoEmpregaticio,
+        experienciaDias1, experienciaDias2, escalaHorario, jornadaHoras, ctpsNumero,
+        ctpsSerie, ctpsUf, ctpsDataEmissao, pisNumero, fgtsOpcao, fgtsDataOpcao,
+        fgtsBanco, conselhoNome, conselhoNumero, conselhoUf, conselhoValidade,
+        formaPagamento, tipoChavePix, chavePix, pixOverrideApproved, pixApprovalBy, pixApprovalReason,
+        estadoCivil, grauInstrucao, nomePai, nomeMae, nacionalidade, isEstrangeiro, paisOrigem,
+        naturalidadeCidade, naturalidadeUf, rgNumero, rgOrgaoEmissor, rgDataEmissao, rgUf,
+        rnmNumero, rnmOrgaoEmissor, rnmDataEmissao, rnmDataValidade, rnmUf,
+        cnhNumero, cnhCategoria, cnhValidade, cnhUf, tituloEleitorNumero, tituloEleitorZona,
+        tituloEleitorSecao, tituloEleitorUf, reservistaNumero, reservistaCategoria, dependentes, observacoes
+    ]);
 
     const activeTabObj = wizardTabs[currentTabIdx];
     const currentStep = activeTabObj.step;
@@ -2199,8 +2344,74 @@ export function EmployeeOnvioWizard({
                                     </Select>
                                 </div>
                                 <div className="space-y-1 col-span-2">
-                                    <Label htmlFor="chavePix">Chave PIX</Label>
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="chavePix" className="font-semibold text-slate-800 flex items-center gap-1.5">
+                                            <span>Chave PIX</span>
+                                            <span className="text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">Requisito Obrigatório</span>
+                                        </Label>
+                                    </div>
                                     <Input id="chavePix" value={chavePix} onChange={e => setChavePix(e.target.value)} placeholder="Ex: CPF, Telefone, E-mail ou Chave Aleatória" />
+                                </div>
+
+                                {/* Bloco de Conformidade e Deliberação de Aprovação Superior do PIX */}
+                                <div className="space-y-3 col-span-2 pt-2 border-t mt-1">
+                                    {!chavePix && !pixOverrideApproved ? (
+                                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">
+                                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                            <div className="space-y-1">
+                                                <p className="text-xs font-bold text-amber-900">Atenção: A Chave PIX é Requisito para Contratação</p>
+                                                <p className="text-[11px] text-amber-700">Para prosseguir com a admissão sem o cadastro de chave PIX, é necessária a Deliberação de Aprovação Superior.</p>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPixOverrideApproved(true)}
+                                                    className="mt-1.5 text-xs font-bold text-amber-900 bg-amber-200/80 hover:bg-amber-300 px-2.5 py-1 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                                >
+                                                    <ShieldAlert className="w-3.5 h-3.5 text-amber-800" />
+                                                    <span>Registrar Deliberação de Aprovação Superior</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : pixOverrideApproved ? (
+                                        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
+                                                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                                    <span>Deliberação de Aprovação Superior Ativa (Exceção sem PIX)</span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setPixOverrideApproved(false);
+                                                        setPixApprovalBy("");
+                                                        setPixApprovalReason("");
+                                                    }}
+                                                    className="text-[10px] text-red-600 hover:underline font-medium cursor-pointer"
+                                                >
+                                                    Remover Exceção
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
+                                                <div className="space-y-1">
+                                                    <Label className="text-[11px] text-emerald-900 font-semibold">Gestor/Diretor que Aprovou</Label>
+                                                    <Input
+                                                        value={pixApprovalBy}
+                                                        onChange={e => setPixApprovalBy(e.target.value)}
+                                                        placeholder="Nome do Diretor / Gestor responsável"
+                                                        className="h-8 text-xs bg-white border-emerald-200"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label className="text-[11px] text-emerald-900 font-semibold">Justificativa da Exceção</Label>
+                                                    <Input
+                                                        value={pixApprovalReason}
+                                                        onChange={e => setPixApprovalReason(e.target.value)}
+                                                        placeholder="Ex: Abertura de conta salário em processamento"
+                                                        className="h-8 text-xs bg-white border-emerald-200"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : null}
                                 </div>
                             </div>
                         )}
@@ -2240,38 +2451,37 @@ export function EmployeeOnvioWizard({
                                     <Input id="birthDate" name="birthDate" type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} required />
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="gender">Gênero</Label>
-                                    <Select name="gender" value={gender} onValueChange={setGender}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Selecione o gênero" />
+                                    <Label htmlFor="gender">Sexo / Gênero</Label>
+                                    <Select value={gender} onValueChange={setGender}>
+                                        <SelectTrigger id="gender">
+                                            <SelectValue placeholder="Selecione" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="Masculino">Masculino</SelectItem>
-                                            <SelectItem value="Feminino">Feminino</SelectItem>
-                                            <SelectItem value="Outro">Outro</SelectItem>
-                                            <SelectItem value="Prefiro não dizer">Prefiro não dizer</SelectItem>
+                                            <SelectItem value="MASCULINO">Masculino</SelectItem>
+                                            <SelectItem value="FEMININO">Feminino</SelectItem>
+                                            <SelectItem value="OUTRO">Outro</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                                 <div className="space-y-1">
                                     <Label htmlFor="estadoCivil">Estado Civil</Label>
                                     <Select value={estadoCivil} onValueChange={setEstadoCivil}>
-                                        <SelectTrigger>
+                                        <SelectTrigger id="estadoCivil">
                                             <SelectValue placeholder="Selecione" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="Solteiro(a)">Solteiro(a)</SelectItem>
-                                            <SelectItem value="Casado(a)">Casado(a)</SelectItem>
-                                            <SelectItem value="Divorciado(a)">Divorciado(a)</SelectItem>
-                                            <SelectItem value="Viúvo(a)">Viúvo(a)</SelectItem>
-                                            <SelectItem value="União Estável">União Estável</SelectItem>
+                                            <SelectItem value="SOLTEIRO">Solteiro(a)</SelectItem>
+                                            <SelectItem value="CASADO">Casado(a)</SelectItem>
+                                            <SelectItem value="DIVORCIADO">Divorciado(a)</SelectItem>
+                                            <SelectItem value="VIUVO">Viúvo(a)</SelectItem>
+                                            <SelectItem value="UNIAO_ESTAVEL">União Estável</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                                 <div className="space-y-1">
                                     <Label htmlFor="grauInstrucao">Grau de Instrução</Label>
                                     <Select value={grauInstrucao} onValueChange={setGrauInstrucao}>
-                                        <SelectTrigger>
+                                        <SelectTrigger id="grauInstrucao">
                                             <SelectValue placeholder="Selecione" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -2285,10 +2495,68 @@ export function EmployeeOnvioWizard({
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="nacionalidade">Nacionalidade</Label>
-                                    <Input id="nacionalidade" value={nacionalidade} onChange={e => setNacionalidade(e.target.value)} />
+                                
+                                {/* Seletor de Nacionalidade Brasileira vs Estrangeira */}
+                                <div className="space-y-1 col-span-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                                    <Label className="text-xs font-bold text-slate-800">Cidadania / Nacionalidade do Candidato</Label>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            onClick={() => {
+                                                setIsEstrangeiro(false);
+                                                setNacionalidade("Brasileira");
+                                            }}
+                                            className={`flex-1 h-9 rounded-xl text-xs font-bold transition-all ${
+                                                !isEstrangeiro 
+                                                    ? "bg-slate-900 hover:bg-slate-800 text-white shadow-sm" 
+                                                    : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-100"
+                                            }`}
+                                        >
+                                            🇧🇷 Cidadão Brasileiro (RG)
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            onClick={() => {
+                                                setIsEstrangeiro(true);
+                                                if (nacionalidade === "Brasileira") setNacionalidade("Estrangeira");
+                                            }}
+                                            className={`flex-1 h-9 rounded-xl text-xs font-bold transition-all ${
+                                                isEstrangeiro 
+                                                    ? "bg-blue-600 hover:bg-blue-700 text-white shadow-sm" 
+                                                    : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-100"
+                                            }`}
+                                        >
+                                            🌐 Cidadão Estrangeiro (RNM / RNE / Protocolo)
+                                        </Button>
+                                    </div>
+                                    {isEstrangeiro && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
+                                            <div className="space-y-1">
+                                                <Label htmlFor="paisOrigem" className="text-[11px] text-blue-900 font-semibold">País de Origem</Label>
+                                                <Input 
+                                                    id="paisOrigem" 
+                                                    value={paisOrigem} 
+                                                    onChange={e => { setPaisOrigem(e.target.value); setNacionalidade(e.target.value); }} 
+                                                    placeholder="Ex: Haiti, Venezuela, Paraguai, etc." 
+                                                    className="h-8 text-xs bg-white border-blue-200"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label htmlFor="nacionalidade" className="text-[11px] text-blue-900 font-semibold">Nacionalidade / Gentílico</Label>
+                                                <Input 
+                                                    id="nacionalidade" 
+                                                    value={nacionalidade} 
+                                                    onChange={e => setNacionalidade(e.target.value)} 
+                                                    placeholder="Ex: Haitiana, Venezuelana, etc."
+                                                    className="h-8 text-xs bg-white border-blue-200"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
+
                                 <div className="space-y-1 flex gap-2">
                                     <div className="flex-1 space-y-1">
                                         <Label htmlFor="naturalidadeCidade">Naturalidade (Cidade)</Label>
@@ -2333,26 +2601,55 @@ export function EmployeeOnvioWizard({
                 {/* --- SEÇÃO 4: DOCUMENTOS --- */}
                 {currentStep === 4 && (
                     <>
-                        {/* Tab: RG */}
+                        {/* Tab: RG / RNM */}
                         {currentTab === "rg" && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label htmlFor="rgNumero">Número do RG</Label>
-                                    <Input id="rgNumero" value={rgNumero} onChange={e => setRgNumero(e.target.value)} placeholder="Registro Geral" />
+                            isEstrangeiro ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-xs flex items-center gap-2">
+                                        <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                                        <span>Candidato Estrangeiro: Preencha o Registro Nacional Migratório (RNM/RNE) ou Protocolo expedido pela Polícia Federal.</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="rnmNumero">Número do RNM / RNE / Protocolo</Label>
+                                        <Input id="rnmNumero" value={rnmNumero} onChange={e => { setRnmNumero(e.target.value); setRgNumero(e.target.value); }} placeholder="Ex: V123456-X" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="rnmOrgaoEmissor">Órgão Emissor</Label>
+                                        <Input id="rnmOrgaoEmissor" value={rnmOrgaoEmissor} onChange={e => { setRnmOrgaoEmissor(e.target.value); setRgOrgaoEmissor(e.target.value); }} placeholder="DPF / Polícia Federal" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="rnmDataEmissao">Data de Emissão</Label>
+                                        <Input id="rnmDataEmissao" type="date" value={rnmDataEmissao} onChange={e => { setRnmDataEmissao(e.target.value); setRgDataEmissao(e.target.value); }} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="rnmDataValidade">Data de Validade / Vencimento</Label>
+                                        <Input id="rnmDataValidade" type="date" value={rnmDataValidade} onChange={e => setRnmDataValidade(e.target.value)} />
+                                    </div>
+                                    <div className="space-y-1 col-span-2">
+                                        <Label htmlFor="rnmUf">UF de Emissão</Label>
+                                        <Input id="rnmUf" value={rnmUf} onChange={e => { setRnmUf(e.target.value); setRgUf(e.target.value); }} placeholder="Ex: PR" maxLength={2} />
+                                    </div>
                                 </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="rgOrgaoEmissor">Órgão Emissor</Label>
-                                    <Input id="rgOrgaoEmissor" value={rgOrgaoEmissor} onChange={e => setRgOrgaoEmissor(e.target.value)} placeholder="Ex: SSP" />
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <Label htmlFor="rgNumero">Número do RG</Label>
+                                        <Input id="rgNumero" value={rgNumero} onChange={e => setRgNumero(e.target.value)} placeholder="Registro Geral" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="rgOrgaoEmissor">Órgão Emissor</Label>
+                                        <Input id="rgOrgaoEmissor" value={rgOrgaoEmissor} onChange={e => setRgOrgaoEmissor(e.target.value)} placeholder="Ex: SSP" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="rgDataEmissao">Data de Emissão</Label>
+                                        <Input id="rgDataEmissao" type="date" value={rgDataEmissao} onChange={e => setRgDataEmissao(e.target.value)} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="rgUf">UF de Emissão</Label>
+                                        <Input id="rgUf" value={rgUf} onChange={e => setRgUf(e.target.value)} placeholder="Ex: SP" maxLength={2} />
+                                    </div>
                                 </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="rgDataEmissao">Data de Emissão</Label>
-                                    <Input id="rgDataEmissao" type="date" value={rgDataEmissao} onChange={e => setRgDataEmissao(e.target.value)} />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="rgUf">UF de Emissão</Label>
-                                    <Input id="rgUf" value={rgUf} onChange={e => setRgUf(e.target.value)} placeholder="Ex: SP" maxLength={2} />
-                                </div>
-                            </div>
+                            )
                         )}
 
                         {/* Tab: CNH */}
@@ -2379,36 +2676,46 @@ export function EmployeeOnvioWizard({
 
                         {/* Tab: Título & Reservista */}
                         {currentTab === "titulo" && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1 col-span-2">
-                                    <Label htmlFor="tituloEleitorNumero">Título de Eleitor (Número)</Label>
-                                    <Input id="tituloEleitorNumero" value={tituloEleitorNumero} onChange={e => setTituloEleitorNumero(e.target.value)} placeholder="Inscrição eleitoral" />
+                            isEstrangeiro ? (
+                                <div className="col-span-2 p-6 bg-slate-50 border border-slate-200 rounded-xl text-center space-y-2">
+                                    <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
+                                    <p className="text-sm font-bold text-slate-800">Título de Eleitor e Reservista Dispensados</p>
+                                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                                        Cidadãos estrangeiros são legalmente dispensados de alistamento eleitoral e serviço militar obrigatório no Brasil.
+                                    </p>
                                 </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="tituloEleitorZona">Zona</Label>
-                                    <Input id="tituloEleitorZona" value={tituloEleitorZona} onChange={e => setTituloEleitorZona(e.target.value)} placeholder="Zona" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="tituloEleitorSecao">Seção</Label>
-                                    <Input id="tituloEleitorSecao" value={tituloEleitorSecao} onChange={e => setTituloEleitorSecao(e.target.value)} placeholder="Seção" />
-                                </div>
-                                <div className="space-y-1 col-span-2">
-                                    <Label htmlFor="tituloEleitorUf">UF Título</Label>
-                                    <Input id="tituloEleitorUf" value={tituloEleitorUf} onChange={e => setTituloEleitorUf(e.target.value)} placeholder="Ex: SP" maxLength={2} />
-                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1 col-span-2">
+                                        <Label htmlFor="tituloEleitorNumero">Título de Eleitor (Número)</Label>
+                                        <Input id="tituloEleitorNumero" value={tituloEleitorNumero} onChange={e => setTituloEleitorNumero(e.target.value)} placeholder="Inscrição eleitoral" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="tituloEleitorZona">Zona</Label>
+                                        <Input id="tituloEleitorZona" value={tituloEleitorZona} onChange={e => setTituloEleitorZona(e.target.value)} placeholder="Zona" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="tituloEleitorSecao">Seção</Label>
+                                        <Input id="tituloEleitorSecao" value={tituloEleitorSecao} onChange={e => setTituloEleitorSecao(e.target.value)} placeholder="Seção" />
+                                    </div>
+                                    <div className="space-y-1 col-span-2">
+                                        <Label htmlFor="tituloEleitorUf">UF Título</Label>
+                                        <Input id="tituloEleitorUf" value={tituloEleitorUf} onChange={e => setTituloEleitorUf(e.target.value)} placeholder="Ex: SP" maxLength={2} />
+                                    </div>
 
-                                <div className="border-t col-span-2 pt-4 mt-2">
-                                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Reservista (Militar)</h4>
+                                    <div className="border-t col-span-2 pt-4 mt-2">
+                                        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Reservista (Militar)</h4>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="reservistaNumero">Número do Certificado</Label>
+                                        <Input id="reservistaNumero" value={reservistaNumero} onChange={e => setReservistaNumero(e.target.value)} placeholder="Número" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="reservistaCategoria">Categoria</Label>
+                                        <Input id="reservistaCategoria" value={reservistaCategoria} onChange={e => setReservistaCategoria(e.target.value)} placeholder="Ex: 3ª Categoria" />
+                                    </div>
                                 </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="reservistaNumero">Número do Certificado</Label>
-                                    <Input id="reservistaNumero" value={reservistaNumero} onChange={e => setReservistaNumero(e.target.value)} placeholder="Número" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="reservistaCategoria">Categoria</Label>
-                                    <Input id="reservistaCategoria" value={reservistaCategoria} onChange={e => setReservistaCategoria(e.target.value)} placeholder="Ex: 3ª Categoria" />
-                                </div>
-                            </div>
+                            )
                         )}
                     </>
                 )}

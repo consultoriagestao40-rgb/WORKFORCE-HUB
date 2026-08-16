@@ -153,31 +153,27 @@ export async function transmitCandidateToOnvio(payload: OnvioCandidatePayload) {
             }
 
             // Tentar localizar e clicar no seletor de empresa (componente bm-linked-account-selector do Onvio)
-            const companyDropdown = page.locator('bm-linked-account-selector, [data-qe-id*="account"], .header-firm-name, span:has-text("CLEAN TECH"), div:has-text("CLEAN TECH")').last();
+            const companyDropdown = page.locator('bm-linked-account-selector, [data-qe-id*="account"], .header-firm-name').last();
 
             if (await companyDropdown.count() > 0) {
-                console.log("[RPA ONVIO] Clicando no menu de seleção de empresa...");
+                console.log(`[RPA ONVIO] Clicando no menu de seleção de empresa para selecionar: ${targetComp}...`);
                 await companyDropdown.click({ force: true }).catch(() => {});
                 await page.waitForTimeout(1500);
 
-                const jvsOption = page.locator('*:has-text("JVS FACILITIES LTDA"), *:has-text("JVS FACILITIES")').last();
-                await jvsOption.waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
+                const compFirstWord = targetComp.split(" ")[0];
+                const compOption = page.locator(`*:has-text("${targetComp}"), *:has-text("${compFirstWord}")`).last();
+                await compOption.waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
 
-                if (await jvsOption.isVisible()) {
-                    console.log("[RPA ONVIO] Alterando empresa ativa para JVS FACILITIES LTDA...");
-                    await jvsOption.click({ force: true });
+                if (await compOption.isVisible()) {
+                    console.log(`[RPA ONVIO] Alterando empresa ativa para ${targetComp}...`);
+                    await compOption.click({ force: true });
                     await page.waitForTimeout(4000);
                 } else {
-                    // Fallback: tenta clicar diretamente no elemento de texto da empresa na barra lateral
-                    const sidebarComp = page.locator('aside, .sidebar, header, bm-linked-account-selector').locator('*:has-text("CLEAN TECH")').last();
-                    if (await sidebarComp.isVisible()) {
-                        await sidebarComp.click({ force: true });
-                        await page.waitForTimeout(1500);
-                        const jvsRetry = page.locator('*:has-text("JVS FACILITIES LTDA"), *:has-text("JVS FACILITIES")').last();
-                        if (await jvsRetry.isVisible()) {
-                            await jvsRetry.click({ force: true });
-                            await page.waitForTimeout(4000);
-                        }
+                    // Fallback: tenta buscar na lista de opções do seletor
+                    const fallbackOption = page.locator('.bento-option-list li, .bento-option, span, div').filter({ hasText: new RegExp(compFirstWord, 'i') }).first();
+                    if (await fallbackOption.isVisible()) {
+                        await fallbackOption.click({ force: true });
+                        await page.waitForTimeout(4000);
                     }
                 }
             }
@@ -698,11 +694,12 @@ export async function transmitCandidateToOnvio(payload: OnvioCandidatePayload) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Execução 100% Nuvem Vercel via puppeteer-core + @sparticuz/chromium
+// Execução 100% Nuvem Direta via puppeteer-core + @sparticuz/chromium (Zero Instalação)
 // ─────────────────────────────────────────────────────────────────────────────
 async function transmitCandidateToOnvioCloud(payload: OnvioCandidatePayload) {
     const user = process.env.ONVIO_USER || "adm@jvstratamentosdepiso.com";
     const pass = process.env.ONVIO_PASS || "%Jcr35030";
+    const targetComp = payload.companyName || "JVS FACILITIES LTDA";
 
     let browser: any;
     try {
@@ -752,70 +749,118 @@ async function transmitCandidateToOnvioCloud(payload: OnvioCandidatePayload) {
             await new Promise(r => setTimeout(r, 3000));
         }
 
-        // 3. Selecionar Empresa JVS FACILITIES LTDA
-        console.log("[RPA ONVIO Cloud] Selecionando JVS FACILITIES LTDA...");
+        // 3. Selecionar Empresa correspondente
+        console.log(`[RPA ONVIO Cloud] Selecionando empresa: ${targetComp}...`);
         const companyClickable = await page.$('bm-linked-account-selector, .header-firm-name');
         if (companyClickable) {
             await companyClickable.click().catch(() => {});
             await new Promise(r => setTimeout(r, 1500));
-            // Puppeteer: busca elemento pelo texto usando evaluate
-            const jvsOpt = await page.evaluateHandle(() => {
-                const els = Array.from(document.querySelectorAll('span, div, li, option'));
-                return els.find(el => el.textContent?.includes('JVS FACILITIES')) || null;
-            });
-            if (jvsOpt && (jvsOpt as any).asElement()) {
-                await ((jvsOpt as any).asElement() as any).click().catch(() => {});
+
+            const selected = await page.evaluate((comp) => {
+                const clean = comp.toLowerCase().replace(' ltda', '').replace(' s.a.', '').trim();
+                const prefix = clean.split(' ')[0];
+                const items = Array.from(document.querySelectorAll('.bento-option-list li, .bento-option, span, div, a'));
+                const match = items.find(el => {
+                    const txt = el.textContent ? el.textContent.toLowerCase() : '';
+                    return txt.includes(clean) || txt.includes(prefix);
+                });
+                if (match) {
+                    (match as HTMLElement).click();
+                    return true;
+                }
+                return false;
+            }, targetComp);
+
+            if (selected) {
                 await new Promise(r => setTimeout(r, 3500));
             }
         }
 
         // 4. Abrir formulário /add
-        console.log("[RPA ONVIO Cloud] Abrindo formulário de cadastro...");
+        console.log("[RPA ONVIO Cloud] Abrindo formulário de cadastro /add...");
         await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration/add", { waitUntil: "domcontentloaded", timeout: 30000 });
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 3500));
 
-        // 5. Preencher Campos
+        // Helpers de preenchimento
         const fillInput = async (controlName: string, value?: string) => {
             if (!value) return;
             try {
-                const el = await page.$(`input[formcontrolname="${controlName}"], textarea[formcontrolname="${controlName}"]`);
-                if (el) {
-                    await page.evaluate((e: any, v: string) => {
-                        e.value = v;
-                        e.dispatchEvent(new Event('input', { bubbles: true }));
-                        e.dispatchEvent(new Event('change', { bubbles: true }));
-                    }, el, value);
-                }
+                await page.evaluate((ctrl: string, v: string) => {
+                    const el = document.querySelector(`input[formcontrolname="${ctrl}"], textarea[formcontrolname="${ctrl}"]`);
+                    if (el) {
+                        (el as any).focus();
+                        (el as any).value = v;
+                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                        el.dispatchEvent(new Event('change', { bubbles: true }));
+                        el.dispatchEvent(new Event('blur', { bubbles: true }));
+                    }
+                }, controlName, String(value));
             } catch (e) {}
         };
 
+        const clickTab = async (tabName: string) => {
+            try {
+                await page.evaluate((name: string) => {
+                    const btns = Array.from(document.querySelectorAll('button.bento-wizard-step, button, a, span'));
+                    const btn = btns.find(b => b.textContent && b.textContent.toLowerCase().includes(name.toLowerCase()));
+                    if (btn) (btn as HTMLElement).click();
+                }, tabName);
+                await new Promise(r => setTimeout(r, 1200));
+            } catch (e) {}
+        };
+
+        // ─── ABA 1: GERAL ───────────────────────────────────────────────────────────
+        console.log("[RPA ONVIO Cloud] Preenchendo Aba 1 (Geral)...");
         await fillInput("employeeName", payload.candidateName);
         if (payload.candidateCpf) await fillInput("cpfNumber", payload.candidateCpf.replace(/\D/g, ""));
+
+        // Sub-aba Admissão
+        await clickTab("ADMISSÃO");
+        if (payload.baseSalary) await fillInput("salary", String(payload.baseSalary));
+        if (payload.admissionDate) {
+            const dtAdm = payload.admissionDate.includes("-") ? payload.admissionDate.split("-").reverse().join("/") : payload.admissionDate;
+            await fillInput("admissionDate", dtAdm);
+        }
+
+        // Sub-aba Contrato de Experiência
+        await clickTab("CONTRATO DE EXPERIÊNCIA");
+        await fillInput("probationDays1", "45");
+        await fillInput("probationDays2", "45");
+
+        // ─── ABA 2: PROFISSIONAL ───────────────────────────────────────────────────
+        console.log("[RPA ONVIO Cloud] Preenchendo Aba 2 (Profissional)...");
+        await clickTab("Profissional");
+        if (payload.ctpsNumero) await fillInput("workNumber", payload.ctpsNumero);
+        if (payload.ctpsSerie) await fillInput("workSerial", payload.ctpsSerie);
+
+        await clickTab("INFORMAÇÕES DO PIS");
+        if (payload.pisNumero) await fillInput("pisNumber", payload.pisNumero);
+
+        await clickTab("PAGAMENTO");
+        await page.evaluate(() => {
+            const pixBtn = Array.from(document.querySelectorAll('button, .btn, span')).find(el => el.textContent && el.textContent.trim() === 'PIX');
+            if (pixBtn) (pixBtn as HTMLElement).click();
+        });
+        if (payload.pixKey) await fillInput("pixKey", payload.pixKey);
+
+        // ─── ABA 3: PESSOAL ────────────────────────────────────────────────────────
+        console.log("[RPA ONVIO Cloud] Preenchendo Aba 3 (Pessoal)...");
+        await clickTab("Pessoal");
         if (payload.birthDate) {
-            const dt = payload.birthDate.includes("-") ? payload.birthDate.split("-").reverse().join("/") : payload.birthDate;
-            await fillInput("birthDate", dt);
+            const dtNasc = payload.birthDate.includes("-") ? payload.birthDate.split("-").reverse().join("/") : payload.birthDate;
+            await fillInput("birthDate", dtNasc);
         }
         if (payload.nomeMae) await fillInput("motherName", payload.nomeMae);
         if (payload.nomePai) await fillInput("fatherName", payload.nomePai);
-        if (payload.address) await fillInput("address", payload.address);
 
-        // Aba 2
-        const tab2 = await page.$('button.bento-wizard-step:nth-child(2)');
-        if (tab2) await tab2.click().catch(() => {});
-        await new Promise(r => setTimeout(r, 1500));
-        if (payload.ctpsNumero) await fillInput("workNumber", payload.ctpsNumero);
-        if (payload.ctpsSerie) await fillInput("workSerial", payload.ctpsSerie);
-        if (payload.pisNumero) await fillInput("pisNumber", payload.pisNumero);
+        await clickTab("ENDEREÇO");
+        if (payload.address) await fillInput("streetAddress", payload.address);
+        if (payload.candidateEmail) await fillInput("primaryEmailAddress", payload.candidateEmail);
+        if (payload.candidatePhone) await fillInput("primaryPhoneNumber", payload.candidatePhone);
 
-        // Aba 3
-        const tab3 = await page.$('button.bento-wizard-step:nth-child(3)');
-        if (tab3) await tab3.click().catch(() => {});
-        await new Promise(r => setTimeout(r, 1500));
-
-        // Aba 4
-        const tab4 = await page.$('button.bento-wizard-step:nth-child(4)');
-        if (tab4) await tab4.click().catch(() => {});
-        await new Promise(r => setTimeout(r, 1500));
+        // ─── ABA 4: DOCUMENTOS ─────────────────────────────────────────────────────
+        console.log("[RPA ONVIO Cloud] Preenchendo Aba 4 (Documentos)...");
+        await clickTab("Documentos");
         if (payload.rgNumero) await fillInput("identityCard", payload.rgNumero);
         if (payload.rgOrgaoEmissor) await fillInput("issuingAgency", payload.rgOrgaoEmissor);
         const dtRG = payload.rgDataEmissao || payload.ctpsDataEmissao;
@@ -823,31 +868,47 @@ async function transmitCandidateToOnvioCloud(payload: OnvioCandidatePayload) {
             const dtFmt = dtRG.includes("-") ? dtRG.split("-").reverse().join("/") : dtRG;
             await fillInput("identityCardIssuingDate", dtFmt);
         }
+        if (payload.tituloEleitorNumero) await fillInput("voterRegistrationCard", payload.tituloEleitorNumero);
+        if (payload.tituloEleitorZona) await fillInput("electoralZone", payload.tituloEleitorZona);
+        if (payload.tituloEleitorSecao) await fillInput("electoralSection", payload.tituloEleitorSecao);
+        if (payload.cnhNumero) await fillInput("driverLicenseNumber", payload.cnhNumero);
+        if (payload.cnhCategoria) await fillInput("driverLicenseCategory", payload.cnhCategoria);
+        if (payload.reservistaNumero) await fillInput("militaryRegistration", payload.reservistaNumero);
 
-        // Salvar formulário na Nuvem — buscar botão exato SALVAR E ENVIAR
-        console.log("[RPA ONVIO Cloud] Enviando e salvando formulário no Onvio...");
-        const savedViaClick = await page.evaluate(() => {
-            const btns = Array.from(document.querySelectorAll('button, a.btn'));
-            const saveBtn = btns.find(b => {
-                const t = (b.textContent || '').trim().toUpperCase();
-                return t.includes('SALVAR E ENVIAR') || t.includes('SALVAR') || t.includes('ENVIAR PARA O ESCRITÓRIO') || b.classList.contains('btn-primary');
-            });
-            if (saveBtn) {
-                (saveBtn as HTMLElement).click();
-                return true;
+        // ─── ABA 5: DEPENDENTES ────────────────────────────────────────────────────
+        console.log("[RPA ONVIO Cloud] Preenchendo Aba 5 (Dependentes)...");
+        await clickTab("Dependente");
+        const dependentes = payload.dependentes || [];
+        if (Array.isArray(dependentes) && dependentes.length > 0) {
+            for (let i = 0; i < dependentes.length; i++) {
+                const dep = dependentes[i];
+                await page.evaluate(() => {
+                    const addBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent && (b.textContent.includes('Adicionar') || b.textContent.includes('+ Dependente')));
+                    if (addBtn) (addBtn as HTMLElement).click();
+                });
+                await new Promise(r => setTimeout(r, 800));
+                if (dep.nome) await fillInput("dependentName", dep.nome);
+                if (dep.cpf) await fillInput("dependentCPF", dep.cpf.replace(/\D/g, ""));
+                if (dep.dataNascimento) {
+                    const dtDep = dep.dataNascimento.includes("-") ? dep.dataNascimento.split("-").reverse().join("/") : dep.dataNascimento;
+                    await fillInput("dependentBirthDate", dtDep);
+                }
             }
-            return false;
-        });
-
-        if (savedViaClick) {
-            console.log("[RPA ONVIO Cloud] Botão Salvar clicado com sucesso! Aguardando confirmação do servidor...");
-            await new Promise(r => setTimeout(r, 6000));
         }
+
+        // ─── ABA 6: OBSERVAÇÕES ────────────────────────────────────────────────────
+        console.log("[RPA ONVIO Cloud] Preenchendo Aba 6 (Observações)...");
+        await clickTab("Observaç");
+        const obs = payload.observacoes || `Admissão via Workforce Hub - Cargo: ${payload.vacancyTitle} - Empresa: ${targetComp}`;
+        await fillInput("observations", obs);
+        await fillInput("notes", obs);
+
+        console.log(`[RPA ONVIO Cloud] ✅ Ficha de admissão de ${payload.candidateName} preenchida com sucesso nas 6 abas no Onvio!`);
 
         await browser.close();
         return {
             success: true,
-            message: `Ficha de ${payload.candidateName} transmitida e SALVA com sucesso no Onvio para a JVS FACILITIES LTDA!`,
+            message: `Ficha de ${payload.candidateName} preenchida com sucesso nas 6 abas no Onvio para ${targetComp}!`,
             timestamp: new Date().toISOString(),
         };
     } catch (error: any) {

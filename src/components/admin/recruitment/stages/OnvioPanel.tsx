@@ -56,31 +56,53 @@ export function OnvioPanel({
 }: OnvioPanelProps) {
     const [confirming, setConfirming] = useState(false);
     const [sendingRpa, setSendingRpa] = useState(false);
+    const [liveWizardData, setLiveWizardData] = useState<any>(null);
+    const [showTransmitModal, setShowTransmitModal] = useState(false);
+
+    function checkPixRequirement(data: any) {
+        const extra = data?.extraFields || {};
+        const chave = extra.chavePix || data?.chavePix;
+        const approved = extra.pixOverrideApproved;
+        if (!chave && !approved) {
+            toast.error("⚠️ A Chave PIX é requisito obrigatório para a contratação! Preencha a Chave PIX na Aba Pagamento ou registre uma Deliberação de Aprovação Superior.");
+            return false;
+        }
+        return true;
+    }
+
+    function handleStartTransmission() {
+        const dataToTransmit = liveWizardData || wizardInitialData;
+        if (!checkPixRequirement(dataToTransmit)) return;
+        setShowTransmitModal(true);
+    }
 
     function handleOpenOnvioForm() {
         const onvioUrl = "https://onvio.com.br/clientcenter";
         window.open(onvioUrl, "_blank", "noreferrer,noopener");
 
-        const cpfDigits = (cpf || extraFields?.cpf || "").replace(/\D/g, "");
-        const ctpsNum = cpfDigits.length >= 7 ? cpfDigits.slice(0, 7) : "";
-        const ctpsSerie = cpfDigits.length >= 11 ? cpfDigits.slice(7, 11) : (cpfDigits.length >= 4 ? cpfDigits.slice(-4) : "");
+        const data = liveWizardData || wizardInitialData;
+        const extra = data.extraFields || {};
+        const isEstr = extra.isEstrangeiro;
+        const cpfDigits = (data.cpf || extra?.cpf || "").replace(/\D/g, "");
+        const ctpsNum = extra?.ctpsNumero || (cpfDigits.length >= 7 ? cpfDigits.slice(0, 7) : "");
+        const ctpsSerie = extra?.ctpsSerie || (cpfDigits.length >= 11 ? cpfDigits.slice(7, 11) : (cpfDigits.length >= 4 ? cpfDigits.slice(-4) : ""));
 
         const summaryText = `--- DADOS DE ADMISSÃO PARA PREENCHIMENTO ONVIO ---
-Nome: ${candidateName || ""}
-CPF: ${cpf || extraFields?.cpf || ""}
-RG: ${rg || extraFields?.rg || extraFields?.rgNumero || ""}
-PIS/PASEP: ${extraFields?.pisNumero || extraFields?.pis || cpf || ""}
+Nome: ${data.name || candidateName || ""}
+${isEstr ? `Nacionalidade: ${extra.paisOrigem || extra.nacionalidade || "Estrangeira"}\nRNM/RNE: ${extra.rnmNumero || extra.rgNumero || ""}` : `CPF: ${data.cpf || extra?.cpf || ""}\nRG: ${extra?.rgNumero || data.rg || ""}`}
+PIS/PASEP: ${extra?.pisNumero || cpfDigits || ""}
 CTPS Número: ${ctpsNum} | Série: ${ctpsSerie}
-Data Nascimento: ${birthDate || extraFields?.birthDate || ""}
-Gênero: ${gender || extraFields?.gender || ""}
-Nome da Mãe: ${extraFields?.nomeMae || ""}
-Nome do Pai: ${extraFields?.nomePai || ""}
-Endereço: ${address || extraFields?.address || ""}
-Cargo: ${roleTitle || ""}
-Salário Base: R$ ${salary || "0"}
-Escala: ${extraFields?.escalaHorario || "12x36"}
-Jornada: ${extraFields?.jornadaHoras || "10:00 às 22:00"}
-Empresa: ${companyName || ""}
+Data Nascimento: ${data.birthDate || extra?.birthDate || ""}
+Gênero: ${data.gender || extra?.gender || ""}
+Nome da Mãe: ${extra?.nomeMae || ""}
+Nome do Pai: ${extra?.nomePai || ""}
+Endereço: ${data.address || extra?.address || ""}
+Cargo: ${data.roleTitle || roleTitle || ""}
+Salário Base: R$ ${data.salary || salary || "0"}
+Escala: ${extra?.escalaHorario || "12x36"}
+Jornada: ${extra?.jornadaHoras || "10:00 às 22:00"}
+Empresa: ${data.companyName || companyName || "JVS FACILITIES LTDA"}
+Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[LIBERAÇÃO SUPERIOR: ${extra.pixApprovalBy || "Aprovado"}]` : "---")}
 --------------------------------------------------`;
 
         navigator.clipboard.writeText(summaryText);
@@ -88,12 +110,15 @@ Empresa: ${companyName || ""}
     }
 
     async function handleRpaTransmit() {
+        setShowTransmitModal(false);
         setSendingRpa(true);
         try {
-            toast.info("Enviando solicitação para o Robô no seu computador Windows...");
+            const dataToTransmit = liveWizardData || wizardInitialData;
+
+            toast.info("Iniciando transmissão de dados de admissão para o Onvio...");
             
             // 1. Criar Job na fila de comunicacao segura em nuvem (Vercel -> Windows)
-            const jobRes = await createRpaJobAction(candidateId, wizardInitialData);
+            const jobRes = await createRpaJobAction(candidateId, dataToTransmit);
             
             if (jobRes.success && jobRes.jobId) {
                 const jobId = jobRes.jobId;
@@ -105,7 +130,7 @@ Empresa: ${companyName || ""}
                     const statusRes = await checkRpaJobStatusAction(jobId);
                     if (statusRes.success && (statusRes.status === "PROCESSING" || statusRes.status === "COMPLETED")) {
                         isHandledByWindows = true;
-                        toast.success("🤖 O Robô no seu Windows recebeu a solicitação e abriu a janela do Chrome na sua tela!");
+                        toast.success("🤖 O Robô no seu Windows recebeu a solicitação e abriu a janela do Chrome na sua tela! Faça a conferência e clique em Salvar no Onvio.");
                         onUpdate();
                         break;
                     }
@@ -115,8 +140,8 @@ Empresa: ${companyName || ""}
             }
 
             // 2. Fallback caso o Robo-Onvio-RH.exe nao esteja rodando no Windows
-            toast.info("Robô local não detectado no Windows. Executando automação no servidor de nuvem...");
-            const res = await sendCandidateToOnvioRpa(candidateId);
+            toast.info("Executando automação direta no portal Onvio...");
+            const res = await sendCandidateToOnvioRpa(candidateId, dataToTransmit);
             if (res.success) {
                 toast.success(res.message || "Robô RPA executou com sucesso no portal Onvio!");
                 onUpdate();
@@ -220,27 +245,8 @@ Empresa: ${companyName || ""}
         }
     };
 
-    const handleSendToExtension = () => {
-        const event = new CustomEvent("workforceRpaCapture", {
-            detail: {
-                name: candidateName,
-                cpf: cpf || extraFields?.cpf,
-                phone: phone || extraFields?.phone,
-                email: email || extraFields?.email,
-                role: roleTitle || extraFields?.role,
-                salary: salary || extraFields?.salary,
-                company: companyName || extraFields?.company,
-                startDate: startDate || extraFields?.startDate,
-                birthDate: birthDate || extraFields?.birthDate,
-                gender: gender || extraFields?.gender,
-                address: address || extraFields?.address,
-                rg: rg || extraFields?.rg,
-                ...extraFields,
-            }
-        });
-        document.dispatchEvent(event);
-        toast.success("Dados completos de Admissão capturados pela extensão ONvio! Vá para o portal Onvio e clique em Preencher.");
-    };
+    const currentDataForModal = liveWizardData || wizardInitialData;
+    const currentExtra = currentDataForModal.extraFields || {};
 
     async function handleConfirm() {
         setConfirming(true);
@@ -297,27 +303,28 @@ Empresa: ${companyName || ""}
                     costCenters={dropdowns.costCenters}
                     unions={dropdowns.unions}
                     jobFunctions={dropdowns.jobFunctions}
+                    onDataChange={setLiveWizardData}
                 />
             </div>
 
-            {/* Ações: Robô RPA Onvio, Executável Windows e Confirmação */}
+            {/* Ações: Robô RPA Onvio, Executável Windows, Copiar Dados e Confirmação de Etapa */}
             <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
-                <div className="flex flex-col sm:flex-row gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <Button
                         type="button"
-                        onClick={handleRpaTransmit}
+                        onClick={handleStartTransmission}
                         disabled={sendingRpa}
-                        className="flex-1 bg-gradient-to-r from-teal-700 via-teal-800 to-[#042d36] hover:from-teal-800 hover:to-[#032229] text-white font-bold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2 shadow"
+                        className="bg-gradient-to-r from-teal-700 via-teal-800 to-[#042d36] hover:from-teal-800 hover:to-[#032229] text-white font-bold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2 shadow"
                     >
                         {sendingRpa ? (
                             <>
                                 <Loader2 className="w-4 h-4 animate-spin text-teal-200" />
-                                <span>Robô RPA Conectando ao Onvio...</span>
+                                <span>Robô Conectando...</span>
                             </>
                         ) : (
                             <>
                                 <Bot className="w-4 h-4 text-teal-300" />
-                                <span>🤖 Transmitir via Robô RPA Onvio</span>
+                                <span>🚀 Enviar para Contabilidade (Onvio)</span>
                             </>
                         )}
                     </Button>
@@ -325,14 +332,25 @@ Empresa: ${companyName || ""}
                     <a
                         href="/downloads/Robo-Onvio-RH.exe"
                         download="Robo-Onvio-RH.exe"
-                        className="flex-1 border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm bg-white"
+                        className="border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm bg-white"
+                        title="Executável Windows para assistir o robô preenchendo o Onvio em tempo real"
                     >
-                        <span>💻 Baixar Executável Windows (Robo-Onvio-RH.exe)</span>
+                        <span>💻 Baixar Executável (Windows)</span>
                     </a>
+
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleOpenOnvioForm}
+                        className="border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm bg-white"
+                    >
+                        <ExternalLink className="w-4 h-4 text-slate-500" />
+                        <span>📋 Copiar Dados / Abrir Onvio</span>
+                    </Button>
 
                     {!onvioLaunched && (
                         <Button
-                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2 shadow"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm h-11 rounded-xl flex items-center justify-center gap-2 shadow"
                             onClick={handleConfirm}
                             disabled={confirming}
                         >
@@ -346,6 +364,77 @@ Empresa: ${companyName || ""}
                     )}
                 </div>
             </div>
+
+            {/* Modal de Confirmação Pré-Envio para Contabilidade */}
+            {showTransmitModal && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
+                                <Bot className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-bold text-slate-900">Confirmar Envio para Contabilidade</h3>
+                                <p className="text-xs text-slate-500">Deseja transmitir os dados da admissão para o portal Onvio agora?</p>
+                            </div>
+                        </div>
+
+                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs text-slate-700">
+                            <div className="flex justify-between py-1 border-b border-slate-200">
+                                <span className="font-semibold text-slate-500">Colaborador:</span>
+                                <span className="font-bold text-slate-900">{currentDataForModal.name || candidateName}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-200">
+                                <span className="font-semibold text-slate-500">{currentExtra.isEstrangeiro ? "Nacionalidade / RNM:" : "CPF / RG:"}</span>
+                                <span className="font-bold text-slate-900">
+                                    {currentExtra.isEstrangeiro 
+                                        ? `${currentExtra.paisOrigem || "Estrangeiro"} (${currentExtra.rnmNumero || "Sem RNM"})`
+                                        : `${currentDataForModal.cpf || "---"} (${currentExtra.rgNumero || "---"})`
+                                    }
+                                </span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-200">
+                                <span className="font-semibold text-slate-500">Empresa Alvo (Onvio):</span>
+                                <span className="font-bold text-teal-800">{currentDataForModal.companyName || companyName || "JVS FACILITIES LTDA"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-200">
+                                <span className="font-semibold text-slate-500">Cargo / Salário:</span>
+                                <span className="font-bold text-slate-900">{currentDataForModal.roleTitle || roleTitle} — R$ {currentDataForModal.salary || salary || "0"}</span>
+                            </div>
+                            <div className="flex justify-between py-1">
+                                <span className="font-semibold text-slate-500">Chave PIX:</span>
+                                <span className="font-bold text-slate-900">
+                                    {currentExtra.chavePix 
+                                        ? `✅ ${currentExtra.chavePix}` 
+                                        : currentExtra.pixOverrideApproved 
+                                            ? `🔓 Deliberação Superior (${currentExtra.pixApprovalBy || "Aprovado"})` 
+                                            : "❌ Ausente"
+                                    }
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 pt-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setShowTransmitModal(false)}
+                                className="rounded-xl text-xs h-10 px-4"
+                            >
+                                Cancelar e Revisar
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={handleRpaTransmit}
+                                className="bg-gradient-to-r from-teal-700 to-[#042d36] hover:from-teal-800 hover:to-[#032229] text-white font-bold text-xs h-10 px-5 rounded-xl shadow flex items-center gap-2"
+                            >
+                                <Bot className="w-4 h-4 text-teal-300" />
+                                <span>Sim, Transmitir Agora</span>
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

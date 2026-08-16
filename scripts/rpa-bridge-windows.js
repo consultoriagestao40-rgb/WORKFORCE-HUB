@@ -170,9 +170,23 @@ async function executeVisualFilling(payload) {
         await page.evaluate(() => new Promise(r => setTimeout(r, 1500)));
 
         await page.evaluate((compName) => {
-            const prefix = compName.split(" ")[0].toLowerCase();
-            const items = Array.from(document.querySelectorAll('.bento-option-list li, .bento-option, span, div'));
-            const match = items.find(el => el.textContent.toLowerCase().includes(prefix));
+            const searchInp = document.querySelector('input[placeholder*="Pesquisar"], input[placeholder*="empresa"], input[type="search"], bento-combobox input');
+            if (searchInp) {
+                searchInp.value = compName;
+                searchInp.dispatchEvent(new Event('input', { bubbles: true }));
+                searchInp.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        }, companyName);
+        await page.evaluate(() => new Promise(r => setTimeout(r, 600)));
+
+        await page.evaluate((compName) => {
+            const cleanTarget = compName.toLowerCase().replace(' ltda', '').replace(' s.a.', '').trim();
+            const prefix = cleanTarget.split(" ")[0];
+            const items = Array.from(document.querySelectorAll('.bento-option-list li, .bento-option, span, div, a'));
+            const match = items.find(el => {
+                const txt = el.textContent ? el.textContent.toLowerCase() : '';
+                return txt.includes(cleanTarget) || txt.includes(prefix);
+            });
             if (match) match.click();
         }, companyName);
         await page.evaluate(() => new Promise(r => setTimeout(r, 3000)));
@@ -325,21 +339,87 @@ async function executeVisualFilling(payload) {
         await fillByControl("identityCard", rgNum);
         await fillByControl("issuingAgency", rgOrgao);
         if (rgDtDigits) await fillByControl("identityCardIssuingDate", rgDtDigits);
-    } catch (e) {}
 
+        // Título de Eleitor
+        const tituloNum = extra.tituloEleitorNumero || payload.tituloEleitorNumero;
+        if (tituloNum) await fillByControl("voterRegistrationCard", tituloNum);
+        const tituloZona = extra.tituloEleitorZona || payload.tituloEleitorZona;
+        if (tituloZona) await fillByControl("electoralZone", tituloZona);
+        const tituloSecao = extra.tituloEleitorSecao || payload.tituloEleitorSecao;
+        if (tituloSecao) await fillByControl("electoralSection", tituloSecao);
+
+        // CNH
+        const cnhNum = extra.cnhNumero || payload.cnhNumero;
+        if (cnhNum) await fillByControl("driverLicenseNumber", cnhNum);
+        const cnhCat = extra.cnhCategoria || payload.cnhCategoria;
+        if (cnhCat) await fillByControl("driverLicenseCategory", cnhCat);
+        const cnhVal = formatDateDigits(extra.cnhValidade || payload.cnhValidade);
+        if (cnhVal) await fillByControl("driverLicenseExpirationDate", cnhVal);
+
+        // Reservista
+        const resNum = extra.reservistaNumero || payload.reservistaNumero;
+        if (resNum) await fillByControl("militaryRegistration", resNum);
+        const resCat = extra.reservistaCategoria || payload.reservistaCategoria;
+        if (resCat) await fillByControl("militaryReservistCategory", resCat);
+    } catch (e) {
+        console.log("[RPA WINDOWS RH] Erro na Aba 4:", e);
+    }
+
+    // ABA 5: DEPENDENTES
+    console.log("[RPA WINDOWS RH] Verificando Aba 5 (Dependentes)...");
     try {
         await page.evaluate(() => {
-            const btn = Array.from(document.querySelectorAll('button.bento-wizard-step, button')).find(el => el.textContent.includes('Geral'));
+            const btn = Array.from(document.querySelectorAll('button.bento-wizard-step, button')).find(el => el.textContent.includes('Dependente'));
             if (btn) btn.click();
         });
-    } catch (e) {}
+        await page.evaluate(() => new Promise(r => setTimeout(r, 1500)));
 
-    console.log(`[RPA WINDOWS RH] ✅ PREENCHIMENTO CONCLUÍDO PARA ${candidateName}!`);
-    console.log("[RPA WINDOWS RH] 🟢 O Chrome PERMANECE ABERTO na tela do RH para revisão e salvamento.");
+        const dependentes = payload.dependentes || extra.dependentes || [];
+        if (Array.isArray(dependentes) && dependentes.length > 0) {
+            for (let i = 0; i < dependentes.length; i++) {
+                const dep = dependentes[i];
+                console.log(`[RPA WINDOWS RH] Preenchendo dependente ${i + 1}: ${dep.nome || dep.name}`);
+
+                await page.evaluate(() => {
+                    const addBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent && (b.textContent.includes('Adicionar dependente') || b.textContent.includes('Adicionar') || b.textContent.includes('+ Dependente')));
+                    if (addBtn) addBtn.click();
+                });
+                await page.evaluate(() => new Promise(r => setTimeout(r, 1000)));
+
+                if (dep.nome || dep.name) await fillByControl("dependentName", dep.nome || dep.name);
+                const depCpf = (dep.cpf || "").replace(/\D/g, "");
+                if (depCpf) await fillByControl("dependentCPF", depCpf);
+                const depNasc = formatDateDigits(dep.dataNascimento || dep.birthDate);
+                if (depNasc) await fillByControl("dependentBirthDate", depNasc);
+                if (dep.parentesco) await selectBentoOption("relationshipType", dep.parentesco);
+            }
+        }
+    } catch (e) {
+        console.log("[RPA WINDOWS RH] Aviso na Aba 5:", e);
+    }
+
+    // ABA 6: OBSERVAÇÕES
+    console.log("[RPA WINDOWS RH] Preenchendo Aba 6 (Observações)...");
+    try {
+        await page.evaluate(() => {
+            const btn = Array.from(document.querySelectorAll('button.bento-wizard-step, button')).find(el => el.textContent.includes('Observaç') || el.textContent.includes('Observac'));
+            if (btn) btn.click();
+        });
+        await page.evaluate(() => new Promise(r => setTimeout(r, 1500)));
+
+        const obsText = payload.observacoes || extra.observacoes || `Admissão via Workforce Hub - Cargo: ${roleTitle} - Empresa: ${companyName}`;
+        await fillByControl("observations", obsText);
+        await fillByControl("notes", obsText);
+    } catch (e) {
+        console.log("[RPA WINDOWS RH] Aviso na Aba 6:", e);
+    }
+
+    console.log(`[RPA WINDOWS RH] ✅ PREENCHIMENTO DAS 6 ABAS CONCLUÍDO PARA ${candidateName}!`);
+    console.log("[RPA WINDOWS RH] 🟢 O Google Chrome está ABERTO na Aba 06 (Observações). Revise os dados e clique em 'SALVAR E ENVIAR PARA O ESCRITÓRIO' quando estiver pronto.");
 
     return {
         success: true,
-        message: `Chrome aberto na sua tela com todas as abas preenchidas para ${candidateName}!`
+        message: `Chrome aberto na sua tela na Aba 06 para ${candidateName}! Revise os dados e clique em 'SALVAR E ENVIAR' no Onvio quando estiver pronto.`
     };
 }
 
