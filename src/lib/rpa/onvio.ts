@@ -756,7 +756,7 @@ async function transmitCandidateToOnvioCloud(payload: OnvioCandidatePayload) {
             await companyClickable.click().catch(() => {});
             await new Promise(r => setTimeout(r, 1500));
 
-            const selected = await page.evaluate((comp) => {
+            const selected = await page.evaluate((comp: string) => {
                 const clean = comp.toLowerCase().replace(' ltda', '').replace(' s.a.', '').trim();
                 const prefix = clean.split(' ')[0];
                 const items = Array.from(document.querySelectorAll('.bento-option-list li, .bento-option, span, div, a'));
