@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { CheckCircle2, Loader2, Calendar, Zap, Bot, ExternalLink } from "lucide-react";
+import { CheckCircle2, Loader2, Calendar, Bot, X, FileText, User, Building, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { confirmOnvio, getEmployeeFormData, extractDataFromDocumentImages } from "@/actions/recruitment";
@@ -58,6 +58,7 @@ export function OnvioPanel({
     const [sendingRpa, setSendingRpa] = useState(false);
     const [liveWizardData, setLiveWizardData] = useState<any>(null);
     const [showTransmitModal, setShowTransmitModal] = useState(false);
+    const [isWizardModalOpen, setIsWizardModalOpen] = useState(false);
 
     function checkPixRequirement(data: any) {
         const extra = data?.extraFields || {};
@@ -76,39 +77,6 @@ export function OnvioPanel({
         setShowTransmitModal(true);
     }
 
-    function handleOpenOnvioForm() {
-        const onvioUrl = "https://onvio.com.br/clientcenter";
-        window.open(onvioUrl, "_blank", "noreferrer,noopener");
-
-        const data = liveWizardData || wizardInitialData;
-        const extra = data.extraFields || {};
-        const isEstr = extra.isEstrangeiro;
-        const cpfDigits = (data.cpf || extra?.cpf || "").replace(/\D/g, "");
-        const ctpsNum = extra?.ctpsNumero || (cpfDigits.length >= 7 ? cpfDigits.slice(0, 7) : "");
-        const ctpsSerie = extra?.ctpsSerie || (cpfDigits.length >= 11 ? cpfDigits.slice(7, 11) : (cpfDigits.length >= 4 ? cpfDigits.slice(-4) : ""));
-
-        const summaryText = `--- DADOS DE ADMISSÃO PARA PREENCHIMENTO ONVIO ---
-Nome: ${data.name || candidateName || ""}
-${isEstr ? `Nacionalidade: ${extra.paisOrigem || extra.nacionalidade || "Estrangeira"}\nRNM/RNE: ${extra.rnmNumero || extra.rgNumero || ""}` : `CPF: ${data.cpf || extra?.cpf || ""}\nRG: ${extra?.rgNumero || data.rg || ""}`}
-PIS/PASEP: ${extra?.pisNumero || cpfDigits || ""}
-CTPS Número: ${ctpsNum} | Série: ${ctpsSerie}
-Data Nascimento: ${data.birthDate || extra?.birthDate || ""}
-Gênero: ${data.gender || extra?.gender || ""}
-Nome da Mãe: ${extra?.nomeMae || ""}
-Nome do Pai: ${extra?.nomePai || ""}
-Endereço: ${data.address || extra?.address || ""}
-Cargo: ${data.roleTitle || roleTitle || ""}
-Salário Base: R$ ${data.salary || salary || "0"}
-Escala: ${extra?.escalaHorario || "12x36"}
-Jornada: ${extra?.jornadaHoras || "10:00 às 22:00"}
-Empresa: ${data.companyName || companyName || "JVS FACILITIES LTDA"}
-Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[LIBERAÇÃO SUPERIOR: ${extra.pixApprovalBy || "Aprovado"}]` : "---")}
---------------------------------------------------`;
-
-        navigator.clipboard.writeText(summaryText);
-        toast.success("Formulário do Onvio aberto em nova aba! Dados do candidato copiados para área de transferência.");
-    }
-
     async function handleRpaTransmit() {
         setShowTransmitModal(false);
         setSendingRpa(true);
@@ -117,20 +85,19 @@ Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[
 
             toast.info("Iniciando transmissão de dados de admissão para o Onvio...");
             
-            // 1. Criar Job na fila de comunicacao segura em nuvem (Vercel -> Windows)
             const jobRes = await createRpaJobAction(candidateId, dataToTransmit);
             
             if (jobRes.success && jobRes.jobId) {
                 const jobId = jobRes.jobId;
                 let isHandledByWindows = false;
 
-                // Aguarda ate 10 segundos pelo polling do Robo-Onvio-RH.exe
                 for (let i = 0; i < 10; i++) {
                     await new Promise(r => setTimeout(r, 1000));
                     const statusRes = await checkRpaJobStatusAction(jobId);
                     if (statusRes.success && (statusRes.status === "PROCESSING" || statusRes.status === "COMPLETED")) {
                         isHandledByWindows = true;
-                        toast.success("🤖 O Robô no seu Windows recebeu a solicitação e abriu a janela do Chrome na sua tela! Faça a conferência e clique em Salvar no Onvio.");
+                        toast.success("🤖 O Robô recebeu a solicitação e preencheu as 6 abas no Onvio!");
+                        setIsWizardModalOpen(false);
                         onUpdate();
                         break;
                     }
@@ -139,11 +106,11 @@ Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[
                 if (isHandledByWindows) return;
             }
 
-            // 2. Fallback caso o Robo-Onvio-RH.exe nao esteja rodando no Windows
             toast.info("Executando automação direta no portal Onvio...");
             const res = await sendCandidateToOnvioRpa(candidateId, dataToTransmit);
             if (res.success) {
                 toast.success(res.message || "Robô RPA executou com sucesso no portal Onvio!");
+                setIsWizardModalOpen(false);
                 onUpdate();
             } else {
                 toast.error(res.error || "Erro ao executar o robô RPA no Onvio.");
@@ -154,6 +121,7 @@ Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[
             setSendingRpa(false);
         }
     }
+
     const [dropdowns, setDropdowns] = useState<{
         situations: any[];
         roles: any[];
@@ -192,7 +160,6 @@ Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[
         });
     }, []);
 
-    // Auto-extração por IA Gemini caso o candidato tenha documentos anexados mas CPF/RG ainda não tenham sido extraídos
     useEffect(() => {
         if ((!extraFields?.cpf || !extraFields?.rgNumero) && candidateId) {
             extractDataFromDocumentImages(candidateId).then(res => {
@@ -235,7 +202,7 @@ Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[
             companyId: companyId || extraFields?.companyId,
             companyName: companyName || extraFields?.companyName,
             cpf: sanitizeCpf(cpf || extraFields?.cpf || extraFields?.cpfNumero || extraFields?.cpf_numero),
-            rg: rg || extraFields?.rg || extraFields?.rgNumero || extraFields?.rg_numero,
+            rg: rg || extraFields?.rg || extraFields?.rgNumero || extraFields?.rg || extraFields?.rg_numero,
             rgNumero: rg || extraFields?.rgNumero || extraFields?.rg || extraFields?.rg_numero,
             birthDate: birthDate || extraFields?.birthDate || extraFields?.dataNascimento || extraFields?.birth_date,
             gender: gender || extraFields?.gender || extraFields?.genero,
@@ -272,10 +239,9 @@ Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[
         : null;
 
     return (
-        <div className="space-y-6">
-            {/* Header / Status Banner */}
-            {onvioLaunched && (
-                <div className="flex items-center gap-2 px-4 py-3 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-800 text-sm font-medium shadow-sm">
+        <div className="space-y-4">
+            {onvioLaunched ? (
+                <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-800 text-sm font-medium shadow-sm">
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                     <div>
                         <span className="font-bold">Lançamento Confirmado no Onvio</span>
@@ -288,55 +254,80 @@ Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[
                         </span>
                     )}
                 </div>
+            ) : (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl border bg-teal-50/70 border-teal-200 text-teal-900 text-xs shadow-xs">
+                    <Bot className="w-5 h-5 text-teal-700 shrink-0" />
+                    <div>
+                        <span className="font-bold text-sm block">Etapa de Admissão Contábil (Onvio)</span>
+                        <span className="text-teal-700">Preencha e confira as 6 abas padronizadas do Onvio antes de transmitir para a contabilidade.</span>
+                    </div>
+                </div>
             )}
 
-            {/* Renderização do Formulario Completo de 6 Abas e Sub-abas (EmployeeOnvioWizard) */}
-            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                <EmployeeOnvioWizard
-                    initialData={wizardInitialData}
-                    selectedPostoId={postoId || extraFields?.postoId}
-                    situations={dropdowns.situations}
-                    roles={dropdowns.roles}
-                    companies={dropdowns.companies}
-                    postos={dropdowns.postos}
-                    departments={dropdowns.departments}
-                    costCenters={dropdowns.costCenters}
-                    unions={dropdowns.unions}
-                    jobFunctions={dropdowns.jobFunctions}
-                    onDataChange={setLiveWizardData}
-                />
-            </div>
-
-            {/* Ações: Envio Direto Onvio e Confirmação de Etapa */}
-            <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="text-xs text-slate-500 flex items-center gap-1.5">
-                    <Bot className="w-4 h-4 text-teal-600 shrink-0" />
-                    <span>Os dados preenchidos serão transmitidos diretamente para o portal Onvio da contabilidade.</span>
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-teal-700" />
+                        <h3 className="text-sm font-bold text-slate-900">Resumo da Ficha de Admissão</h3>
+                    </div>
+                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                        6 Abas Mapeadas
+                    </span>
                 </div>
 
-                <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+                        <span className="text-slate-400 font-medium flex items-center gap-1">
+                            <User className="w-3.5 h-3.5" /> Colaborador
+                        </span>
+                        <p className="font-bold text-slate-800 text-sm truncate">{candidateName || "---"}</p>
+                        <p className="text-slate-500 font-mono">
+                            {currentExtra.isEstrangeiro 
+                                ? `🌐 RNM: ${currentExtra.rnmNumero || "---"}` 
+                                : `🇧🇷 CPF: ${cpf || currentExtra.cpfNumero || "---"}`}
+                        </p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+                        <span className="text-slate-400 font-medium flex items-center gap-1">
+                            <Building className="w-3.5 h-3.5" /> Empresa & Cargo
+                        </span>
+                        <p className="font-bold text-teal-800 text-sm truncate">{companyName || "JVS FACILITIES LTDA"}</p>
+                        <p className="text-slate-600 font-medium">{roleTitle || "---"} — R$ {salary || "0"}</p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+                        <span className="text-slate-400 font-medium flex items-center gap-1">
+                            <CreditCard className="w-3.5 h-3.5" /> Chave PIX (Obrigatória)
+                        </span>
+                        <p className="font-bold text-slate-800 text-sm">
+                            {currentExtra.chavePix ? (
+                                <span className="text-emerald-700 flex items-center gap-1">
+                                    <CheckCircle2 className="w-4 h-4" /> {currentExtra.chavePix}
+                                </span>
+                            ) : currentExtra.pixOverrideApproved ? (
+                                <span className="text-amber-700">🔓 Deliberação Superior</span>
+                            ) : (
+                                <span className="text-rose-600">⚠️ Pendente de Preenchimento</span>
+                            )}
+                        </p>
+                        <p className="text-slate-500 text-[11px]">Requisito formal de contratação</p>
+                    </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
                     <Button
                         type="button"
-                        onClick={handleStartTransmission}
-                        disabled={sendingRpa}
-                        className="bg-gradient-to-r from-teal-700 via-teal-800 to-[#042d36] hover:from-teal-800 hover:to-[#032229] text-white font-bold text-xs sm:text-sm h-11 px-5 rounded-xl flex items-center justify-center gap-2 shadow shrink-0"
+                        onClick={() => setIsWizardModalOpen(true)}
+                        className="w-full sm:w-auto bg-gradient-to-r from-teal-700 via-teal-800 to-[#042d36] hover:from-teal-800 hover:to-[#032229] text-white font-bold text-xs sm:text-sm h-11 px-6 rounded-xl flex items-center justify-center gap-2 shadow"
                     >
-                        {sendingRpa ? (
-                            <>
-                                <Loader2 className="w-4 h-4 animate-spin text-teal-200" />
-                                <span>Transmitindo para o Onvio...</span>
-                            </>
-                        ) : (
-                            <>
-                                <Bot className="w-4 h-4 text-teal-300" />
-                                <span>🚀 Enviar para Contabilidade (Onvio)</span>
-                            </>
-                        )}
+                        <FileText className="w-4 h-4 text-teal-300" />
+                        <span>📝 Abrir Ficha de Admissão Onvio (6 Abas)</span>
                     </Button>
 
                     {!onvioLaunched && (
                         <Button
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm h-11 px-5 rounded-xl flex items-center justify-center gap-2 shadow shrink-0"
+                            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm h-11 px-5 rounded-xl flex items-center justify-center gap-2 shadow"
                             onClick={handleConfirm}
                             disabled={confirming}
                         >
@@ -345,15 +336,93 @@ Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[
                             ) : (
                                 <CheckCircle2 className="w-4 h-4" />
                             )}
-                            <span>Confirmar Lançamento</span>
+                            <span>Confirmar Lançamento Manualmente</span>
                         </Button>
                     )}
                 </div>
             </div>
 
-            {/* Modal de Confirmação Pré-Envio para Contabilidade */}
+            {isWizardModalOpen && (
+                <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 md:p-6 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl w-full max-w-6xl h-[92vh] max-h-[950px] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+                        <div className="px-6 py-4 border-b border-slate-200 bg-white flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center font-bold">
+                                    <Bot className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                                        Ficha de Admissão Onvio — {candidateName}
+                                    </h2>
+                                    <p className="text-xs text-slate-500">
+                                        Empresa Alvo: <span className="font-semibold text-teal-800">{companyName || "JVS FACILITIES LTDA"}</span> | Cargo: <span className="font-semibold text-slate-700">{roleTitle}</span>
+                                    </p>
+                                </div>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setIsWizardModalOpen(false)}
+                                className="rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                            >
+                                <X className="w-5 h-5" />
+                            </Button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50">
+                            <EmployeeOnvioWizard
+                                initialData={wizardInitialData}
+                                selectedPostoId={postoId || extraFields?.postoId}
+                                situations={dropdowns.situations}
+                                roles={dropdowns.roles}
+                                companies={dropdowns.companies}
+                                postos={dropdowns.postos}
+                                departments={dropdowns.departments}
+                                costCenters={dropdowns.costCenters}
+                                unions={dropdowns.unions}
+                                jobFunctions={dropdowns.jobFunctions}
+                                onDataChange={setLiveWizardData}
+                            />
+                        </div>
+                        <div className="px-6 py-4 bg-white border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                            <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                                <Bot className="w-4 h-4 text-teal-600 shrink-0" />
+                                <span>Os dados preenchidos serão transmitidos diretamente para o portal Onvio da contabilidade.</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setIsWizardModalOpen(false)}
+                                    className="rounded-xl text-xs sm:text-sm h-11 px-4"
+                                >
+                                    Fechar
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={handleStartTransmission}
+                                    disabled={sendingRpa}
+                                    className="bg-gradient-to-r from-teal-700 via-teal-800 to-[#042d36] hover:from-teal-800 hover:to-[#032229] text-white font-bold text-xs sm:text-sm h-11 px-6 rounded-xl flex items-center justify-center gap-2 shadow"
+                                >
+                                    {sendingRpa ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin text-teal-200" />
+                                            <span>Transmitindo para o Onvio...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Bot className="w-4 h-4 text-teal-300" />
+                                            <span>🚀 Enviar para Contabilidade (Onvio)</span>
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showTransmitModal && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
                         <div className="flex items-center gap-3">
                             <div className="h-10 w-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
@@ -364,7 +433,6 @@ Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[
                                 <p className="text-xs text-slate-500">Deseja transmitir os dados da admissão para o portal Onvio agora?</p>
                             </div>
                         </div>
-
                         <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs text-slate-700">
                             <div className="flex justify-between py-1 border-b border-slate-200">
                                 <span className="font-semibold text-slate-500">Colaborador:</span>
@@ -399,7 +467,6 @@ Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[
                                 </span>
                             </div>
                         </div>
-
                         <div className="flex items-center justify-end gap-3 pt-2">
                             <Button
                                 type="button"
