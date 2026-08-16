@@ -319,8 +319,15 @@ export function OnvioPanel({
             </div>
 
             {mounted && showReviewModal && createPortal(
-                <div className="fixed inset-0 z-[999999] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 md:p-6 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl w-full max-w-5xl h-[92vh] max-h-[920px] shadow-2xl flex flex-col overflow-hidden border border-slate-300">
+                <div 
+                    className="fixed inset-0 z-[999999] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 md:p-6 animate-in fade-in duration-200 pointer-events-auto"
+                    onClick={(e) => e.stopPropagation()}
+                    onWheel={(e) => e.stopPropagation()}
+                >
+                    <div 
+                        className="bg-white rounded-2xl w-full max-w-5xl h-[90vh] max-h-[900px] shadow-2xl flex flex-col overflow-hidden border border-slate-300 pointer-events-auto"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <div className="px-6 py-4 border-b border-slate-200 bg-white flex items-center justify-between shrink-0">
                             <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center font-bold shrink-0">
@@ -345,7 +352,7 @@ export function OnvioPanel({
                             </Button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/70 space-y-5 text-xs text-slate-700">
+                        <div className="flex-1 min-h-0 overflow-y-auto p-6 bg-slate-50/70 space-y-5 text-xs text-slate-700 overscroll-contain [&::-webkit-scrollbar]:w-2.5 [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-100">
                             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
                                 <div className="flex items-center gap-2 text-teal-800 font-bold text-sm border-b border-slate-100 pb-2">
                                     <Building className="w-4 h-4" />
