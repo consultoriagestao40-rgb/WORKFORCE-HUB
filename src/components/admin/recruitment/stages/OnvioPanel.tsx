@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { CheckCircle2, Loader2, Calendar, Bot, X, FileText, User, Building, CreditCard, ArrowLeft, Send, AlertTriangle, ShieldCheck, Briefcase, FileCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -54,10 +55,15 @@ export function OnvioPanel({
     onvioConfirmedAt,
     onUpdate,
 }: OnvioPanelProps) {
+    const [mounted, setMounted] = useState(false);
     const [confirming, setConfirming] = useState(false);
     const [sendingRpa, setSendingRpa] = useState(false);
     const [liveWizardData, setLiveWizardData] = useState<any>(null);
     const [showReviewModal, setShowReviewModal] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     function checkPixRequirement(data: any) {
         const extra = data?.extraFields || {};
@@ -312,9 +318,9 @@ export function OnvioPanel({
                 </div>
             </div>
 
-            {showReviewModal && (
-                <div className="fixed inset-0 z-[10000] bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 md:p-6 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl w-full max-w-5xl h-[92vh] max-h-[920px] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+            {mounted && showReviewModal && createPortal(
+                <div className="fixed inset-0 z-[999999] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 md:p-6 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl w-full max-w-5xl h-[92vh] max-h-[920px] shadow-2xl flex flex-col overflow-hidden border border-slate-300">
                         <div className="px-6 py-4 border-b border-slate-200 bg-white flex items-center justify-between shrink-0">
                             <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center font-bold shrink-0">
@@ -562,7 +568,8 @@ export function OnvioPanel({
                             </Button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
