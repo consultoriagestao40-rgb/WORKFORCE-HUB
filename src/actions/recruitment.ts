@@ -363,10 +363,14 @@ export async function getRecruitmentBoardData() {
     // Sync backlog gaps
     await syncBacklogGaps();
 
-    // 1. Fetch Open Vacancies with their candidates and stages
+    // 1. Fetch Open Vacancies with their candidates and stages (apenas clientes ativos)
     const openVacancies = await prisma.vacancy.findMany({
         where: {
-            status: 'OPEN'
+            status: 'OPEN',
+            OR: [
+                { posto: { client: { isActive: true } } },
+                { postoId: null }
+            ]
         },
         include: {
             role: true,
@@ -461,16 +465,29 @@ export async function getRecruitmentBoardData() {
     openVacancies.forEach(v => {
         const totalCandidates = v.candidates.length;
         const customReq = (v.customRequirements as any) || {};
-        const selectedCand = customReq.selectedCandidateId ? v.candidates.find(c => c.id === customReq.selectedCandidateId) : null;
+        
+        // Se houver candidato selecionado explicitamente, usa ele
+        let targetCand = customReq.selectedCandidateId ? v.candidates.find(c => c.id === customReq.selectedCandidateId) : null;
+        
+        // Se não houver candidato selecionado, procura o candidato na etapa mais avançada (Benefícios, Admitido, Onvio, Exame, etc.)
+        if (!targetCand && v.candidates.length > 0) {
+            // Ordena candidatos pela etapa mais avançada
+            const sortedByStage = [...v.candidates].sort((a, b) => {
+                const orderA = a.stage?.order ?? -1;
+                const orderB = b.stage?.order ?? -1;
+                return orderB - orderA;
+            });
+            targetCand = sortedByStage[0];
+        }
 
         if (totalCandidates === 0) {
-            // No candidates -> vacancy card stays in R&S
+            // Sem candidatos -> fica em R&S
             stageCardsMap[rnsStageDb!.id].push(createVacancyCard(v, 0));
-        } else if (selectedCand && selectedCand.stageId && stageCardsMap[selectedCand.stageId]) {
-            // Recruiter selected a specific candidate -> place card in chosen candidate's stage
-            stageCardsMap[selectedCand.stageId].push(createVacancyCard(v, totalCandidates));
+        } else if (targetCand && targetCand.stageId && stageCardsMap[targetCand.stageId]) {
+            // Posiciona o card na coluna da etapa do candidato
+            stageCardsMap[targetCand.stageId].push(createVacancyCard(v, totalCandidates));
         } else {
-            // Multiple candidates or no candidate chosen yet -> stays in first standard stage (Seleção)
+            // Fallback: primeira etapa padrão
             const firstStandard = standardStages[0];
             if (firstStandard && stageCardsMap[firstStandard.id]) {
                 stageCardsMap[firstStandard.id].push(createVacancyCard(v, totalCandidates));
@@ -1011,10 +1028,24 @@ export async function deleteVacancy(id: string) {
 }
 
 async function syncBacklogGaps() {
-    // 1. Get all postos that currently have NO active assignment
+    // 0. Auto-fechar vagas abertas de clientes inativos/encerrados
+    try {
+        await prisma.vacancy.updateMany({
+            where: {
+                status: 'OPEN',
+                posto: { client: { isActive: false } }
+            },
+            data: { status: 'CLOSED' }
+        });
+    } catch (e) {}
+
+    // 1. Get all postos that currently have NO active assignment (apenas de clientes ativos)
     const vacantPostos = await prisma.posto.findMany({
         where: {
-            client: { name: { not: 'ROTATIVO' } },
+            client: { 
+                name: { not: 'ROTATIVO' },
+                isActive: true
+            },
             assignments: { none: { endDate: null } }
         },
         include: {
