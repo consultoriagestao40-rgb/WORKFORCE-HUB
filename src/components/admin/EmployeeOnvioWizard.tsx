@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -307,6 +307,9 @@ export function EmployeeOnvioWizard({
     const [dependentes, setDependentes] = useState<any[]>([]);
     const [observacoes, setObservacoes] = useState("");
 
+    const lastEmittedRef = useRef<string>("");
+    const initialKeyRef = useRef<string>("");
+
     // Synchronize parent lists
     useEffect(() => {
         if (departments && departments.length > 0) setLocalDepartments(departments);
@@ -447,6 +450,10 @@ export function EmployeeOnvioWizard({
                 } catch (e) {}
                 return "";
             };
+
+            const dataKey = `${initialData.id || ""}_${initialData.cpf || ""}_${initialData.name || ""}`;
+            if (dataKey && initialKeyRef.current === dataKey) return;
+            initialKeyRef.current = dataKey;
 
             if (initialData.name) setName(initialData.name);
             if (initialData.cpf) setCpf(initialData.cpf);
@@ -601,7 +608,7 @@ export function EmployeeOnvioWizard({
         const compObj = companies.find(c => c.id === companyId);
         const postoObj = postos.find(p => p.id === currentPostoId);
 
-        onDataChange({
+        const snapshot = {
             name,
             cpf,
             email,
@@ -690,7 +697,13 @@ export function EmployeeOnvioWizard({
                 pixKey: chavePix || cpf,
                 pixTipoChave: tipoChavePix || "CPF",
             }
-        });
+        };
+
+        const serialized = JSON.stringify(snapshot);
+        if (lastEmittedRef.current !== serialized) {
+            lastEmittedRef.current = serialized;
+            onDataChange(snapshot);
+        }
     }, [
         name, cpf, email, phone, birthDate, gender, address, roleId, companyId, currentPostoId,
         salary, admissionDate, type, status, situationId, insalubridade, periculosidade,

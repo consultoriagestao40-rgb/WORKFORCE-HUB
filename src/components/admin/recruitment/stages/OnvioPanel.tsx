@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { CheckCircle2, Loader2, Calendar, Zap, Bot, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -214,7 +214,7 @@ Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[
         return p;
     };
 
-    const wizardInitialData = {
+    const wizardInitialData = useMemo(() => ({
         name: candidateName || "",
         email: email || extraFields?.email || "",
         phone: sanitizePhone(phone || extraFields?.phone || extraFields?.whatsapp),
@@ -243,7 +243,7 @@ Chave PIX: ${extra?.chavePix || extra?.pixKey || (extra.pixOverrideApproved ? `[
             phone: sanitizePhone(phone || extraFields?.phone || extraFields?.whatsapp),
             email: email || extraFields?.email,
         }
-    };
+    }), [candidateId, candidateName, email, phone, cpf, birthDate, gender, address, rg, roleId, salary, startDate, companyId, companyName, postoId]);
 
     const currentDataForModal = liveWizardData || wizardInitialData;
     const currentExtra = currentDataForModal.extraFields || {};
