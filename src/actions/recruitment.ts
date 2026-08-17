@@ -2267,24 +2267,36 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
 
     // 3. Resolve Role
     let roleId = overrides?.roleId || mergedExtra.roleId || candidate.vacancy?.posto?.roleId || candidate.vacancy?.roleId;
+    if (roleId) {
+        const roleExists = await prisma.role.findUnique({ where: { id: roleId } });
+        if (!roleExists) roleId = null;
+    }
     if (!roleId) {
         const roleName = candidate.vacancy?.role?.name || candidate.vacancy?.title || mergedExtra.cargo || "Auxiliar de Limpeza";
         const foundRole = await prisma.role.findFirst({
             where: { name: { contains: roleName, mode: "insensitive" } }
         }) || await prisma.role.findFirst();
-        roleId = foundRole?.id;
-    }
-    if (!roleId) {
-        const defaultRole = await prisma.role.findFirst();
-        roleId = defaultRole?.id || "";
+        roleId = foundRole?.id || "";
     }
 
     // 4. Resolve Company
     let companyId = overrides?.companyId || mergedExtra.companyId || candidate.vacancy?.companyId || candidate.vacancy?.posto?.client?.companyId;
+    if (companyId) {
+        const compExists = await prisma.company.findUnique({ where: { id: companyId } });
+        if (!compExists) companyId = null;
+    }
     if (!companyId) {
         const defaultCompany = await prisma.company.findFirst();
         companyId = defaultCompany?.id || null;
     }
+
+    // 4.5 Resolve Situation
+    let situationId: string | null = null;
+    const defaultSit = await prisma.situation.findFirst({ where: { name: { contains: "Trabalhando", mode: "insensitive" } } })
+        || await prisma.situation.findFirst({ where: { name: { contains: "Normal", mode: "insensitive" } } })
+        || await prisma.situation.findFirst({ where: { name: { contains: "Ativo", mode: "insensitive" } } })
+        || await prisma.situation.findFirst();
+    if (defaultSit) situationId = defaultSit.id;
 
     // 5. Resolve Posto
     let targetPostoId = overrides?.postoId || mergedExtra.postoId || candidate.vacancy?.postoId || null;
@@ -2346,6 +2358,7 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
         name,
         roleId: roleId || (existingEmployee?.roleId ?? ""),
         companyId: companyId || existingEmployee?.companyId,
+        situationId: situationId || existingEmployee?.situationId || null,
         type: mergedExtra.type || "CLT",
         status: "Ativo",
         admissionDate,
