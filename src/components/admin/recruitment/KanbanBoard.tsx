@@ -7,7 +7,7 @@ import { addBusinessDays } from "@/lib/business-days";
 import { isWeekend } from 'date-fns';
 import { isHoliday } from '@/lib/business-days';
 import { toast } from "sonner";
-import { Plus, Briefcase, User as UserIcon, Settings, Clock, AlertCircle, ShieldCheck } from "lucide-react";
+import { Plus, Briefcase, User as UserIcon, Settings, Clock, AlertCircle, ShieldCheck, Lock, Check } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -606,35 +606,77 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                             stage.name.toLowerCase().includes('bene') || 
                                                                             stage.name.toLowerCase().includes('conclu') || 
                                                                             stage.name.toLowerCase() === 'posto'
-                                                                        ) && (
-                                                                            <Button
-                                                                                size="sm"
-                                                                                variant="default"
-                                                                                className="h-5 text-[9px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded shadow-2xs flex items-center gap-1 cursor-pointer"
-                                                                                onClick={async (e) => {
-                                                                                    e.stopPropagation();
-                                                                                    try {
-                                                                                        const targetCandId = candidate.type === 'VACANCY'
-                                                                                            ? ((candidate.vacancy?.customRequirements as any)?.selectedCandidateId || candidate.vacancy?.candidates?.[0]?.id)
-                                                                                            : candidate.id;
-                                                                                        if (!targetCandId) {
-                                                                                            toast.error("Nenhum candidato selecionado para a vaga.");
-                                                                                            return;
-                                                                                        }
-                                                                                        toast.info("Alocando colaborador no posto...");
-                                                                                        const res = await confirmOnvio(targetCandId);
-                                                                                        if (res.success) {
-                                                                                            toast.success("🏢 Colaborador admitido e alocado no posto com sucesso!");
-                                                                                            router.refresh();
-                                                                                        }
-                                                                                    } catch (err: any) {
-                                                                                        toast.error(err.message || "Erro ao alocar no posto");
-                                                                                    }
-                                                                                }}
-                                                                            >
-                                                                                🏢 Alocar no Posto
-                                                                            </Button>
-                                                                        )}
+                                                                        ) && (() => {
+                                                                            const customReq = (candidate.vacancy?.customRequirements as any) || {};
+                                                                            const isAlreadyAllocated = candidate.type === 'VACANCY'
+                                                                                ? (candidate.selectedCandidate?.isAllocated || !!customReq?.isAllocated || !!customReq?.admittedEmployeeId)
+                                                                                : ((candidate as any).isAllocated || (candidate as any).extraFields?.isAllocated);
+
+                                                                            const isOnvioReady = candidate.type === 'VACANCY'
+                                                                                ? (candidate.selectedCandidate?.onvioLaunched || (candidate.vacancy?.candidates?.find(c => c.id === customReq?.selectedCandidateId)?.onvioLaunched) || stage.order >= 6 || stage.name.toLowerCase().includes('bene') || stage.name.toLowerCase().includes('conclu'))
+                                                                                : (candidate.onvioLaunched || stage.order >= 6 || stage.name.toLowerCase().includes('bene') || stage.name.toLowerCase().includes('conclu'));
+
+                                                                            if (isAlreadyAllocated) {
+                                                                                return (
+                                                                                    <Button
+                                                                                        size="sm"
+                                                                                        disabled={true}
+                                                                                        variant="outline"
+                                                                                        className="h-5 text-[9px] px-2 bg-emerald-50 border-emerald-300 text-emerald-800 font-bold rounded shadow-2xs flex items-center gap-1 cursor-default opacity-90"
+                                                                                        title="Colaborador já admitido e alocado no posto de trabalho"
+                                                                                    >
+                                                                                        <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                                                                        <span>Alocado no Posto</span>
+                                                                                    </Button>
+                                                                                );
+                                                                            }
+
+                                                                            if (isOnvioReady) {
+                                                                                return (
+                                                                                    <Button
+                                                                                        size="sm"
+                                                                                        variant="default"
+                                                                                        className="h-5 text-[9px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded shadow-2xs flex items-center gap-1 cursor-pointer"
+                                                                                        onClick={async (e) => {
+                                                                                            e.stopPropagation();
+                                                                                            try {
+                                                                                                const targetCandId = candidate.type === 'VACANCY'
+                                                                                                    ? (customReq?.selectedCandidateId || candidate.vacancy?.candidates?.[0]?.id)
+                                                                                                    : candidate.id;
+                                                                                                if (!targetCandId) {
+                                                                                                    toast.error("Nenhum candidato selecionado para a vaga.");
+                                                                                                    return;
+                                                                                            }
+                                                                                                toast.info("Alocando colaborador no posto...");
+                                                                                                const res = await confirmOnvio(targetCandId);
+                                                                                                if (res.success) {
+                                                                                                    toast.success("🏢 Colaborador admitido e alocado no posto com sucesso!");
+                                                                                                    router.refresh();
+                                                                                                }
+                                                                                            } catch (err: any) {
+                                                                                                toast.error(err.message || "Erro ao alocar no posto");
+                                                                                            }
+                                                                                        }}
+                                                                                    >
+                                                                                        🏢 Alocar no Posto
+                                                                                    </Button>
+                                                                                );
+                                                                            }
+
+                                                                            // Se não transmitido para o Onvio ainda: desabilitado
+                                                                            return (
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    disabled={true}
+                                                                                    variant="outline"
+                                                                                    className="h-5 text-[9px] px-2 bg-slate-100 border-slate-200 text-slate-400 font-medium rounded flex items-center gap-1 cursor-not-allowed opacity-60"
+                                                                                    title="Transmita para o Onvio primeiro para liberar a alocação"
+                                                                                >
+                                                                                    <Lock className="w-2.5 h-2.5" />
+                                                                                    <span>Alocar no Posto</span>
+                                                                                </Button>
+                                                                            );
+                                                                        })()}
 
                                                                         {/* Recruiter Avatar */}
                                                                         {recruiterName && (

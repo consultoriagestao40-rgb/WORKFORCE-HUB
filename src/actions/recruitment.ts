@@ -422,6 +422,7 @@ export async function getRecruitmentBoardData() {
         const customReq = (v.customRequirements as any) || {};
         const selectedId = (typeof customReq === 'object' && !Array.isArray(customReq)) ? customReq.selectedCandidateId : null;
         const selectedCand = selectedId ? v.candidates.find(c => c.id === selectedId) : null;
+        const isCandAllocated = !!(selectedCand?.extraFields as any)?.isAllocated || !!customReq?.isAllocated || !!customReq?.admittedEmployeeId;
         return {
             id: `VAC-${v.id}`, // Unique ID across the whole board
             realId: v.id,
@@ -436,7 +437,8 @@ export async function getRecruitmentBoardData() {
                 stageName: selectedCand.stage?.name,
                 documentationStatus: selectedCand.documentationStatus,
                 asoStatus: selectedCand.asoStatus,
-                onvioLaunched: selectedCand.onvioLaunched
+                onvioLaunched: selectedCand.onvioLaunched,
+                isAllocated: isCandAllocated
             } : null,
             vacancy: {
                 id: v.id,
@@ -2479,7 +2481,9 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
                             ...currentReqs,
                             selectedCandidateId: candidate.id,
                             selectedCandidateName: candidate.name,
-                            admittedEmployeeId: employeeId
+                            admittedEmployeeId: employeeId,
+                            isAllocated: true,
+                            allocatedAt: new Date().toISOString()
                         }
                     }
                 });
@@ -2487,6 +2491,23 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
         } catch (vacErr) {
             console.warn("Vacancy update notice:", vacErr);
         }
+    }
+
+    try {
+        const cExtra = (candidate.extraFields as Record<string, any>) || {};
+        await prisma.recruitmentCandidate.update({
+            where: { id: candidate.id },
+            data: {
+                extraFields: {
+                    ...cExtra,
+                    isAllocated: true,
+                    allocatedEmployeeId: employeeId,
+                    allocatedAt: new Date().toISOString()
+                }
+            }
+        });
+    } catch (cErr) {
+        console.warn("Candidate extra update notice:", cErr);
     }
 
     return {
@@ -2554,6 +2575,26 @@ export async function syncAdmittedCandidatesToEmployees() {
                 if (!emp || !hasCorrectAssignment) {
                     console.log(`[Auto-Sync] Sincronizando candidato admitido para Colaborador e Posto: ${cand.name} (${cand.id})`);
                     await syncCandidateToEmployeeAndPosto(cand.id);
+                } else if (!candExtra.isAllocated) {
+                    await prisma.recruitmentCandidate.update({
+                        where: { id: cand.id },
+                        data: {
+                            extraFields: { ...candExtra, isAllocated: true, allocatedEmployeeId: emp.id }
+                        }
+                    });
+                    if (cand.vacancyId) {
+                        const currentReqs = (cand.vacancy?.customRequirements as Record<string, any>) || {};
+                        await prisma.vacancy.update({
+                            where: { id: cand.vacancyId },
+                            data: {
+                                customRequirements: {
+                                    ...currentReqs,
+                                    isAllocated: true,
+                                    admittedEmployeeId: emp.id
+                                }
+                            }
+                        });
+                    }
                 }
             } catch (itemErr) {
                 console.error(`[Auto-Sync] Erro ao sincronizar candidato ${cand.name}:`, itemErr);
