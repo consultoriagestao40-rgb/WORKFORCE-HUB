@@ -72,6 +72,7 @@ interface Candidate {
 interface Stage {
     id: string;
     name: string;
+    order?: number;
     candidates: Candidate[];
     slaDays?: number; // NEW
     isSystem?: boolean;
@@ -627,8 +628,8 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                                 : ((candidate as any).isAllocated || (candidate as any).extraFields?.isAllocated);
 
                                                                             const isOnvioReady = candidate.type === 'VACANCY'
-                                                                                ? (candidate.selectedCandidate?.onvioLaunched || (candidate.vacancy?.candidates?.find(c => c.id === customReq?.selectedCandidateId)?.onvioLaunched) || stage.order >= 6 || stage.name.toLowerCase().includes('bene') || stage.name.toLowerCase().includes('conclu'))
-                                                                                : (candidate.onvioLaunched || stage.order >= 6 || stage.name.toLowerCase().includes('bene') || stage.name.toLowerCase().includes('conclu'));
+                                                                                ? (candidate.selectedCandidate?.onvioLaunched || (candidate.vacancy?.candidates?.find(c => c.id === customReq?.selectedCandidateId)?.onvioLaunched) || ((stage.order ?? 0) >= 6) || stage.name.toLowerCase().includes('bene') || stage.name.toLowerCase().includes('conclu'))
+                                                                                : (candidate.onvioLaunched || ((stage.order ?? 0) >= 6) || stage.name.toLowerCase().includes('bene') || stage.name.toLowerCase().includes('conclu'));
 
                                                                             if (isAlreadyAllocated) {
                                                                                 return (
