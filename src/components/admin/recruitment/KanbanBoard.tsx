@@ -34,6 +34,20 @@ interface Candidate {
     requirementsEvaluation?: any;
     appliedFromPublicForm?: boolean;
     unreadWhatsAppCount?: number;
+    onvioLaunched?: boolean;
+    isAllocated?: boolean;
+    extraFields?: any;
+    selectedCandidate?: {
+        id: string;
+        name: string;
+        phone?: string;
+        email?: string;
+        stageName?: string;
+        documentationStatus?: string;
+        asoStatus?: string;
+        onvioLaunched?: boolean;
+        isAllocated?: boolean;
+    } | null;
     vacancy: {
         id?: string; // NEW: Added to fix TS error
         title: string;
