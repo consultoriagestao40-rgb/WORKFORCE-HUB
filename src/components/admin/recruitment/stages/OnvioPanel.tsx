@@ -242,7 +242,7 @@ export function OnvioPanel({
           })
         : null;
 
-    const isAllocated = !!extraFields?.isAllocated || !!extraFields?.allocatedEmployeeId || !!extraFields?.allocatedAt || !!onvioLaunched;
+    const isAllocated = !!onvioLaunched && (!!extraFields?.isAllocated || !!extraFields?.allocatedAt);
 
     return (
         <div className="space-y-4">
@@ -257,7 +257,9 @@ export function OnvioPanel({
                 <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                         <Building2 className={`w-5 h-5 ${isAllocated ? 'text-emerald-300' : onvioLaunched ? 'text-emerald-300' : 'text-slate-400'}`} />
-                        <span className="font-extrabold text-base tracking-tight">Alocação no Posto de Trabalho</span>
+                        <span className="font-extrabold text-base tracking-tight">
+                            {isAllocated ? "Colaborador Admitido & Alocado" : onvioLaunched ? "Pronto para Alocação no Posto" : "Admissão Pendente de Envio ao Onvio"}
+                        </span>
                         {isAllocated ? (
                             <span className="bg-emerald-400/30 border border-emerald-300/40 text-emerald-100 text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                                 <Check className="w-3 h-3" /> ✓ Alocado no Posto
@@ -277,7 +279,7 @@ export function OnvioPanel({
                             ? "O colaborador já foi admitido e vinculado ativamente à escala deste posto de trabalho."
                             : onvioLaunched 
                                 ? "Processo concluído e transmitido ao Onvio! Clique no botão ao lado para cadastrar o colaborador como Ativo e vinculá-lo à escala do posto."
-                                : "A alocação no posto só é liberada após a revisão dos dados e transmissão da admissão para a contabilidade (Onvio)."
+                                : "Preencha a ficha cadastral abaixo e transmita para a contabilidade (Onvio) para liberar a alocação no posto."
                         }
                     </p>
                 </div>

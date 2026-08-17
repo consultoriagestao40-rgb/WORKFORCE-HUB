@@ -623,13 +623,12 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                             stage.name.toLowerCase() === 'posto'
                                                                         ) && (() => {
                                                                             const customReq = (candidate.vacancy?.customRequirements as any) || {};
-                                                                            const isAlreadyAllocated = candidate.type === 'VACANCY'
-                                                                                ? (candidate.selectedCandidate?.isAllocated || !!customReq?.isAllocated || !!customReq?.admittedEmployeeId)
-                                                                                : ((candidate as any).isAllocated || (candidate as any).extraFields?.isAllocated);
+                                                                            const selCand = candidate.type === 'VACANCY' 
+                                                                                ? (candidate.selectedCandidate || candidate.vacancy?.candidates?.find(c => c.id === customReq?.selectedCandidateId) || candidate.vacancy?.candidates?.[0]) 
+                                                                                : candidate;
 
-                                                                            const isOnvioReady = candidate.type === 'VACANCY'
-                                                                                ? (candidate.selectedCandidate?.onvioLaunched || (candidate.vacancy?.candidates?.find(c => c.id === customReq?.selectedCandidateId)?.onvioLaunched) || ((stage.order ?? 0) >= 6) || stage.name.toLowerCase().includes('bene') || stage.name.toLowerCase().includes('conclu'))
-                                                                                : (candidate.onvioLaunched || ((stage.order ?? 0) >= 6) || stage.name.toLowerCase().includes('bene') || stage.name.toLowerCase().includes('conclu'));
+                                                                            const isOnvioDone = !!selCand?.onvioLaunched || !!(selCand as any)?.extraFields?.onvioLaunched || !!(selCand as any)?.onvioConfirmedAt;
+                                                                            const isAlreadyAllocated = isOnvioDone && (!!(selCand as any)?.isAllocated || !!(selCand as any)?.extraFields?.isAllocated);
 
                                                                             if (isAlreadyAllocated) {
                                                                                 return (
@@ -646,7 +645,7 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                                 );
                                                                             }
 
-                                                                            if (isOnvioReady) {
+                                                                            if (isOnvioDone) {
                                                                                 return (
                                                                                     <Button
                                                                                         size="sm"
@@ -661,7 +660,7 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                                                 if (!targetCandId) {
                                                                                                     toast.error("Nenhum candidato selecionado para a vaga.");
                                                                                                     return;
-                                                                                            }
+                                                                                                }
                                                                                                 toast.info("Alocando colaborador no posto...");
                                                                                                 const res = await confirmOnvio(targetCandId);
                                                                                                 if (res.success) {

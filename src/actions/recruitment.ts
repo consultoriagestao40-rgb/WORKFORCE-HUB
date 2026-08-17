@@ -363,9 +363,6 @@ export async function getRecruitmentBoardData() {
     // Sync backlog gaps
     await syncBacklogGaps();
 
-    // Auto-sync any admitted/onvio candidates to Employees and Posto allocations
-    await syncAdmittedCandidatesToEmployees();
-
     // 1. Fetch Open Vacancies with their candidates and stages (apenas clientes ativos)
     const openVacancies = await prisma.vacancy.findMany({
         where: {
@@ -422,7 +419,13 @@ export async function getRecruitmentBoardData() {
         const customReq = (v.customRequirements as any) || {};
         const selectedId = (typeof customReq === 'object' && !Array.isArray(customReq)) ? customReq.selectedCandidateId : null;
         const selectedCand = selectedId ? v.candidates.find(c => c.id === selectedId) : null;
-        const isCandAllocated = !!(selectedCand?.extraFields as any)?.isAllocated || !!customReq?.isAllocated || !!customReq?.admittedEmployeeId;
+        
+        // Apenas é considerado Onvio transmitido se o candidato realmente tiver a flag onvioLaunched ou confirmação
+        const isOnvioDone = !!selectedCand?.onvioLaunched || !!(selectedCand?.extraFields as any)?.onvioLaunched || !!selectedCand?.onvioConfirmedAt;
+        
+        // Apenas é considerado alocado se estiver transmitido ao Onvio E com a flag isAllocated explícita
+        const isCandAllocated = isOnvioDone && !!(selectedCand?.extraFields as any)?.isAllocated;
+
         return {
             id: `VAC-${v.id}`, // Unique ID across the whole board
             realId: v.id,
@@ -437,7 +440,7 @@ export async function getRecruitmentBoardData() {
                 stageName: selectedCand.stage?.name,
                 documentationStatus: selectedCand.documentationStatus,
                 asoStatus: selectedCand.asoStatus,
-                onvioLaunched: selectedCand.onvioLaunched,
+                onvioLaunched: isOnvioDone,
                 isAllocated: isCandAllocated
             } : null,
             vacancy: {
