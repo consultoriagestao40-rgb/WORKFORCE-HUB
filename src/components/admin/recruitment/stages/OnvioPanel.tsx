@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { CheckCircle2, Loader2, Calendar, Bot, X, FileText, User, Building, Building2, CreditCard, ArrowLeft, Send, AlertTriangle, ShieldCheck, Briefcase, FileCheck, Check } from "lucide-react";
+import { CheckCircle2, Loader2, Calendar, Bot, X, FileText, User, Building, Building2, CreditCard, ArrowLeft, Send, AlertTriangle, ShieldCheck, Briefcase, FileCheck, Check, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { confirmOnvio, getEmployeeFormData, extractDataFromDocumentImages } from "@/actions/recruitment";
