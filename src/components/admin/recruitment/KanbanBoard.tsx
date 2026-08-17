@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
-import { moveCandidate, updateStageConfig, getRecruiters } from "@/actions/recruitment";
+import { moveCandidate, updateStageConfig, getRecruiters, confirmOnvio } from "@/actions/recruitment";
 import { addBusinessDays } from "@/lib/business-days";
 import { isWeekend } from 'date-fns';
 import { isHoliday } from '@/lib/business-days';
@@ -599,27 +599,40 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                             {candidate.vacancy?.posto?.client?.name || candidate.vacancy?.company?.name || "N/A"}
                                                                         </span>
 
-                                                                        {/* RESCUE BUTTON: Finalize Hiring if in Posto */}
-                                                                        {stage.name.toLowerCase() === 'posto' && (
+                                                                        {/* BUTTON: Alocar no Posto if in stage Admissão / Admitido / Benefícios / Concluído / Posto */}
+                                                                        {(
+                                                                            stage.name.toLowerCase().includes('admi') || 
+                                                                            stage.name.toLowerCase().includes('onvio') || 
+                                                                            stage.name.toLowerCase().includes('bene') || 
+                                                                            stage.name.toLowerCase().includes('conclu') || 
+                                                                            stage.name.toLowerCase() === 'posto'
+                                                                        ) && (
                                                                             <Button
                                                                                 size="sm"
                                                                                 variant="default"
-                                                                                className="h-5 text-[9px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded shadow-2xs"
-                                                                                onClick={(e) => {
+                                                                                className="h-5 text-[9px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded shadow-2xs flex items-center gap-1 cursor-pointer"
+                                                                                onClick={async (e) => {
                                                                                     e.stopPropagation();
-                                                                                    setPrefilledEmployee({
-                                                                                        name: candidate.name,
-                                                                                        email: candidate.email || '',
-                                                                                        phone: candidate.phone || '',
-                                                                                        roleId: (candidate.vacancy as any)?.roleId || (candidate.vacancy as any)?.role?.id || '',
-                                                                                        companyId: (candidate.vacancy as any)?.companyId || (candidate.vacancy as any)?.company?.id || '',
-                                                                                        postoId: candidate.vacancy?.posto?.id || '',
-                                                                                        postoName: candidate.vacancy?.posto ? `${candidate.vacancy.posto.name || 'Sem Nome'} - ${candidate.vacancy.posto.client.name}` : undefined
-                                                                                    });
-                                                                                    setIsEmployeeSheetOpen(true);
+                                                                                    try {
+                                                                                        const targetCandId = candidate.type === 'VACANCY'
+                                                                                            ? ((candidate.vacancy?.customRequirements as any)?.selectedCandidateId || candidate.vacancy?.candidates?.[0]?.id)
+                                                                                            : candidate.id;
+                                                                                        if (!targetCandId) {
+                                                                                            toast.error("Nenhum candidato selecionado para a vaga.");
+                                                                                            return;
+                                                                                        }
+                                                                                        toast.info("Alocando colaborador no posto...");
+                                                                                        const res = await confirmOnvio(targetCandId);
+                                                                                        if (res.success) {
+                                                                                            toast.success("🏢 Colaborador admitido e alocado no posto com sucesso!");
+                                                                                            router.refresh();
+                                                                                        }
+                                                                                    } catch (err: any) {
+                                                                                        toast.error(err.message || "Erro ao alocar no posto");
+                                                                                    }
                                                                                 }}
                                                                             >
-                                                                                Finalizar Contratação
+                                                                                🏢 Alocar no Posto
                                                                             </Button>
                                                                         )}
 

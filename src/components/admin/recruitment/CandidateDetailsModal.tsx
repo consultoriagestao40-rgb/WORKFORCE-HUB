@@ -858,7 +858,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                             </TabsTrigger>
                                             <TabsTrigger value="admissao" disabled={!isAdmissaoActive} className="text-xs font-semibold flex items-center justify-center gap-1 font-bold text-indigo-700">
                                                 {!isAdmissaoActive && <Lock className="w-3 h-3 text-slate-400" />}
-                                                ⚡ Admissão (Onvio)
+                                                ⚡ Admitido & Alocar Posto
                                                 {isOnvioOk && <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />}
                                             </TabsTrigger>
                                             <TabsTrigger value="benefits" disabled={!isBenefitsActive} className="text-xs font-semibold flex items-center justify-center gap-1 font-bold text-emerald-700">
