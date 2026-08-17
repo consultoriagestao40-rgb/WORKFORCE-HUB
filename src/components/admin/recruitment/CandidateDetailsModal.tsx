@@ -1640,7 +1640,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                     postoId={activeCand.vacancy?.postoId || candidate.vacancy?.postoId}
                                     roleId={activeCand.vacancy?.roleId || activeCand.vacancy?.posto?.roleId || candidate.vacancy?.roleId || candidate.vacancy?.posto?.roleId}
                                     roleTitle={activeCand.vacancy?.role?.name || activeCand.vacancy?.title || candidate.vacancy?.role?.name || candidate.vacancy?.title}
-                                    salary={activeCand.vacancy?.posto?.baseSalary || activeCand.vacancy?.baseSalary || activeCand.vacancy?.salary || candidate.vacancy?.posto?.baseSalary || candidate.vacancy?.salary}
+                                    salary={activeCand.vacancy?.posto?.baseSalary || (activeCand.vacancy as any)?.baseSalary || (activeCand.vacancy as any)?.salary || candidate.vacancy?.posto?.baseSalary || (candidate.vacancy as any)?.salary || 0}
                                     startDate={activeCand.vacancy?.plannedStartDate ? new Date(activeCand.vacancy.plannedStartDate).toLocaleDateString('pt-BR') : ''}
                                     companyId={activeCand.vacancy?.companyId || candidate.vacancy?.companyId || "fc5dad55-9ef4-49bf-b82d-4524ad82bed6"}
                                     companyName={activeCand.vacancy?.company?.name || candidate.vacancy?.company?.name || "JVS FACILITIES LTDA"}
@@ -1771,7 +1771,7 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                 email: candidate.email || "",
                                                 phone: candidate.phone || "",
                                                 role: candidate.vacancy?.title || "",
-                                                salary: candidate.vacancy?.salary ? String(candidate.vacancy.salary) : "",
+                                                salary: candidate.vacancy?.posto?.baseSalary ? String(candidate.vacancy.posto.baseSalary) : ((candidate.vacancy as any)?.salary ? String((candidate.vacancy as any).salary) : ""),
                                                 startDate: candidate.vacancy?.plannedStartDate ? new Date(candidate.vacancy.plannedStartDate).toLocaleDateString('pt-BR') : ""
                                             }
                                         });

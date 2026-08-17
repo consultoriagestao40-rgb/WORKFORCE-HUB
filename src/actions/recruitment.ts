@@ -2306,7 +2306,7 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
 
     // 6. Resolve Salary & Financials
     const salary = parseFloat(
-        String(overrides?.salary ?? mergedExtra.salary ?? candidate.vacancy?.posto?.baseSalary ?? candidate.vacancy?.baseSalary ?? 0)
+        String(overrides?.salary ?? mergedExtra.salary ?? candidate.vacancy?.posto?.baseSalary ?? (candidate.vacancy as any)?.baseSalary ?? 0)
     ) || 0;
 
     const insalubridade = parseFloat(String(overrides?.insalubridade ?? mergedExtra.insalubridade ?? candidate.vacancy?.posto?.insalubridade ?? 0)) || 0;
