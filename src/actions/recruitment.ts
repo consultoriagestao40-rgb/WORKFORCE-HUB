@@ -2660,7 +2660,7 @@ export async function confirmOnvio(candidateId: string, customData?: any) {
     revalidatePath('/admin/recrutamento');
     revalidatePath('/admin/employees');
     revalidatePath('/admin');
-    return { success: true, ...syncRes };
+    return syncRes;
 }
 
 export async function saveBenefits(candidateId: string, benefits: { caju: boolean; metocar: boolean; urbis: boolean }) {
