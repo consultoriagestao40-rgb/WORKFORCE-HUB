@@ -363,6 +363,9 @@ export async function getRecruitmentBoardData() {
     // Sync backlog gaps
     await syncBacklogGaps();
 
+    // Auto-sync any admitted/onvio candidates to Employees and Posto allocations
+    await syncAdmittedCandidatesToEmployees();
+
     // 1. Fetch Open Vacancies with their candidates and stages (apenas clientes ativos)
     const openVacancies = await prisma.vacancy.findMany({
         where: {
@@ -591,9 +594,21 @@ export async function moveCandidate(candidateId: string, newStageId: string, jus
                     userId: user.id
                 }
             });
+
+            if (
+                newStage.order >= 5 ||
+                newStage.name.toLowerCase().includes('admi') ||
+                newStage.name.toLowerCase().includes('onvio') ||
+                newStage.name.toLowerCase().includes('bene') ||
+                newStage.name.toLowerCase().includes('conclu') ||
+                newStage.name === 'Posto'
+            ) {
+                await syncCandidateToEmployeeAndPosto(cand.id).catch(e => console.warn("[moveCandidate] Auto-sync warning:", e));
+            }
         }
 
         revalidatePath("/admin/recrutamento");
+        revalidatePath("/admin/employees");
         return { success: true };
     }
 
@@ -688,6 +703,18 @@ export async function moveCandidate(candidateId: string, newStageId: string, jus
             where: { id: candidate.vacancyId },
             data: { status: "CLOSED" }
         });
+    }
+
+    // Auto-create/sync Employee and Posto Assignment if moved to admission or beyond
+    if (
+        newStage.order >= 5 ||
+        newStage.name.toLowerCase().includes('admi') ||
+        newStage.name.toLowerCase().includes('onvio') ||
+        newStage.name.toLowerCase().includes('bene') ||
+        newStage.name.toLowerCase().includes('conclu') ||
+        newStage.name === 'Posto'
+    ) {
+        await syncCandidateToEmployeeAndPosto(candidateId).catch(e => console.warn("[moveCandidate] Single auto-sync warning:", e));
     }
 
     // --- NOTIFICATION: Candidate Movement ---
@@ -2176,6 +2203,354 @@ export async function uploadAsoFile(candidateId: string, fileUrl: string, asoSta
     return { success: true };
 }
 
+function sanitizeCpf(raw?: string): { formatted: string; digits: string } {
+    if (!raw) return { formatted: "", digits: "" };
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length === 11) {
+        const formatted = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9, 11)}`;
+        return { formatted, digits };
+    }
+    return { formatted: raw.trim(), digits };
+}
+
+/**
+ * Cria ou atualiza o Colaborador (Employee) na base oficial e realiza a alocação ativa no Posto de Trabalho.
+ */
+export async function syncCandidateToEmployeeAndPosto(candidateId: string, overrides?: any) {
+    const user = await getCurrentUser().catch(() => null);
+
+    const candidate = await prisma.recruitmentCandidate.findUnique({
+        where: { id: candidateId },
+        include: {
+            stage: true,
+            vacancy: {
+                include: {
+                    posto: {
+                        include: {
+                            client: true,
+                            role: true,
+                            assignments: {
+                                where: { endDate: null }
+                            }
+                        }
+                    },
+                    role: true,
+                    company: true,
+                }
+            }
+        }
+    });
+
+    if (!candidate) {
+        throw new Error(`Candidato com ID ${candidateId} não encontrado.`);
+    }
+
+    const candExtra = (candidate.extraFields as Record<string, any>) || {};
+    const overrideExtra = overrides?.extraFields || {};
+    const mergedExtra = { ...candExtra, ...overrideExtra, ...(overrides || {}) };
+
+    // 1. Resolve Name
+    const name = (overrides?.name || candidate.name || "").trim();
+    if (!name) throw new Error("Nome do colaborador não informado.");
+
+    // 2. Resolve CPF
+    const rawCpf = (
+        overrides?.cpf || 
+        mergedExtra.cpf || 
+        mergedExtra.cpfNumero || 
+        mergedExtra.cpf_numero || 
+        (candidate as any).cpf || 
+        ""
+    ).trim();
+
+    const { formatted: formattedCpf, digits: digitsOnlyCpf } = sanitizeCpf(rawCpf);
+
+    // 3. Resolve Role
+    let roleId = overrides?.roleId || mergedExtra.roleId || candidate.vacancy?.posto?.roleId || candidate.vacancy?.roleId;
+    if (!roleId) {
+        const roleName = candidate.vacancy?.role?.name || candidate.vacancy?.title || mergedExtra.cargo || "Auxiliar de Limpeza";
+        const foundRole = await prisma.role.findFirst({
+            where: { name: { contains: roleName, mode: "insensitive" } }
+        }) || await prisma.role.findFirst();
+        roleId = foundRole?.id;
+    }
+    if (!roleId) {
+        const defaultRole = await prisma.role.findFirst();
+        roleId = defaultRole?.id || "";
+    }
+
+    // 4. Resolve Company
+    let companyId = overrides?.companyId || mergedExtra.companyId || candidate.vacancy?.companyId || candidate.vacancy?.posto?.client?.companyId;
+    if (!companyId) {
+        const defaultCompany = await prisma.company.findFirst();
+        companyId = defaultCompany?.id || null;
+    }
+
+    // 5. Resolve Posto
+    let targetPostoId = overrides?.postoId || mergedExtra.postoId || candidate.vacancy?.postoId || null;
+    if (!targetPostoId && candidate.vacancy?.posto?.id) {
+        targetPostoId = candidate.vacancy.posto.id;
+    }
+
+    // 6. Resolve Salary & Financials
+    const salary = parseFloat(
+        String(overrides?.salary ?? mergedExtra.salary ?? candidate.vacancy?.posto?.baseSalary ?? candidate.vacancy?.baseSalary ?? 0)
+    ) || 0;
+
+    const insalubridade = parseFloat(String(overrides?.insalubridade ?? mergedExtra.insalubridade ?? candidate.vacancy?.posto?.insalubridade ?? 0)) || 0;
+    const periculosidade = parseFloat(String(overrides?.periculosidade ?? mergedExtra.periculosidade ?? candidate.vacancy?.posto?.periculosidade ?? 0)) || 0;
+    const gratificacao = parseFloat(String(overrides?.gratificacao ?? mergedExtra.gratificacao ?? candidate.vacancy?.posto?.gratificacao ?? 0)) || 0;
+    const outrosAdicionais = parseFloat(String(overrides?.outrosAdicionais ?? mergedExtra.outrosAdicionais ?? candidate.vacancy?.posto?.outrosAdicionais ?? 0)) || 0;
+
+    const valeAlimentacao = parseFloat(String(overrides?.valeAlimentacao ?? mergedExtra.valeAlimentacao ?? candidate.vacancy?.posto?.valeAlimentacao ?? 0)) || 0;
+    const valeTransporte = parseFloat(String(overrides?.valeTransporte ?? mergedExtra.valeTransporte ?? candidate.vacancy?.posto?.valeTransporte ?? 0)) || 0;
+    const valeTransporte2 = parseFloat(String(overrides?.valeTransporte2 ?? mergedExtra.valeTransporte2 ?? candidate.vacancy?.posto?.valeTransporte2 ?? 0)) || 0;
+
+    const workload = parseInt(String(overrides?.workload ?? mergedExtra.workload ?? candidate.vacancy?.posto?.requiredWorkload ?? 220)) || 220;
+
+    // 7. Resolve Dates & Personal Data
+    let admissionDate: Date = new Date();
+    const rawAdmDate = overrides?.admissionDate || mergedExtra.admissionDate || mergedExtra.startDate || candidate.vacancy?.plannedStartDate;
+    if (rawAdmDate) {
+        const parsed = new Date(rawAdmDate);
+        if (!isNaN(parsed.getTime())) admissionDate = parsed;
+    }
+
+    let birthDate: Date | null = null;
+    const rawBirthDate = overrides?.birthDate || mergedExtra.birthDate || mergedExtra.dataNascimento;
+    if (rawBirthDate) {
+        const parsed = new Date(rawBirthDate);
+        if (!isNaN(parsed.getTime())) birthDate = parsed;
+    }
+
+    const email = (overrides?.email || candidate.email || mergedExtra.email || null)?.trim() || null;
+    const phone = (overrides?.phone || candidate.phone || mergedExtra.phone || mergedExtra.whatsapp || null)?.trim() || null;
+    const gender = (overrides?.gender || mergedExtra.gender || mergedExtra.genero || null)?.trim() || null;
+    const address = (overrides?.address || mergedExtra.address || mergedExtra.endereco || null)?.trim() || null;
+
+    // 8. Find existing employee by formatted CPF, digits-only CPF, raw CPF, or Exact Name
+    const existingEmployee = await prisma.employee.findFirst({
+        where: {
+            OR: [
+                ...(formattedCpf ? [{ cpf: formattedCpf }] : []),
+                ...(digitsOnlyCpf ? [{ cpf: digitsOnlyCpf }] : []),
+                ...(rawCpf ? [{ cpf: rawCpf }] : []),
+                { name: { equals: name, mode: "insensitive" } }
+            ]
+        }
+    });
+
+    let employeeId: string;
+
+    const employeePayload = {
+        name,
+        roleId: roleId || (existingEmployee?.roleId ?? ""),
+        companyId: companyId || existingEmployee?.companyId,
+        type: mergedExtra.type || "CLT",
+        status: "Ativo",
+        admissionDate,
+        birthDate: birthDate || existingEmployee?.birthDate,
+        gender: gender || existingEmployee?.gender,
+        address: address || existingEmployee?.address,
+        phone: phone || existingEmployee?.phone,
+        email: email || existingEmployee?.email,
+        salary,
+        insalubridade,
+        periculosidade,
+        gratificacao,
+        outrosAdicionais,
+        workload,
+        valeAlimentacao,
+        valeTransporte,
+        valeTransporte2,
+        vtOptIn: mergedExtra.vtOptIn !== false,
+        vtPaymentMethod: mergedExtra.vtPaymentMethod || mergedExtra.vtMeio || "Metrocard Metropolitana",
+        vtPaymentMethod2: mergedExtra.vtPaymentMethod2 || "Urbs",
+        vaPaymentMethod: mergedExtra.vaPaymentMethod || mergedExtra.vaTipo || "Cartão Caju",
+        vtCustomPaymentDetails: mergedExtra.vtCustomPaymentDetails || null,
+        vaCustomPaymentDetails: mergedExtra.vaCustomPaymentDetails || null,
+        urbsSic: mergedExtra.urbsSic || mergedExtra.sic || null,
+        urbsCqCtNf: mergedExtra.urbsCqCtNf || mergedExtra.cq || null,
+        dependentsCount: Array.isArray(mergedExtra.dependents || mergedExtra.dependentes) 
+            ? (mergedExtra.dependents || mergedExtra.dependentes).length 
+            : (parseInt(mergedExtra.dependentsCount) || 0),
+        extraFields: mergedExtra
+    };
+
+    if (existingEmployee) {
+        const updated = await prisma.employee.update({
+            where: { id: existingEmployee.id },
+            data: {
+                ...employeePayload,
+                cpf: existingEmployee.cpf || formattedCpf || digitsOnlyCpf || rawCpf,
+                dismissalReason: null,
+                dismissalNotes: null,
+            }
+        });
+        employeeId = updated.id;
+    } else {
+        const effectiveCpf = formattedCpf || digitsOnlyCpf || rawCpf || `TEMP-${Date.now()}`;
+        const created = await prisma.employee.create({
+            data: {
+                ...employeePayload,
+                cpf: effectiveCpf
+            }
+        });
+        employeeId = created.id;
+    }
+
+    // 9. Posto Assignment
+    if (targetPostoId && targetPostoId !== "ROTATIVO_VIRTUAL") {
+        const targetPosto = await prisma.posto.findUnique({
+            where: { id: targetPostoId },
+            include: { client: true, role: true }
+        });
+
+        if (targetPosto) {
+            const activeAssignment = await prisma.assignment.findFirst({
+                where: {
+                    employeeId,
+                    postoId: targetPostoId,
+                    endDate: null
+                }
+            });
+
+            if (!activeAssignment) {
+                // Fechar alocações anteriores conflitantes
+                await prisma.assignment.updateMany({
+                    where: {
+                        employeeId,
+                        endDate: null
+                    },
+                    data: {
+                        endDate: new Date()
+                    }
+                });
+
+                // Criar nova alocação ativa
+                await prisma.assignment.create({
+                    data: {
+                        employeeId,
+                        postoId: targetPostoId,
+                        startDate: admissionDate,
+                        endDate: null
+                    }
+                });
+
+                try {
+                    await prisma.log.create({
+                        data: {
+                            action: "ALOCACAO_AUTOMATICA",
+                            details: `Colaborador ${name} admitido e alocado automaticamente ao posto "${targetPosto.client?.name || ''} - ${targetPosto.role?.name || ''}" via ATS/Recrutamento.`,
+                            employeeId,
+                            userId: user?.id || null
+                        }
+                    });
+                } catch (lErr) {
+                    console.warn("Log creation non-fatal:", lErr);
+                }
+            }
+        }
+    }
+
+    // 10. Update Vacancy selection
+    if (candidate.vacancyId) {
+        try {
+            const vacancy = await prisma.vacancy.findUnique({ where: { id: candidate.vacancyId } });
+            if (vacancy) {
+                const currentReqs = (vacancy.customRequirements as Record<string, any>) || {};
+                await prisma.vacancy.update({
+                    where: { id: candidate.vacancyId },
+                    data: {
+                        customRequirements: {
+                            ...currentReqs,
+                            selectedCandidateId: candidate.id,
+                            selectedCandidateName: candidate.name,
+                            admittedEmployeeId: employeeId
+                        }
+                    }
+                });
+            }
+        } catch (vacErr) {
+            console.warn("Vacancy update notice:", vacErr);
+        }
+    }
+
+    return {
+        success: true,
+        employeeId,
+        name,
+        cpf: formattedCpf || digitsOnlyCpf || rawCpf,
+        postoId: targetPostoId
+    };
+}
+
+/**
+ * Varre candidatos com Admissão/Onvio/Benefícios/Concluído e garante criação do Colaborador e Alocação no Posto.
+ */
+export async function syncAdmittedCandidatesToEmployees() {
+    try {
+        const candidatesToSync = await prisma.recruitmentCandidate.findMany({
+            where: {
+                OR: [
+                    { onvioLaunched: true },
+                    { benefitsCompletedAt: { not: null } },
+                    { stage: { order: { gte: 5 } } },
+                    { stage: { name: { contains: "Admissão", mode: "insensitive" } } },
+                    { stage: { name: { contains: "Admitido", mode: "insensitive" } } },
+                    { stage: { name: { contains: "Benefícios", mode: "insensitive" } } },
+                    { stage: { name: { contains: "Concluído", mode: "insensitive" } } }
+                ]
+            },
+            include: {
+                stage: true,
+                vacancy: {
+                    include: {
+                        posto: true
+                    }
+                }
+            }
+        });
+
+        for (const cand of candidatesToSync) {
+            try {
+                const candExtra = (cand.extraFields as Record<string, any>) || {};
+                const rawCpf = (candExtra.cpf || candExtra.cpfNumero || (cand as any).cpf || "").trim();
+                const { formatted, digits } = sanitizeCpf(rawCpf);
+
+                const emp = await prisma.employee.findFirst({
+                    where: {
+                        OR: [
+                            ...(formatted ? [{ cpf: formatted }] : []),
+                            ...(digits ? [{ cpf: digits }] : []),
+                            { name: { equals: cand.name, mode: "insensitive" } }
+                        ]
+                    },
+                    include: {
+                        assignments: {
+                            where: { endDate: null }
+                        }
+                    }
+                });
+
+                const targetPostoId = cand.vacancy?.postoId || candExtra.postoId;
+                const hasCorrectAssignment = emp && targetPostoId 
+                    ? emp.assignments.some(a => a.postoId === targetPostoId) 
+                    : !!emp;
+
+                if (!emp || !hasCorrectAssignment) {
+                    console.log(`[Auto-Sync] Sincronizando candidato admitido para Colaborador e Posto: ${cand.name} (${cand.id})`);
+                    await syncCandidateToEmployeeAndPosto(cand.id);
+                }
+            } catch (itemErr) {
+                console.error(`[Auto-Sync] Erro ao sincronizar candidato ${cand.name}:`, itemErr);
+            }
+        }
+    } catch (err) {
+        console.error("[Auto-Sync] Falha em syncAdmittedCandidatesToEmployees:", err);
+    }
+}
+
 export async function moveCandidateToStageByName(candidateId: string, stageNameKeyword: string, detailsReason?: string) {
     const user = await getCurrentUser();
     if (!user) throw new Error('Unauthorized');
@@ -2204,12 +2579,24 @@ export async function moveCandidateToStageByName(candidateId: string, stageNameK
             userId: user.id
         }
     });
+
+    // If moving to admission or onward, sync candidate to employee and posto
+    if (
+        targetStage.order >= 5 || 
+        targetStage.name.toLowerCase().includes('admi') || 
+        targetStage.name.toLowerCase().includes('onvio') ||
+        targetStage.name.toLowerCase().includes('bene') ||
+        targetStage.name.toLowerCase().includes('conclu')
+    ) {
+        await syncCandidateToEmployeeAndPosto(candidateId).catch(e => console.warn("[moveCandidateToStageByName] Sync warning:", e));
+    }
     
     revalidatePath('/admin/recrutamento');
+    revalidatePath('/admin/employees');
     return { success: true, stageName: targetStage.name };
 }
 
-export async function confirmOnvio(candidateId: string) {
+export async function confirmOnvio(candidateId: string, customData?: any) {
     const user = await getCurrentUser();
     if (!user) throw new Error('Unauthorized');
     
@@ -2220,6 +2607,18 @@ export async function confirmOnvio(candidateId: string) {
     let nextStage = await prisma.recruitmentStage.findFirst({ where: { name: { contains: 'Benefícios', mode: 'insensitive' } } });
     if (!nextStage) {
         nextStage = await prisma.recruitmentStage.findFirst({ where: { name: { contains: 'Admitido', mode: 'insensitive' } } });
+    }
+
+    if (customData?.extraFields) {
+        const existingExtra = (candidate.extraFields as Record<string, any>) || {};
+        await prisma.recruitmentCandidate.update({
+            where: { id: candidateId },
+            data: {
+                extraFields: { ...existingExtra, ...customData.extraFields },
+                email: customData.email || candidate.email,
+                phone: customData.phone || candidate.phone
+            }
+        });
     }
     
     await prisma.recruitmentCandidate.update({
@@ -2241,9 +2640,14 @@ export async function confirmOnvio(candidateId: string) {
             userId: user.id
         }
     });
+
+    // Auto-create/sync Employee and Posto Assignment
+    const syncRes = await syncCandidateToEmployeeAndPosto(candidateId, customData);
     
     revalidatePath('/admin/recrutamento');
-    return { success: true };
+    revalidatePath('/admin/employees');
+    revalidatePath('/admin');
+    return { success: true, ...syncRes };
 }
 
 export async function saveBenefits(candidateId: string, benefits: { caju: boolean; metocar: boolean; urbis: boolean }) {
@@ -2278,8 +2682,13 @@ export async function saveBenefits(candidateId: string, benefits: { caju: boolea
             userId: user.id
         }
     });
+
+    // Ensure Employee & Assignment are synced
+    await syncCandidateToEmployeeAndPosto(candidateId).catch(e => console.warn("[saveBenefits] Sync warning:", e));
     
     revalidatePath('/admin/recrutamento');
+    revalidatePath('/admin/employees');
+    revalidatePath('/admin');
     return { success: true };
 }
 
@@ -2446,7 +2855,19 @@ export async function advanceCandidateToStage(candidateId: string, stageNameKeyw
         }
     });
 
+    // If moving to admission or onward, sync candidate to employee and posto
+    if (
+        targetStage.order >= 5 || 
+        targetStage.name.toLowerCase().includes('admi') || 
+        targetStage.name.toLowerCase().includes('onvio') ||
+        targetStage.name.toLowerCase().includes('bene') ||
+        targetStage.name.toLowerCase().includes('conclu')
+    ) {
+        await syncCandidateToEmployeeAndPosto(candidateId).catch(e => console.warn("[advanceCandidateToStage] Sync warning:", e));
+    }
+
     revalidatePath("/admin/recrutamento");
+    revalidatePath("/admin/employees");
     return { success: true, stageId: targetStage.id, stageName: targetStage.name };
 }
 

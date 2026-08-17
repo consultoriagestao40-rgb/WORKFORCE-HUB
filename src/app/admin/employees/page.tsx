@@ -3,12 +3,14 @@ import { prisma } from "@/lib/db";
 import { EmployeesClientPage } from "./EmployeesClientPage";
 import { getCurrentUserRole } from "@/lib/auth";
 import { cleanupVacantRotativoPostos } from "@/app/actions";
+import { syncAdmittedCandidatesToEmployees } from "@/actions/recruitment";
 
 async function getData() {
     try {
         await cleanupVacantRotativoPostos();
+        await syncAdmittedCandidatesToEmployees();
     } catch (e) {
-        console.error("Error cleaning up vacant rotativo postos on page load:", e);
+        console.error("Error in employees page pre-load sync:", e);
     }
 
     const [employees, situations, roles, companies, postos] = await Promise.all([

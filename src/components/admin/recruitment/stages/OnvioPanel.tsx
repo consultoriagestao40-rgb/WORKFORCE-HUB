@@ -221,8 +221,9 @@ export function OnvioPanel({
     async function handleConfirm() {
         setConfirming(true);
         try {
-            await confirmOnvio(candidateId);
-            toast.success("Admissão confirmada no Onvio! Candidato avançado para Cadastro de Benefícios.");
+            const dataToTransmit = liveWizardData || wizardInitialData;
+            await confirmOnvio(candidateId, dataToTransmit);
+            toast.success("Admissão confirmada no Onvio! Colaborador ativo e alocado ao posto com sucesso.");
             onUpdate();
         } catch (e: any) {
             toast.error(e.message || "Erro ao confirmar Onvio");
@@ -244,18 +245,33 @@ export function OnvioPanel({
     return (
         <div className="space-y-4">
             {onvioLaunched && (
-                <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-800 text-sm font-medium shadow-sm">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <div>
-                        <span className="font-bold">Lançamento Confirmado no Onvio</span>
-                        <span className="block text-xs text-emerald-700">O cadastro do colaborador foi concluído no portal de contabilidade.</span>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3.5 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-800 text-sm font-medium shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                        <div>
+                            <span className="font-bold">Lançamento Confirmado no Onvio</span>
+                            <span className="block text-xs text-emerald-700">Colaborador ativo cadastrado e alocado no Posto de Trabalho correspondente.</span>
+                        </div>
                     </div>
-                    {confirmedDate && (
-                        <span className="ml-auto text-xs font-normal opacity-80 flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-emerald-200">
-                            <Calendar className="w-3 h-3" />
-                            {confirmedDate}
-                        </span>
-                    )}
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                        {confirmedDate && (
+                            <span className="text-xs font-normal opacity-80 flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-emerald-200">
+                                <Calendar className="w-3 h-3" />
+                                {confirmedDate}
+                            </span>
+                        )}
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={handleConfirm}
+                            disabled={confirming}
+                            className="text-xs h-8 bg-white border-emerald-300 text-emerald-800 hover:bg-emerald-100 font-semibold"
+                        >
+                            {confirming ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : "🔄"}
+                            Re-sincronizar Posto
+                        </Button>
+                    </div>
                 </div>
             )}
 

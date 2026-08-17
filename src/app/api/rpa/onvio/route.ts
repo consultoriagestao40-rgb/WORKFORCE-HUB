@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { transmitCandidateToOnvio, OnvioCandidatePayload } from "@/lib/rpa/onvio";
 import { prisma } from "@/lib/db";
+import { syncCandidateToEmployeeAndPosto } from "@/actions/recruitment";
 
 export const maxDuration = 60; // 60 segundos para execução na nuvem Vercel
 export const dynamic = 'force-dynamic';
@@ -119,6 +120,9 @@ export async function POST(req: NextRequest) {
                         onvioConfirmedAt: new Date()
                     }
                 });
+
+                // Auto-create/sync Employee and Posto Assignment
+                await syncCandidateToEmployeeAndPosto(candidateId, payload).catch(e => console.warn("[API RPA Onvio] Sync warning:", e));
             } catch (e) {
                 console.warn("Aviso ao atualizar candidato localmente:", e);
             }

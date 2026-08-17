@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db";
 import { transmitCandidateToOnvio, OnvioCandidatePayload } from "@/lib/rpa/onvio";
 import { revalidatePath } from "next/cache";
+import { syncCandidateToEmployeeAndPosto } from "@/actions/recruitment";
 
 
 export async function sendCandidateToOnvioRpa(candidateId: string, customPayload?: any) {
@@ -108,7 +109,12 @@ export async function sendCandidateToOnvioRpa(candidateId: string, customPayload
                     }
                 });
 
+                // Auto-create/sync Employee and Posto Assignment
+                await syncCandidateToEmployeeAndPosto(candidateId, customPayload).catch(e => console.warn("[sendCandidateToOnvioRpa] Sync warning:", e));
+
                 revalidatePath("/admin/recrutamento");
+                revalidatePath("/admin/employees");
+                revalidatePath("/admin");
                 return { success: true, message: result.message };
             } else {
                 return { success: false, error: result.error };
