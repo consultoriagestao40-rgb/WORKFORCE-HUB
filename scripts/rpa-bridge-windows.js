@@ -201,43 +201,77 @@ async function executeVisualFilling(payload) {
 
     console.log(`[RPA WINDOWS RH] Selecionando contexto de empresa: ${companyName}...`);
     try {
-        await page.evaluate((compName) => {
-            const selector = document.querySelector('bm-linked-account-selector, .header-firm-name');
+        // Abre o seletor de empresa
+        await page.evaluate(() => {
+            const selector = document.querySelector('bm-linked-account-selector, .header-firm-name, [class*="firm"], [class*="company-selector"]');
             if (selector) selector.click();
-        }, companyName);
-        await page.evaluate(() => new Promise(r => setTimeout(r, 1500)));
+        });
+        await new Promise(r => setTimeout(r, 1500));
 
-        await page.evaluate((compName) => {
-            const searchInp = document.querySelector('input[placeholder*="Pesquisar"], input[placeholder*="empresa"], input[type="search"], bento-combobox input');
-            if (searchInp) {
-                searchInp.value = compName;
-                searchInp.dispatchEvent(new Event('input', { bubbles: true }));
-                searchInp.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-        }, companyName);
-        await page.evaluate(() => new Promise(r => setTimeout(r, 600)));
+        // Digita o nome da empresa para filtrar
+        const searchInp = await page.$('input[placeholder*="Pesquisar"], input[placeholder*="empresa"], input[type="search"], bento-combobox input, [class*="search"] input');
+        if (searchInp) {
+            const searchTerms = ['JVS', 'JVS FACILITIES', companyName.split(' ')[0]];
+            const searchTerm = searchTerms[0];
+            console.log(`[RPA WINDOWS RH] Digitando "${searchTerm}" no campo de busca de empresa...`);
+            await searchInp.click({ clickCount: 3 });
+            await searchInp.type(searchTerm, { delay: 80 });
+            await new Promise(r => setTimeout(r, 1500));
+        }
 
-        await page.evaluate((compName) => {
-            const cleanTarget = compName.toLowerCase().replace(' ltda', '').replace(' s.a.', '').trim();
-            const prefix = cleanTarget.split(" ")[0];
-            const items = Array.from(document.querySelectorAll('.bento-option-list li, .bento-option, span, div, a'));
-            const match = items.find(el => {
-                const txt = el.textContent ? el.textContent.toLowerCase() : '';
-                return txt.includes(cleanTarget) || txt.includes(prefix);
+        // Clica no item que contenha EXATAMENTE o nome correto
+        const clicked = await page.evaluate((compName) => {
+            const cleanTarget = compName.toLowerCase().replace(/\s*ltda\.?\s*/gi, '').replace(/\s*s\.a\.?\s*/gi, '').trim();
+            const words = cleanTarget.split(' ').filter(w => w.length > 2);
+            
+            const candidates = Array.from(document.querySelectorAll(
+                '.bento-option-list li, .bento-option, [role="option"], [class*="option"] li, [class*="list-item"], [class*="account-item"]'
+            ));
+            
+            // Tenta match exato primeiro (todas as palavras presentes)
+            let match = candidates.find(el => {
+                const txt = (el.textContent || '').toLowerCase();
+                return words.every(w => txt.includes(w));
             });
-            if (match) match.click();
+            
+            // Fallback: match pela primeira palavra significativa
+            if (!match) {
+                match = candidates.find(el => {
+                    const txt = (el.textContent || '').toLowerCase();
+                    return txt.includes(words[0]);
+                });
+            }
+            
+            if (match) {
+                match.click();
+                return (match.textContent || '').trim();
+            }
+            return null;
         }, companyName);
-        await page.evaluate(() => new Promise(r => setTimeout(r, 3000)));
+        
+        if (clicked) {
+            console.log(`[RPA WINDOWS RH] ✅ Empresa selecionada: "${clicked}"`);
+        } else {
+            console.log(`[RPA WINDOWS RH] ⚠️ Empresa não encontrada na lista. Continuando com empresa atual.`);
+        }
+        await new Promise(r => setTimeout(r, 3000));
     } catch (e) {}
 
     console.log("[RPA WINDOWS RH] Abrindo formulário /add...");
     await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration/add", { waitUntil: "domcontentloaded" });
-    await page.evaluate(() => new Promise(r => setTimeout(r, 3500)));
+    await new Promise(r => setTimeout(r, 3500));
+
+    // Sempre obtém a página ativa mais recente do browser para evitar "context destroyed"
+    const getPage = async () => {
+        const allPages = await browser.pages();
+        return allPages[allPages.length - 1];
+    };
 
     const fillByControl = async (controlName, val) => {
         if (!val) return;
         try {
-            await page.evaluate((ctrl, value) => {
+            const p = await getPage();
+            await p.evaluate((ctrl, value) => {
                 const inp = document.querySelector(`input[formcontrolname="${ctrl}"], textarea[formcontrolname="${ctrl}"]`);
                 if (inp) {
                     inp.focus();
@@ -253,19 +287,34 @@ async function executeVisualFilling(payload) {
     const selectBentoOption = async (controlName, searchText) => {
         if (!searchText) return;
         try {
-            await page.evaluate((ctrl, text) => {
+            const p = await getPage();
+            await p.evaluate((ctrl, text) => {
                 const sel = document.querySelector(`bento-select[formcontrolname="${ctrl}"], select[formcontrolname="${ctrl}"]`);
                 if (sel) sel.click();
             }, controlName, searchText);
-            await page.evaluate(() => new Promise(r => setTimeout(r, 600)));
+            await new Promise(r => setTimeout(r, 600));
 
-            await page.evaluate((text) => {
+            const p2 = await getPage();
+            await p2.evaluate((text) => {
                 const prefix = text.split(" ")[0].toLowerCase();
                 const opts = Array.from(document.querySelectorAll('.bento-option-list li, .bento-option, option'));
                 const match = opts.find(el => el.textContent.toLowerCase().includes(prefix));
                 if (match) match.click();
             }, searchText);
-            await page.evaluate(() => new Promise(r => setTimeout(r, 500)));
+            await new Promise(r => setTimeout(r, 500));
+        } catch (e) {}
+    };
+
+    const clickButton = async (textContains) => {
+        try {
+            const p = await getPage();
+            await p.evaluate((txt) => {
+                const btn = Array.from(document.querySelectorAll('button, a, span')).find(el =>
+                    el.textContent && el.textContent.trim().toLowerCase().includes(txt.toLowerCase())
+                );
+                if (btn) btn.click();
+            }, textContains);
+            await new Promise(r => setTimeout(r, 1200));
         } catch (e) {}
     };
 
@@ -274,202 +323,111 @@ async function executeVisualFilling(payload) {
     await fillByControl("employeeName", candidateName);
     await fillByControl("cpfNumber", cpfDigits);
     await selectBentoOption("service", companyName);
-
     if (roleTitle) await selectBentoOption("jobPosition", roleTitle);
     await selectBentoOption("department", "Geral");
     await selectBentoOption("costCenter", "Geral");
     await selectBentoOption("union", "SIEMACO");
-
-    try {
-        await page.evaluate(() => {
-            const btn = Array.from(document.querySelectorAll('button, a, span')).find(el => el.textContent.trim() === 'ADMISSÃO');
-            if (btn) btn.click();
-        });
-        await page.evaluate(() => new Promise(r => setTimeout(r, 1000)));
-        await fillByControl("salary", payload.salary || "1900.00");
-        await selectBentoOption("admissionCategory", "Mensalista");
-        await selectBentoOption("employmentRelationship", "Celetista");
-    } catch (e) {}
-
-    try {
-        await page.evaluate(() => {
-            const btn = Array.from(document.querySelectorAll('button, a')).find(el => el.textContent.includes('CONTRATO DE EXPERIÊNCIA'));
-            if (btn) btn.click();
-        });
-        await page.evaluate(() => new Promise(r => setTimeout(r, 1000)));
-        await fillByControl("probationDays1", "45");
-        await fillByControl("probationDays2", "45");
-    } catch (e) {}
+    await clickButton("ADMISSÃO");
+    await fillByControl("salary", payload.salary || "1900.00");
+    await selectBentoOption("admissionCategory", "Mensalista");
+    await selectBentoOption("employmentRelationship", "Celetista");
+    await clickButton("CONTRATO DE EXPERIÊNCIA");
+    await fillByControl("probationDays1", "45");
+    await fillByControl("probationDays2", "45");
 
     // ABA 2: PROFISSIONAL
     console.log("[RPA WINDOWS RH] Preenchendo Aba 2 (Profissional)...");
-    try {
-        await page.evaluate(() => {
-            const btn = Array.from(document.querySelectorAll('button.bento-wizard-step, button')).find(el => el.textContent.includes('Profissional'));
-            if (btn) btn.click();
-        });
-        await page.evaluate(() => new Promise(r => setTimeout(r, 1500)));
-
-        await fillByControl("workNumber", ctpsNum);
-        await fillByControl("workSerial", ctpsSerie);
-
-        await page.evaluate(() => {
-            const btn = Array.from(document.querySelectorAll('button, a')).find(el => el.textContent.includes('INFORMAÇÕES DO PIS'));
-            if (btn) btn.click();
-        });
-        await page.evaluate(() => new Promise(r => setTimeout(r, 1000)));
-        await fillByControl("pisNumber", pisNum);
-
-        // PAGAMENTO -> PIX
-        await page.evaluate(() => {
-            const btn = Array.from(document.querySelectorAll('button, a, span')).find(el => el.textContent.includes('PAGAMENTO'));
-            if (btn) btn.click();
-        });
-        await page.evaluate(() => new Promise(r => setTimeout(r, 1000)));
-
-        await page.evaluate(() => {
-            const btnPix = Array.from(document.querySelectorAll('button, .btn, span, label')).find(el => el.textContent.trim() === 'PIX');
-            if (btnPix) btnPix.click();
-        });
-        await page.evaluate(() => new Promise(r => setTimeout(r, 800)));
-
-        await selectBentoOption("pixType", "CPF");
-        await fillByControl("pixKey", cpfDigits);
-    } catch (e) {}
+    await clickButton("Profissional");
+    await new Promise(r => setTimeout(r, 1500));
+    await fillByControl("workNumber", ctpsNum);
+    await fillByControl("workSerial", ctpsSerie);
+    await clickButton("INFORMAÇÕES DO PIS");
+    await fillByControl("pisNumber", pisNum);
+    await clickButton("PAGAMENTO");
+    await clickButton("PIX");
+    await selectBentoOption("pixType", "CPF");
+    await fillByControl("pixKey", cpfDigits);
 
     // ABA 3: PESSOAL
     console.log("[RPA WINDOWS RH] Preenchendo Aba 3 (Pessoal)...");
-    try {
-        await page.evaluate(() => {
-            const btn = Array.from(document.querySelectorAll('button.bento-wizard-step, button')).find(el => el.textContent.includes('Pessoal'));
-            if (btn) btn.click();
-        });
-        await page.evaluate(() => new Promise(r => setTimeout(r, 1500)));
-
-        if (birthDateDigits) await fillByControl("birthDate", birthDateDigits);
-
-        const isFem = String(gender).toLowerCase().includes("fem");
-        await page.evaluate((fem) => {
-            const btn = Array.from(document.querySelectorAll('button, span')).find(el => el.textContent.trim() === (fem ? 'FEMININO' : 'MASCULINO'));
-            if (btn) btn.click();
-        }, isFem);
-
-        await fillByControl("motherName", nomeMae);
-        await fillByControl("fatherName", nomePai);
-
-        await page.evaluate(() => {
-            const btn = Array.from(document.querySelectorAll('button, a')).find(el => el.textContent.includes('ENDEREÇO E CONTATO'));
-            if (btn) btn.click();
-        });
-        await page.evaluate(() => new Promise(r => setTimeout(r, 1000)));
-        await fillByControl("address", address);
-    } catch (e) {}
+    await clickButton("Pessoal");
+    await new Promise(r => setTimeout(r, 1500));
+    if (birthDateDigits) await fillByControl("birthDate", birthDateDigits);
+    const isFem = String(gender).toLowerCase().includes("fem");
+    await clickButton(isFem ? "FEMININO" : "MASCULINO");
+    await fillByControl("motherName", nomeMae);
+    await fillByControl("fatherName", nomePai);
+    await clickButton("ENDEREÇO E CONTATO");
+    await fillByControl("address", address);
 
     // ABA 4: DOCUMENTOS
     console.log("[RPA WINDOWS RH] Preenchendo Aba 4 (Documentos)...");
-    try {
-        await page.evaluate(() => {
-            const btn = Array.from(document.querySelectorAll('button.bento-wizard-step, button')).find(el => el.textContent.includes('Documentos'));
-            if (btn) btn.click();
-        });
-        await page.evaluate(() => new Promise(r => setTimeout(r, 1500)));
-
-        await fillByControl("identityCard", rgNum);
-        await fillByControl("issuingAgency", rgOrgao);
-        if (rgDtDigits) await fillByControl("identityCardIssuingDate", rgDtDigits);
-
-        // Título de Eleitor
-        const tituloNum = extra.tituloEleitorNumero || payload.tituloEleitorNumero;
-        if (tituloNum) await fillByControl("voterRegistrationCard", tituloNum);
-        const tituloZona = extra.tituloEleitorZona || payload.tituloEleitorZona;
-        if (tituloZona) await fillByControl("electoralZone", tituloZona);
-        const tituloSecao = extra.tituloEleitorSecao || payload.tituloEleitorSecao;
-        if (tituloSecao) await fillByControl("electoralSection", tituloSecao);
-
-        // CNH
-        const cnhNum = extra.cnhNumero || payload.cnhNumero;
-        if (cnhNum) await fillByControl("driverLicenseNumber", cnhNum);
-        const cnhCat = extra.cnhCategoria || payload.cnhCategoria;
-        if (cnhCat) await fillByControl("driverLicenseCategory", cnhCat);
-        const cnhVal = formatDateDigits(extra.cnhValidade || payload.cnhValidade);
-        if (cnhVal) await fillByControl("driverLicenseExpirationDate", cnhVal);
-
-        // Reservista
-        const resNum = extra.reservistaNumero || payload.reservistaNumero;
-        if (resNum) await fillByControl("militaryRegistration", resNum);
-        const resCat = extra.reservistaCategoria || payload.reservistaCategoria;
-        if (resCat) await fillByControl("militaryReservistCategory", resCat);
-    } catch (e) {
-        console.log("[RPA WINDOWS RH] Erro na Aba 4:", e);
-    }
+    await clickButton("Documentos");
+    await new Promise(r => setTimeout(r, 1500));
+    await fillByControl("identityCard", rgNum);
+    await fillByControl("issuingAgency", rgOrgao);
+    if (rgDtDigits) await fillByControl("identityCardIssuingDate", rgDtDigits);
+    const tituloNum = extra.tituloEleitorNumero || payload.tituloEleitorNumero;
+    if (tituloNum) await fillByControl("voterRegistrationCard", tituloNum);
+    const tituloZona = extra.tituloEleitorZona || payload.tituloEleitorZona;
+    if (tituloZona) await fillByControl("electoralZone", tituloZona);
+    const tituloSecao = extra.tituloEleitorSecao || payload.tituloEleitorSecao;
+    if (tituloSecao) await fillByControl("electoralSection", tituloSecao);
+    const cnhNum = extra.cnhNumero || payload.cnhNumero;
+    if (cnhNum) await fillByControl("driverLicenseNumber", cnhNum);
+    const cnhCat = extra.cnhCategoria || payload.cnhCategoria;
+    if (cnhCat) await fillByControl("driverLicenseCategory", cnhCat);
+    const cnhVal = formatDateDigits(extra.cnhValidade || payload.cnhValidade);
+    if (cnhVal) await fillByControl("driverLicenseExpirationDate", cnhVal);
+    const resNum = extra.reservistaNumero || payload.reservistaNumero;
+    if (resNum) await fillByControl("militaryRegistration", resNum);
 
     // ABA 5: DEPENDENTES
     console.log("[RPA WINDOWS RH] Verificando Aba 5 (Dependentes)...");
-    try {
-        await page.evaluate(() => {
-            const btn = Array.from(document.querySelectorAll('button.bento-wizard-step, button')).find(el => el.textContent.includes('Dependente'));
-            if (btn) btn.click();
-        });
-        await page.evaluate(() => new Promise(r => setTimeout(r, 1500)));
-
-        const dependentes = payload.dependentes || extra.dependentes || [];
-        if (Array.isArray(dependentes) && dependentes.length > 0) {
-            for (let i = 0; i < dependentes.length; i++) {
-                const dep = dependentes[i];
-                console.log(`[RPA WINDOWS RH] Preenchendo dependente ${i + 1}: ${dep.nome || dep.name}`);
-
-                await page.evaluate(() => {
-                    const addBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent && (b.textContent.includes('Adicionar dependente') || b.textContent.includes('Adicionar') || b.textContent.includes('+ Dependente')));
-                    if (addBtn) addBtn.click();
-                });
-                await page.evaluate(() => new Promise(r => setTimeout(r, 1000)));
-
-                if (dep.nome || dep.name) await fillByControl("dependentName", dep.nome || dep.name);
-                const depCpf = (dep.cpf || "").replace(/\D/g, "");
-                if (depCpf) await fillByControl("dependentCPF", depCpf);
-                const depNasc = formatDateDigits(dep.dataNascimento || dep.birthDate);
-                if (depNasc) await fillByControl("dependentBirthDate", depNasc);
-                if (dep.parentesco) await selectBentoOption("relationshipType", dep.parentesco);
-            }
+    await clickButton("Dependente");
+    await new Promise(r => setTimeout(r, 1500));
+    const dependentes = payload.dependentes || extra.dependentes || [];
+    if (Array.isArray(dependentes) && dependentes.length > 0) {
+        for (let i = 0; i < dependentes.length; i++) {
+            const dep = dependentes[i];
+            console.log(`[RPA WINDOWS RH] Preenchendo dependente ${i + 1}: ${dep.nome || dep.name}`);
+            await clickButton("Adicionar dependente");
+            await new Promise(r => setTimeout(r, 1000));
+            if (dep.nome || dep.name) await fillByControl("dependentName", dep.nome || dep.name);
+            const depCpf = (dep.cpf || "").replace(/\D/g, "");
+            if (depCpf) await fillByControl("dependentCPF", depCpf);
+            const depNasc = formatDateDigits(dep.dataNascimento || dep.birthDate);
+            if (depNasc) await fillByControl("dependentBirthDate", depNasc);
+            if (dep.parentesco) await selectBentoOption("relationshipType", dep.parentesco);
         }
-    } catch (e) {
-        console.log("[RPA WINDOWS RH] Aviso na Aba 5:", e);
     }
 
     // ABA 6: OBSERVAÇÕES
     console.log("[RPA WINDOWS RH] Preenchendo Aba 6 (Observações)...");
-    try {
-        await page.evaluate(() => {
-            const btn = Array.from(document.querySelectorAll('button.bento-wizard-step, button')).find(el => el.textContent.includes('Observaç') || el.textContent.includes('Observac'));
-            if (btn) btn.click();
-        });
-        await page.evaluate(() => new Promise(r => setTimeout(r, 1500)));
-
-        const obsText = payload.observacoes || extra.observacoes || `Admissão via Workforce Hub - Cargo: ${roleTitle} - Empresa: ${companyName}`;
-        await fillByControl("observations", obsText);
-        await fillByControl("notes", obsText);
-    } catch (e) {
-        console.log("[RPA WINDOWS RH] Aviso na Aba 6:", e);
-    }
+    await clickButton("Observaç");
+    await new Promise(r => setTimeout(r, 1500));
+    const obsText = payload.observacoes || extra.observacoes || `Admissão via Workforce Hub - Cargo: ${roleTitle} - Empresa: ${companyName}`;
+    await fillByControl("observations", obsText);
+    await fillByControl("notes", obsText);
 
     // SALVAR E ENVIAR AUTOMATICAMENTE
     console.log("[RPA WINDOWS RH] Clicando em 'Salvar e Enviar para o Escritório'...");
     try {
-        await page.evaluate(() => {
+        const pSave = await getPage();
+        await pSave.evaluate(() => {
             const buttons = Array.from(document.querySelectorAll('button, .btn'));
             const saveBtn = buttons.find(b => {
                 const txt = (b.textContent || '').trim().toLowerCase();
                 return txt.includes('salvar e enviar') || txt.includes('enviar para o escritório') || (txt.includes('salvar') && !txt.includes('cancelar'));
             });
-            if (saveBtn) saveBtn.click();
+            if (saveBtn) { console.log('Clicando:', saveBtn.textContent); saveBtn.click(); }
         });
         await new Promise(r => setTimeout(r, 4000));
     } catch (saveErr) {
-        console.warn("[RPA WINDOWS RH] Aviso ao clicar em Salvar:", saveErr);
+        console.warn("[RPA WINDOWS RH] Aviso ao clicar em Salvar:", saveErr.message);
     }
 
     console.log(`[RPA WINDOWS RH] ✅ PREENCHIMENTO DAS 6 ABAS E SALVAMENTO CONCLUÍDO PARA ${candidateName}!`);
-
     return {
         success: true,
         message: `Ficha de ${candidateName} preenchida e salva com sucesso no Onvio para ${companyName}!`
