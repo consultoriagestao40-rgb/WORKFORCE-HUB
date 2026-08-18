@@ -82,17 +82,16 @@ export function OnvioPanel({
 
         setShowReviewModal(false);
         setSendingRpa(true);
-        const toastId = toast.loading("🚀 Transmitindo ficha de admissão para o Onvio...");
         try {
             const res = await sendCandidateToOnvioRpa(candidateId, dataToTransmit);
             if (res.success) {
-                toast.success(res.message || "✅ Ficha transmitida com sucesso para o Onvio!", { id: toastId });
+                toast.success(res.message || "✅ Ficha transmitida com sucesso para o Onvio!");
                 onUpdate();
             } else {
-                toast.error(res.error || "Erro ao executar a transmissão para o Onvio.", { id: toastId });
+                toast.error(res.error || "Erro ao executar a transmissão para o Onvio.");
             }
         } catch (e: any) {
-            toast.error(e.message || "Erro durante o disparo para o Onvio.", { id: toastId });
+            toast.error(e.message || "Erro durante o disparo para o Onvio.");
         } finally {
             setSendingRpa(false);
         }
