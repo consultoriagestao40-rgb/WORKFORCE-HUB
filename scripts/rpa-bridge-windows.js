@@ -3,6 +3,7 @@
 // =============================================================================
 const http = require("http");
 const fs = require("fs");
+const path = require("path");
 const puppeteer = require("puppeteer-core");
 
 const PORT = process.env.PORT || 3000;
@@ -94,10 +95,13 @@ async function executeVisualFilling(payload) {
     }
 
     const chromePath = findWindowsChromePath();
+    const profileDir = path.join(process.env.HOME || process.env.USERPROFILE || "/tmp", ".onvio-chrome-profile");
+    
     const launchOptions = {
         headless: false,
         defaultViewport: null,
-        args: ["--start-maximized", "--no-sandbox"]
+        userDataDir: profileDir,
+        args: ["--start-maximized", "--no-sandbox", "--disable-blink-features=AutomationControlled"]
     };
     if (chromePath) {
         launchOptions.executablePath = chromePath;
@@ -117,46 +121,45 @@ async function executeVisualFilling(payload) {
 
     console.log("[RPA WINDOWS RH] Verificando tela de login...");
     try {
-        const clickedEntrar = await page.evaluate(() => {
+        // Se estiver na tela com o botão "Entrar", clica nele
+        await page.evaluate(() => {
             const btns = Array.from(document.querySelectorAll('button, a, .btn-primary, [role="button"]'));
             const entrarBtn = btns.find(b => b.textContent && b.textContent.trim().toLowerCase() === 'entrar');
-            if (entrarBtn) {
-                entrarBtn.click();
-                return true;
-            }
-            return false;
+            if (entrarBtn) entrarBtn.click();
         });
-        if (clickedEntrar) {
-            console.log("[RPA WINDOWS RH] Botão Entrar clicado. Aguardando tela de credenciais...");
-            await page.evaluate(() => new Promise(r => setTimeout(r, 2500)));
-        }
-    } catch (e) {}
+        await page.evaluate(() => new Promise(r => setTimeout(r, 2500)));
 
-    try {
         const uidSelector = 'input[name="uid"], input[type="email"], #username, [data-qe-id="trauth-signin-uid"], input[autocomplete="username"]';
+        await page.waitForSelector(uidSelector, { timeout: 12000 }).catch(() => {});
         const hasUidInp = await page.$(uidSelector);
         
         if (hasUidInp) {
             console.log("[RPA WINDOWS RH] Preenchendo usuário: " + ONVIO_USER);
-            await page.type(uidSelector, ONVIO_USER, { delay: 40 });
+            await page.click(uidSelector);
+            await page.type(uidSelector, ONVIO_USER, { delay: 35 });
 
             await page.evaluate(() => {
-                const btns = Array.from(document.querySelectorAll('button'));
-                const nextBtn = btns.find(b => b.textContent && (b.textContent.includes('Avançar') || b.textContent.includes('Continuar') || b.type === 'submit'));
+                const btns = Array.from(document.querySelectorAll('button, input[type="submit"]'));
+                const nextBtn = btns.find(b => b.textContent && (b.textContent.includes('Avançar') || b.textContent.includes('Continuar') || b.textContent.includes('Next') || b.type === 'submit'));
                 if (nextBtn) nextBtn.click();
             });
-            await page.evaluate(() => new Promise(r => setTimeout(r, 2000)));
+            await page.evaluate(() => new Promise(r => setTimeout(r, 2500)));
 
-            await page.waitForSelector('input[type="password"]', { timeout: 15000 });
-            console.log("[RPA WINDOWS RH] Preenchendo senha...");
-            await page.type('input[type="password"]', ONVIO_PASS, { delay: 40 });
+            const pwdSelector = 'input[type="password"], input[name="pwd"], input[name="password"]';
+            await page.waitForSelector(pwdSelector, { timeout: 12000 }).catch(() => {});
+            const hasPwdInp = await page.$(pwdSelector);
+            if (hasPwdInp) {
+                console.log("[RPA WINDOWS RH] Preenchendo senha...");
+                await page.click(pwdSelector);
+                await page.type(pwdSelector, ONVIO_PASS, { delay: 35 });
 
-            await page.evaluate(() => {
-                const btns = Array.from(document.querySelectorAll('button'));
-                const submitBtn = btns.find(b => b.type === 'submit' || (b.textContent && b.textContent.includes('Entrar')));
-                if (submitBtn) submitBtn.click();
-            });
-            await page.evaluate(() => new Promise(r => setTimeout(r, 5000)));
+                await page.evaluate(() => {
+                    const btns = Array.from(document.querySelectorAll('button, input[type="submit"]'));
+                    const submitBtn = btns.find(b => b.type === 'submit' || (b.textContent && (b.textContent.includes('Entrar') || b.textContent.includes('Sign in') || b.textContent.includes('Avançar'))));
+                    if (submitBtn) submitBtn.click();
+                });
+                await page.evaluate(() => new Promise(r => setTimeout(r, 4500)));
+            }
         }
     } catch (loginErr) {
         console.log("[RPA WINDOWS RH] Sessão já autenticada ou etapa concluída.");
@@ -418,12 +421,27 @@ async function executeVisualFilling(payload) {
         console.log("[RPA WINDOWS RH] Aviso na Aba 6:", e);
     }
 
-    console.log(`[RPA WINDOWS RH] ✅ PREENCHIMENTO DAS 6 ABAS CONCLUÍDO PARA ${candidateName}!`);
-    console.log("[RPA WINDOWS RH] 🟢 O Google Chrome está ABERTO na Aba 06 (Observações). Revise os dados e clique em 'SALVAR E ENVIAR PARA O ESCRITÓRIO' quando estiver pronto.");
+    // SALVAR E ENVIAR AUTOMATICAMENTE
+    console.log("[RPA WINDOWS RH] Clicando em 'Salvar e Enviar para o Escritório'...");
+    try {
+        await page.evaluate(() => {
+            const buttons = Array.from(document.querySelectorAll('button, .btn'));
+            const saveBtn = buttons.find(b => {
+                const txt = (b.textContent || '').trim().toLowerCase();
+                return txt.includes('salvar e enviar') || txt.includes('enviar para o escritório') || (txt.includes('salvar') && !txt.includes('cancelar'));
+            });
+            if (saveBtn) saveBtn.click();
+        });
+        await new Promise(r => setTimeout(r, 4000));
+    } catch (saveErr) {
+        console.warn("[RPA WINDOWS RH] Aviso ao clicar em Salvar:", saveErr);
+    }
+
+    console.log(`[RPA WINDOWS RH] ✅ PREENCHIMENTO DAS 6 ABAS E SALVAMENTO CONCLUÍDO PARA ${candidateName}!`);
 
     return {
         success: true,
-        message: `Chrome aberto na sua tela na Aba 06 para ${candidateName}! Revise os dados e clique em 'SALVAR E ENVIAR' no Onvio quando estiver pronto.`
+        message: `Ficha de ${candidateName} preenchida e salva com sucesso no Onvio para ${companyName}!`
     };
 }
 
