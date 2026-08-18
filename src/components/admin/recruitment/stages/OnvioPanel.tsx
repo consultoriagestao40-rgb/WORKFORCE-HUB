@@ -669,6 +669,52 @@ export function OnvioPanel({
                 </div>,
                 document.body
             )}
+
+            {/* Modal de Alerta Centralizado de Envio para o Onvio */}
+            {mounted && sendingRpa && createPortal(
+                <div 
+                    className="fixed inset-0 z-[9999999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-slate-200 flex flex-col items-center text-center space-y-5 animate-in zoom-in-95 duration-200">
+                        <div className="relative">
+                            <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-teal-600 to-emerald-500 flex items-center justify-center text-white shadow-xl shadow-teal-500/20">
+                                <Send className="w-9 h-9 animate-bounce" />
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 bg-white p-1 rounded-full shadow-md">
+                                <Loader2 className="w-5 h-5 animate-spin text-teal-600" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 className="text-xl font-black text-slate-900 tracking-tight">Transmitindo para o Onvio</h3>
+                            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                                Conectando diretamente ao portal Thomson Reuters da contabilidade e preenchendo a ficha de admissão...
+                            </p>
+                        </div>
+
+                        <div className="w-full bg-slate-50 rounded-2xl p-4 border border-slate-200/80 text-xs text-left space-y-3">
+                            <div className="flex items-center gap-2.5 text-slate-800 font-semibold">
+                                <span className="w-2.5 h-2.5 rounded-full bg-teal-500 animate-ping shrink-0" />
+                                <span>Acessando ambiente seguro da JVS Facilities</span>
+                            </div>
+                            <div className="flex items-center gap-2.5 text-slate-600 text-[11px]">
+                                <span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />
+                                <span>Preenchendo automaticamente as 6 seções</span>
+                            </div>
+                            <div className="flex items-center gap-2.5 text-slate-600 text-[11px]">
+                                <span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />
+                                <span>Salvando e enviando para o escritório</span>
+                            </div>
+                        </div>
+
+                        <p className="text-[11px] text-slate-400 font-medium animate-pulse">
+                            Aguarde a confirmação em instantes. Não feche a página.
+                        </p>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 }

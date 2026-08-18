@@ -744,25 +744,56 @@ async function transmitCandidateToOnvioCloud(payload: OnvioCandidatePayload) {
         await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => {});
         await new Promise(r => setTimeout(r, 3000));
 
-        // 2. Autenticação se necessário
-        if (page.url().includes("/auth") || page.url().includes("thomsonreuters")) {
+        // 2. Autenticação precisa se necessário
+        const currentUrl = page.url();
+        if (currentUrl.includes("/auth") || currentUrl.includes("thomsonreuters") || currentUrl.includes("login")) {
             console.log("[RPA ONVIO Cloud] Realizando autenticação no Onvio...");
-            const entrarBtn = await page.$('button, a, .btn-primary');
-            if (entrarBtn) { await entrarBtn.click().catch(() => {}); await new Promise(r => setTimeout(r, 2500)); }
+            
+            // Clica no botão Entrar se estiver na tela inicial de boas-vindas
+            const clickedEntrar = await page.evaluate(() => {
+                const btns = Array.from(document.querySelectorAll('button, a, .btn-primary, [role="button"]'));
+                const entrarBtn = btns.find(b => b.textContent && b.textContent.trim().toLowerCase() === 'entrar');
+                if (entrarBtn) {
+                    (entrarBtn as HTMLElement).click();
+                    return true;
+                }
+                return false;
+            });
+            if (clickedEntrar) {
+                await new Promise(r => setTimeout(r, 2500));
+            }
 
-            await page.waitForSelector('input[name="uid"], [data-qe-id="trauth-signin-uid"]', { timeout: 25000 }).catch(() => {});
-            const uid = await page.$('input[name="uid"], [data-qe-id="trauth-signin-uid"]');
-            if (uid) await uid.type(user);
+            const uidSelector = 'input[name="uid"], input[type="email"], #username, [data-qe-id="trauth-signin-uid"], input[autocomplete="username"]';
+            await page.waitForSelector(uidSelector, { timeout: 25000 }).catch(() => {});
+            const uidInp = await page.$(uidSelector);
+            if (uidInp) {
+                console.log("[RPA ONVIO Cloud] Preenchendo usuário...");
+                await uidInp.click();
+                await uidInp.type(user, { delay: 30 });
 
-            const nextBtn = await page.$('button[type="submit"]');
-            if (nextBtn) { await nextBtn.click().catch(() => {}); await new Promise(r => setTimeout(r, 2000)); }
+                await page.evaluate(() => {
+                    const btns = Array.from(document.querySelectorAll('button'));
+                    const nextBtn = btns.find(b => b.textContent && (b.textContent.includes('Avançar') || b.textContent.includes('Continuar') || b.type === 'submit'));
+                    if (nextBtn) (nextBtn as HTMLElement).click();
+                });
+                await new Promise(r => setTimeout(r, 2000));
 
-            await page.waitForSelector('input[type="password"]', { timeout: 20000 }).catch(() => {});
-            const pwd = await page.$('input[type="password"]');
-            if (pwd) await pwd.type(pass);
+                const pwdSelector = 'input[type="password"], input[name="pwd"]';
+                await page.waitForSelector(pwdSelector, { timeout: 20000 }).catch(() => {});
+                const pwdInp = await page.$(pwdSelector);
+                if (pwdInp) {
+                    console.log("[RPA ONVIO Cloud] Preenchendo senha...");
+                    await pwdInp.click();
+                    await pwdInp.type(pass, { delay: 30 });
 
-            const submitBtn = await page.$('button[type="submit"]');
-            if (submitBtn) { await submitBtn.click().catch(() => {}); await new Promise(r => setTimeout(r, 5000)); }
+                    await page.evaluate(() => {
+                        const btns = Array.from(document.querySelectorAll('button'));
+                        const submitBtn = btns.find(b => b.type === 'submit' || (b.textContent && b.textContent.includes('Entrar')));
+                        if (submitBtn) (submitBtn as HTMLElement).click();
+                    });
+                    await new Promise(r => setTimeout(r, 5000));
+                }
+            }
 
             await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "domcontentloaded", timeout: 30000 });
             await new Promise(r => setTimeout(r, 3000));
@@ -770,29 +801,36 @@ async function transmitCandidateToOnvioCloud(payload: OnvioCandidatePayload) {
 
         // 3. Selecionar Empresa correspondente
         console.log(`[RPA ONVIO Cloud] Selecionando empresa: ${targetComp}...`);
-        const companyClickable = await page.$('bm-linked-account-selector, .header-firm-name');
-        if (companyClickable) {
-            await companyClickable.click().catch(() => {});
+        try {
+            await page.evaluate(() => {
+                const selector = document.querySelector('bm-linked-account-selector, .header-firm-name');
+                if (selector) (selector as HTMLElement).click();
+            });
             await new Promise(r => setTimeout(r, 1500));
 
-            const selected = await page.evaluate((comp: string) => {
-                const clean = comp.toLowerCase().replace(' ltda', '').replace(' s.a.', '').trim();
-                const prefix = clean.split(' ')[0];
+            await page.evaluate((compName: string) => {
+                const searchInp = document.querySelector('input[placeholder*="Pesquisar"], input[placeholder*="empresa"], input[type="search"], bento-combobox input');
+                if (searchInp) {
+                    (searchInp as any).value = compName;
+                    searchInp.dispatchEvent(new Event('input', { bubbles: true }));
+                    searchInp.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }, targetComp);
+            await new Promise(r => setTimeout(r, 600));
+
+            await page.evaluate((compName: string) => {
+                const cleanTarget = compName.toLowerCase().replace(' ltda', '').replace(' s.a.', '').trim();
+                const prefix = cleanTarget.split(' ')[0];
                 const items = Array.from(document.querySelectorAll('.bento-option-list li, .bento-option, span, div, a'));
                 const match = items.find(el => {
                     const txt = el.textContent ? el.textContent.toLowerCase() : '';
-                    return txt.includes(clean) || txt.includes(prefix);
+                    return txt.includes(cleanTarget) || txt.includes(prefix);
                 });
-                if (match) {
-                    (match as HTMLElement).click();
-                    return true;
-                }
-                return false;
+                if (match) (match as HTMLElement).click();
             }, targetComp);
-
-            if (selected) {
-                await new Promise(r => setTimeout(r, 3500));
-            }
+            await new Promise(r => setTimeout(r, 3000));
+        } catch (compErr) {
+            console.warn("[RPA ONVIO Cloud] Aviso ao trocar empresa:", compErr);
         }
 
         // 4. Abrir formulário /add
