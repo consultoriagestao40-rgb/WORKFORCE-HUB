@@ -95,13 +95,16 @@ async function executeVisualFilling(payload) {
     }
 
     const chromePath = findWindowsChromePath();
-    const profileDir = path.join(process.env.HOME || process.env.USERPROFILE || "/tmp", ".onvio-chrome-profile");
     
     const launchOptions = {
         headless: false,
         defaultViewport: null,
-        userDataDir: profileDir,
-        args: ["--start-maximized", "--no-sandbox", "--disable-blink-features=AutomationControlled"]
+        args: [
+            "--start-maximized",
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage"
+        ]
     };
     if (chromePath) {
         launchOptions.executablePath = chromePath;
@@ -109,105 +112,92 @@ async function executeVisualFilling(payload) {
         launchOptions.channel = "chrome";
     }
 
+    console.log("[RPA WINDOWS RH] Iniciando Puppeteer...");
     const browser = await puppeteer.launch(launchOptions);
     activeBrowser = browser;
+    console.log("[RPA WINDOWS RH] Chrome aberto com sucesso.");
 
     const pages = await browser.pages();
     const page = pages.length > 0 ? pages[0] : await browser.newPage();
 
     console.log("[RPA WINDOWS RH] Acessando https://onvio.com.br...");
-    await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "networkidle2", timeout: 30000 });
+    await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "domcontentloaded", timeout: 30000 });
+    await new Promise(r => setTimeout(r, 3000));
 
-    // Função auxiliar para verificar se já está logado (portal carregado)
-    async function isLoggedIn() {
-        const url = page.url();
-        return url.includes('/actions/') || url.includes('/clientcenter/pt/') && !url.includes('/auth');
-    }
-
-    // Tela "Bem-vindo / Entrar" (tela intermediária do portal)
     const urlAtual = page.url();
     console.log("[RPA WINDOWS RH] URL atual: " + urlAtual);
 
-    if (urlAtual.includes('/auth') || urlAtual.includes('Bem-vindo')) {
-        console.log("[RPA WINDOWS RH] Tela de boas-vindas detectada. Clicando em Entrar e aguardando navegação...");
+    // Se caiu na tela de boas-vindas (/auth), clica em Entrar e faz o login
+    if (urlAtual.includes('/auth')) {
+        console.log("[RPA WINDOWS RH] Tela de login detectada. Clicando em Entrar...");
         try {
-            // Clicar no botão "Entrar" e aguardar a navegação para o SSO da Thomson Reuters
-            await Promise.all([
-                page.waitForNavigation({ waitUntil: "networkidle2", timeout: 15000 }),
-                page.evaluate(() => {
-                    const btns = Array.from(document.querySelectorAll('button, a'));
-                    const btn = btns.find(b => b.textContent && b.textContent.trim().toLowerCase() === 'entrar');
-                    if (btn) btn.click();
-                })
-            ]);
-            console.log("[RPA WINDOWS RH] Navegação após Entrar concluída. URL: " + page.url());
-        } catch (navErr) {
-            console.log("[RPA WINDOWS RH] Aviso na navegação após Entrar:", navErr.message);
+            await page.evaluate(() => {
+                const btns = Array.from(document.querySelectorAll('button, a'));
+                const btn = btns.find(b => b.textContent && b.textContent.trim().toLowerCase() === 'entrar');
+                if (btn) btn.click();
+            });
+            // Espera navegar para o SSO
+            await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 12000 }).catch(() => {});
+            await new Promise(r => setTimeout(r, 2000));
+            console.log("[RPA WINDOWS RH] Após Entrar, URL: " + page.url());
+        } catch(e) {
+            console.log("[RPA WINDOWS RH] Aviso ao clicar Entrar:", e.message);
         }
     }
 
-    // Agora verifica se está na página de login da Thomson Reuters (username/email)
-    console.log("[RPA WINDOWS RH] Verificando se precisa fazer login (Thomson Reuters)...");
+    // Verifica se precisa digitar credenciais (Thomson Reuters SSO)
+    console.log("[RPA WINDOWS RH] Verificando se precisa fazer login...");
     try {
         const uidSelector = '[data-qe-id="trauth-signin-uid"], input[name="uid"], input[type="email"], #username, input[autocomplete="username"]';
-        const hasUidInp = await page.waitForSelector(uidSelector, { timeout: 8000 }).catch(() => null);
+        const hasUidInp = await page.waitForSelector(uidSelector, { timeout: 7000 }).catch(() => null);
 
         if (hasUidInp) {
-            console.log("[RPA WINDOWS RH] Página de login SSO detectada. Digitando usuário: " + ONVIO_USER);
+            console.log("[RPA WINDOWS RH] Digitando usuário: " + ONVIO_USER);
             await page.click(uidSelector);
             await page.type(uidSelector, ONVIO_USER, { delay: 50 });
 
-            // Clica em "Avançar" / "Continue" / botão de submit
-            await Promise.all([
-                page.waitForNavigation({ waitUntil: "networkidle2", timeout: 10000 }).catch(() => {}),
-                page.evaluate(() => {
-                    const btn = document.querySelector('[data-qe-id="trauth-signin-btn"], button[type="submit"]')
-                        || Array.from(document.querySelectorAll('button')).find(b =>
-                            b.textContent && (b.textContent.includes('Avançar') || b.textContent.includes('Continuar') || b.textContent.includes('Next'))
-                        );
-                    if (btn) btn.click();
-                })
-            ]);
+            await page.evaluate(() => {
+                const btn = document.querySelector('[data-qe-id="trauth-signin-btn"], button[type="submit"]')
+                    || Array.from(document.querySelectorAll('button')).find(b =>
+                        b.textContent && (b.textContent.includes('Avançar') || b.textContent.includes('Continuar') || b.textContent.includes('Next'))
+                    );
+                if (btn) btn.click();
+            });
+            await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => {});
             await new Promise(r => setTimeout(r, 2000));
 
-            // Agora digita a senha
             const pwdSelector = 'input[type="password"], [data-qe-id="trauth-signin-password"]';
-            const hasPwd = await page.waitForSelector(pwdSelector, { timeout: 10000 }).catch(() => null);
+            const hasPwd = await page.waitForSelector(pwdSelector, { timeout: 8000 }).catch(() => null);
             if (hasPwd) {
-                console.log("[RPA WINDOWS RH] Campo de senha detectado. Digitando senha...");
+                console.log("[RPA WINDOWS RH] Digitando senha...");
                 await page.click(pwdSelector);
                 await page.type(pwdSelector, ONVIO_PASS, { delay: 50 });
 
-                // Clica em "Entrar" / "Sign In"
-                await Promise.all([
-                    page.waitForNavigation({ waitUntil: "networkidle2", timeout: 15000 }).catch(() => {}),
-                    page.evaluate(() => {
-                        const btn = document.querySelector('[data-qe-id="trauth-signin-btn"], button[type="submit"]')
-                            || Array.from(document.querySelectorAll('button')).find(b =>
-                                b.textContent && (b.textContent.includes('Entrar') || b.textContent.includes('Sign in'))
-                            );
-                        if (btn) btn.click();
-                    })
-                ]);
+                await page.evaluate(() => {
+                    const btn = document.querySelector('[data-qe-id="trauth-signin-btn"], button[type="submit"]')
+                        || Array.from(document.querySelectorAll('button')).find(b =>
+                            b.textContent && (b.textContent.includes('Entrar') || b.textContent.includes('Sign in'))
+                        );
+                    if (btn) btn.click();
+                });
+                await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
                 await new Promise(r => setTimeout(r, 4000));
-                console.log("[RPA WINDOWS RH] Login efetuado. URL pós-login: " + page.url());
-            } else {
-                console.log("[RPA WINDOWS RH] Campo de senha não encontrado. Pode já estar logado.");
+                console.log("[RPA WINDOWS RH] Login efetuado. URL: " + page.url());
             }
         } else {
-            console.log("[RPA WINDOWS RH] ✅ Sessão já autenticada. Prosseguindo...");
+            console.log("[RPA WINDOWS RH] ✅ Sessão já ativa. Prosseguindo...");
         }
     } catch (loginErr) {
-        console.log("[RPA WINDOWS RH] Aviso no login:", loginErr.message);
+        console.log("[RPA WINDOWS RH] Aviso login:", loginErr.message);
     }
 
-    // Garante que está na página correta após o login
+    // Garante que está na página certa
     const urlPosLogin = page.url();
-    if (!urlPosLogin.includes('/actions/service-request/employee-registration')) {
-        console.log("[RPA WINDOWS RH] Navegando para o formulário de admissão...");
-        await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "networkidle2", timeout: 20000 });
+    if (!urlPosLogin.includes('/employee-registration')) {
+        console.log("[RPA WINDOWS RH] Navegando para formulário de admissão...");
+        await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration", { waitUntil: "domcontentloaded", timeout: 20000 });
+        await new Promise(r => setTimeout(r, 3000));
     }
-    await new Promise(r => setTimeout(r, 3000));
 
     console.log(`[RPA WINDOWS RH] Selecionando contexto de empresa: ${companyName}...`);
     try {
@@ -562,7 +552,9 @@ setInterval(async () => {
                 });
             }
         }
-    } catch (pollErr) {}
+    } catch (pollErr) {
+        console.error("[RPA POLL ERRO]:", pollErr.message || pollErr);
+    }
 }, 2500);
 
 process.stdin.resume();
