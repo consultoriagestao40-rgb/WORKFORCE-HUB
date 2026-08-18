@@ -76,19 +76,54 @@ export function OnvioPanel({
         return true;
     }
 
+    const [rpaStatusText, setRpaStatusText] = useState("Iniciando comunicação com o Robô...");
+
     async function handleRpaTransmit() {
         const dataToTransmit = liveWizardData || wizardInitialData;
         if (!checkPixRequirement(dataToTransmit)) return;
 
         setShowReviewModal(false);
         setSendingRpa(true);
+        setRpaStatusText("Iniciando comunicação com a fila do Robô...");
         try {
+            const jobRes = await createRpaJobAction(candidateId, dataToTransmit);
+            
+            if (jobRes.success && jobRes.jobId) {
+                const jobId = jobRes.jobId;
+                setRpaStatusText("Aguardando o Robô abrir o Chrome...");
+
+                let isHandled = false;
+                for (let i = 0; i < 35; i++) {
+                    await new Promise(r => setTimeout(r, 1500));
+                    const statusRes = await checkRpaJobStatusAction(jobId);
+                    
+                    if (statusRes.success) {
+                        if (statusRes.status === "PROCESSING") {
+                            setRpaStatusText("🤖 Robô em execução: Preenchendo as 6 abas no Onvio...");
+                        } else if (statusRes.status === "COMPLETED") {
+                            isHandled = true;
+                            setRpaStatusText("✅ Ficha preenchida com sucesso no Onvio!");
+                            toast.success("🤖 O Robô preencheu as 6 abas no Onvio com sucesso!");
+                            onUpdate();
+                            break;
+                        } else if (statusRes.status === "FAILED") {
+                            isHandled = true;
+                            toast.error("Erro no processamento do robô: " + (statusRes.result || "Falha"));
+                            break;
+                        }
+                    }
+                }
+
+                if (isHandled) return;
+            }
+
+            setRpaStatusText("Executando automação direta...");
             const res = await sendCandidateToOnvioRpa(candidateId, dataToTransmit);
             if (res.success) {
                 toast.success(res.message || "✅ Ficha transmitida com sucesso para o Onvio!");
                 onUpdate();
             } else {
-                toast.error(res.error || "Erro ao executar a transmissão para o Onvio.");
+                toast.error(res.error || "O robô não respondeu. Certifique-se de que o robô está ativo.");
             }
         } catch (e: any) {
             toast.error(e.message || "Erro durante o disparo para o Onvio.");
@@ -687,8 +722,8 @@ export function OnvioPanel({
 
                         <div>
                             <h3 className="text-xl font-black text-slate-900 tracking-tight">Transmitindo para o Onvio</h3>
-                            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                                Conectando diretamente ao portal Thomson Reuters da contabilidade e preenchendo a ficha de admissão...
+                            <p className="text-xs text-teal-700 font-semibold mt-2 leading-relaxed bg-teal-50 py-1.5 px-3 rounded-xl border border-teal-100">
+                                {rpaStatusText}
                             </p>
                         </div>
 
