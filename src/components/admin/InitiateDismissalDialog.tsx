@@ -18,17 +18,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { UserMinus, Upload, X, FileText, AlertTriangle, Loader2 } from "lucide-react";
+import { UserMinus, Upload, X, FileText, AlertTriangle, Loader2, Sparkles, Calendar } from "lucide-react";
 import { initiateEmployeeDismissalProcess } from "@/app/actions";
 
 export function InitiateDismissalDialog({ 
     employeeId, 
     employeeName, 
+    admissionDate,
     hasActivePosto, 
     triggerVariant = 'default' 
 }: { 
     employeeId: string; 
     employeeName: string; 
+    admissionDate?: string | Date | null;
     hasActivePosto: boolean; 
     triggerVariant?: 'default' | 'table'; 
 }) {
@@ -49,6 +51,56 @@ export function InitiateDismissalDialog({
     });
     const [terminationDate, setTerminationDate] = useState(new Date().toISOString().split('T')[0]);
     const [abandonmentStartDate, setAbandonmentStartDate] = useState(new Date().toISOString().split('T')[0]);
+
+    // Helper para cálculo de anos completos e dias de aviso proporcional (Lei 12.506/2011)
+    const getNoticeCalculation = (startDateStr: string) => {
+        let fullYears = 0;
+        if (admissionDate && startDateStr) {
+            try {
+                const adm = new Date(admissionDate);
+                const start = new Date(startDateStr + "T12:00:00Z");
+                if (!isNaN(adm.getTime()) && !isNaN(start.getTime())) {
+                    let diffY = start.getFullYear() - adm.getFullYear();
+                    const m = start.getMonth() - adm.getMonth();
+                    if (m < 0 || (m === 0 && start.getDate() < adm.getDate())) {
+                        diffY--;
+                    }
+                    fullYears = Math.max(0, diffY);
+                }
+            } catch (e) {
+                fullYears = 0;
+            }
+        }
+
+        let days = 30;
+        if (initiative === 'EMPRESA' && dismissalCategory === 'AVISO') {
+            // Lei 12.506/2011: 30 base + 3 dias por ano completo trabalhado (máximo de 60 dias adicionais = 90 dias total)
+            days = Math.min(30 + (fullYears * 3), 90);
+        } else {
+            days = 30;
+        }
+
+        return { fullYears, days };
+    };
+
+    const calculateEndDate = (startDateStr: string, days: number) => {
+        try {
+            const d = new Date(startDateStr + "T12:00:00Z");
+            if (isNaN(d.getTime())) return "";
+            d.setDate(d.getDate() + days);
+            return d.toISOString().split('T')[0];
+        } catch {
+            return "";
+        }
+    };
+
+    // Auto-recalcula a data de término ao alterar a data de início ou opções
+    useEffect(() => {
+        if (noticeStartDate) {
+            const { days } = getNoticeCalculation(noticeStartDate);
+            setNoticeEndDate(calculateEndDate(noticeStartDate, days));
+        }
+    }, [noticeStartDate, initiative, dismissalCategory, noticeType, admissionDate]);
 
     // Options
     const [reductionType, setReductionType] = useState<'NENHUMA' | 'DUAS_HORAS' | 'SETE_DIAS'>('NENHUMA');
@@ -164,12 +216,14 @@ export function InitiateDismissalDialog({
         }
 
         try {
+            const { days: calcNoticeDays } = getNoticeCalculation(noticeStartDate);
             const res = await initiateEmployeeDismissalProcess({
                 employeeId,
                 processType,
                 dismissalSubType,
                 initiative,
                 noticeType,
+                noticeDays: calcNoticeDays,
                 startDate,
                 endDate,
                 reductionType: initiative === 'EMPRESA' && noticeType === 'TRABALHADO' ? reductionType : 'NENHUMA',
@@ -321,18 +375,49 @@ export function InitiateDismissalDialog({
                                         />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <Label htmlFor="proc_noticeEndDate" className="text-xs font-semibold">Término do Aviso</Label>
+                                        <div className="flex items-center justify-between">
+                                            <Label htmlFor="proc_noticeEndDate" className="text-xs font-semibold">Término do Aviso</Label>
+                                            <span className="text-[10px] text-blue-600 font-black">
+                                                {getNoticeCalculation(noticeStartDate).days} dias
+                                            </span>
+                                        </div>
                                         <Input
                                             type="date"
                                             id="proc_noticeEndDate"
                                             value={noticeEndDate}
                                             onChange={(e) => setNoticeEndDate(e.target.value)}
                                             required
-                                            className="h-9 text-xs rounded-xl bg-white"
+                                            className="h-9 text-xs rounded-xl bg-white font-medium"
                                         />
                                     </div>
                                 </div>
                                 
+                                {/* Badge de Proporcionalidade - Lei 12.506/2011 */}
+                                {initiative === 'EMPRESA' ? (
+                                    <div className="flex items-start gap-2 p-2.5 bg-blue-50/80 border border-blue-200 rounded-xl text-blue-900 text-xs">
+                                        <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                                        <div className="leading-tight">
+                                            {getNoticeCalculation(noticeStartDate).fullYears > 0 ? (
+                                                <>
+                                                    <span className="font-bold">
+                                                        {getNoticeCalculation(noticeStartDate).fullYears} {getNoticeCalculation(noticeStartDate).fullYears === 1 ? 'ano completo' : 'anos completos'} de contrato
+                                                    </span>
+                                                    <span className="text-[11px] text-blue-700 block mt-0.5">
+                                                        Aviso Prévio Proporcional: <strong>{getNoticeCalculation(noticeStartDate).days} dias</strong> (30 base + {getNoticeCalculation(noticeStartDate).fullYears * 3} dias pela Lei 12.506/2011).
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span className="font-bold">Menos de 1 ano completo de contrato</span>
+                                                    <span className="text-[11px] text-blue-700 block mt-0.5">
+                                                        Aviso Prévio Padrão: <strong>30 dias corridos</strong> (Art. 487 da CLT).
+                                                    </span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : null}
+
                                 {initiative === 'EMPRESA' ? (
                                     <div className="space-y-1.5 pt-1">
                                         <Label htmlFor="proc_reductionType" className="text-xs font-bold">Opção de Redução (Art. 488 CLT)</Label>
@@ -354,7 +439,7 @@ export function InitiateDismissalDialog({
                                     </div>
                                 ) : (
                                     <div className="p-2 bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold rounded-lg text-center">
-                                        Iniciativa do colaborador: Sem redução de jornada da CLT.
+                                        Iniciativa do colaborador: Sem redução de jornada da CLT (30 dias corridos).
                                     </div>
                                 )}
                             </div>

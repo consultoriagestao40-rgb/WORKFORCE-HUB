@@ -2998,6 +2998,7 @@ export async function initiateEmployeeDismissalProcess(data: {
     dismissalSubType: 'PEDIDO_SEM_AVISO' | 'PEDIDO_COM_AVISO' | 'DISPENSA_SEM_AVISO' | 'DISPENSA_COM_AVISO' | 'ABANDONO' | 'TERMINO_EXP_ANTECIPADO_EMPRESA' | 'TERMINO_EXP_PRAZO_EMPRESA' | 'TERMINO_EXP_ANTECIPADO_COLABORADOR' | 'TERMINO_EXP_PRAZO_COLABORADOR';
     initiative: 'EMPRESA' | 'COLABORADOR' | 'ABANDONO';
     noticeType: 'TRABALHADO' | 'INDENIZADO';
+    noticeDays?: number;
     startDate?: string;
     endDate?: string;
     reductionType?: 'NENHUMA' | 'DUAS_HORAS' | 'SETE_DIAS';
@@ -3041,6 +3042,7 @@ export async function initiateEmployeeDismissalProcess(data: {
                 dismissalSubType: data.dismissalSubType,
                 initiative: data.initiative,
                 noticeType: data.noticeType,
+                noticeDays: data.noticeDays || 30,
                 startDate: data.startDate ? new Date(data.startDate + "T12:00:00Z") : new Date(),
                 endDate: data.endDate ? new Date(data.endDate + "T12:00:00Z") : null,
                 reductionType: data.reductionType || 'NENHUMA',

@@ -709,11 +709,30 @@ async function transmitCandidateToOnvioCloud(payload: OnvioCandidatePayload) {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const puppeteer = require("puppeteer-core");
 
-        const execPath = await chromium.executablePath();
+        chromium.setHeadlessMode = true;
+        chromium.setGraphicsMode = false;
+
+        let execPath = "";
+        try {
+            execPath = await chromium.executablePath();
+        } catch (execErr) {
+            console.warn("[RPA ONVIO Cloud] Aviso ao carregar chromium.executablePath:", execErr);
+        }
+
         browser = await puppeteer.launch({
-            args: [...chromium.args, "--no-sandbox", "--disable-setuid-sandbox"],
+            args: [
+                ...(chromium.args || []),
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--no-first-run",
+                "--no-zygote",
+                "--single-process",
+                "--disable-extensions"
+            ],
             defaultViewport: { width: 1280, height: 800 },
-            executablePath: execPath,
+            executablePath: execPath || undefined,
             headless: true,
         });
 

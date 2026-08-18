@@ -76,50 +76,23 @@ export function OnvioPanel({
         return true;
     }
 
-    function handleOpenReviewModal() {
+    async function handleRpaTransmit() {
         const dataToTransmit = liveWizardData || wizardInitialData;
         if (!checkPixRequirement(dataToTransmit)) return;
-        setShowReviewModal(true);
-    }
 
-    async function handleRpaTransmit() {
         setShowReviewModal(false);
         setSendingRpa(true);
+        const toastId = toast.loading("🚀 Transmitindo ficha de admissão para o Onvio...");
         try {
-            const dataToTransmit = liveWizardData || wizardInitialData;
-
-            toast.info("Iniciando transmissão de dados de admissão para o Onvio...");
-            
-            const jobRes = await createRpaJobAction(candidateId, dataToTransmit);
-            
-            if (jobRes.success && jobRes.jobId) {
-                const jobId = jobRes.jobId;
-                let isHandledByWindows = false;
-
-                for (let i = 0; i < 10; i++) {
-                    await new Promise(r => setTimeout(r, 1000));
-                    const statusRes = await checkRpaJobStatusAction(jobId);
-                    if (statusRes.success && (statusRes.status === "PROCESSING" || statusRes.status === "COMPLETED")) {
-                        isHandledByWindows = true;
-                        toast.success("🤖 O Robô recebeu a solicitação e preencheu as 6 abas no Onvio!");
-                        onUpdate();
-                        break;
-                    }
-                }
-
-                if (isHandledByWindows) return;
-            }
-
-            toast.info("Executando automação direta no portal Onvio...");
             const res = await sendCandidateToOnvioRpa(candidateId, dataToTransmit);
             if (res.success) {
-                toast.success(res.message || "Robô RPA executou com sucesso no portal Onvio!");
+                toast.success(res.message || "✅ Ficha transmitida com sucesso para o Onvio!", { id: toastId });
                 onUpdate();
             } else {
-                toast.error(res.error || "Erro ao executar o robô RPA no Onvio.");
+                toast.error(res.error || "Erro ao executar a transmissão para o Onvio.", { id: toastId });
             }
         } catch (e: any) {
-            toast.error(e.message || "Erro durante o disparo do robô RPA.");
+            toast.error(e.message || "Erro durante o disparo para o Onvio.", { id: toastId });
         } finally {
             setSendingRpa(false);
         }
@@ -384,9 +357,9 @@ export function OnvioPanel({
                 <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                     <Button
                         type="button"
-                        onClick={handleOpenReviewModal}
+                        onClick={handleRpaTransmit}
                         disabled={sendingRpa}
-                        className="bg-gradient-to-r from-teal-700 via-teal-800 to-[#042d36] hover:from-teal-800 hover:to-[#032229] text-white font-bold text-xs sm:text-sm h-11 px-6 rounded-xl flex items-center justify-center gap-2 shadow"
+                        className="bg-gradient-to-r from-teal-700 via-teal-800 to-[#042d36] hover:from-teal-800 hover:to-[#032229] text-white font-bold text-xs sm:text-sm h-11 px-6 rounded-xl flex items-center justify-center gap-2 shadow cursor-pointer active:scale-95 transition-transform"
                     >
                         {sendingRpa ? (
                             <>

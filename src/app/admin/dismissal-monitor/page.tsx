@@ -101,7 +101,7 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
         let statusBadge = "NO_PRAZO"; // NO_PRAZO, A_VENCER, ALERTA
         let daysElapsed = 0;
 
-        if (type === "Aviso Prévio") {
+        if (type === "Aviso Prévio" || type.includes("Aviso Trabalhado")) {
             if (startDate && endDate) {
                 dateLabel = `${format(startDate, 'dd/MM/yyyy')} a ${format(endDate, 'dd/MM/yyyy')}`;
                 daysCount = differenceInDays(endDate, today);
@@ -559,6 +559,7 @@ export default async function DismissalMonitorPage({
                                                 <InitiateDismissalDialog 
                                                     employeeId={emp.id}
                                                     employeeName={emp.name}
+                                                    admissionDate={emp.admissionDate}
                                                     hasActivePosto={emp.assignments && emp.assignments.length > 0}
                                                     triggerVariant="table"
                                                 />

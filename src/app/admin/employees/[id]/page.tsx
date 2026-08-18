@@ -165,6 +165,7 @@ export default async function EmployeeProfilePage(props: {
                         <InitiateDismissalDialog 
                             employeeId={employee.id} 
                             employeeName={employee.name} 
+                            admissionDate={employee.admissionDate}
                             hasActivePosto={employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name?.toUpperCase() !== "ROTATIVO")}
                         />
                     )}

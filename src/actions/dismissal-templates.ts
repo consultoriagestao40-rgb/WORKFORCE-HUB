@@ -14,7 +14,7 @@ import fontkit from "@pdf-lib/fontkit";
 import fs from "fs";
 import path from "path";
 import { sendAutentiqueDocument } from "@/actions/epi";
-import { format } from "date-fns";
+import { format, differenceInDays, differenceInYears } from "date-fns";
 
 /**
  * Retorna todos os templates disponíveis (do banco de dados ou os padrões)
@@ -229,6 +229,28 @@ export async function getDismissalNoticeContext(employeeId: string, customOverri
     const dataInicioAviso = proc.startDate ? format(new Date(proc.startDate), "dd/MM/yyyy") : format(new Date(), "dd/MM/yyyy");
     const dataFimAviso = proc.endDate ? format(new Date(proc.endDate), "dd/MM/yyyy") : "-";
 
+    // Determinar dados de CTPS e PIS com compatibilidade ampla de chaves
+    const ctpsNumero = extraFields.ctpsNumero || extraFields.ctpsNumber || extraFields.ctps || extraFields.numeroCtps || extraFields.ctps_numero || "-";
+    const ctpsSerie = extraFields.ctpsSerie || extraFields.serie || extraFields.serieCtps || extraFields.ctps_serie || "-";
+    const pisNumero = extraFields.pisNumero || extraFields.pis || extraFields.pisPasep || extraFields.pis_pasep || "-";
+
+    // Cálculo da quantidade de dias do aviso prévio proporcional (Lei 12.506/2011)
+    let calculatedNoticeDays = 30;
+    if (proc.noticeDays && Number(proc.noticeDays) > 0) {
+        calculatedNoticeDays = Number(proc.noticeDays);
+    } else if (proc.startDate && proc.endDate) {
+        const diff = differenceInDays(new Date(proc.endDate), new Date(proc.startDate));
+        if (diff > 0) {
+            calculatedNoticeDays = diff;
+        }
+    } else if (employee.admissionDate) {
+        const refDate = proc.startDate ? new Date(proc.startDate) : new Date();
+        const fullYears = Math.max(0, differenceInYears(refDate, new Date(employee.admissionDate)));
+        if (proc.initiative !== 'COLABORADOR') {
+            calculatedNoticeDays = Math.min(30 + (fullYears * 3), 90);
+        }
+    }
+
     return {
         employee,
         empresa,
@@ -238,12 +260,12 @@ export async function getDismissalNoticeContext(employeeId: string, customOverri
             empresaCnpj: empresa.cnpj || "48.872.544/0001-70",
             colaboradorNome: employee.name,
             cpf: employee.cpf,
-            ctpsNumero: extraFields.ctpsNumber || extraFields.ctps || "-",
-            ctpsSerie: extraFields.ctpsSerie || extraFields.serie || "-",
-            pisNumero: extraFields.pis || "-",
+            ctpsNumero,
+            ctpsSerie,
+            pisNumero,
             cargo: employee.role?.name || "-",
             dataAdmissao,
-            qtdDias: "30",
+            qtdDias: String(calculatedNoticeDays),
             optDuasHoras: reductionType === 'DUAS_HORAS',
             optSeteDias: reductionType === 'SETE_DIAS',
             dataInicioContrato,
