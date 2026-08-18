@@ -1,5 +1,7 @@
 "use server";
 
+export const maxDuration = 60;
+
 import { prisma } from "@/lib/db";
 import { transmitCandidateToOnvio, OnvioCandidatePayload } from "@/lib/rpa/onvio";
 import { revalidatePath } from "next/cache";
