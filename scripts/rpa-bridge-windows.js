@@ -43,19 +43,28 @@ function findWindowsChromePath() {
     return null;
 }
 
-function formatDateDigits(dStr) {
+// Converte qualquer formato de data para dd/mm/aaaa
+function formatDate(dStr) {
     if (!dStr) return "";
     if (typeof dStr !== 'string') dStr = String(dStr);
     const clean = dStr.replace(/\D/g, "");
+    // Formato ISO: aaaa-mm-dd ou aaaa-mm-ddTHH:mm:ss
     if (dStr.includes("-") && dStr.length >= 10) {
         const parts = dStr.split("T")[0].split("-");
         if (parts.length === 3 && parts[0].length === 4) {
-            return `${parts[2]}${parts[1]}${parts[0]}`;
+            return `${parts[2].padStart(2,'0')}/${parts[1].padStart(2,'0')}/${parts[0]}`;
         }
     }
-    if (clean.length === 8) return clean;
+    // Já está no formato dd/mm/aaaa
+    if (dStr.includes("/") && clean.length === 8) return dStr;
+    // Apenas dígitos: ddmmaaaa
+    if (clean.length === 8) {
+        return `${clean.slice(0,2)}/${clean.slice(2,4)}/${clean.slice(4,8)}`;
+    }
     return dStr;
 }
+// Alias para compatibilidade
+const formatDateDigits = formatDate;
 
 async function executeVisualFilling(payload) {
     const extra = payload.extraFields || {};
@@ -79,9 +88,15 @@ async function executeVisualFilling(payload) {
     const pisNum = extra.pisNumero || extra.pis || cpfDigits;
 
     const rgNum = extra.rgNumero || extra.rg || payload.rg || "";
-    const rgOrgao = extra.rgOrgaoEmissor || extra.orgaoEmissor || "SSP";
-    const rgDtRaw = extra.rgDataEmissao || extra.dataEmissaoRg || "";
-    const rgDtDigits = formatDateDigits(rgDtRaw);
+    const rgOrgao = extra.rgOrgaoEmissor || extra.rgOrgao || extra.orgaoEmissor || payload.rgOrgaoEmissor || "SSP";
+    const rgUf = extra.rgUf || payload.rgUf || "PR";
+    const rgDtRaw = extra.rgDataEmissao || extra.dataEmissaoRg || payload.rgDataEmissao || "";
+    const rgDtDigits = formatDate(rgDtRaw);
+
+    const admissionDateRaw = payload.admissionDate || extra.admissionDate || extra.dataAdmissao || new Date().toISOString().split('T')[0];
+    const admissionDateFmt = formatDate(admissionDateRaw);
+
+    console.log(`[RPA WINDOWS RH] Data admissão: ${admissionDateFmt} | Nascimento: ${birthDateDigits} | RG: ${rgNum} | Orgão: ${rgOrgao}`);
 
     console.log(`\n[RPA WINDOWS RH] 🚀 Abrindo Google Chrome para: ${candidateName}`);
     console.log(`[RPA WINDOWS RH] CPF: ${cpfDigits} | Nascimento: ${birthDateDigits} | Cargo: ${roleTitle} | Empresa: ${companyName}`);
@@ -211,11 +226,11 @@ async function executeVisualFilling(payload) {
         // Digita o nome da empresa para filtrar
         const searchInp = await page.$('input[placeholder*="Pesquisar"], input[placeholder*="empresa"], input[type="search"], bento-combobox input, [class*="search"] input');
         if (searchInp) {
-            const searchTerms = ['JVS', 'JVS FACILITIES', companyName.split(' ')[0]];
-            const searchTerm = searchTerms[0];
-            console.log(`[RPA WINDOWS RH] Digitando "${searchTerm}" no campo de busca de empresa...`);
+            // Usa a primeira palavra significativa do nome da empresa
+            const firstWord = companyName.split(' ').find(w => w.length > 2) || companyName.split(' ')[0];
+            console.log(`[RPA WINDOWS RH] Digitando "${firstWord}" no campo de busca de empresa...`);
             await searchInp.click({ clickCount: 3 });
-            await searchInp.type(searchTerm, { delay: 80 });
+            await searchInp.type(firstWord, { delay: 80 });
             await new Promise(r => setTimeout(r, 1500));
         }
 
@@ -322,13 +337,15 @@ async function executeVisualFilling(payload) {
     console.log("[RPA WINDOWS RH] Preenchendo Aba 1 (Geral)...");
     await fillByControl("employeeName", candidateName);
     await fillByControl("cpfNumber", cpfDigits);
+    await fillByControl("admissionDate", admissionDateFmt);
     await selectBentoOption("service", companyName);
     if (roleTitle) await selectBentoOption("jobPosition", roleTitle);
     await selectBentoOption("department", "Geral");
     await selectBentoOption("costCenter", "Geral");
     await selectBentoOption("union", "SIEMACO");
     await clickButton("ADMISSÃO");
-    await fillByControl("salary", payload.salary || "1900.00");
+    await fillByControl("salary", payload.salary || payload.baseSalary || "1900.00");
+    await fillByControl("admissionDate", admissionDateFmt);  // também preenche na seção ADMISSÃO
     await selectBentoOption("admissionCategory", "Mensalista");
     await selectBentoOption("employmentRelationship", "Celetista");
     await clickButton("CONTRATO DE EXPERIÊNCIA");
@@ -366,6 +383,7 @@ async function executeVisualFilling(payload) {
     await new Promise(r => setTimeout(r, 1500));
     await fillByControl("identityCard", rgNum);
     await fillByControl("issuingAgency", rgOrgao);
+    await selectBentoOption("issuingState", rgUf);  // UF do RG
     if (rgDtDigits) await fillByControl("identityCardIssuingDate", rgDtDigits);
     const tituloNum = extra.tituloEleitorNumero || payload.tituloEleitorNumero;
     if (tituloNum) await fillByControl("voterRegistrationCard", tituloNum);
@@ -377,7 +395,7 @@ async function executeVisualFilling(payload) {
     if (cnhNum) await fillByControl("driverLicenseNumber", cnhNum);
     const cnhCat = extra.cnhCategoria || payload.cnhCategoria;
     if (cnhCat) await fillByControl("driverLicenseCategory", cnhCat);
-    const cnhVal = formatDateDigits(extra.cnhValidade || payload.cnhValidade);
+    const cnhVal = formatDate(extra.cnhValidade || payload.cnhValidade);
     if (cnhVal) await fillByControl("driverLicenseExpirationDate", cnhVal);
     const resNum = extra.reservistaNumero || payload.reservistaNumero;
     if (resNum) await fillByControl("militaryRegistration", resNum);
