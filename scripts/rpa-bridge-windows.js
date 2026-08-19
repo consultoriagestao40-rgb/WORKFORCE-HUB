@@ -589,8 +589,17 @@ async function executeVisualFilling(payload) {
             const p = await getPage();
             if (!p) return '';
             return await p.evaluate(() => {
-                const h = document.querySelector('h1, h2, h3, .page-title, [class*="title"], .form-title');
-                return h ? (h.textContent || '').trim() : document.title || '';
+                // Procura o cabeçalho específico "Adicionar Solicitação de Cadastro de Empregado para: ..."
+                const allHeadings = Array.from(document.querySelectorAll('main *, form *, .content *, h1, h2, h3, .form-header'));
+                const mainTitle = allHeadings.find(el => {
+                    const txt = (el.textContent || '').trim();
+                    return txt.includes('Adicionar Solicitação') || txt.includes('Cadastro de Empregado para:') || (txt.includes('Adicionar') && txt.includes('Empregado'));
+                });
+                if (mainTitle) return (mainTitle.textContent || '').trim();
+                
+                // Fallback: qualquer h1/h2 na área do form
+                const h = document.querySelector('main h1, main h2, form h1, form h2, .content h1, .content h2');
+                return h ? (h.textContent || '').trim() : '';
             });
         } catch(e) { return ''; }
     })();
@@ -600,9 +609,12 @@ async function executeVisualFilling(payload) {
     const compCleanForCheck = companyName.toLowerCase().replace(/\s*ltda\.?\s*/gi,'').replace(/\s*s\.a\.?\s*/gi,'').trim();
     const palavrasEmpresa = compCleanForCheck.split(' ').filter(w => w.length > 2);
     const tituloLower = tituloFormulario.toLowerCase();
-    const empresaNoFormularioOk = palavrasEmpresa.length === 0 || palavrasEmpresa.some(w => tituloLower.includes(w));
+    
+    // Só aborta se o título realmente existir e contiver explicitamente outra empresa (ex: clean tech quando esperado JVS)
+    const contemEmpresaEsperada = palavrasEmpresa.some(w => tituloLower.includes(w));
+    const contemOutraEmpresa = tituloLower.includes('clean tech') && !compCleanForCheck.includes('clean tech');
 
-    if (!empresaNoFormularioOk && tituloFormulario) {
+    if (contemOutraEmpresa) {
         console.error(`[RPA WINDOWS RH] ❌ ABORTANDO SAVE: formulário é para "${tituloFormulario}", esperado "${companyName}". NADA FOI SALVO.`);
         await browser.close();
         activeBrowser = null;
