@@ -228,51 +228,70 @@ async function executeVisualFilling(payload) {
         await new Promise(r => setTimeout(r, 3000));
     }
 
-    console.log(`[RPA WINDOWS RH] Selecionando empresa na SIDEBAR: ${companyName}...`);
+    console.log(`[RPA WINDOWS RH] Selecionando empresa: ${companyName}...`);
     try {
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 1500));
 
-        // Dump de todos os textos curtos da página para debug
-        const todosTextos = await page.evaluate(() => {
+        // Passo 1: Clica no botão de alternância de empresa (▼ ou ▾ ou o label "EMPRESA")
+        // O dropdown fica no sidebar com a empresa atual e uma seta para expandir
+        const expandiu = await page.evaluate(() => {
+            // Procura o botão/arrow que expande o seletor de empresa
+            const togglers = Array.from(document.querySelectorAll('button, [class*="toggle"], [class*="arrow"], [class*="expand"], [class*="caret"], .dropdown-toggle'));
+            const toggler = togglers.find(el => {
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0 && rect.left < 200; // Está no sidebar (esquerda)
+            });
+            if (toggler) { toggler.click(); return 'toggler'; }
+
+            // Fallback: clica no nome da empresa atual no sidebar para abrir o seletor
+            const empresaAtual = Array.from(document.querySelectorAll('*')).find(el => {
+                const txt = (el.textContent || '').trim();
+                const rect = el.getBoundingClientRect();
+                return rect.left < 200 && rect.width > 0 && rect.height > 0
+                    && txt.length > 5 && txt.length < 80
+                    && el.children.length < 4
+                    && (txt.includes('CLEAN TECH') || txt.includes('EMPRESA') || txt.toLowerCase().includes('empresa'));
+            });
+            if (empresaAtual) { empresaAtual.click(); return `empresa: ${(empresaAtual.textContent||'').trim().substring(0,30)}`; }
+            return null;
+        });
+        console.log(`[RPA WINDOWS RH] Clicou em: ${expandiu}`);
+        await new Promise(r => setTimeout(r, 1500));
+
+        // Passo 2: Agora lista os textos novamente para ver se JVS FACILITIES apareceu
+        const textosPos = await page.evaluate(() => {
             return Array.from(document.querySelectorAll('*'))
                 .filter(el => {
                     const txt = (el.textContent || '').trim();
-                    return txt.length > 3 && txt.length < 80 && el.children.length === 0;
+                    const rect = el.getBoundingClientRect();
+                    return txt.length > 3 && txt.length < 80 && el.children.length === 0 && rect.width > 0 && rect.height > 0;
                 })
                 .map(el => (el.textContent || '').trim())
                 .filter((v, i, a) => a.indexOf(v) === i)
-                .slice(0, 30);
+                .slice(0, 40);
         });
-        console.log(`[RPA WINDOWS RH] Textos únicos na página: ${JSON.stringify(todosTextos)}`);
+        console.log(`[RPA WINDOWS RH] Textos após expandir: ${JSON.stringify(textosPos)}`);
 
-        // Busca QUALQUER elemento visível com o nome da empresa e clica
+        // Passo 3: Clica na empresa correta
         const companyNameClean = companyName.toLowerCase().replace(/\s*ltda\.?\s*/gi,'').replace(/\s*s\.a\.?\s*/gi,'').trim();
         const palavrasAlvo = companyNameClean.split(' ').filter(w => w.length > 1);
 
         const clicou = await page.evaluate((words) => {
-            // Busca em TODOS os elementos DOM
             const candidatos = Array.from(document.querySelectorAll('*')).filter(el => {
                 const txt = (el.textContent || '').trim().toLowerCase().replace(/\s*ltda\.?\s*/gi,'').trim();
                 const rect = el.getBoundingClientRect();
-                // Elemento visível, não muito grande, contém as palavras
-                return rect.width > 0 && rect.height > 0
-                    && txt.length < 120
-                    && words.every(w => txt.includes(w));
+                return rect.width > 0 && rect.height > 0 && txt.length < 120 && words.every(w => txt.includes(w));
             });
-            // Ordena pelos menores (mais específicos)
-            candidatos.sort((a, b) => (a.textContent || '').length - (b.textContent || '').length);
-            if (candidatos.length > 0) {
-                candidatos[0].click();
-                return (candidatos[0].textContent || '').trim();
-            }
+            candidatos.sort((a, b) => (a.textContent||'').length - (b.textContent||'').length);
+            if (candidatos.length > 0) { candidatos[0].click(); return (candidatos[0].textContent||'').trim(); }
             return null;
         }, palavrasAlvo);
 
         if (clicou) {
-            console.log(`[RPA WINDOWS RH] ✅ Clicou em: "${clicou}"`);
+            console.log(`[RPA WINDOWS RH] ✅ Empresa clicada: "${clicou}"`);
             await new Promise(r => setTimeout(r, 2500));
         } else {
-            console.log(`[RPA WINDOWS RH] ⚠️ Empresa não encontrada por busca de texto.`);
+            console.log(`[RPA WINDOWS RH] ⚠️ JVS FACILITIES não encontrada após expandir.`);
         }
     } catch (e) {
         console.log(`[RPA WINDOWS RH] Erro ao selecionar empresa:`, e.message);
