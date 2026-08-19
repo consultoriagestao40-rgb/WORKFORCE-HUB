@@ -228,57 +228,80 @@ async function executeVisualFilling(payload) {
         await new Promise(r => setTimeout(r, 3000));
     }
 
-    console.log(`[RPA WINDOWS RH] Selecionando empresa: ${companyName}...`);
+    console.log(`[RPA WINDOWS RH] Abrindo menu suspenso de empresas...`);
     try {
         await new Promise(r => setTimeout(r, 2000));
 
-        // Dump HTML do sidebar esquerdo para inspecionar seletores
-        const sidebarHtml = await page.evaluate(() => {
-            // Pega os primeiros 3000 chars do body para ver a estrutura
-            const sidebar = document.querySelector('bm-sidenav, bm-nav, app-sidebar, nav, .sidebar, aside, [class*="sidenav"], [class*="sidebar"], [class*="nav-"]');
-            return sidebar ? sidebar.outerHTML.substring(0, 3000) : document.body.outerHTML.substring(0, 2000);
+        // PASSO 1: Clica na empresa atual no sidebar para ABRIR o menu suspenso
+        const abriuMenu = await page.evaluate(() => {
+            // O botão que abre o menu está no sidebar esquerdo (x < 200px)
+            // É o elemento com a empresa atual e o símbolo ▼
+            const allEls = Array.from(document.querySelectorAll('*'));
+            // Procura um elemento clicável no sidebar com texto curto (o nome da empresa atual)
+            const switcher = allEls.find(el => {
+                const txt = (el.textContent || '').trim();
+                const rect = el.getBoundingClientRect();
+                return rect.left < 220 && rect.left > 0
+                    && rect.top > 0 && rect.width > 0 && rect.height > 0
+                    && txt.length > 3 && txt.length < 80
+                    && el.children.length <= 3
+                    && (txt.includes('CLEAN TECH') || txt.includes('EMPRESA') || txt.includes('▼'));
+            });
+            if (switcher) {
+                switcher.click();
+                return `"${(switcher.textContent||'').trim().substring(0,40)}" [${switcher.tagName}.${switcher.className.substring(0,30)}]`;
+            }
+            return null;
         });
-        require('fs').writeFileSync('/tmp/onvio-sidebar.html', sidebarHtml);
-        console.log(`[RPA WINDOWS RH] HTML do sidebar salvo em /tmp/onvio-sidebar.html (${sidebarHtml.length} chars)`);
-        console.log(`[RPA WINDOWS RH] Sidebar preview: ${sidebarHtml.substring(0, 500)}`);
+        console.log(`[RPA WINDOWS RH] Clicou no seletor: ${abriuMenu}`);
 
-        // Busca todos os elementos na página - incluindo fora da viewport (sem checar rect)
-        const todosTextosDom = await page.evaluate(() => {
+        // PASSO 2: Aguarda o menu suspenso aparecer
+        await new Promise(r => setTimeout(r, 2000));
+
+        // PASSO 3: Verifica textos agora que o menu está aberto
+        const textosComMenu = await page.evaluate(() => {
             return Array.from(document.querySelectorAll('*'))
                 .filter(el => {
                     const txt = (el.textContent || '').trim();
-                    return txt.length > 3 && txt.length < 100 && el.children.length === 0;
+                    const rect = el.getBoundingClientRect();
+                    return txt.length > 3 && txt.length < 80
+                        && el.children.length === 0
+                        && rect.width > 0 && rect.height > 0;
                 })
                 .map(el => (el.textContent || '').trim())
                 .filter((v, i, a) => a.indexOf(v) === i);
         });
-        console.log(`[RPA WINDOWS RH] Todos textos DOM (incl. off-screen): ${JSON.stringify(todosTextosDom.slice(0, 60))}`);
+        console.log(`[RPA WINDOWS RH] Textos com menu aberto: ${JSON.stringify(textosComMenu.slice(0, 50))}`);
 
-        // Clica na empresa buscando em TODOS os elementos (visíveis ou não)
+        // PASSO 4: Clica na empresa correta no menu suspenso
         const companyNameClean = companyName.toLowerCase().replace(/\s*ltda\.?\s*/gi,'').replace(/\s*s\.a\.?\s*/gi,'').trim();
         const palavrasAlvo = companyNameClean.split(' ').filter(w => w.length > 1);
 
         const clicou = await page.evaluate((words) => {
-            const candidatos = Array.from(document.querySelectorAll('*')).filter(el => {
+            const allEls = Array.from(document.querySelectorAll('*'));
+            const candidatos = allEls.filter(el => {
                 const txt = (el.textContent || '').trim().toLowerCase().replace(/\s*ltda\.?\s*/gi,'').trim();
-                return txt.length < 120 && words.every(w => txt.includes(w));
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0
+                    && txt.length < 100
+                    && words.every(w => txt.includes(w));
             });
-            candidatos.sort((a, b) => (a.textContent||'').length - (b.textContent||'').length);
+            // Prefere elementos menores (mais específicos)
+            candidatos.sort((a, b) => (a.textContent||'').trim().length - (b.textContent||'').trim().length);
             if (candidatos.length > 0) {
                 const el = candidatos[0];
-                // Scroll até o elemento para garantir que está visível
                 el.scrollIntoView({ behavior: 'instant', block: 'center' });
                 el.click();
-                return `${el.tagName} class="${el.className}" text="${(el.textContent||'').trim().substring(0, 60)}"`;
+                return `${el.tagName}: "${(el.textContent||'').trim().substring(0, 60)}"`;
             }
             return null;
         }, palavrasAlvo);
 
         if (clicou) {
-            console.log(`[RPA WINDOWS RH] ✅ Empresa clicada: ${clicou}`);
+            console.log(`[RPA WINDOWS RH] ✅ Empresa selecionada: ${clicou}`);
             await new Promise(r => setTimeout(r, 2500));
         } else {
-            console.log(`[RPA WINDOWS RH] ⚠️ JVS FACILITIES não encontrada no DOM. Verificar /tmp/onvio-sidebar.html`);
+            console.log(`[RPA WINDOWS RH] ⚠️ Empresa não encontrada no menu suspenso.`);
         }
     } catch (e) {
         console.log(`[RPA WINDOWS RH] Erro ao selecionar empresa:`, e.message);
