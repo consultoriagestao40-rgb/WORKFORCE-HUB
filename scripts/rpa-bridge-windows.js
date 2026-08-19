@@ -142,16 +142,30 @@ async function executeVisualFilling(payload) {
     const urlAtual = page.url();
     console.log("[RPA WINDOWS RH] URL atual: " + urlAtual);
 
-    // Se caiu na tela de boas-vindas (/auth), clica em Entrar e faz o login
+    // Se caiu na tela de boas-vindas (/auth), clica em Entrar com page.click() real
     if (urlAtual.includes('/auth')) {
-        console.log("[RPA WINDOWS RH] Tela de login detectada. Clicando em Entrar...");
+        console.log("[RPA WINDOWS RH] Tela de login detectada. Clicando em Entrar (mouse real)...");
         try {
-            await page.evaluate(() => {
-                const btns = Array.from(document.querySelectorAll('button, a'));
+            // Tenta page.click() com vários seletores
+            const clickedEntrar = await page.evaluate(() => {
+                const btns = Array.from(document.querySelectorAll('button, a, input[type="submit"]'));
                 const btn = btns.find(b => b.textContent && b.textContent.trim().toLowerCase() === 'entrar');
-                if (btn) btn.click();
+                return btn ? { found: true, tag: btn.tagName, text: btn.textContent.trim() } : { found: false };
             });
-            // Espera navegar para o SSO
+            console.log("[RPA WINDOWS RH] Botão Entrar encontrado?", JSON.stringify(clickedEntrar));
+
+            // Usa page.click() nativo (simula mouse real, funciona com Angular)
+            await page.click('button, a[href], input[type="submit"]', { timeout: 5000 }).catch(async () => {
+                // Fallback: força via evaluate
+                await page.evaluate(() => {
+                    const btn = Array.from(document.querySelectorAll('button, a')).find(b =>
+                        b.textContent && b.textContent.trim().toLowerCase() === 'entrar'
+                    );
+                    if (btn) btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                });
+            });
+
+            // Espera a navegação acontecer
             await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 12000 }).catch(() => {});
             await new Promise(r => setTimeout(r, 2000));
             console.log("[RPA WINDOWS RH] Após Entrar, URL: " + page.url());
