@@ -517,12 +517,14 @@ export async function getBenefitsCalculation(year: number, month: number) {
             // Default next due date: 5 days after admission for VT
             const defaultNextDue = new Date(admissionDateObj);
             defaultNextDue.setDate(defaultNextDue.getDate() + config.vtFractionDays);
-            nextPaymentDueDate = defaultNextDue.toLocaleDateString('pt-BR');
-        }        // Base VT & VA values from Employee / Posto
-        const rawEmpVt = emp.valeTransporte || 0;
-        const rawPostoVt = posto?.valeTransporte || 0;
-        const rawEmpVt2 = emp.valeTransporte2 || 0;
-        const rawPostoVt2 = posto?.valeTransporte2 || 0;
+        // Base VT daily rates strictly from Employee record or Posto record
+        const vtDailyValue = (emp.valeTransporte && emp.valeTransporte > 0)
+            ? emp.valeTransporte
+            : (posto?.valeTransporte || 0);
+
+        const vtDailyValue2 = (emp.valeTransporte2 && emp.valeTransporte2 > 0)
+            ? emp.valeTransporte2
+            : (posto?.valeTransporte2 || 0);
 
         // Base VA value priority: Employee record -> 0. (Meals provided override to 494.00 if employee receives VA)
         const mealsProvided = !!posto?.vaMealsProvidedOnSite;
@@ -532,50 +534,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
         const pivotDateForVt = activeAssignment?.startDate ? new Date(activeAssignment.startDate) : admissionDateObj;
         const scheduledWorkDays = getVtDaysForDaily(posto?.schedule || "5x2", pivotDateForVt, year, month);
 
-        // Determine VT 1 Daily Rate with priority:
-        // 1. Employee daily rate (<= 40)
-        // 2. Posto daily rate (<= 40)
-        // 3. Scale-based calculation if monthly (> 40)
-        let vtDailyValue = 0;
-        let isVtMonthly = false;
-
-        if (rawEmpVt > 0 && rawEmpVt <= 40) {
-            vtDailyValue = rawEmpVt;
-            isVtMonthly = false;
-        } else if (rawPostoVt > 0 && rawPostoVt <= 40) {
-            vtDailyValue = rawPostoVt;
-            isVtMonthly = rawEmpVt > 40;
-        } else if (rawEmpVt > 40) {
-            const scaleDays = scheduledWorkDays > 0 ? scheduledWorkDays : 22;
-            vtDailyValue = Math.round((rawEmpVt / scaleDays) * 100) / 100;
-            isVtMonthly = true;
-        } else if (rawPostoVt > 40) {
-            const scaleDays = scheduledWorkDays > 0 ? scheduledWorkDays : 22;
-            vtDailyValue = Math.round((rawPostoVt / scaleDays) * 100) / 100;
-            isVtMonthly = true;
-        }
-
-        // Determine VT 2 Daily Rate
-        let vtDailyValue2 = 0;
-        let isVtMonthly2 = false;
-
-        if (rawEmpVt2 > 0 && rawEmpVt2 <= 40) {
-            vtDailyValue2 = rawEmpVt2;
-            isVtMonthly2 = false;
-        } else if (rawPostoVt2 > 0 && rawPostoVt2 <= 40) {
-            vtDailyValue2 = rawPostoVt2;
-            isVtMonthly2 = rawEmpVt2 > 40;
-        } else if (rawEmpVt2 > 40) {
-            const scaleDays = scheduledWorkDays > 0 ? scheduledWorkDays : 22;
-            vtDailyValue2 = Math.round((rawEmpVt2 / scaleDays) * 100) / 100;
-            isVtMonthly2 = true;
-        } else if (rawPostoVt2 > 40) {
-            const scaleDays = scheduledWorkDays > 0 ? scheduledWorkDays : 22;
-            vtDailyValue2 = Math.round((rawPostoVt2 / scaleDays) * 100) / 100;
-            isVtMonthly2 = true;
-        }
-
-        // VT 1 Calculation
+        // VT 1 Calculation (Escala x Valor Diário - Faltas x Valor Diário)
         let vtBaseValue = 0;
         let vtDeductionValue = 0;
         let vtTotalValue = 0;
@@ -596,38 +555,28 @@ export async function getBenefitsCalculation(year: number, month: number) {
             vtBatchNote = `Lote de 5 Dias (Admissão em ${admissionDateObj.toLocaleDateString('pt-BR')})`;
         } else {
             // Regular month VT
-            if (isVtMonthly && rawEmpVt > 40) {
-                vtBaseValue = rawEmpVt;
-            } else {
-                vtBaseValue = Math.round((scheduledWorkDays * vtDailyValue) * 100) / 100;
-            }
+            vtBaseValue = Math.round((scheduledWorkDays * vtDailyValue) * 100) / 100;
             vtDeductionValue = Math.round((occurrencesCount * vtDailyValue) * 100) / 100;
             vtTotalValue = Math.max(0, Math.round((vtBaseValue - vtDeductionValue) * 100) / 100);
+            vtBatchNote = `${scheduledWorkDays} dias de escala x R$ ${vtDailyValue.toFixed(2)}`;
 
-            if (!isVtMonthly || rawEmpVt <= 40) {
-                vtBatchNote = `${scheduledWorkDays} dias de escala x R$ ${vtDailyValue.toFixed(2)}`;
-            }
             if (occurrencesCount > 0) {
-                if (vtBatchNote) {
-                    vtBatchNote += ` | ${occurrencesCount} falta(s) abatida(s) (-R$ ${vtDeductionValue.toFixed(2)})`;
-                } else {
-                    vtBatchNote = `${occurrencesCount} falta(s)/atestado(s) abatido(s) no período 26-25 (-R$ ${vtDeductionValue.toFixed(2)})`;
-                }
+                vtBatchNote += ` | ${occurrencesCount} falta(s) abatida(s) (-R$ ${vtDeductionValue.toFixed(2)})`;
             }
         }
 
-        // VT 2 Calculation
+        // VT 2 Calculation (Escala x Valor Diário 2 - Faltas x Valor Diário 2)
         let vtBaseValue2 = 0;
         let vtDeductionValue2 = 0;
         let vtTotalValue2 = 0;
         let vtNeedsAlert2 = false;
         let vtBatchNote2 = "";
 
-        if (!emp.vtOptIn) {
+        if (!emp.vtOptIn || vtDailyValue2 <= 0) {
             vtBaseValue2 = 0;
             vtDeductionValue2 = 0;
             vtTotalValue2 = 0;
-            vtBatchNote2 = "Não Optante pelo VT";
+            vtBatchNote2 = !emp.vtOptIn ? "Não Optante pelo VT" : "";
         } else if (isNewHire) {
             // New hire fracionated VT: 5-day batches
             vtBaseValue2 = Math.round((vtDailyValue2 * config.vtFractionDays) * 100) / 100;
@@ -636,24 +585,14 @@ export async function getBenefitsCalculation(year: number, month: number) {
             vtNeedsAlert2 = true;
             vtBatchNote2 = `Lote de 5 Dias (Admissão em ${admissionDateObj.toLocaleDateString('pt-BR')})`;
         } else {
-            // Regular month VT
-            if (isVtMonthly2 && rawEmpVt2 > 40) {
-                vtBaseValue2 = rawEmpVt2;
-            } else {
-                vtBaseValue2 = Math.round((scheduledWorkDays * vtDailyValue2) * 100) / 100;
-            }
+            // Regular month VT 2
+            vtBaseValue2 = Math.round((scheduledWorkDays * vtDailyValue2) * 100) / 100;
             vtDeductionValue2 = Math.round((occurrencesCount * vtDailyValue2) * 100) / 100;
             vtTotalValue2 = Math.max(0, Math.round((vtBaseValue2 - vtDeductionValue2) * 100) / 100);
+            vtBatchNote2 = `${scheduledWorkDays} dias de escala x R$ ${vtDailyValue2.toFixed(2)}`;
 
-            if (!isVtMonthly2 || rawEmpVt2 <= 40) {
-                vtBatchNote2 = `${scheduledWorkDays} dias de escala x R$ ${vtDailyValue2.toFixed(2)}`;
-            }
             if (occurrencesCount > 0) {
-                if (vtBatchNote2) {
-                    vtBatchNote2 += ` | ${occurrencesCount} falta(s) abatida(s) (-R$ ${vtDeductionValue2.toFixed(2)})`;
-                } else {
-                    vtBatchNote2 = `${occurrencesCount} falta(s)/atestado(s) abatido(s) no período 26-25 (-R$ ${vtDeductionValue2.toFixed(2)})`;
-                }
+                vtBatchNote2 += ` | ${occurrencesCount} falta(s) abatida(s) (-R$ ${vtDeductionValue2.toFixed(2)})`;
             }
         }
 
