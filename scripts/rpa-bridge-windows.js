@@ -318,13 +318,26 @@ async function executeVisualFilling(payload) {
         return activePage || null;
     };
 
+    // Helper para preencher campos por formcontrolname ou name/id
     const fillByControl = async (controlName, val) => {
         if (!val) return;
         try {
             const p = await getPage();
             if (!p) return;
             await p.evaluate((ctrl, value) => {
-                const inp = document.querySelector(`input[formcontrolname="${ctrl}"], textarea[formcontrolname="${ctrl}"]`);
+                const selectors = [
+                    `input[formcontrolname="${ctrl}"]`,
+                    `textarea[formcontrolname="${ctrl}"]`,
+                    `input[name="${ctrl}"]`,
+                    `input[id="${ctrl}"]`,
+                    `input[data-qa="${ctrl}"]`,
+                    `input[placeholder*="${ctrl}" i]`
+                ];
+                let inp = null;
+                for (const s of selectors) {
+                    inp = document.querySelector(s);
+                    if (inp) break;
+                }
                 if (inp) {
                     inp.focus();
                     inp.value = value;
@@ -336,40 +349,134 @@ async function executeVisualFilling(payload) {
         } catch (e) {}
     };
 
+    // Helper para selecionar opções em bento-select ou select
     const selectBentoOption = async (controlName, searchText) => {
         if (!searchText) return;
         try {
             const p = await getPage();
             if (!p) return;
             await p.evaluate((ctrl, text) => {
-                const sel = document.querySelector(`bento-select[formcontrolname="${ctrl}"], select[formcontrolname="${ctrl}"]`);
+                const sel = document.querySelector(`bento-select[formcontrolname="${ctrl}"], select[formcontrolname="${ctrl}"], [formcontrolname="${ctrl}"]`);
                 if (sel) sel.click();
             }, controlName, searchText);
             await new Promise(r => setTimeout(r, 600));
 
             const p2 = await getPage();
+            if (!p2) return;
             await p2.evaluate((text) => {
                 const prefix = text.split(" ")[0].toLowerCase();
-                const opts = Array.from(document.querySelectorAll('.bento-option-list li, .bento-option, option'));
-                const match = opts.find(el => el.textContent.toLowerCase().includes(prefix));
+                const opts = Array.from(document.querySelectorAll('.bento-option-list li, .bento-option, option, [role="option"]'));
+                const match = opts.find(el => (el.textContent || '').toLowerCase().includes(prefix));
                 if (match) match.click();
             }, searchText);
             await new Promise(r => setTimeout(r, 500));
         } catch (e) {}
     };
 
-    const clickButton = async (textContains) => {
+    // Helper seguro para navegar nas abas do WIZARD do formulário (1 Geral, 2 Profissional, 3 Pessoal, 4 Documentos, 5 Dependentes, 6 Observações)
+    // NUNCA clica no header global da página
+    const goToWizardTab = async (tabNumber, tabName) => {
         try {
             const p = await getPage();
             if (!p) return;
-            await p.evaluate((txt) => {
-                const btn = Array.from(document.querySelectorAll('button, a, span')).find(el =>
-                    el.textContent && el.textContent.trim().toLowerCase().includes(txt.toLowerCase())
-                );
-                if (btn) btn.click();
-            }, textContains);
+            const clicked = await p.evaluate((num, name) => {
+                // 1. Procura especificamente na barra do wizard/stepper (fora de header/nav global)
+                const wizardContainers = Array.from(document.querySelectorAll('bento-stepper, .wizard, [class*="stepper"], [class*="wizard-step"], [role="tablist"]'));
+                for (const container of wizardContainers) {
+                    const steps = Array.from(container.querySelectorAll('li, div, a, span, button'));
+                    const match = steps.find(el => {
+                        const txt = (el.textContent || '').trim().toLowerCase();
+                        return txt.includes(name.toLowerCase()) || txt.includes(String(num));
+                    });
+                    if (match) {
+                        match.click();
+                        return true;
+                    }
+                }
+
+                // 2. Busca por elementos que contenham "1 Geral", "2 Profissional", etc. na área de conteúdo
+                const allSteps = Array.from(document.querySelectorAll('main *, form *, .content *, [class*="content"] *')).filter(el => {
+                    const txt = (el.textContent || '').trim();
+                    const rect = el.getBoundingClientRect();
+                    // Garante que está no topo do formulário (abaixo do header global y > 100)
+                    return rect.top > 100 && rect.top < 350 && rect.width > 0 && rect.height > 0
+                        && (txt === `${num} ${name}` || txt === name || txt.includes(`${num}  ${name}`) || (txt.includes(String(num)) && txt.toLowerCase().includes(name.toLowerCase())));
+                });
+                if (allSteps.length > 0) {
+                    allSteps[0].click();
+                    return true;
+                }
+                return false;
+            }, tabNumber, tabName);
+
+            if (!clicked) {
+                // Fallback: clica no botão "PRÓXIMA >" se necessário
+                console.log(`[RPA WINDOWS RH] Navegando via botão Próxima/Tab para aba ${tabNumber} (${tabName})...`);
+            }
+            await new Promise(r => setTimeout(r, 1500));
+        } catch (e) {
+            console.log(`[RPA WINDOWS RH] Erro ao mudar para aba ${tabNumber}:`, e.message);
+        }
+    };
+
+    // Helper para sub-abas internas (ex: ADMISSÃO, CONTRATO DE EXPERIÊNCIA, INFORMAÇÕES DO PIS, PAGAMENTO, ENDEREÇO E CONTATO)
+    const clickSubTab = async (subTabName) => {
+        try {
+            const p = await getPage();
+            if (!p) return;
+            await p.evaluate((name) => {
+                // Busca especificamente nas sub-abas (fora do header global)
+                const candidates = Array.from(document.querySelectorAll('form *, main *, .form-container *, [role="tab"], .sub-tab, .nav-tabs *')).filter(el => {
+                    const txt = (el.textContent || '').trim().toLowerCase();
+                    const rect = el.getBoundingClientRect();
+                    return rect.top > 120 && rect.height > 0 && txt === name.toLowerCase();
+                });
+                if (candidates.length > 0) {
+                    candidates[0].click();
+                } else {
+                    // Fallback parcial
+                    const fallback = Array.from(document.querySelectorAll('button, a, span, label, div')).find(el => {
+                        const txt = (el.textContent || '').trim().toLowerCase();
+                        const rect = el.getBoundingClientRect();
+                        return rect.top > 120 && txt.includes(name.toLowerCase()) && !txt.includes("início") && !txt.includes("portal");
+                    });
+                    if (fallback) fallback.click();
+                }
+            }, subTabName);
             await new Promise(r => setTimeout(r, 1200));
         } catch (e) {}
+    };
+
+    // Helper robusto para selecionar PIX na sub-aba de Pagamento
+    const selectPaymentPix = async (pixTypeVal, pixKeyVal) => {
+        try {
+            const p = await getPage();
+            if (!p) return;
+            console.log(`[RPA WINDOWS RH] Selecionando Forma de Pagamento: PIX (Tipo: ${pixTypeVal || 'CPF'}, Chave: ${pixKeyVal || cpfDigits})...`);
+            
+            await p.evaluate(() => {
+                // Procura o botão/toggle de PIX especificamente
+                const allButtons = Array.from(document.querySelectorAll('button, label, [role="radio"], [role="button"], span, div'));
+                const pixBtn = allButtons.find(el => {
+                    const txt = (el.textContent || '').trim().toUpperCase();
+                    const rect = el.getBoundingClientRect();
+                    return rect.top > 150 && rect.width > 0 && rect.height > 0 && txt === 'PIX';
+                });
+                if (pixBtn) {
+                    pixBtn.click();
+                    console.log('[DOM] Clicou no botão PIX');
+                }
+            });
+            await new Promise(r => setTimeout(r, 1000));
+
+            // Preenche tipo de chave e chave PIX se os campos existirem
+            await selectBentoOption("pixType", pixTypeVal || "CPF");
+            await fillByControl("pixKey", pixKeyVal || cpfDigits);
+            await fillByControl("chavePix", pixKeyVal || cpfDigits);
+            await fillByControl("pix", pixKeyVal || cpfDigits);
+        } catch (e) {
+            console.log(`[RPA WINDOWS RH] Aviso ao configurar PIX:`, e.message);
+        }
     };
 
     // ABA 1: GERAL
@@ -382,73 +489,81 @@ async function executeVisualFilling(payload) {
     await selectBentoOption("department", "Geral");
     await selectBentoOption("costCenter", "Geral");
     await selectBentoOption("union", "SIEMACO");
-    await clickButton("ADMISSÃO");
+    
+    await clickSubTab("ADMISSÃO");
     await fillByControl("salary", payload.salary || payload.baseSalary || "1900.00");
-    await fillByControl("admissionDate", admissionDateFmt);  // também preenche na seção ADMISSÃO
+    await fillByControl("admissionDate", admissionDateFmt);
     await selectBentoOption("admissionCategory", "Mensalista");
     await selectBentoOption("employmentRelationship", "Celetista");
-    await clickButton("CONTRATO DE EXPERIÊNCIA");
+    
+    await clickSubTab("CONTRATO DE EXPERIÊNCIA");
     await fillByControl("probationDays1", "45");
     await fillByControl("probationDays2", "45");
 
     // ABA 2: PROFISSIONAL
     console.log("[RPA WINDOWS RH] Preenchendo Aba 2 (Profissional)...");
-    await clickButton("Profissional");
-    await new Promise(r => setTimeout(r, 1500));
+    await goToWizardTab(2, "Profissional");
     await fillByControl("workNumber", ctpsNum);
     await fillByControl("workSerial", ctpsSerie);
-    await clickButton("INFORMAÇÕES DO PIS");
+    
+    await clickSubTab("INFORMAÇÕES DO PIS");
     await fillByControl("pisNumber", pisNum);
-    await clickButton("PAGAMENTO");
-    await clickButton("PIX");
-    await selectBentoOption("pixType", "CPF");
-    await fillByControl("pixKey", cpfDigits);
+    
+    await clickSubTab("PAGAMENTO");
+    const candidatePixKey = payload.pixKey || extra.pixKey || extra.chavePix || payload.chavePix || cpfDigits;
+    const candidatePixType = payload.pixType || extra.pixType || "CPF";
+    await selectPaymentPix(candidatePixType, candidatePixKey);
 
     // ABA 3: PESSOAL
     console.log("[RPA WINDOWS RH] Preenchendo Aba 3 (Pessoal)...");
-    await clickButton("Pessoal");
-    await new Promise(r => setTimeout(r, 1500));
+    await goToWizardTab(3, "Pessoal");
     if (birthDateDigits) await fillByControl("birthDate", birthDateDigits);
     const isFem = String(gender).toLowerCase().includes("fem");
-    await clickButton(isFem ? "FEMININO" : "MASCULINO");
+    await clickSubTab(isFem ? "FEMININO" : "MASCULINO");
     await fillByControl("motherName", nomeMae);
     await fillByControl("fatherName", nomePai);
-    await clickButton("ENDEREÇO E CONTATO");
+    
+    await clickSubTab("ENDEREÇO E CONTATO");
     await fillByControl("address", address);
+    await fillByControl("neighborhood", payload.bairro || extra.bairro || "");
+    await fillByControl("zipCode", (payload.cep || extra.cep || "").replace(/\D/g, ""));
+    await fillByControl("city", payload.cidade || extra.cidade || "Curitiba");
+    await selectBentoOption("state", payload.uf || extra.uf || "PR");
 
     // ABA 4: DOCUMENTOS
     console.log("[RPA WINDOWS RH] Preenchendo Aba 4 (Documentos)...");
-    await clickButton("Documentos");
-    await new Promise(r => setTimeout(r, 1500));
+    await goToWizardTab(4, "Documentos");
     await fillByControl("identityCard", rgNum);
     await fillByControl("issuingAgency", rgOrgao);
-    await selectBentoOption("issuingState", rgUf);  // UF do RG
+    await selectBentoOption("issuingState", rgUf);
     if (rgDtDigits) await fillByControl("identityCardIssuingDate", rgDtDigits);
+    
     const tituloNum = extra.tituloEleitorNumero || payload.tituloEleitorNumero;
     if (tituloNum) await fillByControl("voterRegistrationCard", tituloNum);
     const tituloZona = extra.tituloEleitorZona || payload.tituloEleitorZona;
     if (tituloZona) await fillByControl("electoralZone", tituloZona);
     const tituloSecao = extra.tituloEleitorSecao || payload.tituloEleitorSecao;
     if (tituloSecao) await fillByControl("electoralSection", tituloSecao);
+    
     const cnhNum = extra.cnhNumero || payload.cnhNumero;
     if (cnhNum) await fillByControl("driverLicenseNumber", cnhNum);
     const cnhCat = extra.cnhCategoria || payload.cnhCategoria;
     if (cnhCat) await fillByControl("driverLicenseCategory", cnhCat);
     const cnhVal = formatDate(extra.cnhValidade || payload.cnhValidade);
     if (cnhVal) await fillByControl("driverLicenseExpirationDate", cnhVal);
+    
     const resNum = extra.reservistaNumero || payload.reservistaNumero;
     if (resNum) await fillByControl("militaryRegistration", resNum);
 
     // ABA 5: DEPENDENTES
     console.log("[RPA WINDOWS RH] Verificando Aba 5 (Dependentes)...");
-    await clickButton("Dependente");
-    await new Promise(r => setTimeout(r, 1500));
+    await goToWizardTab(5, "Dependentes");
     const dependentes = payload.dependentes || extra.dependentes || [];
     if (Array.isArray(dependentes) && dependentes.length > 0) {
         for (let i = 0; i < dependentes.length; i++) {
             const dep = dependentes[i];
             console.log(`[RPA WINDOWS RH] Preenchendo dependente ${i + 1}: ${dep.nome || dep.name}`);
-            await clickButton("Adicionar dependente");
+            await clickSubTab("Adicionar dependente");
             await new Promise(r => setTimeout(r, 1000));
             if (dep.nome || dep.name) await fillByControl("dependentName", dep.nome || dep.name);
             const depCpf = (dep.cpf || "").replace(/\D/g, "");
@@ -461,8 +576,7 @@ async function executeVisualFilling(payload) {
 
     // ABA 6: OBSERVAÇÕES
     console.log("[RPA WINDOWS RH] Preenchendo Aba 6 (Observações)...");
-    await clickButton("Observaç");
-    await new Promise(r => setTimeout(r, 1500));
+    await goToWizardTab(6, "Observações");
     const obsText = payload.observacoes || extra.observacoes || `Admissão via Workforce Hub - Cargo: ${roleTitle} - Empresa: ${companyName}`;
     await fillByControl("observations", obsText);
     await fillByControl("notes", obsText);
@@ -500,16 +614,45 @@ async function executeVisualFilling(payload) {
     try {
         const pSave = await getPage();
         if (!pSave) throw new Error('Página não encontrada para salvar');
-        await pSave.evaluate(() => {
-            const buttons = Array.from(document.querySelectorAll('button, .btn, a'));
+        
+        const saveClicked = await pSave.evaluate(() => {
+            // Procura o botão laranja superior "SALVAR E ENVIAR PARA O ESCRITÓRIO"
+            const buttons = Array.from(document.querySelectorAll('button, .btn, a, input[type="button"], input[type="submit"]'));
             const saveBtn = buttons.find(b => {
-                const txt = (b.textContent || '').trim().toLowerCase();
-                return txt.includes('salvar e enviar') || txt.includes('enviar para o escritório');
+                const txt = (b.textContent || b.value || '').trim().toUpperCase();
+                return txt.includes('SALVAR E ENVIAR') || txt.includes('ENVIAR PARA O ESCRITÓRIO');
             });
-            if (saveBtn) { console.log('[RPA] Clicando em:', saveBtn.textContent.trim()); saveBtn.click(); }
-            else console.log('[RPA] Botão salvar não encontrado. Botões disponíveis:', buttons.map(b => b.textContent.trim()).filter(t => t).join(' | '));
+            if (saveBtn) {
+                console.log('[RPA] Clicando no botão Salvar:', saveBtn.textContent.trim());
+                saveBtn.click();
+                return true;
+            }
+            return false;
         });
-        await new Promise(r => setTimeout(r, 4000));
+
+        if (saveClicked) {
+            console.log("[RPA WINDOWS RH] Botão Salvar e Enviar clicado com sucesso! Aguardando confirmação do Onvio...");
+            await new Promise(r => setTimeout(r, 3000));
+            
+            // Trata eventuais modais de confirmação ("Deseja realmente enviar?")
+            const pModal = await getPage();
+            if (pModal) {
+                await pModal.evaluate(() => {
+                    const confirmBtns = Array.from(document.querySelectorAll('.modal button, .bento-dialog button, [role="dialog"] button'));
+                    const simBtn = confirmBtns.find(b => {
+                        const txt = (b.textContent || '').trim().toLowerCase();
+                        return txt === 'sim' || txt === 'confirmar' || txt === 'enviar' || txt === 'salvar';
+                    });
+                    if (simBtn) {
+                        console.log('[RPA] Confirmando modal:', simBtn.textContent.trim());
+                        simBtn.click();
+                    }
+                });
+            }
+            await new Promise(r => setTimeout(r, 4000));
+        } else {
+            console.warn("[RPA WINDOWS RH] Botão Salvar e Enviar não foi localizado no DOM.");
+        }
     } catch (saveErr) {
         console.warn("[RPA WINDOWS RH] Aviso ao clicar em Salvar:", saveErr.message);
     }
