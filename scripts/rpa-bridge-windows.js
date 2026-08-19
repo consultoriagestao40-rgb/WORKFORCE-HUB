@@ -230,62 +230,50 @@ async function executeVisualFilling(payload) {
 
     console.log(`[RPA WINDOWS RH] Selecionando empresa na SIDEBAR: ${companyName}...`);
     try {
-        // Aguarda o sidebar carregar
-        await page.waitForSelector('bm-linked-account-selector, [class*="linked-account"], [class*="sidebar"]', { timeout: 8000 }).catch(() => {});
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 2000));
 
-        // Lista todas as empresas da sidebar para debug
-        const empresasSidebar = await page.evaluate(() => {
-            const items = Array.from(document.querySelectorAll(
-                'bm-linked-account-selector li, bm-linked-account-selector a, bm-linked-account-selector .item, ' +
-                'bm-linked-account-selector [class*="account"], bm-linked-account-selector [class*="client"], ' +
-                '[class*="linked-account"] li, [class*="linked-account"] a, ' +
-                'nav li a, .nav-item a, sidebar-nav li'
-            ));
-            return items.slice(0, 15).map(el => (el.textContent || '').trim().substring(0, 60));
+        // Dump de todos os textos curtos da página para debug
+        const todosTextos = await page.evaluate(() => {
+            return Array.from(document.querySelectorAll('*'))
+                .filter(el => {
+                    const txt = (el.textContent || '').trim();
+                    return txt.length > 3 && txt.length < 80 && el.children.length === 0;
+                })
+                .map(el => (el.textContent || '').trim())
+                .filter((v, i, a) => a.indexOf(v) === i)
+                .slice(0, 30);
         });
-        console.log(`[RPA WINDOWS RH] Empresas na sidebar: ${JSON.stringify(empresasSidebar)}`);
+        console.log(`[RPA WINDOWS RH] Textos únicos na página: ${JSON.stringify(todosTextos)}`);
 
-        // Clica na empresa correta da sidebar
+        // Busca QUALQUER elemento visível com o nome da empresa e clica
         const companyNameClean = companyName.toLowerCase().replace(/\s*ltda\.?\s*/gi,'').replace(/\s*s\.a\.?\s*/gi,'').trim();
         const palavrasAlvo = companyNameClean.split(' ').filter(w => w.length > 1);
 
         const clicou = await page.evaluate((words) => {
-            // Busca em todos os elementos de lista do sidebar
-            const allItems = Array.from(document.querySelectorAll(
-                'bm-linked-account-selector li, bm-linked-account-selector a, bm-linked-account-selector [class], ' +
-                '[class*="linked-account"] li, [class*="linked-account"] a, ' +
-                '[class*="account-list"] li, [class*="account-item"]'
-            ));
-            const match = allItems.find(el => {
-                const txt = (el.textContent || '').toLowerCase().replace(/\s*ltda\.?\s*/gi,'').trim();
-                return words.every(w => txt.includes(w));
+            // Busca em TODOS os elementos DOM
+            const candidatos = Array.from(document.querySelectorAll('*')).filter(el => {
+                const txt = (el.textContent || '').trim().toLowerCase().replace(/\s*ltda\.?\s*/gi,'').trim();
+                const rect = el.getBoundingClientRect();
+                // Elemento visível, não muito grande, contém as palavras
+                return rect.width > 0 && rect.height > 0
+                    && txt.length < 120
+                    && words.every(w => txt.includes(w));
             });
-            if (match) { match.click(); return (match.textContent || '').trim(); }
+            // Ordena pelos menores (mais específicos)
+            candidatos.sort((a, b) => (a.textContent || '').length - (b.textContent || '').length);
+            if (candidatos.length > 0) {
+                candidatos[0].click();
+                return (candidatos[0].textContent || '').trim();
+            }
             return null;
         }, palavrasAlvo);
 
         if (clicou) {
-            console.log(`[RPA WINDOWS RH] ✅ Empresa selecionada na sidebar: "${clicou}"`);
-            await new Promise(r => setTimeout(r, 2000));
+            console.log(`[RPA WINDOWS RH] ✅ Clicou em: "${clicou}"`);
+            await new Promise(r => setTimeout(r, 2500));
         } else {
-            console.log(`[RPA WINDOWS RH] ⚠️ Empresa não encontrada na sidebar. Verificando empresa ativa...`);
+            console.log(`[RPA WINDOWS RH] ⚠️ Empresa não encontrada por busca de texto.`);
         }
-
-        // Verifica qual empresa está selecionada/ativa na sidebar
-        const empresaAtivaSidebar = await page.evaluate(() => {
-            // Procura o item ativo/selecionado na sidebar
-            const active = document.querySelector(
-                'bm-linked-account-selector .active, bm-linked-account-selector [class*="selected"], ' +
-                'bm-linked-account-selector [class*="active"], [class*="linked-account"] .active'
-            );
-            if (active) return (active.textContent || '').trim();
-            // Fallback: primeiro item da lista como contexto atual
-            const first = document.querySelector('bm-linked-account-selector li:first-child, bm-linked-account-selector a:first-child');
-            return first ? (first.textContent || '').trim() : '';
-        });
-        console.log(`[RPA WINDOWS RH] Empresa ativa na sidebar: "${empresaAtivaSidebar}"`);
-
     } catch (e) {
         console.log(`[RPA WINDOWS RH] Erro ao selecionar empresa:`, e.message);
     }
@@ -450,17 +438,47 @@ async function executeVisualFilling(payload) {
     await fillByControl("observations", obsText);
     await fillByControl("notes", obsText);
 
+    // ══════════════════════════════════════════════════════════════
+    // VERIFICAÇÃO DE SEGURANÇA: lê o título do formulário ANTES de salvar
+    // ══════════════════════════════════════════════════════════════
+    const tituloFormulario = await (async () => {
+        try {
+            const p = await getPage();
+            if (!p) return '';
+            return await p.evaluate(() => {
+                const h = document.querySelector('h1, h2, h3, .page-title, [class*="title"], .form-title');
+                return h ? (h.textContent || '').trim() : document.title || '';
+            });
+        } catch(e) { return ''; }
+    })();
+    console.log(`[RPA WINDOWS RH] Título do formulário: "${tituloFormulario}"`);
+
+    // Verifica se a empresa do formulário bate com a empresa esperada
+    const compCleanForCheck = companyName.toLowerCase().replace(/\s*ltda\.?\s*/gi,'').replace(/\s*s\.a\.?\s*/gi,'').trim();
+    const palavrasEmpresa = compCleanForCheck.split(' ').filter(w => w.length > 2);
+    const tituloLower = tituloFormulario.toLowerCase();
+    const empresaNoFormularioOk = palavrasEmpresa.length === 0 || palavrasEmpresa.some(w => tituloLower.includes(w));
+
+    if (!empresaNoFormularioOk && tituloFormulario) {
+        console.error(`[RPA WINDOWS RH] ❌ ABORTANDO SAVE: formulário é para "${tituloFormulario}", esperado "${companyName}". NADA FOI SALVO.`);
+        await browser.close();
+        activeBrowser = null;
+        return { success: false, error: `Empresa errada no formulário: "${tituloFormulario}" vs "${companyName}"` };
+    }
+
     // SALVAR E ENVIAR AUTOMATICAMENTE
-    console.log("[RPA WINDOWS RH] Clicando em 'Salvar e Enviar para o Escritório'...");
+    console.log("[RPA WINDOWS RH] ✅ Empresa confirmada no formulário. Clicando em 'Salvar e Enviar para o Escritório'...");
     try {
         const pSave = await getPage();
+        if (!pSave) throw new Error('Página não encontrada para salvar');
         await pSave.evaluate(() => {
-            const buttons = Array.from(document.querySelectorAll('button, .btn'));
+            const buttons = Array.from(document.querySelectorAll('button, .btn, a'));
             const saveBtn = buttons.find(b => {
                 const txt = (b.textContent || '').trim().toLowerCase();
-                return txt.includes('salvar e enviar') || txt.includes('enviar para o escritório') || (txt.includes('salvar') && !txt.includes('cancelar'));
+                return txt.includes('salvar e enviar') || txt.includes('enviar para o escritório');
             });
-            if (saveBtn) { console.log('Clicando:', saveBtn.textContent); saveBtn.click(); }
+            if (saveBtn) { console.log('[RPA] Clicando em:', saveBtn.textContent.trim()); saveBtn.click(); }
+            else console.log('[RPA] Botão salvar não encontrado. Botões disponíveis:', buttons.map(b => b.textContent.trim()).filter(t => t).join(' | '));
         });
         await new Promise(r => setTimeout(r, 4000));
     } catch (saveErr) {
