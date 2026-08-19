@@ -230,68 +230,55 @@ async function executeVisualFilling(payload) {
 
     console.log(`[RPA WINDOWS RH] Selecionando empresa: ${companyName}...`);
     try {
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 2000));
 
-        // Passo 1: Clica no botão de alternância de empresa (▼ ou ▾ ou o label "EMPRESA")
-        // O dropdown fica no sidebar com a empresa atual e uma seta para expandir
-        const expandiu = await page.evaluate(() => {
-            // Procura o botão/arrow que expande o seletor de empresa
-            const togglers = Array.from(document.querySelectorAll('button, [class*="toggle"], [class*="arrow"], [class*="expand"], [class*="caret"], .dropdown-toggle'));
-            const toggler = togglers.find(el => {
-                const rect = el.getBoundingClientRect();
-                return rect.width > 0 && rect.height > 0 && rect.left < 200; // Está no sidebar (esquerda)
-            });
-            if (toggler) { toggler.click(); return 'toggler'; }
-
-            // Fallback: clica no nome da empresa atual no sidebar para abrir o seletor
-            const empresaAtual = Array.from(document.querySelectorAll('*')).find(el => {
-                const txt = (el.textContent || '').trim();
-                const rect = el.getBoundingClientRect();
-                return rect.left < 200 && rect.width > 0 && rect.height > 0
-                    && txt.length > 5 && txt.length < 80
-                    && el.children.length < 4
-                    && (txt.includes('CLEAN TECH') || txt.includes('EMPRESA') || txt.toLowerCase().includes('empresa'));
-            });
-            if (empresaAtual) { empresaAtual.click(); return `empresa: ${(empresaAtual.textContent||'').trim().substring(0,30)}`; }
-            return null;
+        // Dump HTML do sidebar esquerdo para inspecionar seletores
+        const sidebarHtml = await page.evaluate(() => {
+            // Pega os primeiros 3000 chars do body para ver a estrutura
+            const sidebar = document.querySelector('bm-sidenav, bm-nav, app-sidebar, nav, .sidebar, aside, [class*="sidenav"], [class*="sidebar"], [class*="nav-"]');
+            return sidebar ? sidebar.outerHTML.substring(0, 3000) : document.body.outerHTML.substring(0, 2000);
         });
-        console.log(`[RPA WINDOWS RH] Clicou em: ${expandiu}`);
-        await new Promise(r => setTimeout(r, 1500));
+        require('fs').writeFileSync('/tmp/onvio-sidebar.html', sidebarHtml);
+        console.log(`[RPA WINDOWS RH] HTML do sidebar salvo em /tmp/onvio-sidebar.html (${sidebarHtml.length} chars)`);
+        console.log(`[RPA WINDOWS RH] Sidebar preview: ${sidebarHtml.substring(0, 500)}`);
 
-        // Passo 2: Agora lista os textos novamente para ver se JVS FACILITIES apareceu
-        const textosPos = await page.evaluate(() => {
+        // Busca todos os elementos na página - incluindo fora da viewport (sem checar rect)
+        const todosTextosDom = await page.evaluate(() => {
             return Array.from(document.querySelectorAll('*'))
                 .filter(el => {
                     const txt = (el.textContent || '').trim();
-                    const rect = el.getBoundingClientRect();
-                    return txt.length > 3 && txt.length < 80 && el.children.length === 0 && rect.width > 0 && rect.height > 0;
+                    return txt.length > 3 && txt.length < 100 && el.children.length === 0;
                 })
                 .map(el => (el.textContent || '').trim())
-                .filter((v, i, a) => a.indexOf(v) === i)
-                .slice(0, 40);
+                .filter((v, i, a) => a.indexOf(v) === i);
         });
-        console.log(`[RPA WINDOWS RH] Textos após expandir: ${JSON.stringify(textosPos)}`);
+        console.log(`[RPA WINDOWS RH] Todos textos DOM (incl. off-screen): ${JSON.stringify(todosTextosDom.slice(0, 60))}`);
 
-        // Passo 3: Clica na empresa correta
+        // Clica na empresa buscando em TODOS os elementos (visíveis ou não)
         const companyNameClean = companyName.toLowerCase().replace(/\s*ltda\.?\s*/gi,'').replace(/\s*s\.a\.?\s*/gi,'').trim();
         const palavrasAlvo = companyNameClean.split(' ').filter(w => w.length > 1);
 
         const clicou = await page.evaluate((words) => {
             const candidatos = Array.from(document.querySelectorAll('*')).filter(el => {
                 const txt = (el.textContent || '').trim().toLowerCase().replace(/\s*ltda\.?\s*/gi,'').trim();
-                const rect = el.getBoundingClientRect();
-                return rect.width > 0 && rect.height > 0 && txt.length < 120 && words.every(w => txt.includes(w));
+                return txt.length < 120 && words.every(w => txt.includes(w));
             });
             candidatos.sort((a, b) => (a.textContent||'').length - (b.textContent||'').length);
-            if (candidatos.length > 0) { candidatos[0].click(); return (candidatos[0].textContent||'').trim(); }
+            if (candidatos.length > 0) {
+                const el = candidatos[0];
+                // Scroll até o elemento para garantir que está visível
+                el.scrollIntoView({ behavior: 'instant', block: 'center' });
+                el.click();
+                return `${el.tagName} class="${el.className}" text="${(el.textContent||'').trim().substring(0, 60)}"`;
+            }
             return null;
         }, palavrasAlvo);
 
         if (clicou) {
-            console.log(`[RPA WINDOWS RH] ✅ Empresa clicada: "${clicou}"`);
+            console.log(`[RPA WINDOWS RH] ✅ Empresa clicada: ${clicou}`);
             await new Promise(r => setTimeout(r, 2500));
         } else {
-            console.log(`[RPA WINDOWS RH] ⚠️ JVS FACILITIES não encontrada após expandir.`);
+            console.log(`[RPA WINDOWS RH] ⚠️ JVS FACILITIES não encontrada no DOM. Verificar /tmp/onvio-sidebar.html`);
         }
     } catch (e) {
         console.log(`[RPA WINDOWS RH] Erro ao selecionar empresa:`, e.message);
