@@ -318,35 +318,74 @@ async function executeVisualFilling(payload) {
         return activePage || null;
     };
 
-    // Helper para preencher campos por formcontrolname ou name/id
-    const fillByControl = async (controlName, val) => {
-        if (!val) return;
+    // Helper avançado para preencher campos com suporte completo a Angular Reactive Forms / Bento
+    const fillByControl = async (controlName, val, labelHint = "") => {
+        if (!val && val !== 0) return;
         try {
             const p = await getPage();
             if (!p) return;
-            await p.evaluate((ctrl, value) => {
-                const selectors = [
-                    `input[formcontrolname="${ctrl}"]`,
-                    `textarea[formcontrolname="${ctrl}"]`,
-                    `input[name="${ctrl}"]`,
-                    `input[id="${ctrl}"]`,
-                    `input[data-qa="${ctrl}"]`,
-                    `input[placeholder*="${ctrl}" i]`
-                ];
-                let inp = null;
-                for (const s of selectors) {
-                    inp = document.querySelector(s);
-                    if (inp) break;
+            
+            const filled = await p.evaluate((ctrl, value, hint) => {
+                // 1. Busca por seletores diretos de formcontrolname
+                let inp = document.querySelector(
+                    `input[formcontrolname="${ctrl}"], textarea[formcontrolname="${ctrl}"], ` +
+                    `[formcontrolname="${ctrl}"] input, [formcontrolname="${ctrl}"] textarea, ` +
+                    `input[formcontrolname*="${ctrl}" i], [formcontrolname*="${ctrl}" i] input, ` +
+                    `input[name="${ctrl}"], textarea[name="${ctrl}"], input[id="${ctrl}"]`
+                );
+
+                // 2. Se não achou, busca por label próximo
+                if (!inp && (hint || ctrl)) {
+                    const labelText = (hint || ctrl).toLowerCase();
+                    const allLabels = Array.from(document.querySelectorAll('label, bento-form-field label, .bento-form-field-label, span'));
+                    const targetLabel = allLabels.find(l => {
+                        const t = (l.textContent || '').trim().toLowerCase();
+                        return t === labelText || (t.startsWith(labelText) && !t.includes("mãe") && !t.includes("pai") && !t.includes("social") && !t.includes("cônjuge"));
+                    });
+                    if (targetLabel) {
+                        const parent = targetLabel.closest('bento-form-field, .form-group, .field, div') || targetLabel.parentElement;
+                        if (parent) {
+                            inp = parent.querySelector('input, textarea');
+                        }
+                    }
                 }
+
+                // 3. Fallback: busca por placeholder
+                if (!inp) {
+                    inp = document.querySelector(`input[placeholder*="${hint || ctrl}" i]`);
+                }
+
                 if (inp) {
                     inp.focus();
-                    inp.value = value;
+                    
+                    // O segredo do Angular/React: usa o setter nativo de prototype para disparar o ChangeDetection
+                    const isTextarea = inp.tagName.toLowerCase() === 'textarea';
+                    const proto = isTextarea ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+                    const descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
+                    if (descriptor && descriptor.set) {
+                        descriptor.set.call(inp, value);
+                    } else {
+                        inp.value = value;
+                    }
+
+                    // Dispara todos os eventos que o Angular escuta
+                    inp.dispatchEvent(new Event('focus', { bubbles: true }));
                     inp.dispatchEvent(new Event('input', { bubbles: true }));
                     inp.dispatchEvent(new Event('change', { bubbles: true }));
                     inp.dispatchEvent(new Event('blur', { bubbles: true }));
+                    return true;
                 }
-            }, controlName, String(val));
-        } catch (e) {}
+                return false;
+            }, controlName, String(val), labelHint);
+
+            if (filled) {
+                console.log(`[RPA WINDOWS RH] Campo preenchido: ${controlName} (${labelHint || ''}) = "${val}"`);
+            } else {
+                console.warn(`[RPA WINDOWS RH] Campo não localizado no DOM: ${controlName} (${labelHint || ''})`);
+            }
+        } catch (e) {
+            console.warn(`[RPA WINDOWS RH] Erro ao preencher ${controlName}:`, e.message);
+        }
     };
 
     // Helper para selecionar opções em bento-select ou select
@@ -481,9 +520,12 @@ async function executeVisualFilling(payload) {
 
     // ABA 1: GERAL
     console.log("[RPA WINDOWS RH] Preenchendo Aba 1 (Geral)...");
-    await fillByControl("employeeName", candidateName);
-    await fillByControl("cpfNumber", cpfDigits);
-    await fillByControl("admissionDate", admissionDateFmt);
+    await fillByControl("name", candidateName, "Nome");
+    await fillByControl("employeeName", candidateName, "Nome");
+    await fillByControl("cpf", cpfDigits, "CPF");
+    await fillByControl("cpfNumber", cpfDigits, "CPF");
+    await fillByControl("admissionDate", admissionDateFmt, "Data de Admissão");
+    
     await selectBentoOption("service", companyName);
     if (roleTitle) await selectBentoOption("jobPosition", roleTitle);
     await selectBentoOption("department", "Geral");
@@ -491,23 +533,23 @@ async function executeVisualFilling(payload) {
     await selectBentoOption("union", "SIEMACO");
     
     await clickSubTab("ADMISSÃO");
-    await fillByControl("salary", payload.salary || payload.baseSalary || "1900.00");
-    await fillByControl("admissionDate", admissionDateFmt);
+    await fillByControl("salary", payload.salary || payload.baseSalary || "1900.00", "Salário");
+    await fillByControl("admissionDate", admissionDateFmt, "Data");
     await selectBentoOption("admissionCategory", "Mensalista");
     await selectBentoOption("employmentRelationship", "Celetista");
     
     await clickSubTab("CONTRATO DE EXPERIÊNCIA");
-    await fillByControl("probationDays1", "45");
-    await fillByControl("probationDays2", "45");
+    await fillByControl("probationDays1", "45", "Contrato de Experiência");
+    await fillByControl("probationDays2", "45", "Dias de Prorrogação");
 
     // ABA 2: PROFISSIONAL
     console.log("[RPA WINDOWS RH] Preenchendo Aba 2 (Profissional)...");
     await goToWizardTab(2, "Profissional");
-    await fillByControl("workNumber", ctpsNum);
-    await fillByControl("workSerial", ctpsSerie);
+    await fillByControl("workNumber", ctpsNum, "Número");
+    await fillByControl("workSerial", ctpsSerie, "Série");
     
     await clickSubTab("INFORMAÇÕES DO PIS");
-    await fillByControl("pisNumber", pisNum);
+    await fillByControl("pisNumber", pisNum, "Número");
     
     await clickSubTab("PAGAMENTO");
     const candidatePixKey = payload.pixKey || extra.pixKey || extra.chavePix || payload.chavePix || cpfDigits;
@@ -517,43 +559,43 @@ async function executeVisualFilling(payload) {
     // ABA 3: PESSOAL
     console.log("[RPA WINDOWS RH] Preenchendo Aba 3 (Pessoal)...");
     await goToWizardTab(3, "Pessoal");
-    if (birthDateDigits) await fillByControl("birthDate", birthDateDigits);
+    if (birthDateDigits) await fillByControl("birthDate", birthDateDigits, "Data de nascimento");
     const isFem = String(gender).toLowerCase().includes("fem");
     await clickSubTab(isFem ? "FEMININO" : "MASCULINO");
-    await fillByControl("motherName", nomeMae);
-    await fillByControl("fatherName", nomePai);
+    await fillByControl("motherName", nomeMae, "Nome da mãe");
+    await fillByControl("fatherName", nomePai, "Nome do pai");
     
     await clickSubTab("ENDEREÇO E CONTATO");
-    await fillByControl("address", address);
-    await fillByControl("neighborhood", payload.bairro || extra.bairro || "");
-    await fillByControl("zipCode", (payload.cep || extra.cep || "").replace(/\D/g, ""));
-    await fillByControl("city", payload.cidade || extra.cidade || "Curitiba");
+    await fillByControl("zipCode", (payload.cep || extra.cep || "").replace(/\D/g, ""), "CEP");
+    await fillByControl("address", address, "Endereço");
+    await fillByControl("neighborhood", payload.bairro || extra.bairro || "", "Bairro");
+    await fillByControl("city", payload.cidade || extra.cidade || "Curitiba", "Município");
     await selectBentoOption("state", payload.uf || extra.uf || "PR");
 
     // ABA 4: DOCUMENTOS
     console.log("[RPA WINDOWS RH] Preenchendo Aba 4 (Documentos)...");
     await goToWizardTab(4, "Documentos");
-    await fillByControl("identityCard", rgNum);
-    await fillByControl("issuingAgency", rgOrgao);
+    await fillByControl("identityCard", rgNum, "Número da Identidade");
+    await fillByControl("issuingAgency", rgOrgao, "Órgão de expedição da identidade");
     await selectBentoOption("issuingState", rgUf);
-    if (rgDtDigits) await fillByControl("identityCardIssuingDate", rgDtDigits);
+    if (rgDtDigits) await fillByControl("identityCardIssuingDate", rgDtDigits, "Data de emissão da identidade");
     
     const tituloNum = extra.tituloEleitorNumero || payload.tituloEleitorNumero;
-    if (tituloNum) await fillByControl("voterRegistrationCard", tituloNum);
+    if (tituloNum) await fillByControl("voterRegistrationCard", tituloNum, "Número do título eleitoral");
     const tituloZona = extra.tituloEleitorZona || payload.tituloEleitorZona;
-    if (tituloZona) await fillByControl("electoralZone", tituloZona);
+    if (tituloZona) await fillByControl("electoralZone", tituloZona, "Zona eleitoral");
     const tituloSecao = extra.tituloEleitorSecao || payload.tituloEleitorSecao;
-    if (tituloSecao) await fillByControl("electoralSection", tituloSecao);
+    if (tituloSecao) await fillByControl("electoralSection", tituloSecao, "Seção eleitoral");
     
     const cnhNum = extra.cnhNumero || payload.cnhNumero;
-    if (cnhNum) await fillByControl("driverLicenseNumber", cnhNum);
+    if (cnhNum) await fillByControl("driverLicenseNumber", cnhNum, "Número da carteira de motorista");
     const cnhCat = extra.cnhCategoria || payload.cnhCategoria;
-    if (cnhCat) await fillByControl("driverLicenseCategory", cnhCat);
+    if (cnhCat) await fillByControl("driverLicenseCategory", cnhCat, "Categoria da carteira de motorista");
     const cnhVal = formatDate(extra.cnhValidade || payload.cnhValidade);
-    if (cnhVal) await fillByControl("driverLicenseExpirationDate", cnhVal);
+    if (cnhVal) await fillByControl("driverLicenseExpirationDate", cnhVal, "Vencimento da carteira de motorista");
     
     const resNum = extra.reservistaNumero || payload.reservistaNumero;
-    if (resNum) await fillByControl("militaryRegistration", resNum);
+    if (resNum) await fillByControl("militaryRegistration", resNum, "Número da carteira de reservista");
 
     // ABA 5: DEPENDENTES
     console.log("[RPA WINDOWS RH] Verificando Aba 5 (Dependentes)...");
@@ -563,13 +605,13 @@ async function executeVisualFilling(payload) {
         for (let i = 0; i < dependentes.length; i++) {
             const dep = dependentes[i];
             console.log(`[RPA WINDOWS RH] Preenchendo dependente ${i + 1}: ${dep.nome || dep.name}`);
-            await clickSubTab("Adicionar dependente");
+            await clickSubTab("Adicionar");
             await new Promise(r => setTimeout(r, 1000));
-            if (dep.nome || dep.name) await fillByControl("dependentName", dep.nome || dep.name);
+            if (dep.nome || dep.name) await fillByControl("dependentName", dep.nome || dep.name, "Nome");
             const depCpf = (dep.cpf || "").replace(/\D/g, "");
-            if (depCpf) await fillByControl("dependentCPF", depCpf);
+            if (depCpf) await fillByControl("dependentCPF", depCpf, "CPF");
             const depNasc = formatDateDigits(dep.dataNascimento || dep.birthDate);
-            if (depNasc) await fillByControl("dependentBirthDate", depNasc);
+            if (depNasc) await fillByControl("dependentBirthDate", depNasc, "Data");
             if (dep.parentesco) await selectBentoOption("relationshipType", dep.parentesco);
         }
     }
@@ -578,8 +620,8 @@ async function executeVisualFilling(payload) {
     console.log("[RPA WINDOWS RH] Preenchendo Aba 6 (Observações)...");
     await goToWizardTab(6, "Observações");
     const obsText = payload.observacoes || extra.observacoes || `Admissão via Workforce Hub - Cargo: ${roleTitle} - Empresa: ${companyName}`;
-    await fillByControl("observations", obsText);
-    await fillByControl("notes", obsText);
+    await fillByControl("observations", obsText, "Comentário");
+    await fillByControl("notes", obsText, "Comentário");
 
     // ══════════════════════════════════════════════════════════════
     // VERIFICAÇÃO DE SEGURANÇA: lê o título do formulário ANTES de salvar
