@@ -215,62 +215,97 @@ async function executeVisualFilling(payload) {
     }
 
     console.log(`[RPA WINDOWS RH] Selecionando contexto de empresa: ${companyName}...`);
-    try {
-        // Abre o seletor de empresa
-        await page.evaluate(() => {
-            const selector = document.querySelector('bm-linked-account-selector, .header-firm-name, [class*="firm"], [class*="company-selector"]');
-            if (selector) selector.click();
-        });
-        await new Promise(r => setTimeout(r, 1500));
 
-        // Digita o nome da empresa para filtrar
-        const searchInp = await page.$('input[placeholder*="Pesquisar"], input[placeholder*="empresa"], input[type="search"], bento-combobox input, [class*="search"] input');
-        if (searchInp) {
-            // Usa a primeira palavra significativa do nome da empresa
-            const firstWord = companyName.split(' ').find(w => w.length > 2) || companyName.split(' ')[0];
-            console.log(`[RPA WINDOWS RH] Digitando "${firstWord}" no campo de busca de empresa...`);
-            await searchInp.click({ clickCount: 3 });
-            await searchInp.type(firstWord, { delay: 80 });
-            await new Promise(r => setTimeout(r, 1500));
-        }
+    // Lê a empresa atual no header
+    const empresaAtual = await page.evaluate(() => {
+        const el = document.querySelector('bm-linked-account-selector, .header-firm-name, [class*="firm"], [class*="account"]');
+        return el ? (el.textContent || '').trim() : '';
+    });
+    console.log(`[RPA WINDOWS RH] Empresa atual no header: "${empresaAtual}"`);
 
-        // Clica no item que contenha EXATAMENTE o nome correto
-        const clicked = await page.evaluate((compName) => {
-            const cleanTarget = compName.toLowerCase().replace(/\s*ltda\.?\s*/gi, '').replace(/\s*s\.a\.?\s*/gi, '').trim();
-            const words = cleanTarget.split(' ').filter(w => w.length > 2);
-            
-            const candidates = Array.from(document.querySelectorAll(
-                '.bento-option-list li, .bento-option, [role="option"], [class*="option"] li, [class*="list-item"], [class*="account-item"]'
-            ));
-            
-            // Tenta match exato primeiro (todas as palavras presentes)
-            let match = candidates.find(el => {
-                const txt = (el.textContent || '').toLowerCase();
-                return words.every(w => txt.includes(w));
-            });
-            
-            // Fallback: match pela primeira palavra significativa
-            if (!match) {
-                match = candidates.find(el => {
-                    const txt = (el.textContent || '').toLowerCase();
-                    return txt.includes(words[0]);
+    const companyNameClean = companyName.toLowerCase().replace(/\s*ltda\.?\s*/gi,'').replace(/\s*s\.a\.?\s*/gi,'').trim();
+    const empresaAtualClean = empresaAtual.toLowerCase().replace(/\s*ltda\.?\s*/gi,'').replace(/\s*s\.a\.?\s*/gi,'').trim();
+    const jaCorreta = companyNameClean.split(' ').every(w => w.length < 2 || empresaAtualClean.includes(w));
+
+    if (!jaCorreta) {
+        console.log(`[RPA WINDOWS RH] Empresa incorreta. Tentando trocar para: ${companyName}`);
+        try {
+            // Tenta abrir o seletor com page.click() (simula mouse real)
+            const selectorEl = await page.$('bm-linked-account-selector, .header-firm-name, [class*="firm-name"]');
+            if (selectorEl) {
+                await selectorEl.click();
+                console.log(`[RPA WINDOWS RH] Clicou no seletor de empresa.`);
+            } else {
+                // Fallback: clica por evaluate
+                await page.evaluate(() => {
+                    const el = document.querySelector('bm-linked-account-selector, .header-firm-name');
+                    if (el) el.click();
                 });
             }
-            
-            if (match) {
-                match.click();
-                return (match.textContent || '').trim();
+            await new Promise(r => setTimeout(r, 2000));
+
+            // Espera dropdown
+            const dropdownEl = await page.waitForSelector(
+                '.bento-option-list li, [role="option"], [role="listbox"] li',
+                { timeout: 5000 }
+            ).catch(() => null);
+
+            // Lista empresas disponíveis para debug
+            const disponiveis = await page.evaluate(() => {
+                const items = Array.from(document.querySelectorAll('.bento-option-list li, [role="option"]'));
+                return items.map(el => (el.textContent || '').trim().substring(0, 60));
+            });
+            console.log(`[RPA WINDOWS RH] Empresas disponíveis no dropdown: ${JSON.stringify(disponiveis)}`);
+
+            if (dropdownEl) {
+                // Filtra e clica
+                const clicked = await page.evaluate((compClean) => {
+                    const words = compClean.split(' ').filter(w => w.length > 1);
+                    const items = Array.from(document.querySelectorAll('.bento-option-list li, [role="option"]'));
+                    const match = items.find(el => {
+                        const txt = (el.textContent || '').toLowerCase().replace(/\s*ltda\.?\s*/gi,'').trim();
+                        return words.every(w => txt.includes(w));
+                    }) || items.find(el => {
+                        const txt = (el.textContent || '').toLowerCase();
+                        return txt.includes(words[0]);
+                    });
+                    if (match) { match.click(); return (match.textContent || '').trim(); }
+                    return null;
+                }, companyNameClean);
+
+                if (clicked) {
+                    console.log(`[RPA WINDOWS RH] ✅ Empresa trocada para: "${clicked}"`);
+                    await new Promise(r => setTimeout(r, 2500));
+                } else {
+                    console.log(`[RPA WINDOWS RH] ⚠️ Não encontrou a empresa no dropdown`);
+                }
+            } else {
+                console.log(`[RPA WINDOWS RH] ⚠️ Dropdown não abriu`);
             }
-            return null;
-        }, companyName);
-        
-        if (clicked) {
-            console.log(`[RPA WINDOWS RH] ✅ Empresa selecionada: "${clicked}"`);
-        } else {
-            console.log(`[RPA WINDOWS RH] ⚠️ Empresa não encontrada na lista. Continuando com empresa atual.`);
+        } catch(e) {
+            console.log(`[RPA WINDOWS RH] Erro ao trocar empresa:`, e.message);
         }
-        await new Promise(r => setTimeout(r, 3000));
-    } catch (e) {}
+    } else {
+        console.log(`[RPA WINDOWS RH] ✅ Empresa correta já selecionada.`);
+    }
+
+    // Verifica empresa final antes de abrir o formulário
+    const empresaFinal = await page.evaluate(() => {
+        const el = document.querySelector('bm-linked-account-selector, .header-firm-name, [class*="firm"]');
+        return el ? (el.textContent || '').trim() : '';
+    });
+    console.log(`[RPA WINDOWS RH] ✅ Empresa confirmada: "${empresaFinal}"`);
+
+    // SEGURANÇA: aborta se a empresa ainda está errada
+    const empresaFinalClean = empresaFinal.toLowerCase();
+    const palavrasAlvo = companyNameClean.split(' ').filter(w => w.length > 2);
+    const empresaOk = palavrasAlvo.every(w => empresaFinalClean.includes(w));
+    if (!empresaOk && palavrasAlvo.length > 0) {
+        console.error(`[RPA WINDOWS RH] ❌ ABORTANDO: empresa no portal é "${empresaFinal}", esperado "${companyName}". Não vou salvar na empresa errada.`);
+        await browser.close();
+        activeBrowser = null;
+        return { success: false, error: `Empresa incorreta no portal: "${empresaFinal}" vs "${companyName}"` };
+    }
 
     console.log("[RPA WINDOWS RH] Abrindo formulário /add...");
     await page.goto("https://onvio.com.br/clientcenter/pt/actions/service-request/employee-registration/add", { waitUntil: "domcontentloaded" });
@@ -279,13 +314,15 @@ async function executeVisualFilling(payload) {
     // Sempre obtém a página ativa mais recente do browser para evitar "context destroyed"
     const getPage = async () => {
         const allPages = await browser.pages();
-        return allPages[allPages.length - 1];
+        const activePage = allPages.find(p => !p.isClosed()) || allPages[allPages.length - 1];
+        return activePage || null;
     };
 
     const fillByControl = async (controlName, val) => {
         if (!val) return;
         try {
             const p = await getPage();
+            if (!p) return;
             await p.evaluate((ctrl, value) => {
                 const inp = document.querySelector(`input[formcontrolname="${ctrl}"], textarea[formcontrolname="${ctrl}"]`);
                 if (inp) {
@@ -303,6 +340,7 @@ async function executeVisualFilling(payload) {
         if (!searchText) return;
         try {
             const p = await getPage();
+            if (!p) return;
             await p.evaluate((ctrl, text) => {
                 const sel = document.querySelector(`bento-select[formcontrolname="${ctrl}"], select[formcontrolname="${ctrl}"]`);
                 if (sel) sel.click();
@@ -323,6 +361,7 @@ async function executeVisualFilling(payload) {
     const clickButton = async (textContains) => {
         try {
             const p = await getPage();
+            if (!p) return;
             await p.evaluate((txt) => {
                 const btn = Array.from(document.querySelectorAll('button, a, span')).find(el =>
                     el.textContent && el.textContent.trim().toLowerCase().includes(txt.toLowerCase())
