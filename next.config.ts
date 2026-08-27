@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "20mb",
     },
   },
+  // turbopack:{} vazio silencia o warning de compatibilidade do @serwist/next no Next.js 16
+  turbopack: {},
 
   // puppeteer-core e @sparticuz/chromium para automacao em nuvem na Vercel
   serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],

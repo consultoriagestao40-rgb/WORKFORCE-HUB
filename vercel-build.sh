@@ -29,5 +29,4 @@ fi
 
 # 3. Build Next.js App
 echo "🏗️ Building Next.js App..."
-export NEXT_build_worker_threads=1
 next build
