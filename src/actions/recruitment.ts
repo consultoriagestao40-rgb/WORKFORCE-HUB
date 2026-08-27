@@ -2505,51 +2505,54 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
                     });
 
                     if (!activeAssignment) {
-                        // Fechar alocações ativas anteriores DESTE colaborador neste mesmo posto (caso residual)
-                        await prisma.assignment.updateMany({
-                            where: {
-                                employeeId,
-                                postoId: targetPostoId,
-                                endDate: null
-                            },
-                            data: {
-                                endDate: new Date()
-                            }
-                        });
-
-                        // Fechar alocações ativas de OUTROS colaboradores neste posto para evitar sobreposição
-                        await prisma.assignment.updateMany({
+                        // GUARDA POSTO OCUPADO: Verificar se o posto já está ocupado por outro colaborador ativo.
+                        // NUNCA expulsar um colaborador ativo automaticamente sem ação explícita do usuário.
+                        const existingOtherAssignmentInPosto = await prisma.assignment.findFirst({
                             where: {
                                 postoId: targetPostoId,
                                 endDate: null,
                                 employeeId: { not: employeeId }
                             },
-                            data: {
-                                endDate: admissionDate || new Date()
-                            }
+                            include: { employee: true }
                         });
 
-                        // Criar nova alocação ativa
-                        await prisma.assignment.create({
-                            data: {
-                                employeeId,
-                                postoId: targetPostoId,
-                                startDate: admissionDate,
-                                endDate: null
-                            }
-                        });
-
-                        try {
-                            await prisma.log.create({
-                                data: {
-                                    action: "ALOCACAO_AUTOMATICA",
-                                    details: `Colaborador ${name} admitido e alocado automaticamente ao posto "${targetPosto.client?.name || ''} - ${targetPosto.role?.name || ''}" via ATS/Recrutamento.`,
+                        if (existingOtherAssignmentInPosto) {
+                            console.log(`[syncCandidateToEmployeeAndPosto] BLOQUEADO: Posto ${targetPostoId} já está ocupado por ${existingOtherAssignmentInPosto.employee?.name}. Não expulsar colaborador ativo automaticamente.`);
+                        } else {
+                            // Fechar alocações residuais anteriores apenas DESTE colaborador neste mesmo posto
+                            await prisma.assignment.updateMany({
+                                where: {
                                     employeeId,
-                                    userId: user?.id || null
+                                    postoId: targetPostoId,
+                                    endDate: null
+                                },
+                                data: {
+                                    endDate: new Date()
                                 }
                             });
-                        } catch (lErr) {
-                            console.warn("Log creation non-fatal:", lErr);
+
+                            // Criar nova alocação ativa apenas se o posto estiver vago
+                            await prisma.assignment.create({
+                                data: {
+                                    employeeId,
+                                    postoId: targetPostoId,
+                                    startDate: admissionDate,
+                                    endDate: null
+                                }
+                            });
+
+                            try {
+                                await prisma.log.create({
+                                    data: {
+                                        action: "ALOCACAO_AUTOMATICA",
+                                        details: `Colaborador ${name} admitido e alocado ao posto "${targetPosto.client?.name || ''} - ${targetPosto.role?.name || ''}" via ATS/Recrutamento.`,
+                                        employeeId,
+                                        userId: user?.id || null
+                                    }
+                                });
+                            } catch (lErr) {
+                                console.warn("Log creation non-fatal:", lErr);
+                            }
                         }
                     }
                 }
