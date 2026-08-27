@@ -13,7 +13,6 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "20mb",
     },
   },
-  turbopack: {},
 
   // puppeteer-core e @sparticuz/chromium para automacao em nuvem na Vercel
   serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],

@@ -53,13 +53,24 @@ export async function createVacancyFromPosto(
     });
 
     if (existingOpenVacancy) {
-        if (openingReason && existingOpenVacancy.openingReason !== openingReason) {
+        const customReq = (existingOpenVacancy.customRequirements as any) || {};
+        const isAlreadyAllocated = customReq.isAllocated === true || !!customReq.admittedEmployeeId;
+
+        if (isAlreadyAllocated) {
+            // A vaga anterior já foi preenchida/alocada no passado. Fecha a anterior para abrir um novo ciclo limpo.
             await prisma.vacancy.update({
                 where: { id: existingOpenVacancy.id },
-                data: { openingReason }
+                data: { status: 'CLOSED' }
             });
+        } else {
+            if (openingReason && existingOpenVacancy.openingReason !== openingReason) {
+                await prisma.vacancy.update({
+                    where: { id: existingOpenVacancy.id },
+                    data: { openingReason }
+                });
+            }
+            return existingOpenVacancy;
         }
-        return existingOpenVacancy;
     }
 
     // Create vacancy inheriting requirements from the previous vacancy of the same Posto
@@ -978,9 +989,15 @@ export async function getBacklogItems() {
         }
     });
 
-    // 2. Filter out postos that ALREADY have an OPEN vacancy in the Kanban.
-    // Any posto with an open vacancy (even with 0 candidates) is already being recruited.
-    const backlog = vacantPostos.filter(p => p.vacancies.length === 0);
+    // 2. Filter out postos that ALREADY have an UNFULFILLED OPEN vacancy in the Kanban.
+    // Any posto with an open unfulfilled vacancy is already being recruited.
+    const backlog = vacantPostos.filter(p => {
+        const hasUnfulfilledVacancy = p.vacancies.some(v => {
+            const customReq = (v.customRequirements as any) || {};
+            return !customReq.isAllocated;
+        });
+        return !hasUnfulfilledVacancy;
+    });
 
     return backlog.map(p => ({
         id: p.id,
@@ -2396,13 +2413,31 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
     };
 
     if (existingEmployee) {
+        // GUARDA DE DESLIGAMENTO: Se o colaborador já existe e está Desligado,
+        // NÃO reativar nem sobrescrever situação/status automaticamente.
+        const existingSituation = existingEmployee.situationId
+            ? await prisma.situation.findUnique({ where: { id: existingEmployee.situationId } })
+            : null;
+        const isAlreadyDismissed = existingSituation && (
+            existingSituation.name.toLowerCase().includes('desligad') ||
+            existingSituation.name.toLowerCase().includes('demiti') ||
+            existingSituation.name.toLowerCase().includes('rescindi')
+        );
+
+        if (isAlreadyDismissed) {
+            console.log(`[syncCandidateToEmployeeAndPosto] BLOQUEADO: ${name} está ${existingSituation!.name}. Não realocar nem reativar automaticamente.`);
+            return { success: false, employeeId: existingEmployee.id, name, cpf: existingEmployee.cpf || rawCpf, postoId: null, blocked: true, reason: 'EMPLOYEE_DISMISSED' };
+        }
+
         const updated = await prisma.employee.update({
             where: { id: existingEmployee.id },
             data: {
                 ...employeePayload,
                 cpf: existingEmployee.cpf || formattedCpf || digitsOnlyCpf || rawCpf,
-                dismissalReason: null,
-                dismissalNotes: null,
+                // NUNCA sobrescrever situação de desligamento com status Ativo
+                situationId: existingEmployee.situationId,
+                dismissalReason: existingEmployee.dismissalReason,
+                dismissalNotes: existingEmployee.dismissalNotes,
             }
         });
         employeeId = updated.id;
@@ -2425,47 +2460,98 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
         });
 
         if (targetPosto) {
-            const activeAssignment = await prisma.assignment.findFirst({
-                where: {
-                    employeeId,
-                    postoId: targetPostoId,
-                    endDate: null
-                }
-            });
+            // GUARDA 1: Verificar se candidato tem isAllocated=false explícito (foi desvinculado manualmente)
+            const candExtra = (candidate.extraFields as Record<string, any>) || {};
+            if (candExtra.isAllocated === false) {
+                console.log(`[syncCandidateToEmployeeAndPosto] BLOQUEADO: candidato ${name} tem isAllocated=false (desvinculado manualmente). Não realocar.`);
+                return { success: false, employeeId, name, cpf: formattedCpf || rawCpf, postoId: null, blocked: true, reason: 'MANUALLY_UNASSIGNED' };
+            }
 
-            if (!activeAssignment) {
-                // Fechar alocações anteriores conflitantes
-                await prisma.assignment.updateMany({
+            // GUARDA 2: Se a vaga já está FECHADA/HOLD, não realocar automaticamente.
+            const vacancyClosed = candidate.vacancyId
+                ? await prisma.vacancy.findFirst({
+                    where: {
+                        id: candidate.vacancyId,
+                        OR: [
+                            { status: 'CLOSED' },
+                            { status: 'HOLD' }
+                        ]
+                    }
+                })
+                : null;
+
+            if (vacancyClosed) {
+                console.log(`[syncCandidateToEmployeeAndPosto] BLOQUEADO: Vaga ${candidate.vacancyId} está CLOSED/HOLD. Não realocando ${name} automaticamente.`);
+            } else {
+                // GUARDA ADICIONAL: Verificar se o colaborador já está alocado em OUTRO posto ativo.
+                // Se sim, ele foi transferido intencionalmente - não reverter.
+                const existingActiveAssignmentElsewhere = await prisma.assignment.findFirst({
                     where: {
                         employeeId,
-                        endDate: null
-                    },
-                    data: {
-                        endDate: new Date()
+                        endDate: null,
+                        postoId: { not: targetPostoId }
                     }
                 });
 
-                // Criar nova alocação ativa
-                await prisma.assignment.create({
-                    data: {
-                        employeeId,
-                        postoId: targetPostoId,
-                        startDate: admissionDate,
-                        endDate: null
-                    }
-                });
-
-                try {
-                    await prisma.log.create({
-                        data: {
-                            action: "ALOCACAO_AUTOMATICA",
-                            details: `Colaborador ${name} admitido e alocado automaticamente ao posto "${targetPosto.client?.name || ''} - ${targetPosto.role?.name || ''}" via ATS/Recrutamento.`,
+                if (existingActiveAssignmentElsewhere) {
+                    console.log(`[syncCandidateToEmployeeAndPosto] Colaborador ${name} já está alocado em outro posto (${existingActiveAssignmentElsewhere.postoId}). Não sobrescrever alocação manual.`);
+                } else {
+                    const activeAssignment = await prisma.assignment.findFirst({
+                        where: {
                             employeeId,
-                            userId: user?.id || null
+                            postoId: targetPostoId,
+                            endDate: null
                         }
                     });
-                } catch (lErr) {
-                    console.warn("Log creation non-fatal:", lErr);
+
+                    if (!activeAssignment) {
+                        // Fechar alocações ativas anteriores DESTE colaborador neste mesmo posto (caso residual)
+                        await prisma.assignment.updateMany({
+                            where: {
+                                employeeId,
+                                postoId: targetPostoId,
+                                endDate: null
+                            },
+                            data: {
+                                endDate: new Date()
+                            }
+                        });
+
+                        // Fechar alocações ativas de OUTROS colaboradores neste posto para evitar sobreposição
+                        await prisma.assignment.updateMany({
+                            where: {
+                                postoId: targetPostoId,
+                                endDate: null,
+                                employeeId: { not: employeeId }
+                            },
+                            data: {
+                                endDate: admissionDate || new Date()
+                            }
+                        });
+
+                        // Criar nova alocação ativa
+                        await prisma.assignment.create({
+                            data: {
+                                employeeId,
+                                postoId: targetPostoId,
+                                startDate: admissionDate,
+                                endDate: null
+                            }
+                        });
+
+                        try {
+                            await prisma.log.create({
+                                data: {
+                                    action: "ALOCACAO_AUTOMATICA",
+                                    details: `Colaborador ${name} admitido e alocado automaticamente ao posto "${targetPosto.client?.name || ''} - ${targetPosto.role?.name || ''}" via ATS/Recrutamento.`,
+                                    employeeId,
+                                    userId: user?.id || null
+                                }
+                            });
+                        } catch (lErr) {
+                            console.warn("Log creation non-fatal:", lErr);
+                        }
+                    }
                 }
             }
         }
@@ -2524,6 +2610,7 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
 
 /**
  * Varre candidatos com Admissão/Onvio/Benefícios/Concluído e garante criação do Colaborador e Alocação no Posto.
+ * IMPORTANTE: Esta função NÃO deve mover colaboradores que já foram desvinculados intencionalmente.
  */
 export async function syncAdmittedCandidatesToEmployees() {
     try {
@@ -2552,6 +2639,23 @@ export async function syncAdmittedCandidatesToEmployees() {
         for (const cand of candidatesToSync) {
             try {
                 const candExtra = (cand.extraFields as Record<string, any>) || {};
+
+                // GUARDA 1: Candidato já marcado como alocado → não tocar novamente
+                if (candExtra.isAllocated === true) continue;
+
+                // GUARDA 1b: Candidato explicitamente desvinculado → NUNCA realocar
+                if (candExtra.isAllocated === false) {
+                    console.log(`[Auto-Sync] BLOQUEADO: ${cand.name} tem isAllocated=false (desvinculado manualmente). Não realocar.`);
+                    continue;
+                }
+
+                // GUARDA 2: Vaga já fechada/em espera → candidato foi processado e pode ter sido
+                // desvinculado intencionalmente depois. Não realocar.
+                if (cand.vacancy?.status === 'CLOSED' || cand.vacancy?.status === 'HOLD') {
+                    console.log(`[Auto-Sync] BLOQUEADO: Vaga ${cand.vacancyId} está ${cand.vacancy.status}. Pulando candidato ${cand.name}.`);
+                    continue;
+                }
+
                 const rawCpf = (candExtra.cpf || candExtra.cpfNumero || (cand as any).cpf || "").trim();
                 const { formatted, digits } = sanitizeCpf(rawCpf);
 
@@ -2563,22 +2667,25 @@ export async function syncAdmittedCandidatesToEmployees() {
                             { name: { equals: cand.name, mode: "insensitive" } }
                         ]
                     },
-                    include: {
-                        assignments: {
-                            where: { endDate: null }
-                        }
-                    }
+                    include: { situation: true }
                 });
 
-                const targetPostoId = cand.vacancy?.postoId || candExtra.postoId;
-                const hasCorrectAssignment = emp && targetPostoId 
-                    ? emp.assignments.some(a => a.postoId === targetPostoId) 
-                    : !!emp;
+                // GUARDA 3: Colaborador já existe mas está DESLIGADO → não realocar
+                if (emp) {
+                    const sitName = (emp as any).situation?.name?.toLowerCase() || "";
+                    const isDismissed = sitName.includes('desligad') || sitName.includes('demiti') || sitName.includes('rescindi');
+                    if (isDismissed) {
+                        console.log(`[Auto-Sync] BLOQUEADO: ${cand.name} está ${(emp as any).situation?.name}. Não realocar colaborador desligado.`);
+                        continue;
+                    }
+                }
 
-                if (!emp || !hasCorrectAssignment) {
-                    console.log(`[Auto-Sync] Sincronizando candidato admitido para Colaborador e Posto: ${cand.name} (${cand.id})`);
+                if (!emp) {
+                    // Colaborador ainda não existe → criar via sync (novo admitido genuíno)
+                    console.log(`[Auto-Sync] Sincronizando novo candidato admitido para Colaborador e Posto: ${cand.name} (${cand.id})`);
                     await syncCandidateToEmployeeAndPosto(cand.id);
-                } else if (!candExtra.isAllocated) {
+                } else {
+                    // Colaborador já existe → apenas marcar como alocado, sem mexer em alocações ativas
                     await prisma.recruitmentCandidate.update({
                         where: { id: cand.id },
                         data: {
@@ -2587,16 +2694,19 @@ export async function syncAdmittedCandidatesToEmployees() {
                     });
                     if (cand.vacancyId) {
                         const currentReqs = (cand.vacancy?.customRequirements as Record<string, any>) || {};
-                        await prisma.vacancy.update({
-                            where: { id: cand.vacancyId },
-                            data: {
-                                customRequirements: {
-                                    ...currentReqs,
-                                    isAllocated: true,
-                                    admittedEmployeeId: emp.id
+                        // Só marcar isAllocated na vaga se ainda não estiver
+                        if (!currentReqs.isAllocated) {
+                            await prisma.vacancy.update({
+                                where: { id: cand.vacancyId },
+                                data: {
+                                    customRequirements: {
+                                        ...currentReqs,
+                                        isAllocated: true,
+                                        admittedEmployeeId: emp.id
+                                    }
                                 }
-                            }
-                        });
+                            });
+                        }
                     }
                 }
             } catch (itemErr) {
