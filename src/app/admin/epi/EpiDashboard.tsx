@@ -16,7 +16,9 @@ import {
     CheckCircle,
     XCircle,
     Send,
-    ExternalLink
+    ExternalLink,
+    Eye,
+    Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -636,6 +638,7 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                                     ) : (
                                         filteredDeliveries.map(d => {
                                             const isSigned = d.recipientSignature === "ASSINADO" || (d.recipientSignature && d.recipientSignature.startsWith("ASSINADO_AUTENTIQUE_"));
+                                            const isViewedAutentique = d.recipientSignature && d.recipientSignature.startsWith("VISUALIZADO_AUTENTIQUE_");
                                             const isSentAutentique = d.recipientSignature && d.recipientSignature.startsWith("ENVIADO_AUTENTIQUE_");
                                             const autentiqueDocId = d.recipientSignature && d.recipientSignature.includes("_AUTENTIQUE_")
                                                 ? d.recipientSignature.split("_AUTENTIQUE_")[1]
@@ -671,20 +674,34 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                                                             }}
                                                             className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-black transition-all ${
                                                                 isSigned 
-                                                                    ? "bg-green-100 text-green-800 hover:bg-green-200" 
-                                                                    : isSentAutentique
-                                                                        ? "bg-amber-100 text-amber-800 hover:bg-amber-200 animate-pulse"
-                                                                        : "bg-red-100 text-red-800 hover:bg-red-200"
+                                                                    ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200" 
+                                                                    : isViewedAutentique
+                                                                        ? "bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200"
+                                                                        : isSentAutentique
+                                                                            ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
+                                                                            : "bg-red-100 text-red-800 hover:bg-red-200"
                                                             }`}
-                                                            title={autentiqueDocId ? "Clique para abrir o Documento Assinado Oficial na Autentique" : "Clique para alterar o status da assinatura"}
+                                                            title={
+                                                                isSigned 
+                                                                    ? "Documento Assinado Oficial na Autentique (Com Validade Jurídica)"
+                                                                    : isViewedAutentique
+                                                                        ? "Colaborador visualizou o documento no WhatsApp. Aguardando assinatura."
+                                                                        : isSentAutentique
+                                                                            ? "Enviado para o WhatsApp do colaborador. Aguardando abertura."
+                                                                            : "Clique para alterar o status da assinatura"
+                                                            }
                                                         >
                                                             {isSigned ? (
                                                                 <>
-                                                                    <CheckCircle className="w-3 h-3 text-green-600" /> Assinado
+                                                                    <CheckCircle className="w-3 h-3 text-emerald-600" /> Assinado
+                                                                </>
+                                                            ) : isViewedAutentique ? (
+                                                                <>
+                                                                    <Eye className="w-3 h-3 text-amber-600" /> Visualizado
                                                                 </>
                                                             ) : isSentAutentique ? (
                                                                 <>
-                                                                    <AlertCircle className="w-3 h-3 text-amber-600" /> Enviado WhatsApp
+                                                                    <Clock className="w-3 h-3 text-blue-600" /> Enviado WhatsApp
                                                                 </>
                                                             ) : (
                                                                 <>
@@ -1041,6 +1058,7 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                                                     ) : (
                                                         savedDeliveries.map(d => {
                                                             const isSigned = d.recipientSignature === "ASSINADO" || (d.recipientSignature && d.recipientSignature.startsWith("ASSINADO_AUTENTIQUE_"));
+                                                            const isViewedAutentique = d.recipientSignature && d.recipientSignature.startsWith("VISUALIZADO_AUTENTIQUE_");
                                                             const isSentAutentique = d.recipientSignature && d.recipientSignature.startsWith("ENVIADO_AUTENTIQUE_");
                                                             
                                                             return (
@@ -1060,9 +1078,11 @@ export function EpiDashboard({ initialEmployees, initialEpiItems, initialDeliver
                                                                     <TableCell className="text-slate-500">
                                                                         {d.deliveredBy?.name || "Mesa"}
                                                                         {isSigned ? (
-                                                                            <span className="ml-1 text-[8px] font-bold text-green-700 bg-green-50 px-1 rounded">Assinado</span>
+                                                                            <span className="ml-1 text-[8px] font-bold text-emerald-700 bg-emerald-50 px-1 rounded">Assinado</span>
+                                                                        ) : isViewedAutentique ? (
+                                                                            <span className="ml-1 text-[8px] font-bold text-amber-800 bg-amber-100 px-1 rounded">Visualizado</span>
                                                                         ) : isSentAutentique ? (
-                                                                            <span className="ml-1 text-[8px] font-bold text-amber-700 bg-amber-50 px-1 rounded">Enviado</span>
+                                                                            <span className="ml-1 text-[8px] font-bold text-blue-700 bg-blue-50 px-1 rounded">Enviado</span>
                                                                         ) : (
                                                                             <span className="ml-1 text-[8px] font-bold text-red-700 bg-red-50 px-1 rounded">Pendente</span>
                                                                         )}

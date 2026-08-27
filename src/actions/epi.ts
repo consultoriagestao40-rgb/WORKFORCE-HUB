@@ -685,14 +685,39 @@ export async function generateEpiPdfBytes(employeeId: string): Promise<Buffer> {
     
     page.drawText(`Curitiba, ${todayFormatted}`, { x: col1X, y: curY, size: 7.5, font });
 
-    // Signature Line (left blank for Autentique / physical signature)
+    // 4.1 Signature por extenso above line
+    const sigLineStartX = col2X + 20;
+    const sigLineEndX = endX - 20;
+    const sigLineWidth = sigLineEndX - sigLineStartX;
+    const sigCenterX = sigLineStartX + (sigLineWidth / 2);
+
+    let sigFontSize = 14;
+    let nameSigWidth = fontSig.widthOfTextAtSize(employee.name, sigFontSize);
+    if (nameSigWidth > sigLineWidth - 10) {
+        sigFontSize = Math.max(9, ((sigLineWidth - 10) / nameSigWidth) * sigFontSize);
+        nameSigWidth = fontSig.widthOfTextAtSize(employee.name, sigFontSize);
+    }
+    const sigTextX = sigCenterX - (nameSigWidth / 2);
+
+    page.drawText(employee.name, {
+        x: sigTextX,
+        y: curY + 4,
+        size: sigFontSize,
+        font: fontSig,
+        color: rgb(0.05, 0.15, 0.55)
+    });
+
+    // Signature Line
     page.drawLine({
-        start: { x: col2X + 20, y: curY + 2 },
-        end: { x: endX - 20, y: curY + 2 },
+        start: { x: sigLineStartX, y: curY + 2 },
+        end: { x: sigLineEndX, y: curY + 2 },
         thickness: 0.5,
         color: rgb(0, 0, 0)
     });
-    page.drawText("ASSINATURA DO TRABALHADOR", { x: col2X + 50, y: curY - 10, size: 7.5, font });
+    
+    const labelText = "ASSINATURA DO TRABALHADOR";
+    const labelWidth = font.widthOfTextAtSize(labelText, 7.5);
+    page.drawText(labelText, { x: sigCenterX - (labelWidth / 2), y: curY - 10, size: 7.5, font });
 
     curY -= 20;
     page.drawLine({
@@ -781,6 +806,28 @@ export async function generateEpiPdfBytes(employeeId: string): Promise<Buffer> {
             page.drawText(name, { x: tableCols[4].x + 4, y: curY + 5, size: 6.5, font });
             page.drawText(String(d.merCode), { x: tableCols[5].x + 15, y: curY + 5, size: 6.5, font });
             
+            // Assinatura / Rubrica do Trabalhador em cada item entregue
+            const nameParts = employee.name.trim().split(/\s+/);
+            const rubricText = nameParts.length > 1
+                ? `${nameParts[0][0]}. ${nameParts[nameParts.length - 1]}`
+                : nameParts[0];
+
+            let rowSigFontSize = 10.5;
+            let rowSigWidth = fontSig.widthOfTextAtSize(rubricText, rowSigFontSize);
+            if (rowSigWidth > tableCols[6].w - 6) {
+                rowSigFontSize = Math.max(7.5, ((tableCols[6].w - 6) / rowSigWidth) * rowSigFontSize);
+                rowSigWidth = fontSig.widthOfTextAtSize(rubricText, rowSigFontSize);
+            }
+            const rowSigX = tableCols[6].x + (tableCols[6].w / 2) - (rowSigWidth / 2);
+
+            page.drawText(rubricText, {
+                x: rowSigX,
+                y: curY + 4,
+                size: rowSigFontSize,
+                font: fontSig,
+                color: rgb(0.05, 0.15, 0.55) // realistic blue ink
+            });
+
             let resp = d.deliveredBy || "Mesa";
             if (resp.length > 16) resp = resp.substring(0, 14) + "...";
             page.drawText(resp, { x: tableCols[7].x + 4, y: curY + 5, size: 6, font });

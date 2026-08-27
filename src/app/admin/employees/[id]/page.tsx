@@ -149,7 +149,11 @@ export default async function EmployeeProfilePage(props: {
                 </div>
                 <div className="flex flex-wrap justify-center gap-3 items-center">
                     <NewRhRequestDialog employee={{ id: employee.id, name: employee.name, roleName: employee.role?.name }} />
-                    <KitAdmissaoButtons employeeId={employee.id} employeeName={employee.name} />
+                    <KitAdmissaoButtons 
+                        employeeId={employee.id} 
+                        employeeName={employee.name} 
+                        kitProcess={(employee.extraFields as any)?.kitAdmissaoProcess}
+                    />
                     <Link href={`/admin/employees/${employee.id}/print`} target="_blank">
                         <Button className="gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold border-none h-9 px-4 rounded-xl shadow-sm text-xs uppercase tracking-wider">
                             <FileText className="w-4 h-4" /> Exportar Ficha

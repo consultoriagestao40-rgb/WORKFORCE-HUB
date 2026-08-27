@@ -200,14 +200,37 @@ export async function generateTermoPontoPdfBytes(employeeId: string): Promise<Bu
 
     page.drawText(`PINHAIS, ${day} de ${monthName} de ${year}.`, { x: startX + 310, y: curY, size: 9, font });
 
+    const sigLineStartX = startX;
+    const sigLineEndX = startX + 270;
+    const sigLineWidth = 270;
+    const sigCenterX = sigLineStartX + (sigLineWidth / 2);
+
+    let sigFontSize = 14;
+    let nameSigWidth = fontSig.widthOfTextAtSize(employee.name, sigFontSize);
+    if (nameSigWidth > sigLineWidth - 10) {
+        sigFontSize = Math.max(9, ((sigLineWidth - 10) / nameSigWidth) * sigFontSize);
+        nameSigWidth = fontSig.widthOfTextAtSize(employee.name, sigFontSize);
+    }
+    const sigTextX = sigCenterX - (nameSigWidth / 2);
+
+    page.drawText(employee.name, {
+        x: sigTextX,
+        y: curY + 4,
+        size: sigFontSize,
+        font: fontSig,
+        color: rgb(0.05, 0.15, 0.55)
+    });
+
     page.drawLine({
-        start: { x: startX, y: curY + 2 },
-        end: { x: startX + 270, y: curY + 2 },
+        start: { x: sigLineStartX, y: curY + 2 },
+        end: { x: sigLineEndX, y: curY + 2 },
         thickness: 0.5,
         color: rgb(0, 0, 0)
     });
 
-    page.drawText("ASSINATURA DO TRABALHADOR", { x: startX + 50, y: curY - 10, size: 7.5, font });
+    const labelText = "ASSINATURA DO TRABALHADOR";
+    const labelWidth = font.widthOfTextAtSize(labelText, 7.5);
+    page.drawText(labelText, { x: sigCenterX - (labelWidth / 2), y: curY - 10, size: 7.5, font });
 
     const pdfBytes = await pdfDoc.save();
     return Buffer.from(pdfBytes);
@@ -699,14 +722,37 @@ export async function generateOrdemServicoPdfBytes(employeeId: string): Promise<
     });
     page3.drawText("RH/ADM", { x: startX + 105, y: curY - 14, size: 8.5, font });
 
+    const sigEmpStartX = startX + 290;
+    const sigEmpEndX = startX + 500;
+    const sigEmpLineWidth = 210;
+    const sigEmpCenterX = sigEmpStartX + (sigEmpLineWidth / 2);
+
+    let sigEmpFontSize = 14;
+    let nameEmpSigWidth = fontSig.widthOfTextAtSize(employee.name, sigEmpFontSize);
+    if (nameEmpSigWidth > sigEmpLineWidth - 10) {
+        sigEmpFontSize = Math.max(9, ((sigEmpLineWidth - 10) / nameEmpSigWidth) * sigEmpFontSize);
+        nameEmpSigWidth = fontSig.widthOfTextAtSize(employee.name, sigEmpFontSize);
+    }
+    const sigEmpTextX = sigEmpCenterX - (nameEmpSigWidth / 2);
+
+    page3.drawText(employee.name, {
+        x: sigEmpTextX,
+        y: curY + 4,
+        size: sigEmpFontSize,
+        font: fontSig,
+        color: rgb(0.05, 0.15, 0.55)
+    });
+
     page3.drawLine({
-        start: { x: startX + 290, y: curY },
-        end: { x: startX + 500, y: curY },
+        start: { x: sigEmpStartX, y: curY },
+        end: { x: sigEmpEndX, y: curY },
         thickness: 0.5,
         color: rgb(0, 0, 0)
     });
 
-    page3.drawText("ASSINATURA DO TRABALHADOR", { x: startX + 330, y: curY - 14, size: 8.5, font });
+    const labelEmpText = "ASSINATURA DO TRABALHADOR";
+    const labelEmpWidth = font.widthOfTextAtSize(labelEmpText, 8.5);
+    page3.drawText(labelEmpText, { x: sigEmpCenterX - (labelEmpWidth / 2), y: curY - 14, size: 8.5, font });
 
     page3.drawText("Página 3 de 3", { x: startX + 455, y: 25, size: 8.5, font });
 
@@ -744,6 +790,7 @@ export async function generateKitAdmissaoPdfBytes(employeeId: string): Promise<B
 // 4. Send Kit de Admissão for Digital Signature via WhatsApp / Autentique
 export async function sendKitAdmissaoToAutentique(employeeId: string) {
     try {
+        const user = await getCurrentUser();
         const employee = await prisma.employee.findUnique({
             where: { id: employeeId }
         });
@@ -758,8 +805,52 @@ export async function sendKitAdmissaoToAutentique(employeeId: string) {
         const result = await sendAutentiqueDocument(employee.name, employee.phone, pdfBuffer, fileName, docName);
         const docId = result?.createDocument?.id;
 
+        // Atualizar extraFields do colaborador com kitAdmissaoProcess
+        const extraFields = (employee.extraFields as Record<string, any>) || {};
+        const kitProcess = extraFields.kitAdmissaoProcess || {};
+        
+        kitProcess.autentiqueDocId = docId || null;
+        kitProcess.autentiqueStatus = 'ENVIADO';
+        kitProcess.autentiqueSentAt = new Date().toISOString();
+        kitProcess.autentiqueSentByUserId = user?.id || null;
+
+        extraFields.kitAdmissaoProcess = kitProcess;
+
+        await prisma.employee.update({
+            where: { id: employeeId },
+            data: { extraFields }
+        });
+
+        // Atualizar entregas de EPI pendentes deste colaborador para ENVIADO_AUTENTIQUE_<docId>
+        if (docId) {
+            await prisma.epiDelivery.updateMany({
+                where: {
+                    employeeId,
+                    OR: [
+                        { recipientSignature: null },
+                        { recipientSignature: "PENDENTE" }
+                    ]
+                },
+                data: {
+                    recipientSignature: `ENVIADO_AUTENTIQUE_${docId}`
+                }
+            });
+        }
+
+        if (user) {
+            await prisma.log.create({
+                data: {
+                    action: "AUTENTIQUE_KIT_ENVIADO",
+                    details: `Kit de Admissão enviado para assinatura digital via WhatsApp para ${employee.name} (${employee.phone}). DocID: ${docId}`,
+                    employeeId,
+                    userId: user.id
+                }
+            });
+        }
+
         revalidatePath("/admin/employees");
         revalidatePath(`/admin/employees/${employeeId}`);
+        revalidatePath("/admin/epi");
 
         return {
             success: true,

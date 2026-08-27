@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { FileText, Download, Send, CheckCircle2, Clock, Loader2, Sparkles } from "lucide-react";
+import { FileText, Download, Send, CheckCircle2, Clock, Loader2, Sparkles, Eye } from "lucide-react";
 import { generateDismissalNoticePdfBase64, sendDismissalNoticeToAutentique } from "@/actions/dismissal-templates";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -31,6 +31,7 @@ export function DismissalNoticeButtons({
     const autentiqueDocId = dismissalProcess?.autentiqueDocId;
     const autentiqueStatus = dismissalProcess?.autentiqueStatus;
     const isSigned = autentiqueStatus === 'ASSINADO';
+    const isViewed = autentiqueStatus === 'VISUALIZADO';
     const isSent = autentiqueStatus === 'ENVIADO';
 
     const handleViewPdf = async () => {
@@ -93,29 +94,35 @@ export function DismissalNoticeButtons({
                 disabled={sendingAutentique}
                 className={`h-8 px-2 text-xs font-bold ${
                     isSigned 
-                        ? 'text-emerald-700 bg-emerald-50 border-emerald-200' 
-                        : isSent 
-                            ? 'text-amber-700 bg-amber-50 border-amber-200' 
-                            : 'text-slate-700 hover:text-emerald-600 hover:border-emerald-200'
+                        ? 'text-emerald-700 bg-emerald-50 border-emerald-300 hover:bg-emerald-100' 
+                        : isViewed
+                            ? 'text-amber-900 bg-amber-100 border-amber-300 hover:bg-amber-200'
+                            : isSent 
+                                ? 'text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100' 
+                                : 'text-slate-700 hover:text-emerald-600 hover:border-emerald-200'
                 }`}
                 title={
                     isSigned 
-                        ? "Documento Assinado Digitalmente" 
-                        : isSent 
-                            ? "Aviso já enviado. Clique para reenviar se necessário" 
-                            : "Enviar para assinatura digital no WhatsApp via Autentique"
+                        ? "Documento Assinado Digitalmente (Autentique)" 
+                        : isViewed
+                            ? "Colaborador abriu e visualizou o aviso no WhatsApp. Aguardando assinatura."
+                            : isSent 
+                                ? "Aviso enviado no WhatsApp. Clique para reenviar se necessário" 
+                                : "Enviar para assinatura digital no WhatsApp via Autentique"
                 }
             >
                 {sendingAutentique ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin mr-1 text-emerald-600" />
                 ) : isSigned ? (
                     <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                ) : isViewed ? (
+                    <Eye className="w-3.5 h-3.5 mr-1 text-amber-600" />
                 ) : isSent ? (
-                    <Clock className="w-3.5 h-3.5 mr-1 text-amber-600" />
+                    <Clock className="w-3.5 h-3.5 mr-1 text-blue-600" />
                 ) : (
                     <Send className="w-3.5 h-3.5 mr-1 text-emerald-500" />
                 )}
-                <span>{isSigned ? "Assinado" : isSent ? "Reenviar" : "Autentique"}</span>
+                <span>{isSigned ? "Assinado" : isViewed ? "Visualizado" : isSent ? "Reenviar" : "Autentique"}</span>
             </Button>
 
             {/* Modal de Pré-visualização do PDF */}

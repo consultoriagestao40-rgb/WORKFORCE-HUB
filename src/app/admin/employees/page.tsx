@@ -8,9 +8,8 @@ import { syncAdmittedCandidatesToEmployees } from "@/actions/recruitment";
 async function getData() {
     try {
         await cleanupVacantRotativoPostos();
-        await syncAdmittedCandidatesToEmployees();
     } catch (e) {
-        console.error("Error in employees page pre-load sync:", e);
+        console.error("Error in employees page cleanup:", e);
     }
 
     const [employees, situations, roles, companies, postos] = await Promise.all([

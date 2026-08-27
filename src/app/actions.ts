@@ -950,6 +950,16 @@ export async function assignEmployee(formData: FormData) {
             });
         }
 
+        // 2.1 Garantir que nenhuma outra alocação ativa residual permaneça aberta neste posto
+        await tx.assignment.updateMany({
+            where: {
+                postoId,
+                endDate: null,
+                employeeId: { not: employeeId }
+            },
+            data: { endDate: new Date() }
+        });
+
         // 3. Create new assignment
         await tx.assignment.create({
             data: {
@@ -1035,11 +1045,15 @@ export async function unassignEmployee(formData: FormData) {
         if (!situation) return { error: "Situação não encontrada" };
 
         await prisma.$transaction(async (tx) => {
-            // 1. End current assignment
-            await tx.assignment.update({
-                where: { id: currentAssignment.id },
+            // 1. End ALL active assignments for this posto (not just one — prevents ghost reassignments)
+            await tx.assignment.updateMany({
+                where: {
+                    postoId,
+                    endDate: null
+                },
                 data: { endDate }
             });
+
 
             // 2. Update employee situation with dismissal dates in extraFields
             let dismissalProcess: any = null;

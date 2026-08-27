@@ -517,6 +517,8 @@ export async function getBenefitsCalculation(year: number, month: number) {
             // Default next due date: 5 days after admission for VT
             const defaultNextDue = new Date(admissionDateObj);
             defaultNextDue.setDate(defaultNextDue.getDate() + config.vtFractionDays);
+            nextPaymentDueDate = defaultNextDue.toLocaleDateString('pt-BR');
+        }
         // Base VT daily rates strictly from Employee record or Posto record
         const vtDailyValue = (emp.valeTransporte && emp.valeTransporte > 0)
             ? emp.valeTransporte
@@ -813,8 +815,8 @@ export async function getBenefitsCalculation(year: number, month: number) {
             vaMealsProvidedOnSite: mealsProvided,
             vaPaidOnVacation: paidOnVacation,
             vaVacationDeduction,
-            absenteismoAward,
-            absenteismoPeriod
+            absenteismoAward: absenteismoAward || 0,
+            absenteismoPeriod: absenteismoPeriod || "mensal",
         };
     });
 
