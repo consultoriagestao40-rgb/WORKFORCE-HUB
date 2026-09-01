@@ -14,7 +14,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
-import { Upload, FileSpreadsheet } from "lucide-react";
+import { Upload, FileSpreadsheet, FileText } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { importPayrollSecullumCalculations, SecullumImportRow } from "@/actions/payroll";
@@ -110,9 +110,73 @@ export function ImportSecullumSheetDialog({
         return isNaN(num) ? 0 : num;
     };
 
+    const handlePdfUpload = async (file: File) => {
+        setFileName(file.name);
+        setIsLoading(true);
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const res = await fetch("/api/admin/parse-cartao-ponto", {
+                method: "POST",
+                body: formData,
+            });
+
+            const data = await res.json();
+
+            if (!res.ok || data.error) {
+                toast.error(data.error || "Erro ao processar o PDF.");
+                return;
+            }
+
+            const rowsToImport: SecullumImportRow[] = [];
+            const previewRows: any[] = [];
+
+            for (const emp of data.employees) {
+                const identifier = emp.cpf || emp.name || emp.folha;
+                if (!identifier) continue;
+
+                rowsToImport.push({
+                    employeeIdentifier: identifier,
+                    adicionalNoturnoHours: Math.round(emp.notHours * 100) / 100,
+                    extras50Hours: Math.round(emp.extrasHours * 100) / 100,
+                    extras100Hours: 0,
+                    atrasosHours: Math.round(emp.faltasHours * 100) / 100,
+                });
+
+                previewRows.push({
+                    name: emp.name || identifier,
+                    cpf: emp.cpf || "-",
+                    folha: emp.folha || "-",
+                    notHours: emp.notHours,
+                    extrasHours: emp.extrasHours,
+                    atrasosHours: emp.faltasHours,
+                });
+            }
+
+            if (rowsToImport.length === 0) {
+                toast.error("Nenhuma linha de colaborador válida foi identificada no PDF.");
+            } else {
+                setParsedRows(rowsToImport);
+                setRawRowsPreview(previewRows);
+                toast.success(`${rowsToImport.length} colaboradores detectados no PDF!`);
+            }
+        } catch (err: any) {
+            toast.error("Erro ao processar o PDF: " + (err.message || "Tente novamente"));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
+        // Route PDF files to the server-side PDF parser
+        if (file.name.toLowerCase().endsWith(".pdf")) {
+            handlePdfUpload(file);
+            return;
+        }
 
         setFileName(file.name);
         setIsLoading(true);
@@ -427,7 +491,7 @@ export function ImportSecullumSheetDialog({
                     <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-emerald-500 transition-colors bg-slate-50/50">
                         <input
                             type="file"
-                            accept=".xlsx, .xls, .csv"
+                            accept=".xlsx, .xls, .csv, .pdf"
                             onChange={handleFileUpload}
                             className="hidden"
                             id="secullum-sheet-upload"
@@ -437,14 +501,24 @@ export function ImportSecullumSheetDialog({
                             htmlFor="secullum-sheet-upload"
                             className="cursor-pointer flex flex-col items-center justify-center space-y-2"
                         >
-                            <div className="p-3 bg-white shadow-sm border border-slate-200 rounded-full text-emerald-600">
-                                <Upload className="w-6 h-6" />
-                            </div>
+                            {isLoading ? (
+                                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-600 animate-pulse">
+                                    <Upload className="w-6 h-6" />
+                                </div>
+                            ) : fileName?.toLowerCase().endsWith(".pdf") ? (
+                                <div className="p-3 bg-rose-50 border border-rose-200 rounded-full text-rose-600">
+                                    <FileText className="w-6 h-6" />
+                                </div>
+                            ) : (
+                                <div className="p-3 bg-white shadow-sm border border-slate-200 rounded-full text-emerald-600">
+                                    <Upload className="w-6 h-6" />
+                                </div>
+                            )}
                             <span className="font-semibold text-slate-700 text-base">
-                                {fileName || "Clique para selecionar a Planilha de Cartão Ponto ou Cálculos do Secullum"}
+                                {isLoading ? "Processando arquivo..." : fileName || "Clique para selecionar a Planilha ou PDF do Cartão Ponto"}
                             </span>
                             <span className="text-xs text-slate-400">
-                                Formatos aceitos: .XLSX, .XLS ou .CSV (Cartão Ponto Completo ou Relatório de Cálculos)
+                                Formatos aceitos: .PDF · .XLSX · .XLS · .CSV (Cartão Ponto Secullum)
                             </span>
                         </label>
                     </div>
