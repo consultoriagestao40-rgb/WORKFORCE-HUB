@@ -86,6 +86,10 @@ export interface PayrollPreviewItem {
     // Situation & Dismissal detail
     situationName: string;
     situationColor?: string;
+
+    // Vacations detail
+    vacationDays: number;
+    vacationDatesStr: string;
 }
 
 function getUniqueWeeksCount(dates: Date[]): number {
@@ -153,6 +157,7 @@ export async function getPayrollPreview(year: number, month: number) {
                 },
                 orderBy: { date: "asc" }
             },
+            vacations: true,
             monthlyCalculations: {
                 where: { year, month }
             }
@@ -193,6 +198,12 @@ export async function getPayrollPreview(year: number, month: number) {
         const admissionDayVal = admissionDateObj.getUTCDate();
         const isAdmittedThisMonth = (admissionYear === year && admissionMonth === month);
 
+        // Check if employee has a dismissal process with lastWorkingDay (e.g. Processo de abandono)
+        const extraFields = (emp.extraFields as any) || {};
+        const dismissalProc = extraFields.dismissalProcess;
+        const lastWorkingDayStr = dismissalProc?.lastWorkingDay;
+        const lastWorkingDayObj = lastWorkingDayStr ? new Date(lastWorkingDayStr) : null;
+
         let daysWorked = totalDaysInMonth;
         let baseSalary = emp.salary;
         let insalubridade = emp.insalubridade;
@@ -200,7 +211,26 @@ export async function getPayrollPreview(year: number, month: number) {
         let gratificacao = emp.gratificacao;
         let outrosAdicionais = emp.outrosAdicionais;
 
-        if (isAdmittedThisMonth) {
+        // If employee was admitted and/or stopped working this month (due to abandonment / dismissal)
+        if (lastWorkingDayObj) {
+            const lwdYear = lastWorkingDayObj.getUTCFullYear();
+            const lwdMonth = lastWorkingDayObj.getUTCMonth() + 1;
+            const lwdDay = lastWorkingDayObj.getUTCDate();
+
+            // If last working day is in this month or earlier
+            if (lwdYear === year && lwdMonth === month) {
+                const startDay = isAdmittedThisMonth ? admissionDayVal : 1;
+                daysWorked = Math.max(0, lwdDay - startDay + 1);
+            } else if (lastWorkingDayObj < new Date(year, month - 1, 1)) {
+                // Stopped working in a previous month
+                daysWorked = 0;
+            }
+            baseSalary = Math.round(((emp.salary / totalDaysInMonth) * daysWorked) * 100) / 100;
+            insalubridade = Math.round(((emp.insalubridade / totalDaysInMonth) * daysWorked) * 100) / 100;
+            periculosidade = Math.round(((emp.periculosidade / totalDaysInMonth) * daysWorked) * 100) / 100;
+            gratificacao = Math.round(((emp.gratificacao / totalDaysInMonth) * daysWorked) * 100) / 100;
+            outrosAdicionais = Math.round(((emp.outrosAdicionais / totalDaysInMonth) * daysWorked) * 100) / 100;
+        } else if (isAdmittedThisMonth) {
             daysWorked = totalDaysInMonth - admissionDayVal + 1;
             baseSalary = Math.round(((emp.salary / totalDaysInMonth) * daysWorked) * 100) / 100;
             insalubridade = Math.round(((emp.insalubridade / totalDaysInMonth) * daysWorked) * 100) / 100;
@@ -208,6 +238,29 @@ export async function getPayrollPreview(year: number, month: number) {
             gratificacao = Math.round(((emp.gratificacao / totalDaysInMonth) * daysWorked) * 100) / 100;
             outrosAdicionais = Math.round(((emp.outrosAdicionais / totalDaysInMonth) * daysWorked) * 100) / 100;
         }
+
+        // Vacation check for this reference month
+        const monthStart = new Date(year, month - 1, 1);
+        const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+        let vacationDaysInMonth = 0;
+        const vacationDatesList: string[] = [];
+
+        for (const vac of emp.vacations || []) {
+            const vStart = new Date(vac.startDate);
+            const vEnd = new Date(vac.endDate);
+            if (vStart <= monthEnd && vEnd >= monthStart) {
+                const cStart = new Date(Math.max(vStart.getTime(), monthStart.getTime()));
+                const cEnd = new Date(Math.min(vEnd.getTime(), monthEnd.getTime()));
+                const dTime = Math.abs(cEnd.getTime() - cStart.getTime());
+                const days = Math.ceil(dTime / (1000 * 60 * 60 * 24)) + 1;
+                vacationDaysInMonth += days;
+                
+                const fmtStart = `${String(vStart.getUTCDate()).padStart(2, '0')}/${String(vStart.getUTCMonth() + 1).padStart(2, '0')}`;
+                const fmtEnd = `${String(vEnd.getUTCDate()).padStart(2, '0')}/${String(vEnd.getUTCMonth() + 1).padStart(2, '0')}`;
+                vacationDatesList.push(`${fmtStart} a ${fmtEnd} (${days}d)`);
+            }
+        }
+        const vacationDatesStr = vacationDatesList.length > 0 ? vacationDatesList.join(", ") : "-";
 
         const totalGrossSalaryBase = baseSalary + insalubridade + periculosidade + gratificacao + outrosAdicionais;
 
@@ -264,7 +317,6 @@ export async function getPayrollPreview(year: number, month: number) {
         const emprestimos = calc?.emprestimos || 0;
 
         // Load custom adjustments from extraFields.monthlyAdjustments for this year-month
-        const extraFields = (emp.extraFields as any) || {};
         const monthlyAdj = extraFields.monthlyAdjustments?.[`${year}-${month}`] || {};
         const convenios = monthlyAdj.convenios || 0;
         const sindicato = monthlyAdj.sindicato || 0;
@@ -436,7 +488,9 @@ export async function getPayrollPreview(year: number, month: number) {
             totalDaysInMonth,
             originalSalary: emp.salary,
             situationName: emp.situation?.name || "Ativo",
-            situationColor: emp.situation?.color || undefined
+            situationColor: emp.situation?.color || undefined,
+            vacationDays: vacationDaysInMonth,
+            vacationDatesStr
         };
     });
 

@@ -573,6 +573,8 @@ export default function PayrollPreviewPage() {
                     "Desc. DSR (R$)": item.dsrDeduction,
                     "Atestados (Dias)": item.atestadosCount || 0,
                     "Datas dos Atestados": atestadosDatesStr,
+                    "Férias (Dias)": item.vacationDays || 0,
+                    "Datas das Férias": item.vacationDatesStr || "-",
                     "VT Líquido Creditado (R$)": item.vtNetValue,
                     "Alíquota Desc. VT (%)": item.vtDiscountPercentage,
                     "Desc. VT em Folha (R$)": item.vtPayrollDiscount,
