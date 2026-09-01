@@ -541,6 +541,7 @@ export default function PayrollPreviewPage() {
                 return {
                     "Colaborador": item.employeeName,
                     "CPF": item.employeeCpf,
+                    "Situação": item.situationName || "Ativo",
                     "Empresa": item.companyName,
                     "Cliente / Contrato": item.clientName,
                     "Posto / Função": item.postoName,
@@ -1180,6 +1181,14 @@ export default function PayrollPreviewPage() {
                                             <div>
                                                 <div className="flex items-center gap-1.5">
                                                     <span className="font-bold text-slate-900 text-[13px]">{item.employeeName}</span>
+                                                    {item.situationName && item.situationName !== "Ativo" && (
+                                                        <span 
+                                                            className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md text-white shadow-xs"
+                                                            style={{ backgroundColor: item.situationColor || '#ef4444' }}
+                                                        >
+                                                            {item.situationName}
+                                                        </span>
+                                                    )}
                                                     <button 
                                                         onClick={() => handleOpenEditDeductions(item)}
                                                         className="text-slate-400 hover:text-slate-800 hover:bg-slate-100 p-0.5 rounded transition-all cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100"

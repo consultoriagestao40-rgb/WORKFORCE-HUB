@@ -417,6 +417,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
         include: {
             company: true,
             role: true,
+            situation: true,
             assignments: {
                 where: { endDate: null },
                 include: {
@@ -536,6 +537,11 @@ export async function getBenefitsCalculation(year: number, month: number) {
         const pivotDateForVt = activeAssignment?.startDate ? new Date(activeAssignment.startDate) : admissionDateObj;
         const scheduledWorkDays = getVtDaysForDaily(posto?.schedule || "5x2", pivotDateForVt, year, month);
 
+        const situationName = emp.situation?.name || "Ativo";
+        const isAbandonment = situationName === "Processo de abandono";
+        const isAfastadoInss = situationName === "AFASTADO INSS";
+        const isBlockedFromBenefits = isAbandonment || isAfastadoInss;
+
         // VT 1 Calculation (Escala x Valor Diário - Faltas x Valor Diário)
         let vtBaseValue = 0;
         let vtDeductionValue = 0;
@@ -543,7 +549,12 @@ export async function getBenefitsCalculation(year: number, month: number) {
         let vtNeedsAlert = false;
         let vtBatchNote = "";
 
-        if (!emp.vtOptIn) {
+        if (isBlockedFromBenefits) {
+            vtBaseValue = 0;
+            vtDeductionValue = 0;
+            vtTotalValue = 0;
+            vtBatchNote = `Bloqueado (${situationName})`;
+        } else if (!emp.vtOptIn) {
             vtBaseValue = 0;
             vtDeductionValue = 0;
             vtTotalValue = 0;
@@ -574,7 +585,12 @@ export async function getBenefitsCalculation(year: number, month: number) {
         let vtNeedsAlert2 = false;
         let vtBatchNote2 = "";
 
-        if (!emp.vtOptIn || vtDailyValue2 <= 0) {
+        if (isBlockedFromBenefits) {
+            vtBaseValue2 = 0;
+            vtDeductionValue2 = 0;
+            vtTotalValue2 = 0;
+            vtBatchNote2 = `Bloqueado (${situationName})`;
+        } else if (!emp.vtOptIn || vtDailyValue2 <= 0) {
             vtBaseValue2 = 0;
             vtDeductionValue2 = 0;
             vtTotalValue2 = 0;
@@ -621,7 +637,12 @@ export async function getBenefitsCalculation(year: number, month: number) {
         let vaNeedsAlert = false;
         let vaBatchNote = "";
 
-        if (isNewHire) {
+        if (isBlockedFromBenefits) {
+            vaBaseValue = 0;
+            vaDeductionValue = 0;
+            vaTotalValue = 0;
+            vaBatchNote = `Bloqueado (${situationName})`;
+        } else if (isNewHire) {
             // New hire fracionated VA: 10-day batches after card delivery
             const daysSinceAdmission = Math.floor((now.getTime() - admissionDateObj.getTime()) / (1000 * 60 * 60 * 24));
             if (daysSinceAdmission < config.vaCardDeliveryEstimateDays) {

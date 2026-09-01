@@ -82,6 +82,10 @@ export interface PayrollPreviewItem {
     daysWorked: number;
     totalDaysInMonth: number;
     originalSalary: number;
+
+    // Situation & Dismissal detail
+    situationName: string;
+    situationColor?: string;
 }
 
 function getUniqueWeeksCount(dates: Date[]): number {
@@ -130,6 +134,7 @@ export async function getPayrollPreview(year: number, month: number) {
         include: {
             company: true,
             role: true,
+            situation: true,
             assignments: {
                 where: { endDate: null },
                 include: {
@@ -429,7 +434,9 @@ export async function getPayrollPreview(year: number, month: number) {
             admissionDate: new Date(emp.admissionDate).toLocaleDateString('pt-BR'),
             daysWorked,
             totalDaysInMonth,
-            originalSalary: emp.salary
+            originalSalary: emp.salary,
+            situationName: emp.situation?.name || "Ativo",
+            situationColor: emp.situation?.color || undefined
         };
     });
 
