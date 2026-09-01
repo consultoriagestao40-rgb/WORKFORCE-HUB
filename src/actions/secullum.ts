@@ -483,22 +483,15 @@ export async function syncSecullumOccurrences(year: number, month: number, compa
                                 notHours = notIdx !== -1 && notIdx < totais.length ? parseTimeToHours(totais[notIdx]) : 0;
                                 extras50Hours = extrasHours;
                             }
-                        } catch (err) {}
-                    }
-
-                    // Fallback: If notHours is still 0, compute from batidas
-                    if (notHours === 0) {
-                        const empBatidas = employeeBatidasMap.get(emp.id) || [];
-                        let sumNight = 0;
-                        for (const b of empBatidas) {
-                            sumNight += calcNightHoursFromPunches(b.Entrada1, b.Saida1, b.Entrada2, b.Saida2);
-                        }
-                        if (sumNight > 0) {
-                            notHours = Math.round(sumNight * 100) / 100;
+                        } catch (err) {
+                            // API rate limited or error — skip this employee entirely
+                            // Do NOT overwrite existing DB value with wrong estimates
+                            return;
                         }
                     }
 
-                    // Upsert monthly calculation if any hour is present or update existing record
+                    // Only save to DB if we got real data from the official Secullum API
+                    // Never save fallback/estimated values that would corrupt the payroll
                     if (notHours > 0 || extras50Hours > 0 || extras100Hours > 0 || atrasosHours > 0) {
                         await prisma.employeeMonthlyCalculus.upsert({
                             where: {
