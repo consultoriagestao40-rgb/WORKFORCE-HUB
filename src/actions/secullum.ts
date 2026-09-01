@@ -391,8 +391,10 @@ export async function syncSecullumOccurrences(year: number, month: number, compa
         // Helper: Calculate CLT night hours from punch strings
         const calcNightHoursFromPunches = (e1?: string, s1?: string, e2?: string, s2?: string, e3?: string, s3?: string): number => {
             const parseM = (t?: string) => {
-                if (!t || !t.includes(":")) return null;
-                const [h, m] = t.trim().split(":").map(Number);
+                if (!t || typeof t !== "string") return null;
+                const clean = t.replace(/[*¨^]/g, "").trim();
+                if (!clean.includes(":")) return null;
+                const [h, m] = clean.split(":").map(Number);
                 if (isNaN(h) || isNaN(m)) return null;
                 return h * 60 + m;
             };
@@ -448,11 +450,17 @@ export async function syncSecullumOccurrences(year: number, month: number, compa
                                 const cols = res.Colunas as string[];
                                 const totais = res.Totais as string[];
                                 
-                                const atrasIdx = cols.findIndex(c => /Atras/i.test(c));
+                                const faltasIdx = cols.findIndex(c => /^Faltas?$/i.test(c));
+                                const atrasIdx = cols.findIndex(c => /^Atras\.?$/i.test(c) || /Atraso/i.test(c));
                                 const extrasIdx = cols.findIndex(c => /^Extras?$/i.test(c));
-                                let notIdx = cols.findIndex(c => /Not\.Tot/i.test(c));
+                                
+                                // Prioritize exact "Not." (nominal night hours) over "Not.Tot."
+                                let notIdx = cols.findIndex(c => /^Not\.?$/i.test(c));
                                 if (notIdx === -1) {
-                                    notIdx = cols.findIndex(c => /^Not\./i.test(c) || /Noturna/i.test(c) || /Adic\.?\s*Not/i.test(c));
+                                    notIdx = cols.findIndex(c => /^Noturna/i.test(c) || /Adic\.?\s*Not/i.test(c));
+                                }
+                                if (notIdx === -1) {
+                                    notIdx = cols.findIndex(c => /Not\.Tot/i.test(c));
                                 }
                                 
                                 const parseTimeToHours = (timeStr: string): number => {
@@ -467,7 +475,10 @@ export async function syncSecullumOccurrences(year: number, month: number, compa
                                     return isNegative ? -decimal : decimal;
                                 };
                                 
-                                atrasosHours = atrasIdx !== -1 && atrasIdx < totais.length ? parseTimeToHours(totais[atrasIdx]) : 0;
+                                const faltasHours = faltasIdx !== -1 && faltasIdx < totais.length ? parseTimeToHours(totais[faltasIdx]) : 0;
+                                const atrasosVal = atrasIdx !== -1 && atrasIdx < totais.length ? parseTimeToHours(totais[atrasIdx]) : 0;
+                                atrasosHours = Math.round((faltasHours + atrasosVal) * 100) / 100;
+                                
                                 const extrasHours = extrasIdx !== -1 && extrasIdx < totais.length ? parseTimeToHours(totais[extrasIdx]) : 0;
                                 notHours = notIdx !== -1 && notIdx < totais.length ? parseTimeToHours(totais[notIdx]) : 0;
                                 extras50Hours = extrasHours;

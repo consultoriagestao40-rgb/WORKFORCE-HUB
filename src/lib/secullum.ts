@@ -233,9 +233,9 @@ export class SecullumApiClient {
                     method: "POST",
                     headers: finalHeaders,
                     body: JSON.stringify({
-                        funcionarioCpf: cpf,
-                        dataInicial: cleanStartDate,
-                        dataFinal: cleanEndDate
+                        FuncionarioCpf: cpf,
+                        DataInicial: cleanStartDate,
+                        DataFinal: cleanEndDate
                     }),
                     cache: "no-store"
                 });
