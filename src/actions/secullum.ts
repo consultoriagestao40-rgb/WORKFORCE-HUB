@@ -92,7 +92,7 @@ export async function testSecullumConnectionAction(apiUrl?: string, apiToken?: s
 }
 
 // 2. Sync Occurrences from Secullum Action
-export async function syncSecullumOccurrences(year: number, month: number, bypassAuth = false) {
+export async function syncSecullumOccurrences(year: number, month: number, companyNameOrId?: string, bypassAuth = false) {
     if (!bypassAuth) {
         const user = await getCurrentUser();
         if (!user) throw new Error("Não autorizado.");
@@ -137,13 +137,23 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
             }
         });
 
-        // B. Fetch active DB employees and build a lookup map: cleanedCpf -> employeeId
+        // B. Fetch active DB employees (optionally filtered by company) and build a lookup map
+        const whereClause: any = {};
+        if (companyNameOrId && companyNameOrId !== "all") {
+            whereClause.OR = [
+                { companyId: companyNameOrId },
+                { company: { name: companyNameOrId } }
+            ];
+        }
+
         const dbEmployees = await prisma.employee.findMany({
+            where: whereClause,
             select: { 
                 id: true, 
                 cpf: true, 
                 name: true,
                 admissionDate: true,
+                company: { select: { name: true } },
                 assignments: {
                     where: { endDate: null },
                     include: {

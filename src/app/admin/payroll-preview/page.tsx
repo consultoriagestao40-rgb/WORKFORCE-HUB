@@ -36,6 +36,7 @@ import { syncSecullumOccurrences } from "@/actions/secullum";
 import * as XLSX from "xlsx";
 import Link from "next/link";
 import { ClipboardCheck } from "lucide-react";
+import { ImportSecullumSheetDialog } from "@/components/admin/ImportSecullumSheetDialog";
 
 export default function PayrollPreviewPage() {
     const today = new Date();
@@ -98,7 +99,7 @@ export default function PayrollPreviewPage() {
     const handleSyncSecullum = async () => {
         setIsSyncingSecullum(true);
         try {
-            const res = await syncSecullumOccurrences(selectedYear, selectedMonth);
+            const res = await syncSecullumOccurrences(selectedYear, selectedMonth, selectedCompany !== "all" ? selectedCompany : undefined);
             if (res.success) {
                 toast.success(res.message);
                 loadData();
@@ -665,15 +666,27 @@ export default function PayrollPreviewPage() {
                             </Select>
                         </div>
 
-                        {/* Sincronizar Secullum */}
+                        {/* Sincronizar Secullum (Filtrado por empresa selecionada ou todas) */}
                         <button
                             onClick={handleSyncSecullum}
                             disabled={isSyncingSecullum}
                             className="flex items-center gap-2 bg-sky-600 hover:bg-sky-500 disabled:bg-sky-800/50 text-white font-bold text-xs h-11 px-4 rounded-2xl border border-sky-500/30 transition-all cursor-pointer shadow-lg shadow-slate-950/20 active:scale-[0.98] disabled:cursor-not-allowed"
+                            title={selectedCompany !== "all" ? `Sincronizar apenas ${selectedCompany}` : "Sincronizar todas as empresas"}
                         >
                             <RefreshCw className={`w-4 h-4 ${isSyncingSecullum ? 'animate-spin' : ''}`} />
-                            <span>{isSyncingSecullum ? 'Sincronizando...' : 'Sincronizar Secullum'}</span>
+                            <span>
+                                {isSyncingSecullum 
+                                    ? 'Sincronizando...' 
+                                    : (selectedCompany !== "all" ? `Sincronizar (${selectedCompany.substring(0, 15)}...)` : 'Sincronizar Secullum')}
+                            </span>
                         </button>
+
+                        {/* Importar Planilha de Ponto Secullum */}
+                        <ImportSecullumSheetDialog 
+                            year={selectedYear} 
+                            month={selectedMonth} 
+                            onSuccess={loadData} 
+                        />
 
                         {/* Exportar Excel */}
                         <button

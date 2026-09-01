@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { revalidatePath } from "next/cache";
 import { getBenefitsCalculation } from "./benefits";
 
 export interface PayrollOccurrenceDetail {
@@ -541,3 +542,97 @@ export async function updateMonthlyDeductions(
 
     return { success: true };
 }
+
+export interface SecullumImportRow {
+    employeeIdentifier: string; // CPF, RE/NumeroFolha, or Full Name
+    adicionalNoturnoHours: number;
+    extras50Hours: number;
+    extras100Hours: number;
+    atrasosHours: number;
+}
+
+export async function importPayrollSecullumCalculations(
+    year: number,
+    month: number,
+    rows: SecullumImportRow[]
+) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado.");
+
+    const dbEmployees = await prisma.employee.findMany({
+        select: { id: true, name: true, cpf: true }
+    });
+
+    function normalizeName(name: string) {
+        return name
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9\s]/g, "")
+            .replace(/\s+/g, " ")
+            .trim();
+    }
+
+    let updatedCount = 0;
+
+    for (const row of rows) {
+        const rawId = (row.employeeIdentifier || "").trim();
+        const cleanCpf = rawId.replace(/\D/g, "");
+        const normName = normalizeName(rawId);
+
+        let employee = null;
+
+        // 1. Try matching by CPF if valid
+        if (cleanCpf.length === 11) {
+            employee = dbEmployees.find(e => e.cpf && e.cpf.replace(/\D/g, "") === cleanCpf);
+        }
+
+        // 2. Try matching by normalized full name
+        if (!employee) {
+            employee = dbEmployees.find(e => normalizeName(e.name) === normName);
+        }
+
+        // 3. Try matching by partial name (first 2 words + last word)
+        if (!employee) {
+            const parts = normName.split(" ");
+            if (parts.length >= 2) {
+                employee = dbEmployees.find(e => {
+                    const eNorm = normalizeName(e.name);
+                    return eNorm.startsWith(parts[0]) && eNorm.includes(parts[parts.length - 1]);
+                });
+            }
+        }
+
+        if (employee) {
+            await prisma.employeeMonthlyCalculus.upsert({
+                where: {
+                    employeeId_year_month: {
+                        employeeId: employee.id,
+                        year,
+                        month
+                    }
+                },
+                update: {
+                    adicionalNoturnoHours: row.adicionalNoturnoHours,
+                    extras50Hours: row.extras50Hours,
+                    extras100Hours: row.extras100Hours,
+                    atrasosHours: row.atrasosHours
+                },
+                create: {
+                    employeeId: employee.id,
+                    year,
+                    month,
+                    adicionalNoturnoHours: row.adicionalNoturnoHours,
+                    extras50Hours: row.extras50Hours,
+                    extras100Hours: row.extras100Hours,
+                    atrasosHours: row.atrasosHours
+                }
+            });
+            updatedCount++;
+        }
+    }
+
+    revalidatePath("/admin/payroll-preview");
+    return { success: true, updatedCount, totalProcessed: rows.length };
+}
+
