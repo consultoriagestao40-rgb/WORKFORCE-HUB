@@ -359,6 +359,58 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
 
         }
 
+        // Pre-group batidas by employeeId
+        const employeeBatidasMap = new Map<string, typeof batidas>();
+        for (const b of batidas) {
+            const folha = b.Funcionario?.NumeroFolha?.trim();
+            if (!folha) continue;
+            const cleanCpf = folhaToCpfMap.get(folha);
+            let empId = cleanCpf ? cpfToEmployeeIdMap.get(cleanCpf) : undefined;
+            if (!empId) {
+                const secEmp = secullumEmployees.find(se => se.NumeroFolha && se.NumeroFolha.trim() === folha);
+                if (secEmp) {
+                    empId = matchEmployeeByName(secEmp.Nome, dbEmployees) || undefined;
+                }
+            }
+            if (empId) {
+                if (!employeeBatidasMap.has(empId)) employeeBatidasMap.set(empId, []);
+                employeeBatidasMap.get(empId)!.push(b);
+            }
+        }
+
+        // Helper: Calculate CLT night hours from punch strings
+        const calcNightHoursFromPunches = (e1?: string, s1?: string, e2?: string, s2?: string, e3?: string, s3?: string): number => {
+            const parseM = (t?: string) => {
+                if (!t || !t.includes(":")) return null;
+                const [h, m] = t.trim().split(":").map(Number);
+                if (isNaN(h) || isNaN(m)) return null;
+                return h * 60 + m;
+            };
+            const pairs = [
+                [parseM(e1), parseM(s1)],
+                [parseM(e2), parseM(s2)],
+                [parseM(e3), parseM(s3)]
+            ];
+            let nightM = 0;
+            for (let [start, end] of pairs) {
+                if (start === null || end === null) continue;
+                if (end <= start) end += 24 * 60;
+                const nightStart = 22 * 60;
+                const isNightShift = start >= nightStart || start <= 5 * 60;
+                const effectiveNightEnd = isNightShift ? end : Math.min(end, 29 * 60);
+                const oStart = Math.max(start, nightStart);
+                const oEnd = Math.min(end, effectiveNightEnd);
+                if (oEnd > oStart) {
+                    nightM += (oEnd - oStart) * (60 / 52.5);
+                }
+                if (start < 5 * 60) {
+                    const mEnd = Math.min(end, 5 * 60);
+                    if (mEnd > start) nightM += (mEnd - start) * (60 / 52.5);
+                }
+            }
+            return nightM / 60;
+        };
+
         // E. Fetch calculations for each employee in parallel chunks to prevent timeouts and rate-limits
         const chunkSize = 5; // 5 parallel requests
         for (let i = 0; i < dbEmployees.length; i += chunkSize) {
@@ -373,66 +425,60 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
                             cleanCpf = cleanCpfStr(secEmp.Cpf);
                         }
                     }
-                    if (!cleanCpf || cleanCpf.length < 11) return;
 
-                    const res = await client.getCalculos(cleanCpf, startDateStr, endDateStr);
-                    if (res && res.Colunas && res.Totais) {
-                        const cols = res.Colunas as string[];
-                        const totais = res.Totais as string[];
-                        
-                        const atrasIdx = cols.findIndex(c => /Atras/i.test(c));
-                        const extrasIdx = cols.findIndex(c => /^Extras?$/i.test(c));
-                        let notIdx = cols.findIndex(c => /Not\.Tot/i.test(c));
-                        if (notIdx === -1) {
-                            notIdx = cols.findIndex(c => /^Not\./i.test(c) || /Noturna/i.test(c) || /Adic\.?\s*Not/i.test(c));
-                        }
-                        
-                        const parseTimeToHours = (timeStr: string): number => {
-                            if (!timeStr) return 0;
-                            const isNegative = timeStr.startsWith("-");
-                            const cleanStr = isNegative ? timeStr.substring(1) : timeStr;
-                            const parts = cleanStr.split(":");
-                            if (parts.length < 2) return 0;
-                            const hours = parseInt(parts[0], 10) || 0;
-                            const minutes = parseInt(parts[1], 10) || 0;
-                            const decimal = hours + (minutes / 60);
-                            return isNegative ? -decimal : decimal;
-                        };
-                        
-                        const atrasosHours = atrasIdx !== -1 && atrasIdx < totais.length ? parseTimeToHours(totais[atrasIdx]) : 0;
-                        const extrasHours = extrasIdx !== -1 && extrasIdx < totais.length ? parseTimeToHours(totais[extrasIdx]) : 0;
-                        const notHours = notIdx !== -1 && notIdx < totais.length ? parseTimeToHours(totais[notIdx]) : 0;
-                        
-                        // Separate 50% from 100% Extras based on Sunday check
-                        let extras50Hours = 0;
-                        let extras100Hours = 0;
-                        
-                        const dateIdx = cols.indexOf("Data");
-                        const extrasColIdx = cols.indexOf("Extras");
-                        
-                        if (res.Linhas && Array.isArray(res.Linhas)) {
-                            res.Linhas.forEach((row: any) => {
-                                if (row.Value && Array.isArray(row.Value)) {
-                                    const dateVal = dateIdx !== -1 ? row.Value[dateIdx] : "";
-                                    const extrasValStr = extrasColIdx !== -1 ? row.Value[extrasColIdx] : "";
-                                    const extrasVal = parseTimeToHours(extrasValStr);
-                                    
-                                    if (extrasVal > 0) {
-                                        const isSunday = row.Key ? new Date(row.Key).getDay() === 0 : (dateVal && dateVal.includes("Dom"));
-                                        if (isSunday) {
-                                            extras100Hours += extrasVal;
-                                        } else {
-                                            extras50Hours += extrasVal;
-                                        }
-                                    }
+                    let atrasosHours = 0;
+                    let extras50Hours = 0;
+                    let extras100Hours = 0;
+                    let notHours = 0;
+
+                    if (cleanCpf && cleanCpf.length === 11) {
+                        try {
+                            const res = await client.getCalculos(cleanCpf, startDateStr, endDateStr);
+                            if (res && res.Colunas && res.Totais) {
+                                const cols = res.Colunas as string[];
+                                const totais = res.Totais as string[];
+                                
+                                const atrasIdx = cols.findIndex(c => /Atras/i.test(c));
+                                const extrasIdx = cols.findIndex(c => /^Extras?$/i.test(c));
+                                let notIdx = cols.findIndex(c => /Not\.Tot/i.test(c));
+                                if (notIdx === -1) {
+                                    notIdx = cols.findIndex(c => /^Not\./i.test(c) || /Noturna/i.test(c) || /Adic\.?\s*Not/i.test(c));
                                 }
-                            });
-                        } else {
-                            extras50Hours = extrasHours;
-                            extras100Hours = 0;
+                                
+                                const parseTimeToHours = (timeStr: string): number => {
+                                    if (!timeStr) return 0;
+                                    const isNegative = timeStr.startsWith("-");
+                                    const cleanStr = isNegative ? timeStr.substring(1) : timeStr;
+                                    const parts = cleanStr.split(":");
+                                    if (parts.length < 2) return 0;
+                                    const hours = parseInt(parts[0], 10) || 0;
+                                    const minutes = parseInt(parts[1], 10) || 0;
+                                    const decimal = hours + (minutes / 60);
+                                    return isNegative ? -decimal : decimal;
+                                };
+                                
+                                atrasosHours = atrasIdx !== -1 && atrasIdx < totais.length ? parseTimeToHours(totais[atrasIdx]) : 0;
+                                const extrasHours = extrasIdx !== -1 && extrasIdx < totais.length ? parseTimeToHours(totais[extrasIdx]) : 0;
+                                notHours = notIdx !== -1 && notIdx < totais.length ? parseTimeToHours(totais[notIdx]) : 0;
+                                extras50Hours = extrasHours;
+                            }
+                        } catch (err) {}
+                    }
+
+                    // Fallback: If notHours is still 0, compute from batidas
+                    if (notHours === 0) {
+                        const empBatidas = employeeBatidasMap.get(emp.id) || [];
+                        let sumNight = 0;
+                        for (const b of empBatidas) {
+                            sumNight += calcNightHoursFromPunches(b.Entrada1, b.Saida1, b.Entrada2, b.Saida2);
                         }
-                        
-                        // Upsert monthly calculation
+                        if (sumNight > 0) {
+                            notHours = Math.round(sumNight * 100) / 100;
+                        }
+                    }
+
+                    // Upsert monthly calculation if any hour is present or update existing record
+                    if (notHours > 0 || extras50Hours > 0 || extras100Hours > 0 || atrasosHours > 0) {
                         await prisma.employeeMonthlyCalculus.upsert({
                             where: {
                                 employeeId_year_month: {
@@ -459,7 +505,7 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
                         });
                     }
                 } catch (calcErr) {
-                    // Suppress individual point API errors (e.g. employee not found in point web system)
+                    // Suppress individual point API errors
                 }
             }));
             await new Promise(r => setTimeout(r, 120));
