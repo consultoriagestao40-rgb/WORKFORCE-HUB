@@ -554,12 +554,22 @@ export interface SecullumImportRow {
 export async function importPayrollSecullumCalculations(
     year: number,
     month: number,
-    rows: SecullumImportRow[]
+    rows: SecullumImportRow[],
+    companyNameOrId?: string
 ) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Não autorizado.");
 
+    const whereClause: any = {};
+    if (companyNameOrId && companyNameOrId !== "all") {
+        whereClause.OR = [
+            { companyId: companyNameOrId },
+            { company: { name: companyNameOrId } }
+        ];
+    }
+
     const dbEmployees = await prisma.employee.findMany({
+        where: whereClause,
         select: { id: true, name: true, cpf: true }
     });
 

@@ -695,6 +695,8 @@ export default function PayrollPreviewPage() {
                         <ImportSecullumSheetDialog 
                             year={selectedYear} 
                             month={selectedMonth} 
+                            companies={uniqueCompanies}
+                            defaultCompany={selectedCompany}
                             onSuccess={loadData} 
                         />
 

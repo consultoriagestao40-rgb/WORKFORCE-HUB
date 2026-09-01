@@ -11,6 +11,9 @@ import {
     DialogTrigger,
     DialogFooter,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Upload, FileSpreadsheet } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -20,13 +23,27 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 interface ImportSecullumSheetDialogProps {
     year: number;
     month: number;
+    companies?: string[];
+    defaultCompany?: string;
     onSuccess: () => void;
 }
 
-export function ImportSecullumSheetDialog({ year, month, onSuccess }: ImportSecullumSheetDialogProps) {
+export function ImportSecullumSheetDialog({ 
+    year, 
+    month, 
+    companies = [], 
+    defaultCompany = "all", 
+    onSuccess 
+}: ImportSecullumSheetDialogProps) {
     const [open, setOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    
+    // Selectors state
+    const [targetCompany, setTargetCompany] = useState<string>(defaultCompany || "all");
+    const [targetMonth, setTargetMonth] = useState<number>(month);
+    const [targetYear, setTargetYear] = useState<number>(year);
+
     const [parsedRows, setParsedRows] = useState<SecullumImportRow[]>([]);
     const [rawRowsPreview, setRawRowsPreview] = useState<any[]>([]);
     const [fileName, setFileName] = useState<string>("");
@@ -177,7 +194,8 @@ export function ImportSecullumSheetDialog({ year, month, onSuccess }: ImportSecu
 
         setIsSaving(true);
         try {
-            const res = await importPayrollSecullumCalculations(year, month, parsedRows);
+            const comp = targetCompany !== "all" ? targetCompany : undefined;
+            const res = await importPayrollSecullumCalculations(targetYear, targetMonth, parsedRows, comp);
             if (res.success) {
                 toast.success(`${res.updatedCount} de ${res.totalProcessed} colaboradores foram atualizados com sucesso na folha!`);
                 setOpen(false);
@@ -199,11 +217,18 @@ export function ImportSecullumSheetDialog({ year, month, onSuccess }: ImportSecu
     const totalExtrasPreview = rawRowsPreview.reduce((acc, r) => acc + r.extrasHours, 0);
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(o) => {
+            setOpen(o);
+            if (o) {
+                setTargetCompany(defaultCompany || "all");
+                setTargetMonth(month);
+                setTargetYear(year);
+            }
+        }}>
             <DialogTrigger asChild>
                 <Button 
                     variant="outline" 
-                    className="bg-white hover:bg-slate-50 border-slate-200 text-slate-700 shadow-sm font-medium gap-2 h-10 px-4 rounded-xl"
+                    className="bg-white hover:bg-slate-50 border-slate-200 text-slate-700 shadow-sm font-medium gap-2 h-11 px-4 rounded-2xl"
                 >
                     <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                     <span>Importar Planilha Secullum</span>
@@ -220,13 +245,62 @@ export function ImportSecullumSheetDialog({ year, month, onSuccess }: ImportSecu
                                 Importar Planilha de Ponto (Secullum)
                             </DialogTitle>
                             <DialogDescription className="text-sm text-slate-500">
-                                Competência de Destino: <strong className="text-slate-800">{monthNames[month - 1]} / {year}</strong>
+                                Selecione a empresa e competência de destino para os cálculos importados
                             </DialogDescription>
                         </div>
                     </div>
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto space-y-4 py-2">
+                    {/* Selectors: Empresa, Mês, Ano */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
+                        {/* Empresa */}
+                        <div className="space-y-1 sm:col-span-1">
+                            <Label className="text-xs font-bold text-slate-700">Empresa de Destino</Label>
+                            <Combobox
+                                options={[
+                                    { value: "all", label: "Todas as Empresas" },
+                                    ...companies.map(c => ({ value: c, label: c }))
+                                ]}
+                                value={targetCompany}
+                                onChange={setTargetCompany}
+                                placeholder="Todas as Empresas"
+                                searchPlaceholder="Buscar empresa..."
+                                className="h-9 text-xs"
+                            />
+                        </div>
+
+                        {/* Mês */}
+                        <div className="space-y-1">
+                            <Label className="text-xs font-bold text-slate-700">Mês de Competência</Label>
+                            <Select value={String(targetMonth)} onValueChange={v => setTargetMonth(Number(v))}>
+                                <SelectTrigger className="h-9 text-xs rounded-xl bg-white border-slate-200">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-white border-slate-200 text-xs">
+                                    {monthNames.map((name, idx) => (
+                                        <SelectItem key={idx + 1} value={String(idx + 1)}>{name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Ano */}
+                        <div className="space-y-1">
+                            <Label className="text-xs font-bold text-slate-700">Ano</Label>
+                            <Select value={String(targetYear)} onValueChange={v => setTargetYear(Number(v))}>
+                                <SelectTrigger className="h-9 text-xs rounded-xl bg-white border-slate-200">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-white border-slate-200 text-xs">
+                                    <SelectItem value="2025">2025</SelectItem>
+                                    <SelectItem value="2026">2026</SelectItem>
+                                    <SelectItem value="2027">2027</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
                     {/* Upload Box */}
                     <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-emerald-500 transition-colors bg-slate-50/50">
                         <input
