@@ -18,11 +18,12 @@ export interface ExtractedHoleriteItem {
 }
 
 export type NamingPattern = 
+    | 'nome-re'
+    | 're-nome'
+    | 'nome-re-comp'
+    | 'comp-nome-re'
     | 'holerite-nome-comp'
     | 'comp-nome-cpf'
-    | 'nome-comp'
-    | 'empresa-nome-comp'
-    | 'matricula-nome-comp'
     | 'custom';
 
 // Helper to sanitize file names for OS compatibility
@@ -144,41 +145,55 @@ export function extractDataFromPageText(text: string, pageNumber: number): {
         payrollType = 'Pró-Labore';
     }
 
-    // 5. Extract Employee Name & Registration Code
-    // Common accounting patterns:
+    // 5. Extract Employee Name & Registration Code (RE / Matrícula)
+    // Common accounting patterns (Domínio, Onvio, Questor, Totvs, Alterdata, Senior, Fortes):
     // "Empregado: 000012 - JOAO DA SILVA"
-    // "Nome: JOAO DA SILVA"
-    // "Funcionário: JOAO DA SILVA"
-    // "Colaborador: JOAO DA SILVA"
-    // "Código Nome do Empregado"
+    // "RE: 000123 - JOAO DA SILVA SANTOS"
+    // "Nome: JOAO DA SILVA SANTOS"
+    // "000012 JOAO DA SILVA SANTOS CPF: 123.456.789-00"
+    
+    // Check for explicit RE / Matrícula / Código
+    const explicitReMatch = normalizedText.match(/\b(?:R\.?E\.?|RE|Matr[ií]cula|C[oó]digo|Cod|Registro|Reg)[:\s]*([0-9]{1,8})\b/i);
+    if (explicitReMatch) {
+        registrationCode = explicitReMatch[1];
+    }
+
     const nameRegexes = [
-        /(?:Empregado|Funcion[aá]rio|Colaborador|Trabalhador)[:\s]+(?:\d+\s*[-–]\s*)?([A-ZÀ-Úa-zà-ú'\.\s]{3,60})/i,
-        /Nome\s*(?:do\s*Empregado|do\s*Funcion[aá]rio|do\s*Colaborador)?[:\s]+(?:\d+\s*[-–]\s*)?([A-ZÀ-Úa-zà-ú'\.\s]{3,60})/i,
-        /C[oó]digo\s*Nome\s*do\s*Empregado[\s\S]*?(\d+)\s+([A-ZÀ-Ú\s]{3,60})/i,
-        /\b(?:00\d{2,6}|\d{1,6})\s+([A-ZÀ-Ú\s]{3,60})\s+(?:C\.?P\.?F|CPF|PIS|CARTEIRA|CARGO)/i
+        /(?:Empregado|Funcion[aá]rio|Colaborador|Trabalhador|R\.?E\.?|RE)[:\s]+(?:(\d{1,8})\s*[-–\s]\s*)?([A-ZÀ-Úa-zà-ú'\.\s]{3,80})/i,
+        /Nome\s*(?:do\s*Empregado|do\s*Funcion[aá]rio|do\s*Colaborador)?[:\s]+(?:(\d{1,8})\s*[-–\s]\s*)?([A-ZÀ-Úa-zà-ú'\.\s]{3,80})/i,
+        /C[oó]digo\s*Nome\s*do\s*Empregado[\s\S]*?(\d{1,8})\s+([A-ZÀ-Ú\s]{3,80})/i,
+        /\b(00\d{2,6}|\d{1,6})\s+([A-ZÀ-Ú\s]{3,80})\s+(?:C\.?P\.?F|CPF|PIS|CARTEIRA|CARGO|ADMISSÃO)/i,
+        /\b(?:C\.?P\.?F|CPF)[:\s]*\d{3}\.\d{3}\.\d{3}-\d{2}[\s\S]*?(?:Nome|Empregado)[:\s]+([A-ZÀ-Úa-zà-ú'\.\s]{3,80})/i
     ];
 
     for (const regex of nameRegexes) {
         const match = normalizedText.match(regex);
         if (match) {
+            // Check if captured code in group 1
+            if (match.length >= 3 && match[1] && /^\d+$/.test(match[1]) && !registrationCode) {
+                registrationCode = match[1];
+            }
+
             let extracted = match[match.length - 1].trim();
-            // Clean common trailing labels
+            // Clean common trailing labels while preserving full name
             extracted = extracted
-                .replace(/(?:C\.?P\.?F\.?|CPF|PIS|PASEP|CARTEIRA|CTPS|CBO|CARGO|DEP|FUNÇÃO|DATA|ADMISSÃO|MATRÍCULA)[\s\S]*/i, '')
+                .replace(/(?:C\.?P\.?F\.?|CPF|PIS|PASEP|CARTEIRA|CTPS|CBO|CARGO|DEP|FUNÇÃO|DATA|ADMISSÃO|MATRÍCULA|SALÁRIO|DEPARTAMENTO)[\s\S]*/i, '')
                 .replace(/\s+/g, ' ')
                 .trim();
 
-            if (extracted.length >= 3 && !/^\d+$/.test(extracted) && !/RECIBO|FOLHA|PAGAMENTO|EMPRESA|TOTAL/i.test(extracted)) {
+            if (extracted.length >= 3 && !/^\d+$/.test(extracted) && !/RECIBO|FOLHA|PAGAMENTO|EMPRESA|TOTAL|MENSAL/i.test(extracted)) {
                 employeeName = extracted.toUpperCase();
                 break;
             }
         }
     }
 
-    // Extract registration/matricula
-    const regMatch = normalizedText.match(/(?:C[oó]digo|Matr[ií]cula|Reg(?:istro)?)[:\s]*(\d{1,8})/i);
-    if (regMatch) {
-        registrationCode = regMatch[1];
+    // Secondary fallback for RE if still empty
+    if (!registrationCode) {
+        const lineCodeMatch = normalizedText.match(/\b(00\d{2,6}|\d{2,6})\s+[-–]\s+[A-ZÀ-Ú]/i);
+        if (lineCodeMatch) {
+            registrationCode = lineCodeMatch[1];
+        }
     }
 
     // 6. Extract Company Name (usually first or second line or after Razão Social)
@@ -229,37 +244,42 @@ export function generateFileName(
     let baseName = '';
 
     switch (pattern) {
+        case 'nome-re':
+            baseName = `${safeName}${safeReg ? ` - RE ${safeReg}` : ''}`;
+            break;
+        case 're-nome':
+            baseName = `${safeReg ? `RE ${safeReg} - ` : ''}${safeName}`;
+            break;
+        case 'nome-re-comp':
+            baseName = `${safeName}${safeReg ? ` - RE ${safeReg}` : ''} - ${compClean}`;
+            break;
+        case 'comp-nome-re':
+            baseName = `${compClean} - ${safeName}${safeReg ? ` - RE ${safeReg}` : ''}`;
+            break;
         case 'holerite-nome-comp':
             baseName = `Holerite_${safeName}_${compClean}`;
             break;
         case 'comp-nome-cpf':
             baseName = `${compClean} - ${safeName}${cpfDigits ? ` - ${cpfDigits}` : ''}`;
             break;
-        case 'nome-comp':
-            baseName = `${safeName} - ${compClean}`;
-            break;
-        case 'empresa-nome-comp':
-            baseName = `${safeCompany} - ${safeName} - ${compClean}`;
-            break;
-        case 'matricula-nome-comp':
-            baseName = `${safeReg ? safeReg + ' - ' : ''}${safeName} - ${compClean}`;
-            break;
         case 'custom':
             if (customTemplate) {
                 baseName = customTemplate
                     .replace(/\{nome\}/gi, safeName)
+                    .replace(/\{re\}/gi, safeReg || 'RE')
+                    .replace(/\{matricula\}/gi, safeReg || 'RE')
+                    .replace(/\{codigo\}/gi, safeReg || 'RE')
                     .replace(/\{cpf\}/gi, cpfDigits || 'CPF')
                     .replace(/\{competencia\}/gi, compClean)
                     .replace(/\{empresa\}/gi, safeCompany)
-                    .replace(/\{matricula\}/gi, safeReg || '0')
                     .replace(/\{tipo\}/gi, safeType)
                     .replace(/\{pagina\}/gi, String(item.pageIndices[0] + 1));
             } else {
-                baseName = `Holerite_${safeName}_${compClean}`;
+                baseName = `${safeName}${safeReg ? ` - RE ${safeReg}` : ''}`;
             }
             break;
         default:
-            baseName = `Holerite_${safeName}_${compClean}`;
+            baseName = `${safeName}${safeReg ? ` - RE ${safeReg}` : ''}`;
     }
 
     return `${sanitizeFileName(baseName)}.pdf`;

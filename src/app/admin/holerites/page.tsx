@@ -53,8 +53,8 @@ export default function HoleritesPage() {
     const [sourceFile, setSourceFile] = useState<File | null>(null);
     const [items, setItems] = useState<ExtractedHoleriteItem[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
-    const [namingPattern, setNamingPattern] = useState<NamingPattern>("holerite-nome-comp");
-    const [customTemplate, setCustomTemplate] = useState("{tipo}_{nome}_{competencia}");
+    const [namingPattern, setNamingPattern] = useState<NamingPattern>("nome-re");
+    const [customTemplate, setCustomTemplate] = useState("{nome} - RE {re}");
     const [folderStructure, setFolderStructure] = useState<'flat' | 'by-company' | 'by-competence'>('flat');
     
     // Selection state
@@ -508,11 +508,12 @@ export default function HoleritesPage() {
                                         <SelectValue placeholder="Selecione um padrão" />
                                     </SelectTrigger>
                                     <SelectContent className="bg-white border-slate-200 text-slate-800">
+                                        <SelectItem value="nome-re">[Nome Completo] - RE [RE].pdf</SelectItem>
+                                        <SelectItem value="re-nome">RE [RE] - [Nome Completo].pdf</SelectItem>
+                                        <SelectItem value="nome-re-comp">[Nome Completo] - RE [RE] - [Competência].pdf</SelectItem>
+                                        <SelectItem value="comp-nome-re">[Competência] - [Nome Completo] - RE [RE].pdf</SelectItem>
                                         <SelectItem value="holerite-nome-comp">Holerite_[Nome]_[Competência].pdf</SelectItem>
                                         <SelectItem value="comp-nome-cpf">[Competência] - [Nome] - [CPF].pdf</SelectItem>
-                                        <SelectItem value="nome-comp">[Nome] - [Competência].pdf</SelectItem>
-                                        <SelectItem value="empresa-nome-comp">[Empresa] - [Nome] - [Competência].pdf</SelectItem>
-                                        <SelectItem value="matricula-nome-comp">[Matrícula] - [Nome] - [Competência].pdf</SelectItem>
                                         <SelectItem value="custom">Personalizado (Fórmula)</SelectItem>
                                     </SelectContent>
                                 </Select>
@@ -538,12 +539,12 @@ export default function HoleritesPage() {
 
                             {/* Search */}
                             <div className="space-y-2">
-                                <Label className="text-xs font-bold text-slate-700">Buscar Colaborador ou CPF</Label>
+                                <Label className="text-xs font-bold text-slate-700">Buscar Colaborador, RE ou CPF</Label>
                                 <div className="relative">
                                     <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
                                     <Input 
                                         type="text" 
-                                        placeholder="Ex: João, 123.456, etc..."
+                                        placeholder="Ex: João Silva, RE 123, 123.456, etc..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         className="bg-slate-50 border-slate-200 text-slate-800 pl-9 rounded-xl"
@@ -562,15 +563,15 @@ export default function HoleritesPage() {
                                 <Input 
                                     value={customTemplate}
                                     onChange={(e) => setCustomTemplate(e.target.value)}
-                                    placeholder="Ex: {empresa}_{competencia}_{nome}"
+                                    placeholder="Ex: {nome} - RE {re}"
                                     className="bg-white border-slate-300 text-slate-900 font-mono text-sm rounded-xl"
                                 />
                                 <div className="flex flex-wrap gap-2">
-                                    {["{nome}", "{cpf}", "{competencia}", "{empresa}", "{matricula}", "{tipo}", "{pagina}"].map(tag => (
+                                    {["{nome}", "{re}", "{matricula}", "{cpf}", "{competencia}", "{empresa}", "{tipo}", "{pagina}"].map(tag => (
                                         <button
                                             key={tag}
                                             type="button"
-                                            onClick={() => setCustomTemplate(prev => `${prev}_${tag}`)}
+                                            onClick={() => setCustomTemplate(prev => `${prev} - ${tag}`)}
                                             className="px-2.5 py-1 bg-white hover:bg-teal-50 hover:text-teal-700 border border-slate-200 rounded-lg text-xs font-mono text-slate-700 transition-colors shadow-2xs"
                                         >
                                             + {tag}
@@ -622,8 +623,9 @@ export default function HoleritesPage() {
                                     <tr>
                                         <th className="p-4 w-12 text-center">#</th>
                                         <th className="p-4">Pág.</th>
-                                        <th className="p-4">Colaborador</th>
-                                        <th className="p-4">CPF / Matrícula</th>
+                                        <th className="p-4">Nome Completo do Colaborador</th>
+                                        <th className="p-4">RE / Matrícula</th>
+                                        <th className="p-4">CPF</th>
                                         <th className="p-4">Competência</th>
                                         <th className="p-4">Nome do Arquivo Gerado</th>
                                         <th className="p-4 text-right">Ações</th>
@@ -632,7 +634,7 @@ export default function HoleritesPage() {
                                 <tbody className="divide-y divide-slate-100 text-slate-700">
                                     {filteredItems.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="p-8 text-center text-slate-500">
+                                            <td colSpan={8} className="p-8 text-center text-slate-500">
                                                 Nenhum holerite encontrado com o filtro aplicado.
                                             </td>
                                         </tr>
@@ -709,14 +711,14 @@ export default function HoleritesPage() {
                                                         )}
                                                     </td>
                                                     <td className="p-4">
+                                                        <span className="px-2.5 py-1 rounded-lg bg-teal-50 text-teal-700 text-xs font-mono font-bold border border-teal-200 inline-block">
+                                                            {item.registrationCode ? `RE ${item.registrationCode}` : "Sem RE"}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4">
                                                         <div className="font-mono text-slate-800 font-medium">
                                                             {item.cpf ? formatCPF(item.cpf) : <span className="text-slate-400">-</span>}
                                                         </div>
-                                                        {item.registrationCode && (
-                                                            <div className="text-[10px] text-slate-400">
-                                                                Cód: {item.registrationCode}
-                                                            </div>
-                                                        )}
                                                     </td>
                                                     <td className="p-4">
                                                         <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200">
