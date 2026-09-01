@@ -55,6 +55,12 @@ export default function PayrollPreviewPage() {
     const [groupedView, setGroupedView] = useState<"colaborador" | "empresa" | "contrato">("colaborador");
     const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
 
+    // Sync Secullum modal state
+    const [syncModalOpen, setSyncModalOpen] = useState(false);
+    const [syncCompanyTarget, setSyncCompanyTarget] = useState<string>("all");
+    const [syncTargetMonth, setSyncTargetMonth] = useState<number>(selectedMonth);
+    const [syncTargetYear, setSyncTargetYear] = useState<number>(selectedYear);
+
     // Edit deductions modal state
     const [editDeductionsOpen, setEditDeductionsOpen] = useState(false);
     const [selectedEmployeeItem, setSelectedEmployeeItem] = useState<PayrollPreviewItem | null>(null);
@@ -96,12 +102,21 @@ export default function PayrollPreviewPage() {
         }
     };
 
-    const handleSyncSecullum = async () => {
+    const handleOpenSyncModal = () => {
+        setSyncCompanyTarget(selectedCompany !== "all" ? selectedCompany : "all");
+        setSyncTargetMonth(selectedMonth);
+        setSyncTargetYear(selectedYear);
+        setSyncModalOpen(true);
+    };
+
+    const handleExecuteSync = async () => {
         setIsSyncingSecullum(true);
         try {
-            const res = await syncSecullumOccurrences(selectedYear, selectedMonth, selectedCompany !== "all" ? selectedCompany : undefined);
+            const comp = syncCompanyTarget !== "all" ? syncCompanyTarget : undefined;
+            const res = await syncSecullumOccurrences(syncTargetYear, syncTargetMonth, comp);
             if (res.success) {
                 toast.success(res.message);
+                setSyncModalOpen(false);
                 loadData();
             } else {
                 toast.error(res.message);
@@ -666,19 +681,14 @@ export default function PayrollPreviewPage() {
                             </Select>
                         </div>
 
-                        {/* Sincronizar Secullum (Filtrado por empresa selecionada ou todas) */}
+                        {/* Sincronizar Secullum com Modal de Seleção de Empresa */}
                         <button
-                            onClick={handleSyncSecullum}
+                            onClick={handleOpenSyncModal}
                             disabled={isSyncingSecullum}
                             className="flex items-center gap-2 bg-sky-600 hover:bg-sky-500 disabled:bg-sky-800/50 text-white font-bold text-xs h-11 px-4 rounded-2xl border border-sky-500/30 transition-all cursor-pointer shadow-lg shadow-slate-950/20 active:scale-[0.98] disabled:cursor-not-allowed"
-                            title={selectedCompany !== "all" ? `Sincronizar apenas ${selectedCompany}` : "Sincronizar todas as empresas"}
                         >
                             <RefreshCw className={`w-4 h-4 ${isSyncingSecullum ? 'animate-spin' : ''}`} />
-                            <span>
-                                {isSyncingSecullum 
-                                    ? 'Sincronizando...' 
-                                    : (selectedCompany !== "all" ? `Sincronizar (${selectedCompany.substring(0, 15)}...)` : 'Sincronizar Secullum')}
-                            </span>
+                            <span>{isSyncingSecullum ? 'Sincronizando...' : 'Sincronizar Secullum'}</span>
                         </button>
 
                         {/* Importar Planilha de Ponto Secullum */}
@@ -2364,6 +2374,114 @@ export default function PayrollPreviewPage() {
                             className="bg-red-600 hover:bg-red-700 text-white font-bold gap-2"
                         >
                             {isSavingDeductions && <RefreshCw className="w-4 h-4 animate-spin" />} Salvar Lançamento
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Sincronização Secullum com Seleção de Empresa */}
+            <Dialog open={syncModalOpen} onOpenChange={setSyncModalOpen}>
+                <DialogContent className="max-w-md p-6 rounded-2xl bg-white">
+                    <DialogHeader>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-sky-50 text-sky-600 rounded-xl">
+                                <RefreshCw className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg font-bold text-slate-900">
+                                    Sincronizar com Secullum Ponto Web
+                                </DialogTitle>
+                                <DialogDescription className="text-xs text-slate-500">
+                                    Selecione a empresa e competência para sincronizar os cálculos oficiais
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-3">
+                        {/* Seleção de Empresa */}
+                        <div className="space-y-1.5">
+                            <Label className="text-xs font-bold text-slate-700">Empresa para Sincronizar</Label>
+                            <Combobox
+                                options={[
+                                    { value: "all", label: "Todas as Empresas" },
+                                    ...uniqueCompanies.map(c => ({ value: c, label: c }))
+                                ]}
+                                value={syncCompanyTarget}
+                                onChange={setSyncCompanyTarget}
+                                placeholder="Selecione a empresa..."
+                                searchPlaceholder="Buscar empresa..."
+                                className="h-10"
+                            />
+                        </div>
+
+                        {/* Seleção de Competência */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Mês de Referência</Label>
+                                <Select value={String(syncTargetMonth)} onValueChange={v => setSyncTargetMonth(Number(v))}>
+                                    <SelectTrigger className="h-10 text-xs rounded-xl bg-slate-50 border-slate-200">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-white border-slate-200 text-xs">
+                                        <SelectItem value="1">Janeiro</SelectItem>
+                                        <SelectItem value="2">Fevereiro</SelectItem>
+                                        <SelectItem value="3">Março</SelectItem>
+                                        <SelectItem value="4">Abril</SelectItem>
+                                        <SelectItem value="5">Maio</SelectItem>
+                                        <SelectItem value="6">Junho</SelectItem>
+                                        <SelectItem value="7">Julho</SelectItem>
+                                        <SelectItem value="8">Agosto</SelectItem>
+                                        <SelectItem value="9">Setembro</SelectItem>
+                                        <SelectItem value="10">Outubro</SelectItem>
+                                        <SelectItem value="11">Novembro</SelectItem>
+                                        <SelectItem value="12">Dezembro</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Ano</Label>
+                                <Select value={String(syncTargetYear)} onValueChange={v => setSyncTargetYear(Number(v))}>
+                                    <SelectTrigger className="h-10 text-xs rounded-xl bg-slate-50 border-slate-200">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-white border-slate-200 text-xs">
+                                        <SelectItem value="2025">2025</SelectItem>
+                                        <SelectItem value="2026">2026</SelectItem>
+                                        <SelectItem value="2027">2027</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        {/* Dica Informativa */}
+                        <div className="p-3 bg-sky-50/70 border border-sky-100 rounded-xl text-xs text-sky-800 flex items-start gap-2">
+                            <Info className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+                            <span>
+                                {syncCompanyTarget !== "all" 
+                                    ? `Sincronizando apenas "${syncCompanyTarget}" para garantir leitura direta e ultrarrápida da API.`
+                                    : "Sincronizará os cálculos de todas as empresas cadastradas no sistema."}
+                            </span>
+                        </div>
+                    </div>
+
+                    <DialogFooter className="pt-2 flex justify-between items-center">
+                        <Button 
+                            variant="ghost" 
+                            onClick={() => setSyncModalOpen(false)}
+                            disabled={isSyncingSecullum}
+                            className="text-slate-500"
+                        >
+                            Cancelar
+                        </Button>
+                        <Button 
+                            onClick={handleExecuteSync}
+                            disabled={isSyncingSecullum}
+                            className="bg-sky-600 hover:bg-sky-700 text-white font-medium px-5 rounded-xl shadow-sm gap-2"
+                        >
+                            <RefreshCw className={`w-4 h-4 ${isSyncingSecullum ? 'animate-spin' : ''}`} />
+                            <span>{isSyncingSecullum ? "Sincronizando..." : "Iniciar Sincronização"}</span>
                         </Button>
                     </DialogFooter>
                 </DialogContent>
