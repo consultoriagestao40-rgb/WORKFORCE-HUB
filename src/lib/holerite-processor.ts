@@ -18,8 +18,10 @@ export interface ExtractedHoleriteItem {
 }
 
 export type NamingPattern = 
-    | 'nome-re'
     | 're-nome'
+    | 'codigo-nome'
+    | 'nome-re'
+    | 're-nome-comp'
     | 'nome-re-comp'
     | 'comp-nome-re'
     | 'holerite-nome-comp'
@@ -270,17 +272,23 @@ export function generateFileName(
     let baseName = '';
 
     switch (pattern) {
+        case 're-nome':
+            baseName = `${safeReg ? `RE ${safeReg} - ` : ''}${safeName}`;
+            break;
+        case 'codigo-nome':
+            baseName = `${safeReg ? `${safeReg} - ` : ''}${safeName}`;
+            break;
         case 'nome-re':
             baseName = `${safeName}${safeReg ? ` - RE ${safeReg}` : ''}`;
             break;
-        case 're-nome':
-            baseName = `${safeReg ? `RE ${safeReg} - ` : ''}${safeName}`;
+        case 're-nome-comp':
+            baseName = `${safeReg ? `RE ${safeReg} - ` : ''}${safeName} - ${compClean}`;
             break;
         case 'nome-re-comp':
             baseName = `${safeName}${safeReg ? ` - RE ${safeReg}` : ''} - ${compClean}`;
             break;
         case 'comp-nome-re':
-            baseName = `${compClean} - ${safeName}${safeReg ? ` - RE ${safeReg}` : ''}`;
+            baseName = `${compClean} - ${safeReg ? `RE ${safeReg} - ` : ''}${safeName}`;
             break;
         case 'holerite-nome-comp':
             baseName = `Holerite_${safeName}_${compClean}`;
@@ -301,11 +309,11 @@ export function generateFileName(
                     .replace(/\{tipo\}/gi, safeType)
                     .replace(/\{pagina\}/gi, String(item.pageIndices[0] + 1));
             } else {
-                baseName = `${safeName}${safeReg ? ` - RE ${safeReg}` : ''}`;
+                baseName = `${safeReg ? `RE ${safeReg} - ` : ''}${safeName}`;
             }
             break;
         default:
-            baseName = `${safeName}${safeReg ? ` - RE ${safeReg}` : ''}`;
+            baseName = `${safeReg ? `RE ${safeReg} - ` : ''}${safeName}`;
     }
 
     return `${sanitizeFileName(baseName)}.pdf`;

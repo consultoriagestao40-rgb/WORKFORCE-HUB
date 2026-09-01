@@ -53,8 +53,8 @@ export default function HoleritesPage() {
     const [sourceFile, setSourceFile] = useState<File | null>(null);
     const [items, setItems] = useState<ExtractedHoleriteItem[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
-    const [namingPattern, setNamingPattern] = useState<NamingPattern>("nome-re");
-    const [customTemplate, setCustomTemplate] = useState("{nome} - RE {re}");
+    const [namingPattern, setNamingPattern] = useState<NamingPattern>("re-nome");
+    const [customTemplate, setCustomTemplate] = useState("RE {re} - {nome}");
     const [folderStructure, setFolderStructure] = useState<'flat' | 'by-company' | 'by-competence'>('flat');
     
     // Selection state
@@ -508,12 +508,12 @@ export default function HoleritesPage() {
                                         <SelectValue placeholder="Selecione um padrão" />
                                     </SelectTrigger>
                                     <SelectContent className="bg-white border-slate-200 text-slate-800">
+                                        <SelectItem value="re-nome">RE [RE] - [Nome Completo].pdf (Padrão)</SelectItem>
+                                        <SelectItem value="codigo-nome">[RE] - [Nome Completo].pdf</SelectItem>
                                         <SelectItem value="nome-re">[Nome Completo] - RE [RE].pdf</SelectItem>
-                                        <SelectItem value="re-nome">RE [RE] - [Nome Completo].pdf</SelectItem>
-                                        <SelectItem value="nome-re-comp">[Nome Completo] - RE [RE] - [Competência].pdf</SelectItem>
-                                        <SelectItem value="comp-nome-re">[Competência] - [Nome Completo] - RE [RE].pdf</SelectItem>
+                                        <SelectItem value="re-nome-comp">RE [RE] - [Nome Completo] - [Competência].pdf</SelectItem>
+                                        <SelectItem value="comp-nome-re">[Competência] - RE [RE] - [Nome Completo].pdf</SelectItem>
                                         <SelectItem value="holerite-nome-comp">Holerite_[Nome]_[Competência].pdf</SelectItem>
-                                        <SelectItem value="comp-nome-cpf">[Competência] - [Nome] - [CPF].pdf</SelectItem>
                                         <SelectItem value="custom">Personalizado (Fórmula)</SelectItem>
                                     </SelectContent>
                                 </Select>
