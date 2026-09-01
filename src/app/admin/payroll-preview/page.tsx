@@ -34,6 +34,8 @@ import { toast } from "sonner";
 import { getPayrollPreview, PayrollPreviewItem, updateMonthlyDeductions } from "@/actions/payroll";
 import { syncSecullumOccurrences } from "@/actions/secullum";
 import * as XLSX from "xlsx";
+import Link from "next/link";
+import { ClipboardCheck } from "lucide-react";
 
 export default function PayrollPreviewPage() {
     const today = new Date();
@@ -681,6 +683,15 @@ export default function PayrollPreviewPage() {
                             <FileSpreadsheet className="w-4 h-4" />
                             <span>Exportar Excel</span>
                         </button>
+
+                        {/* Lançamento de Rubricas Onvio */}
+                        <Link
+                            href="/admin/payroll-onvio"
+                            className="flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs h-11 px-4 rounded-2xl border border-orange-500/30 transition-all cursor-pointer shadow-lg shadow-slate-950/20 active:scale-[0.98]"
+                        >
+                            <ClipboardCheck className="w-4 h-4" />
+                            <span>Rubricas Onvio</span>
+                        </Link>
                     </div>
                 </div>
             </div>
