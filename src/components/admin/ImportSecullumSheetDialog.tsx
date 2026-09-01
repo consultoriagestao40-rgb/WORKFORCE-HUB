@@ -53,6 +53,41 @@ export function ImportSecullumSheetDialog({
         "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
     ];
 
+    const parseTimeToMinutes = (t: any) => {
+        if (!t || typeof t !== 'string') return null;
+        const clean = t.replace(/[*¨^]/g, '').trim();
+        if (!clean.includes(':')) return null;
+        const [h, m] = clean.split(':').map(Number);
+        if (isNaN(h) || isNaN(m)) return null;
+        return h * 60 + m;
+    };
+
+    const calcNightHoursFromPunches = (e1?: string, s1?: string, e2?: string, s2?: string, e3?: string, s3?: string): number => {
+        const pairs = [
+            [parseTimeToMinutes(e1), parseTimeToMinutes(s1)],
+            [parseTimeToMinutes(e2), parseTimeToMinutes(s2)],
+            [parseTimeToMinutes(e3), parseTimeToMinutes(s3)]
+        ];
+        let nightM = 0;
+        for (let [start, end] of pairs) {
+            if (start === null || end === null) continue;
+            if (end <= start) end += 24 * 60;
+            const nightStart = 22 * 60;
+            const isNightShift = start >= nightStart || start <= 5 * 60;
+            const effectiveNightEnd = isNightShift ? end : Math.min(end, 29 * 60);
+            const oStart = Math.max(start, nightStart);
+            const oEnd = Math.min(end, effectiveNightEnd);
+            if (oEnd > oStart) {
+                nightM += (oEnd - oStart) * (60 / 52.5);
+            }
+            if (start < 5 * 60) {
+                const mEnd = Math.min(end, 5 * 60);
+                if (mEnd > start) nightM += (mEnd - start) * (60 / 52.5);
+            }
+        }
+        return nightM / 60;
+    };
+
     const parseTimeToHours = (val: any): number => {
         if (typeof val === "number") return val;
         if (!val) return 0;
@@ -73,39 +108,6 @@ export function ImportSecullumSheetDialog({
 
         const num = parseFloat(str.replace(",", "."));
         return isNaN(num) ? 0 : num;
-    };
-
-    // Calculate CLT night hours from punch strings
-    const calcNightHoursFromPunches = (e1?: string, s1?: string, e2?: string, s2?: string, e3?: string, s3?: string): number => {
-        const parseM = (t?: string) => {
-            if (!t || !t.includes(":")) return null;
-            const [h, m] = t.trim().split(":").map(Number);
-            if (isNaN(h) || isNaN(m)) return null;
-            return h * 60 + m;
-        };
-        const pairs = [
-            [parseM(e1), parseM(s1)],
-            [parseM(e2), parseM(s2)],
-            [parseM(e3), parseM(s3)]
-        ];
-        let nightM = 0;
-        for (let [start, end] of pairs) {
-            if (start === null || end === null) continue;
-            if (end <= start) end += 24 * 60;
-            const nightStart = 22 * 60;
-            const isNightShift = start >= nightStart || start <= 5 * 60;
-            const effectiveNightEnd = isNightShift ? end : Math.min(end, 29 * 60);
-            const oStart = Math.max(start, nightStart);
-            const oEnd = Math.min(end, effectiveNightEnd);
-            if (oEnd > oStart) {
-                nightM += (oEnd - oStart) * (60 / 52.5);
-            }
-            if (start < 5 * 60) {
-                const mEnd = Math.min(end, 5 * 60);
-                if (mEnd > start) nightM += (mEnd - start) * (60 / 52.5);
-            }
-        }
-        return nightM / 60;
     };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,20 +135,19 @@ export function ImportSecullumSheetDialog({
                 const rowsToImport: SecullumImportRow[] = [];
                 const previewRows: any[] = [];
 
-                // Check if this is a "CARTÃO PONTO" multi-block report
-                const isCartaoPonto = data.some(r => Array.isArray(r) && r.some(c => String(c || "").toUpperCase().includes("CARTÃO PONTO") || String(c || "").toUpperCase().includes("CARTAO PONTO")));
+                // Check if this is a "CARTÃO PONTO" multi-block report (like the Secullum exported Cartão Ponto.xlsx)
+                const isCartaoPonto = data.some(r => Array.isArray(r) && r.some(c => String(c || "").toUpperCase().includes("CARTÃO PONTO") || String(c || "").toUpperCase().includes("CARTAO PONTO") || String(c || "").toUpperCase().includes("Nº FOLHA:")));
 
                 if (isCartaoPonto) {
-                    // PARSE CARTÃO PONTO MULTI-BLOCK FORMAT
-                    let currentEmployee: { name: string; cpf: string; folha: string; punches: any[] } | null = null;
+                    let currentEmp: { name: string; cpf: string; folha: string; punches: any[]; faltasCount: number } | null = null;
 
                     const finalizeCurrentEmployee = () => {
-                        if (!currentEmployee) return;
-                        const identifier = currentEmployee.cpf || currentEmployee.name || currentEmployee.folha;
+                        if (!currentEmp || (!currentEmp.name && !currentEmp.cpf)) return;
+                        const identifier = currentEmp.cpf || currentEmp.name || currentEmp.folha;
                         if (!identifier) return;
 
                         let totalNight = 0;
-                        for (const p of currentEmployee.punches) {
+                        for (const p of currentEmp.punches) {
                             totalNight += calcNightHoursFromPunches(p.e1, p.s1, p.e2, p.s2, p.e3, p.s3);
                         }
 
@@ -159,9 +160,9 @@ export function ImportSecullumSheetDialog({
                         });
 
                         previewRows.push({
-                            name: currentEmployee.name || identifier,
-                            cpf: currentEmployee.cpf || "-",
-                            folha: currentEmployee.folha || "-",
+                            name: currentEmp.name || identifier,
+                            cpf: currentEmp.cpf || "-",
+                            folha: currentEmp.folha || "-",
                             notHours: Math.round(totalNight * 100) / 100,
                             extrasHours: 0,
                             atrasosHours: 0
@@ -172,55 +173,62 @@ export function ImportSecullumSheetDialog({
                         const row = data[r];
                         if (!row || !Array.isArray(row)) continue;
 
-                        const rowJoined = row.map(c => String(c || "").trim()).join(" ");
-
-                        // Check for start of employee header
-                        if (rowJoined.toUpperCase().includes("NOME:") || rowJoined.toUpperCase().includes("Nº FOLHA:")) {
+                        const hasNomeLabel = row.some(c => String(c || '').toUpperCase().includes('NOME:'));
+                        if (hasNomeLabel) {
                             finalizeCurrentEmployee();
-                            currentEmployee = { name: "", cpf: "", folha: "", punches: [] };
+                            currentEmp = { name: '', cpf: '', folha: '', punches: [], faltasCount: 0 };
 
-                            // Extract Name & Folha
-                            for (let c = 0; c < row.length; c++) {
-                                const val = String(row[c] || "").trim();
-                                if (val.toUpperCase().includes("NOME:")) {
-                                    const after = val.replace(/NOME:/i, "").trim() || String(row[c + 1] || "").trim();
-                                    if (after) currentEmployee.name = after;
+                            // Look ahead 1-3 rows for name and folha
+                            for (let nextR = r; nextR <= Math.min(r + 3, data.length - 1); nextR++) {
+                                const nRow = data[nextR];
+                                if (!nRow) continue;
+                                for (let c = 0; c < nRow.length; c++) {
+                                    const val = String(nRow[c] || '').trim();
+                                    if (!val || val.includes(':')) continue;
+                                    if (!currentEmp.name && val.length > 5 && !val.includes('/') && isNaN(Number(val))) {
+                                        currentEmp.name = val;
+                                    }
+                                    if (!currentEmp.folha && (/^\d{2,6}$/.test(val) || (c > 5 && /^\d+$/.test(val)))) {
+                                        currentEmp.folha = val;
+                                    }
                                 }
-                                if (val.toUpperCase().includes("FOLHA")) {
-                                    const after = val.replace(/.*FOLHA:?/i, "").trim() || String(row[c + 1] || "").trim();
-                                    if (after) currentEmployee.folha = after;
-                                }
+                                if (currentEmp.name) break;
                             }
                         }
 
                         // Extract CPF
-                        if (currentEmployee && rowJoined.toUpperCase().includes("CPF:")) {
+                        if (currentEmp && !currentEmp.cpf) {
                             for (let c = 0; c < row.length; c++) {
-                                const val = String(row[c] || "").trim();
-                                if (val.toUpperCase().includes("CPF:")) {
-                                    const after = val.replace(/CPF:/i, "").trim() || String(row[c + 1] || "").trim();
-                                    const clean = after.replace(/\D/g, "");
-                                    if (clean.length >= 11) currentEmployee.cpf = after;
+                                const val = String(row[c] || '').trim();
+                                const clean = val.replace(/\D/g, '');
+                                if (clean.length === 11) {
+                                    currentEmp.cpf = val;
+                                    break;
                                 }
                             }
                         }
 
-                        // Extract daily punches: looks like date "DD/MM/YYYY - Day"
-                        if (currentEmployee && /\d{2}\/\d{2}\/\d{4}/.test(rowJoined)) {
-                            // Find punch columns
-                            const e1 = String(row[1] || "");
-                            const s1 = String(row[2] || "");
-                            const e2 = String(row[3] || "");
-                            const s2 = String(row[4] || "");
-                            const e3 = String(row[5] || "");
-                            const s3 = String(row[6] || "");
+                        // Extract daily punches
+                        const firstCell = String(row[0] || '').trim();
+                        if (currentEmp && /^\d{2}\/\d{2}\/\d{4}/.test(firstCell)) {
+                            const times = row.filter(c => c && typeof c === 'string' && (/^\d{2}:\d{2}/.test(c.trim()) || c.includes(':')));
+                            const isFalta = row.some(c => String(c || '').toUpperCase().includes('FALTA'));
+                            if (isFalta) currentEmp.faltasCount++;
 
-                            currentEmployee.punches.push({ e1, s1, e2, s2, e3, s3 });
+                            if (times.length >= 2) {
+                                const e1 = times[0];
+                                const s1 = times[1];
+                                const e2 = times[2];
+                                const s2 = times[3];
+                                const e3 = times[4];
+                                const s3 = times[5];
+                                currentEmp.punches.push({ e1, s1, e2, s2, e3, s3 });
+                            }
                         }
                     }
                     finalizeCurrentEmployee();
                 } else {
-                    // PARSE TABULAR CÁLCULOS FORMAT
+                    // Standard tabular report format
                     let headerIdx = -1;
                     for (let i = 0; i < Math.min(data.length, 15); i++) {
                         const row = data[i];
