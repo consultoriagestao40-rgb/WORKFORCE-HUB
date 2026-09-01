@@ -149,10 +149,19 @@ export async function POST(req: NextRequest) {
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
+        // Polyfills required by pdfjs-dist when running in Node.js (no browser DOM)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const g = globalThis as any;
+        if (!g.DOMMatrix) g.DOMMatrix = class DOMMatrix { constructor() { return { a:1,b:0,c:0,d:1,e:0,f:0,m11:1,m12:0,m21:0,m22:1,m41:0,m42:0,is2D:true,isIdentity:true }; } };
+        if (!g.DOMPoint) g.DOMPoint = class DOMPoint { constructor(public x=0, public y=0, public z=0, public w=1) {} static fromPoint(p: any) { return new g.DOMPoint(p?.x,p?.y,p?.z,p?.w); } };
+        if (!g.DOMRect) g.DOMRect = class DOMRect { constructor(public x=0, public y=0, public width=0, public height=0) {} get top() { return this.y; } get left() { return this.x; } get bottom() { return this.y+this.height; } get right() { return this.x+this.width; } };
+        if (!g.Path2D) g.Path2D = class Path2D {};
+        if (!g.ImageData) g.ImageData = class ImageData { constructor(public data: any, public width: number, public height: number) {} };
+
         // Dynamically require pdf-parse (avoids Next.js static import issues)
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const pdfParse = require("pdf-parse");
-        const pdfData = await pdfParse(buffer);
+        const pdfData = await pdfParse(buffer, { max: 0 });
         const fullText: string = pdfData.text || "";
 
         if (!fullText.trim()) {
@@ -162,7 +171,11 @@ export async function POST(req: NextRequest) {
         const employees = parseCartaoPontoText(fullText);
 
         if (employees.length === 0) {
-            return NextResponse.json({ error: "Nenhum colaborador foi identificado no PDF. Verifique se o arquivo é um Cartão Ponto exportado pelo Secullum." }, { status: 422 });
+            // Return raw text for debug (first 1000 chars) so we can diagnose parsing
+            return NextResponse.json({
+                error: "Nenhum colaborador foi identificado no PDF. Verifique se o arquivo é um Cartão Ponto exportado pelo Secullum.",
+                debug_preview: fullText.substring(0, 1500)
+            }, { status: 422 });
         }
 
         return NextResponse.json({ employees, totalText: fullText.length });
