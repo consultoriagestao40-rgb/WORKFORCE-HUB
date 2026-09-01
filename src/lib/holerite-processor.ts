@@ -146,44 +146,64 @@ export function extractDataFromPageText(text: string, pageNumber: number): {
     }
 
     // 5. Extract Employee Name & Registration Code (RE / Matrícula)
-    // Common accounting patterns (Domínio, Onvio, Questor, Totvs, Alterdata, Senior, Fortes):
-    // "Empregado: 000012 - JOAO DA SILVA"
-    // "RE: 000123 - JOAO DA SILVA SANTOS"
-    // "Nome: JOAO DA SILVA SANTOS"
-    // "000012 JOAO DA SILVA SANTOS CPF: 123.456.789-00"
-    
-    // Check for explicit RE / Matrícula / Código
-    const explicitReMatch = normalizedText.match(/\b(?:R\.?E\.?|RE|Matr[ií]cula|C[oó]digo|Cod|Registro|Reg)[:\s]*([0-9]{1,8})\b/i);
-    if (explicitReMatch) {
-        registrationCode = explicitReMatch[1];
+    // Priority 1: Domínio Sistemas / Onvio / Thomson Reuters:
+    // "CC: 108 Código ZURIMA ROXANA LEON GARCIA Nome do Funcionário"
+    // "108 Código ZURIMA ROXANA LEON GARCIA Nome do Funcionário"
+    const dominioMatch = normalizedText.match(/(?:CC:?\s*)?(\d{1,8})\s+C[oó]digo\s+([A-ZÀ-Ú\s]{3,80}?)\s+(?:Nome\s+do\s+Funcion[aá]rio|Nome\s+do\s+Empregado|Nome)/i);
+    if (dominioMatch) {
+        registrationCode = dominioMatch[1].trim();
+        const extracted = dominioMatch[2].replace(/\s+/g, ' ').trim().toUpperCase();
+        if (extracted.length >= 3 && !/RECIBO|FOLHA|PAGAMENTO|EMPRESA|TOTAL/i.test(extracted)) {
+            employeeName = extracted;
+        }
     }
 
-    const nameRegexes = [
-        /(?:Empregado|Funcion[aá]rio|Colaborador|Trabalhador|R\.?E\.?|RE)[:\s]+(?:(\d{1,8})\s*[-–\s]\s*)?([A-ZÀ-Úa-zà-ú'\.\s]{3,80})/i,
-        /Nome\s*(?:do\s*Empregado|do\s*Funcion[aá]rio|do\s*Colaborador)?[:\s]+(?:(\d{1,8})\s*[-–\s]\s*)?([A-ZÀ-Úa-zà-ú'\.\s]{3,80})/i,
-        /C[oó]digo\s*Nome\s*do\s*Empregado[\s\S]*?(\d{1,8})\s+([A-ZÀ-Ú\s]{3,80})/i,
-        /\b(00\d{2,6}|\d{1,6})\s+([A-ZÀ-Ú\s]{3,80})\s+(?:C\.?P\.?F|CPF|PIS|CARTEIRA|CARGO|ADMISSÃO)/i,
-        /\b(?:C\.?P\.?F|CPF)[:\s]*\d{3}\.\d{3}\.\d{3}-\d{2}[\s\S]*?(?:Nome|Empregado)[:\s]+([A-ZÀ-Úa-zà-ú'\.\s]{3,80})/i
-    ];
-
-    for (const regex of nameRegexes) {
-        const match = normalizedText.match(regex);
-        if (match) {
-            // Check if captured code in group 1
-            if (match.length >= 3 && match[1] && /^\d+$/.test(match[1]) && !registrationCode) {
-                registrationCode = match[1];
+    // Priority 2: Alternative Domínio without CC: "Código ZURIMA ROXANA LEON GARCIA Nome do Funcionário"
+    if (!employeeName || employeeName.startsWith('Colaborador_Pagina')) {
+        const d2 = normalizedText.match(/C[oó]digo\s+([A-ZÀ-Ú\s]{3,80}?)\s+(?:Nome\s+do\s+Funcion[aá]rio|Nome\s+do\s+Empregado|Nome)/i);
+        if (d2) {
+            const extracted = d2[1].replace(/\s+/g, ' ').trim().toUpperCase();
+            if (extracted.length >= 3 && !/RECIBO|FOLHA|PAGAMENTO|EMPRESA|TOTAL/i.test(extracted)) {
+                employeeName = extracted;
             }
+        }
+    }
 
-            let extracted = match[match.length - 1].trim();
-            // Clean common trailing labels while preserving full name
-            extracted = extracted
-                .replace(/(?:C\.?P\.?F\.?|CPF|PIS|PASEP|CARTEIRA|CTPS|CBO|CARGO|DEP|FUNÇÃO|DATA|ADMISSÃO|MATRÍCULA|SALÁRIO|DEPARTAMENTO)[\s\S]*/i, '')
-                .replace(/\s+/g, ' ')
-                .trim();
+    // Priority 3: Check for explicit RE / Matrícula / Código
+    if (!registrationCode) {
+        const explicitReMatch = normalizedText.match(/\b(?:R\.?E\.?|RE|Matr[ií]cula|C[oó]digo|Cod|Registro|Reg|CC)[:\s]*([0-9]{1,8})\b/i);
+        if (explicitReMatch) {
+            registrationCode = explicitReMatch[1];
+        }
+    }
 
-            if (extracted.length >= 3 && !/^\d+$/.test(extracted) && !/RECIBO|FOLHA|PAGAMENTO|EMPRESA|TOTAL|MENSAL/i.test(extracted)) {
-                employeeName = extracted.toUpperCase();
-                break;
+    // Priority 4: Questor / Totvs / Alterdata / Senior / Standard layout
+    if (!employeeName || employeeName.startsWith('Colaborador_Pagina')) {
+        const nameRegexes = [
+            /(?:Empregado|Funcion[aá]rio|Colaborador|Trabalhador|R\.?E\.?|RE)[:\s]+(?:(\d{1,8})\s*[-–\s]\s*)?([A-ZÀ-Úa-zà-ú'\.\s]{3,80})/i,
+            /Nome\s*(?:do\s*Empregado|do\s*Funcion[aá]rio|do\s*Colaborador)?[:\s]+(?:(\d{1,8})\s*[-–\s]\s*)?([A-ZÀ-Úa-zà-ú'\.\s]{3,80})/i,
+            /C[oó]digo\s*Nome\s*do\s*Empregado[\s\S]*?(\d{1,8})\s+([A-ZÀ-Ú\s]{3,80})/i,
+            /\b(00\d{2,6}|\d{1,6})\s+([A-ZÀ-Ú\s]{3,80})\s+(?:C\.?P\.?F|CPF|PIS|CARTEIRA|CARGO|ADMISSÃO)/i,
+            /\b(?:C\.?P\.?F|CPF)[:\s]*\d{3}\.\d{3}\.\d{3}-\d{2}[\s\S]*?(?:Nome|Empregado)[:\s]+([A-ZÀ-Úa-zà-ú'\.\s]{3,80})/i
+        ];
+
+        for (const regex of nameRegexes) {
+            const match = normalizedText.match(regex);
+            if (match) {
+                if (match.length >= 3 && match[1] && /^\d+$/.test(match[1]) && !registrationCode) {
+                    registrationCode = match[1];
+                }
+
+                let extracted = match[match.length - 1].trim();
+                extracted = extracted
+                    .replace(/(?:C\.?P\.?F\.?|CPF|PIS|PASEP|CARTEIRA|CTPS|CBO|CARGO|DEP|FUNÇÃO|DATA|ADMISSÃO|MATRÍCULA|SALÁRIO|DEPARTAMENTO)[\s\S]*/i, '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+
+                if (extracted.length >= 3 && !/^\d+$/.test(extracted) && !/RECIBO|FOLHA|PAGAMENTO|EMPRESA|TOTAL|MENSAL/i.test(extracted)) {
+                    employeeName = extracted.toUpperCase();
+                    break;
+                }
             }
         }
     }
@@ -196,14 +216,20 @@ export function extractDataFromPageText(text: string, pageNumber: number): {
         }
     }
 
-    // 6. Extract Company Name (usually first or second line or after Razão Social)
-    const companyMatch = normalizedText.match(/(?:Raz[aã]o\s*Social|Empresa)[:\s]+([A-ZÀ-Úa-zà-ú0-9\.\,\s\-]{3,80})/i);
-    if (companyMatch) {
-        companyName = companyMatch[1].replace(/(?:CNPJ|ENDEREÇO|BAIRRO|CIDADE)[\s\S]*/i, '').trim();
-    } else if (lines.length > 0) {
-        const firstLine = lines[0];
-        if (firstLine && !/RECIBO|DEMONSTRATIVO|PÁGINA|PAGE/i.test(firstLine) && firstLine.length > 3) {
-            companyName = firstLine;
+    // 6. Extract Company Name
+    // In Domínio: "JVS - TRATAMENTO DE PISOS E COMERCIO LTDA - EPP 00.087.795/0001-17"
+    const compMatchDominio = normalizedText.match(/([A-ZÀ-Ú\s\.\-]{5,80}?)\s+\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/i);
+    if (compMatchDominio) {
+        companyName = compMatchDominio[1].replace(/\s+/g, ' ').trim();
+    } else {
+        const companyMatch = normalizedText.match(/(?:Raz[aã]o\s*Social|Empresa)[:\s]+([A-ZÀ-Úa-zà-ú0-9\.\,\s\-]{3,80})/i);
+        if (companyMatch) {
+            companyName = companyMatch[1].replace(/(?:CNPJ|ENDEREÇO|BAIRRO|CIDADE)[\s\S]*/i, '').trim();
+        } else if (lines.length > 0) {
+            const firstLine = lines[0];
+            if (firstLine && !/RECIBO|DEMONSTRATIVO|PÁGINA|PAGE/i.test(firstLine) && firstLine.length > 3) {
+                companyName = firstLine;
+            }
         }
     }
 
