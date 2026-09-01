@@ -22,6 +22,8 @@ export interface BenefitsCalculationItem {
     roleName: string;
     admissionDate: string;
     isNewHire: boolean;
+    situationName: string;
+    situationColor?: string;
     
     // Ocorrências Detalhadas (26 a 25)
     occurrencesList: BenefitOccurrenceDetail[];
@@ -540,7 +542,10 @@ export async function getBenefitsCalculation(year: number, month: number) {
         const situationName = emp.situation?.name || "Ativo";
         const isAbandonment = situationName === "Processo de abandono";
         const isAfastadoInss = situationName === "AFASTADO INSS";
-        const isBlockedFromBenefits = isAbandonment || isAfastadoInss;
+        // VT is blocked for abandonment and INSS (employee is not commuting)
+        const isBlockedFromVt = isAbandonment || isAfastadoInss;
+        // VA is strictly blocked for abandonment, but kept active for INSS / Licenças as per CCT rules
+        const isBlockedFromVa = isAbandonment;
 
         // VT 1 Calculation (Escala x Valor Diário - Faltas x Valor Diário)
         let vtBaseValue = 0;
@@ -549,7 +554,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
         let vtNeedsAlert = false;
         let vtBatchNote = "";
 
-        if (isBlockedFromBenefits) {
+        if (isBlockedFromVt) {
             vtBaseValue = 0;
             vtDeductionValue = 0;
             vtTotalValue = 0;
@@ -585,7 +590,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
         let vtNeedsAlert2 = false;
         let vtBatchNote2 = "";
 
-        if (isBlockedFromBenefits) {
+        if (isBlockedFromVt) {
             vtBaseValue2 = 0;
             vtDeductionValue2 = 0;
             vtTotalValue2 = 0;
@@ -637,7 +642,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
         let vaNeedsAlert = false;
         let vaBatchNote = "";
 
-        if (isBlockedFromBenefits) {
+        if (isBlockedFromVa) {
             vaBaseValue = 0;
             vaDeductionValue = 0;
             vaTotalValue = 0;
@@ -798,6 +803,8 @@ export async function getBenefitsCalculation(year: number, month: number) {
             roleName,
             admissionDate: admissionDateObj.toLocaleDateString('pt-BR'),
             isNewHire,
+            situationName,
+            situationColor: emp.situation?.color || undefined,
             occurrencesList,
             vtOccurrencesDeducted: occurrencesCount,
             vaOccurrencesDeducted: occurrencesCount,

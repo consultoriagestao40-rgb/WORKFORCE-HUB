@@ -1207,7 +1207,17 @@ export default function BenefitsPage() {
                                                         />
                                                     </td>
                                                     <td className="py-3.5 px-4 font-bold text-slate-900">
-                                                        <div>{item.employeeName}</div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span>{item.employeeName}</span>
+                                                            {item.situationName && item.situationName !== "Ativo" && (
+                                                                <span 
+                                                                    className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md text-white shadow-xs"
+                                                                    style={{ backgroundColor: item.situationColor || '#ef4444' }}
+                                                                >
+                                                                    {item.situationName}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <div className="text-[10px] font-mono text-slate-400">{item.employeeCpf}</div>
                                                     </td>
 
