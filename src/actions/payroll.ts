@@ -120,6 +120,11 @@ export async function getPayrollPreview(year: number, month: number) {
             },
             assignments: {
                 some: { endDate: null }
+            },
+            // Do NOT include employees admitted after the cutoff date (25th of the month)
+            // They will be computed in the next month's payroll window (26th to 25th)
+            admissionDate: {
+                lte: windowEnd
             }
         },
         include: {
