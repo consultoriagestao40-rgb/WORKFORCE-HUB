@@ -372,9 +372,12 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
                         const cols = res.Colunas as string[];
                         const totais = res.Totais as string[];
                         
-                        const atrasIdx = cols.indexOf("Atras.");
-                        const extrasIdx = cols.indexOf("Extras");
-                        const notIdx = cols.indexOf("Not.Tot.");
+                        const atrasIdx = cols.findIndex(c => /Atras/i.test(c));
+                        const extrasIdx = cols.findIndex(c => /^Extras?$/i.test(c));
+                        let notIdx = cols.findIndex(c => /Not\.Tot/i.test(c));
+                        if (notIdx === -1) {
+                            notIdx = cols.findIndex(c => /^Not\./i.test(c) || /Noturna/i.test(c) || /Adic\.?\s*Not/i.test(c));
+                        }
                         
                         const parseTimeToHours = (timeStr: string): number => {
                             if (!timeStr) return 0;

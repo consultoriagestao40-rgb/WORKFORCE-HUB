@@ -221,13 +221,16 @@ export class SecullumApiClient {
             "Content-Type": "application/json"
         };
 
+        const cleanStartDate = startDateStr.includes("T") ? startDateStr.split("T")[0] : startDateStr;
+        const cleanEndDate = endDateStr.includes("T") ? endDateStr.split("T")[0] : endDateStr;
+
         const res = await fetch(url, {
             method: "POST",
             headers: finalHeaders,
             body: JSON.stringify({
                 funcionarioCpf: cpf,
-                dataInicial: `${startDateStr}T00:00:00`,
-                dataFinal: `${endDateStr}T23:59:59`
+                dataInicial: cleanStartDate,
+                dataFinal: cleanEndDate
             }),
             cache: "no-store"
         });
