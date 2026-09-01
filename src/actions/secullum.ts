@@ -360,13 +360,21 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
         }
 
         // E. Fetch calculations for each employee in parallel chunks to prevent timeouts and rate-limits
-        const employeesWithCpf = dbEmployees.filter(emp => emp.cpf);
         const chunkSize = 5; // 5 parallel requests
-        for (let i = 0; i < employeesWithCpf.length; i += chunkSize) {
-            const chunk = employeesWithCpf.slice(i, i + chunkSize);
+        for (let i = 0; i < dbEmployees.length; i += chunkSize) {
+            const chunk = dbEmployees.slice(i, i + chunkSize);
             await Promise.all(chunk.map(async (emp) => {
                 try {
-                    const cleanCpf = cleanCpfStr(emp.cpf!);
+                    let cleanCpf = cleanCpfStr(emp.cpf);
+                    // Fallback to matching by name if CPF is missing, temporary or placeholder
+                    if (!cleanCpf || cleanCpf.startsWith("00000000") || cleanCpf.startsWith("TEMP") || cleanCpf.length < 11) {
+                        const secEmp = secullumEmployees.find(se => se.Nome && matchEmployeeByName(se.Nome, [emp]));
+                        if (secEmp && secEmp.Cpf) {
+                            cleanCpf = cleanCpfStr(secEmp.Cpf);
+                        }
+                    }
+                    if (!cleanCpf || cleanCpf.length < 11) return;
+
                     const res = await client.getCalculos(cleanCpf, startDateStr, endDateStr);
                     if (res && res.Colunas && res.Totais) {
                         const cols = res.Colunas as string[];
