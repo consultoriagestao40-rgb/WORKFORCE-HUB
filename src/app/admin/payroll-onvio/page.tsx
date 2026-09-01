@@ -266,7 +266,7 @@ export default function PayrollOnvioPage() {
                         <span className="text-xs text-slate-400 font-bold">Nenhum funcionário encontrado.</span>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <>
                         {/* Cabeçalho laranja padrão Onvio */}
                         <div
                             className="flex items-center justify-between px-5 py-3"
@@ -278,6 +278,7 @@ export default function PayrollOnvioPage() {
                             </span>
                         </div>
 
+                        <div className="overflow-x-auto">
                         <table className="w-full text-xs border-collapse" style={{ minWidth: "2000px" }}>
                             <thead>
                                 <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-wider">
@@ -398,9 +399,11 @@ export default function PayrollOnvioPage() {
                             </tfoot>
 
                         </table>
-                    </div>
+                        </div>
+                    </>
                 )}
             </div>
+
 
             {/* Descrição opcional */}
             <div className="bg-white rounded-3xl border border-slate-200/60 shadow-sm p-5">
