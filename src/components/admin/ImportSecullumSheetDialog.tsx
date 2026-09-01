@@ -57,7 +57,7 @@ export function ImportSecullumSheetDialog({
         if (typeof val === "number") return val;
         if (!val) return 0;
         const str = String(val).trim();
-        if (str === "0" || str === "00:00" || str === "0:00") return 0;
+        if (str === "0" || str === "00:00" || str === "0:00" || str === "-") return 0;
 
         if (str.includes(":")) {
             const isNeg = str.startsWith("-");
@@ -73,6 +73,39 @@ export function ImportSecullumSheetDialog({
 
         const num = parseFloat(str.replace(",", "."));
         return isNaN(num) ? 0 : num;
+    };
+
+    // Calculate CLT night hours from punch strings
+    const calcNightHoursFromPunches = (e1?: string, s1?: string, e2?: string, s2?: string, e3?: string, s3?: string): number => {
+        const parseM = (t?: string) => {
+            if (!t || !t.includes(":")) return null;
+            const [h, m] = t.trim().split(":").map(Number);
+            if (isNaN(h) || isNaN(m)) return null;
+            return h * 60 + m;
+        };
+        const pairs = [
+            [parseM(e1), parseM(s1)],
+            [parseM(e2), parseM(s2)],
+            [parseM(e3), parseM(s3)]
+        ];
+        let nightM = 0;
+        for (let [start, end] of pairs) {
+            if (start === null || end === null) continue;
+            if (end <= start) end += 24 * 60;
+            const nightStart = 22 * 60;
+            const isNightShift = start >= nightStart || start <= 5 * 60;
+            const effectiveNightEnd = isNightShift ? end : Math.min(end, 29 * 60);
+            const oStart = Math.max(start, nightStart);
+            const oEnd = Math.min(end, effectiveNightEnd);
+            if (oEnd > oStart) {
+                nightM += (oEnd - oStart) * (60 / 52.5);
+            }
+            if (start < 5 * 60) {
+                const mEnd = Math.min(end, 5 * 60);
+                if (mEnd > start) nightM += (mEnd - start) * (60 / 52.5);
+            }
+        }
+        return nightM / 60;
     };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -97,76 +130,157 @@ export function ImportSecullumSheetDialog({
                     return;
                 }
 
-                // 1. Find Header Row index
-                let headerIdx = -1;
-                for (let i = 0; i < Math.min(data.length, 15); i++) {
-                    const row = data[i];
-                    if (Array.isArray(row)) {
-                        const rowStr = row.map(c => String(c || "").toLowerCase()).join(" ");
-                        if (rowStr.includes("nome") || rowStr.includes("folha") || rowStr.includes("colaborador") || rowStr.includes("cpf") || rowStr.includes("not")) {
-                            headerIdx = i;
-                            break;
-                        }
-                    }
-                }
-
-                if (headerIdx === -1) {
-                    headerIdx = 0;
-                }
-
-                const headers: string[] = (data[headerIdx] || []).map(h => String(h || "").trim());
-
-                // Find column indices
-                const nameIdx = headers.findIndex(h => /nome/i.test(h) || /colaborador/i.test(h) || /funcionario/i.test(h));
-                const cpfIdx = headers.findIndex(h => /cpf/i.test(h) || /documento/i.test(h));
-                const folhaIdx = headers.findIndex(h => /n[oº]?\s*folha/i.test(h) || /c[oó]digo/i.test(h) || /^folha$/i.test(h) || /^re\b/i.test(h));
-                
-                // Night hours: Not., Not.Tot., Noturnas, Adicional Noturno
-                let notIdx = headers.findIndex(h => /not\.tot/i.test(h));
-                if (notIdx === -1) notIdx = headers.findIndex(h => /^not\./i.test(h) || /noturn/i.test(h) || /adic.*not/i.test(h));
-
-                // Extras: Extras, H. Extras, Extras 50%
-                const extrasIdx = headers.findIndex(h => /extra.*50/i.test(h) || /^extras?$/i.test(h) || /h\.?\s*extra/i.test(h));
-                const extras100Idx = headers.findIndex(h => /extra.*100/i.test(h) || /extra.*dom/i.test(h));
-
-                // Atrasos / Faltas
-                const atrasIdx = headers.findIndex(h => /atras/i.test(h) || /falta/i.test(h));
-
                 const rowsToImport: SecullumImportRow[] = [];
                 const previewRows: any[] = [];
 
-                for (let r = headerIdx + 1; r < data.length; r++) {
-                    const row = data[r];
-                    if (!row || !Array.isArray(row) || row.length === 0) continue;
+                // Check if this is a "CARTÃO PONTO" multi-block report
+                const isCartaoPonto = data.some(r => Array.isArray(r) && r.some(c => String(c || "").toUpperCase().includes("CARTÃO PONTO") || String(c || "").toUpperCase().includes("CARTAO PONTO")));
 
-                    const nameVal = nameIdx !== -1 ? String(row[nameIdx] || "").trim() : "";
-                    const cpfVal = cpfIdx !== -1 ? String(row[cpfIdx] || "").trim() : "";
-                    const folhaVal = folhaIdx !== -1 ? String(row[folhaIdx] || "").trim() : "";
+                if (isCartaoPonto) {
+                    // PARSE CARTÃO PONTO MULTI-BLOCK FORMAT
+                    let currentEmployee: { name: string; cpf: string; folha: string; punches: any[] } | null = null;
 
-                    const identifier = cpfVal || nameVal || folhaVal;
-                    if (!identifier || identifier.toLowerCase().includes("total") || identifier.toLowerCase().includes("empresa")) continue;
+                    const finalizeCurrentEmployee = () => {
+                        if (!currentEmployee) return;
+                        const identifier = currentEmployee.cpf || currentEmployee.name || currentEmployee.folha;
+                        if (!identifier) return;
 
-                    const notHours = notIdx !== -1 ? parseTimeToHours(row[notIdx]) : 0;
-                    const extrasHours = extrasIdx !== -1 ? parseTimeToHours(row[extrasIdx]) : 0;
-                    const extras100Hours = extras100Idx !== -1 ? parseTimeToHours(row[extras100Idx]) : 0;
-                    const atrasosHours = atrasIdx !== -1 ? parseTimeToHours(row[atrasIdx]) : 0;
+                        let totalNight = 0;
+                        for (const p of currentEmployee.punches) {
+                            totalNight += calcNightHoursFromPunches(p.e1, p.s1, p.e2, p.s2, p.e3, p.s3);
+                        }
 
-                    rowsToImport.push({
-                        employeeIdentifier: identifier,
-                        adicionalNoturnoHours: Math.round(notHours * 100) / 100,
-                        extras50Hours: Math.round(extrasHours * 100) / 100,
-                        extras100Hours: Math.round(extras100Hours * 100) / 100,
-                        atrasosHours: Math.round(atrasosHours * 100) / 100
-                    });
+                        rowsToImport.push({
+                            employeeIdentifier: identifier,
+                            adicionalNoturnoHours: Math.round(totalNight * 100) / 100,
+                            extras50Hours: 0,
+                            extras100Hours: 0,
+                            atrasosHours: 0
+                        });
 
-                    previewRows.push({
-                        name: nameVal || identifier,
-                        cpf: cpfVal || "-",
-                        folha: folhaVal || "-",
-                        notHours,
-                        extrasHours,
-                        atrasosHours
-                    });
+                        previewRows.push({
+                            name: currentEmployee.name || identifier,
+                            cpf: currentEmployee.cpf || "-",
+                            folha: currentEmployee.folha || "-",
+                            notHours: Math.round(totalNight * 100) / 100,
+                            extrasHours: 0,
+                            atrasosHours: 0
+                        });
+                    };
+
+                    for (let r = 0; r < data.length; r++) {
+                        const row = data[r];
+                        if (!row || !Array.isArray(row)) continue;
+
+                        const rowJoined = row.map(c => String(c || "").trim()).join(" ");
+
+                        // Check for start of employee header
+                        if (rowJoined.toUpperCase().includes("NOME:") || rowJoined.toUpperCase().includes("Nº FOLHA:")) {
+                            finalizeCurrentEmployee();
+                            currentEmployee = { name: "", cpf: "", folha: "", punches: [] };
+
+                            // Extract Name & Folha
+                            for (let c = 0; c < row.length; c++) {
+                                const val = String(row[c] || "").trim();
+                                if (val.toUpperCase().includes("NOME:")) {
+                                    const after = val.replace(/NOME:/i, "").trim() || String(row[c + 1] || "").trim();
+                                    if (after) currentEmployee.name = after;
+                                }
+                                if (val.toUpperCase().includes("FOLHA")) {
+                                    const after = val.replace(/.*FOLHA:?/i, "").trim() || String(row[c + 1] || "").trim();
+                                    if (after) currentEmployee.folha = after;
+                                }
+                            }
+                        }
+
+                        // Extract CPF
+                        if (currentEmployee && rowJoined.toUpperCase().includes("CPF:")) {
+                            for (let c = 0; c < row.length; c++) {
+                                const val = String(row[c] || "").trim();
+                                if (val.toUpperCase().includes("CPF:")) {
+                                    const after = val.replace(/CPF:/i, "").trim() || String(row[c + 1] || "").trim();
+                                    const clean = after.replace(/\D/g, "");
+                                    if (clean.length >= 11) currentEmployee.cpf = after;
+                                }
+                            }
+                        }
+
+                        // Extract daily punches: looks like date "DD/MM/YYYY - Day"
+                        if (currentEmployee && /\d{2}\/\d{2}\/\d{4}/.test(rowJoined)) {
+                            // Find punch columns
+                            const e1 = String(row[1] || "");
+                            const s1 = String(row[2] || "");
+                            const e2 = String(row[3] || "");
+                            const s2 = String(row[4] || "");
+                            const e3 = String(row[5] || "");
+                            const s3 = String(row[6] || "");
+
+                            currentEmployee.punches.push({ e1, s1, e2, s2, e3, s3 });
+                        }
+                    }
+                    finalizeCurrentEmployee();
+                } else {
+                    // PARSE TABULAR CÁLCULOS FORMAT
+                    let headerIdx = -1;
+                    for (let i = 0; i < Math.min(data.length, 15); i++) {
+                        const row = data[i];
+                        if (Array.isArray(row)) {
+                            const rowStr = row.map(c => String(c || "").toLowerCase()).join(" ");
+                            if (rowStr.includes("nome") || rowStr.includes("folha") || rowStr.includes("colaborador") || rowStr.includes("cpf") || rowStr.includes("not")) {
+                                headerIdx = i;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (headerIdx === -1) headerIdx = 0;
+
+                    const headers: string[] = (data[headerIdx] || []).map(h => String(h || "").trim());
+
+                    const nameIdx = headers.findIndex(h => /nome/i.test(h) || /colaborador/i.test(h) || /funcionario/i.test(h));
+                    const cpfIdx = headers.findIndex(h => /cpf/i.test(h) || /documento/i.test(h));
+                    const folhaIdx = headers.findIndex(h => /n[oº]?\s*folha/i.test(h) || /c[oó]digo/i.test(h) || /^folha$/i.test(h) || /^re\b/i.test(h));
+                    
+                    let notIdx = headers.findIndex(h => /not\.tot/i.test(h));
+                    if (notIdx === -1) notIdx = headers.findIndex(h => /^not\./i.test(h) || /noturn/i.test(h) || /adic.*not/i.test(h));
+
+                    const extrasIdx = headers.findIndex(h => /extra.*50/i.test(h) || /^extras?$/i.test(h) || /h\.?\s*extra/i.test(h));
+                    const extras100Idx = headers.findIndex(h => /extra.*100/i.test(h) || /extra.*dom/i.test(h));
+                    const atrasIdx = headers.findIndex(h => /atras/i.test(h) || /falta/i.test(h));
+
+                    for (let r = headerIdx + 1; r < data.length; r++) {
+                        const row = data[r];
+                        if (!row || !Array.isArray(row) || row.length === 0) continue;
+
+                        const nameVal = nameIdx !== -1 ? String(row[nameIdx] || "").trim() : "";
+                        const cpfVal = cpfIdx !== -1 ? String(row[cpfIdx] || "").trim() : "";
+                        const folhaVal = folhaIdx !== -1 ? String(row[folhaIdx] || "").trim() : "";
+
+                        const identifier = cpfVal || nameVal || folhaVal;
+                        if (!identifier || identifier.toLowerCase().includes("total") || identifier.toLowerCase().includes("empresa")) continue;
+
+                        const notHours = notIdx !== -1 ? parseTimeToHours(row[notIdx]) : 0;
+                        const extrasHours = extrasIdx !== -1 ? parseTimeToHours(row[extrasIdx]) : 0;
+                        const extras100Hours = extras100Idx !== -1 ? parseTimeToHours(row[extras100Idx]) : 0;
+                        const atrasosHours = atrasIdx !== -1 ? parseTimeToHours(row[atrasIdx]) : 0;
+
+                        rowsToImport.push({
+                            employeeIdentifier: identifier,
+                            adicionalNoturnoHours: Math.round(notHours * 100) / 100,
+                            extras50Hours: Math.round(extrasHours * 100) / 100,
+                            extras100Hours: Math.round(extras100Hours * 100) / 100,
+                            atrasosHours: Math.round(atrasosHours * 100) / 100
+                        });
+
+                        previewRows.push({
+                            name: nameVal || identifier,
+                            cpf: cpfVal || "-",
+                            folha: folhaVal || "-",
+                            notHours,
+                            extrasHours,
+                            atrasosHours
+                        });
+                    }
                 }
 
                 if (rowsToImport.length === 0) {
@@ -319,10 +433,10 @@ export function ImportSecullumSheetDialog({
                                 <Upload className="w-6 h-6" />
                             </div>
                             <span className="font-semibold text-slate-700 text-base">
-                                {fileName || "Clique para selecionar a Planilha de Cálculos do Secullum"}
+                                {fileName || "Clique para selecionar a Planilha de Cartão Ponto ou Cálculos do Secullum"}
                             </span>
                             <span className="text-xs text-slate-400">
-                                Formatos aceitos: .XLSX, .XLS ou .CSV (Exportado direto da tela de Cálculos do Secullum)
+                                Formatos aceitos: .XLSX, .XLS ou .CSV (Cartão Ponto Completo ou Relatório de Cálculos)
                             </span>
                         </label>
                     </div>
