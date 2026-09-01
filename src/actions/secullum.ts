@@ -359,9 +359,9 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
 
         }
 
-        // E. Fetch calculations for each employee in parallel chunks to prevent timeouts
+        // E. Fetch calculations for each employee in parallel chunks to prevent timeouts and rate-limits
         const employeesWithCpf = dbEmployees.filter(emp => emp.cpf);
-        const chunkSize = 15; // 15 parallel requests
+        const chunkSize = 5; // 5 parallel requests
         for (let i = 0; i < employeesWithCpf.length; i += chunkSize) {
             const chunk = employeesWithCpf.slice(i, i + chunkSize);
             await Promise.all(chunk.map(async (emp) => {
@@ -454,6 +454,7 @@ export async function syncSecullumOccurrences(year: number, month: number, bypas
                     // Suppress individual point API errors (e.g. employee not found in point web system)
                 }
             }));
+            await new Promise(r => setTimeout(r, 120));
         }
 
         // Update Last Sync Timestamp

@@ -224,22 +224,43 @@ export class SecullumApiClient {
         const cleanStartDate = startDateStr.includes("T") ? startDateStr.split("T")[0] : startDateStr;
         const cleanEndDate = endDateStr.includes("T") ? endDateStr.split("T")[0] : endDateStr;
 
-        const res = await fetch(url, {
-            method: "POST",
-            headers: finalHeaders,
-            body: JSON.stringify({
-                funcionarioCpf: cpf,
-                dataInicial: cleanStartDate,
-                dataFinal: cleanEndDate
-            }),
-            cache: "no-store"
-        });
+        let retries = 3;
+        let delayMs = 600;
 
-        if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(`Erro ao buscar cálculos do Secullum (${res.status}): ${errText}`);
+        while (retries > 0) {
+            try {
+                const res = await fetch(url, {
+                    method: "POST",
+                    headers: finalHeaders,
+                    body: JSON.stringify({
+                        funcionarioCpf: cpf,
+                        dataInicial: cleanStartDate,
+                        dataFinal: cleanEndDate
+                    }),
+                    cache: "no-store"
+                });
+
+                if (res.status === 429) {
+                    // Rate limit hit: wait and retry
+                    await new Promise(r => setTimeout(r, delayMs));
+                    delayMs *= 2;
+                    retries--;
+                    continue;
+                }
+
+                if (!res.ok) {
+                    const errText = await res.text();
+                    throw new Error(`Erro ao buscar cálculos do Secullum (${res.status}): ${errText}`);
+                }
+
+                return await res.json();
+            } catch (err: any) {
+                if (retries <= 1) throw err;
+                await new Promise(r => setTimeout(r, delayMs));
+                retries--;
+            }
         }
 
-        return await res.json();
+        return null;
     }
 }
