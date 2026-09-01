@@ -282,7 +282,7 @@ export default function PayrollOnvioPage() {
                             <thead>
                                 <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-wider">
                                     {/* Checkbox */}
-                                    <th className="py-3 px-4 sticky left-0 bg-slate-50 z-10 w-9">
+                                    <th className="py-3 px-4 sticky left-0 z-20 w-9" style={{ backgroundColor: "#f8fafc" }}>
                                         <button onClick={toggleSelectAll} className="text-slate-400 hover:text-orange-500 transition-colors">
                                             {allChecked
                                                 ? <CheckSquare className="w-4 h-4 text-orange-500" />
@@ -292,7 +292,7 @@ export default function PayrollOnvioPage() {
                                         </button>
                                     </th>
                                     {/* Nome */}
-                                    <th className="py-3 px-4 sticky left-9 bg-slate-50 z-10 text-left min-w-[200px] whitespace-nowrap">
+                                    <th className="py-3 px-4 sticky left-9 z-20 text-left min-w-[200px] whitespace-nowrap" style={{ backgroundColor: "#f8fafc", boxShadow: "4px 0 6px -2px rgba(0,0,0,0.06)" }}>
                                         Nome
                                     </th>
                                     {/* Empresa */}
@@ -321,11 +321,14 @@ export default function PayrollOnvioPage() {
                                             className={`border-b border-slate-100 transition-colors ${
                                                 isSelected
                                                     ? "bg-orange-50"
-                                                    : idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"
+                                                    : idx % 2 === 0 ? "bg-white" : "bg-slate-50"
                                             } hover:bg-orange-50/60`}
                                         >
                                             {/* Checkbox */}
-                                            <td className="py-2.5 px-4 sticky left-0 bg-inherit z-10">
+                                            <td
+                                                className="py-2.5 px-4 sticky left-0 z-10"
+                                                style={{ backgroundColor: isSelected ? "#fff7ed" : idx % 2 === 0 ? "#ffffff" : "#f8fafc" }}
+                                            >
                                                 <button onClick={() => toggleSelect(item.employeeId)} className="text-slate-300 hover:text-orange-500 transition-colors">
                                                     {isSelected
                                                         ? <CheckSquare className="w-4 h-4 text-orange-500" />
@@ -334,7 +337,13 @@ export default function PayrollOnvioPage() {
                                             </td>
 
                                             {/* Nome */}
-                                            <td className="py-2.5 px-4 sticky left-9 bg-inherit z-10 font-bold text-slate-700 whitespace-nowrap">
+                                            <td
+                                                className="py-2.5 px-4 sticky left-9 z-10 font-bold text-slate-700 whitespace-nowrap"
+                                                style={{
+                                                    backgroundColor: isSelected ? "#fff7ed" : idx % 2 === 0 ? "#ffffff" : "#f8fafc",
+                                                    boxShadow: "4px 0 6px -2px rgba(0,0,0,0.06)"
+                                                }}
+                                            >
                                                 <div className="flex items-center gap-1.5">
                                                     <span className="truncate max-w-[180px]" title={item.employeeName}>
                                                         {item.employeeName}
@@ -370,8 +379,8 @@ export default function PayrollOnvioPage() {
                             {/* Totais */}
                             <tfoot>
                                 <tr className="border-t-2 border-slate-200 bg-slate-50 font-black">
-                                    <td className="py-3 px-4 sticky left-0 bg-slate-50 z-10" />
-                                    <td className="py-3 px-4 sticky left-9 bg-slate-50 z-10 text-[10px] text-slate-500 uppercase tracking-widest whitespace-nowrap">
+                                    <td className="py-3 px-4 sticky left-0 z-10" style={{ backgroundColor: "#f8fafc" }} />
+                                    <td className="py-3 px-4 sticky left-9 z-10 text-[10px] text-slate-500 uppercase tracking-widest whitespace-nowrap" style={{ backgroundColor: "#f8fafc", boxShadow: "4px 0 6px -2px rgba(0,0,0,0.06)" }}>
                                         Totais ({filtered.length})
                                     </td>
                                     <td className="py-3 px-4 border-l border-slate-100" />
@@ -387,6 +396,7 @@ export default function PayrollOnvioPage() {
                                     })}
                                 </tr>
                             </tfoot>
+
                         </table>
                     </div>
                 )}
