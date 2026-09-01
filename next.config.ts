@@ -17,7 +17,8 @@ const nextConfig: NextConfig = {
   turbopack: {},
 
   // puppeteer-core e @sparticuz/chromium para automacao em nuvem na Vercel
-  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
+  // pdf-parse precisa ser external para nao ser corrompido pelo bundler do Next.js
+  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core", "pdf-parse"],
 };
 
 export default withSerwist(nextConfig);
