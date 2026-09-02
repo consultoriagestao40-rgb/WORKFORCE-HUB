@@ -1,6 +1,5 @@
-"use client";
-
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { 
     DollarSign, 
     CreditCard, 
@@ -20,7 +19,10 @@ import {
     Info,
     Check,
     AlertTriangle,
-    Copy
+    Copy,
+    ExternalLink,
+    CheckSquare,
+    Square
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,6 +111,38 @@ export default function BenefitsPage() {
     const [cajuSelectedMonth, setCajuSelectedMonth] = useState<number>(selectedMonth);
     const [cajuSelectedYear, setCajuSelectedYear] = useState<number>(selectedYear);
     const [isLoadingCaju, setIsLoadingCaju] = useState(false);
+
+    // Conferência Checklist State (Persisted in localStorage per year-month)
+    const [verifiedEmployeeIds, setVerifiedEmployeeIds] = useState<string[]>([]);
+
+    useEffect(() => {
+        try {
+            const storageKey = `benefits_verified_${selectedYear}_${selectedMonth}`;
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+                setVerifiedEmployeeIds(JSON.parse(saved));
+            } else {
+                setVerifiedEmployeeIds([]);
+            }
+        } catch (e) {
+            console.error("Erro ao carregar status de conferência:", e);
+        }
+    }, [selectedYear, selectedMonth]);
+
+    const toggleVerifiedEmployee = (employeeId: string) => {
+        setVerifiedEmployeeIds(prev => {
+            const next = prev.includes(employeeId) 
+                ? prev.filter(id => id !== employeeId)
+                : [...prev, employeeId];
+            try {
+                const storageKey = `benefits_verified_${selectedYear}_${selectedMonth}`;
+                localStorage.setItem(storageKey, JSON.stringify(next));
+            } catch (e) {
+                console.error("Erro ao salvar status de conferência:", e);
+            }
+            return next;
+        });
+    };
 
     useEffect(() => {
         if (exportCajuModalOpen) {
@@ -1156,7 +1190,7 @@ export default function BenefitsPage() {
                                         <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-black text-slate-500 uppercase tracking-wider">
                                             <th className="py-4 px-4 w-10 text-center">
                                                 <input 
-                                                    type="checkbox"
+                                                    type="checkbox" 
                                                     checked={isAllSelected}
                                                     ref={el => {
                                                         if (el) {
@@ -1166,6 +1200,14 @@ export default function BenefitsPage() {
                                                     onChange={handleSelectAllToggle}
                                                     className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
                                                 />
+                                            </th>
+                                            <th className="py-4 px-4 text-center w-24">
+                                                <div className="flex flex-col items-center">
+                                                    <span>Conferido</span>
+                                                    <span className="text-[9px] font-normal text-slate-400">
+                                                        ({filteredItems.filter(i => verifiedEmployeeIds.includes(i.employeeId)).length}/{filteredItems.length})
+                                                    </span>
+                                                </div>
                                             </th>
                                             <th className="py-4 px-4">Colaborador / CPF</th>
                                             <th className="py-4 px-4">Posto &amp; Cliente</th>
@@ -1183,20 +1225,31 @@ export default function BenefitsPage() {
                                     <tbody className="divide-y divide-slate-100 text-xs">
                                         {isLoading ? (
                                             <tr>
-                                                <td colSpan={12} className="text-center py-12 text-slate-400 font-medium">
+                                                <td colSpan={13} className="text-center py-12 text-slate-400 font-medium">
                                                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-orange-500" />
                                                     Calculando benefícios do mês...
                                                 </td>
                                             </tr>
                                         ) : filteredItems.length === 0 ? (
                                             <tr>
-                                                <td colSpan={12} className="text-center py-12 text-slate-400 font-medium">
+                                                <td colSpan={13} className="text-center py-12 text-slate-400 font-medium">
                                                     Nenhum colaborador encontrado com os filtros aplicados.
                                                 </td>
                                             </tr>
                                         ) : (
-                                            filteredItems.map(item => (
-                                                <tr key={item.employeeId} className={`hover:bg-slate-50/60 transition-colors ${selectedEmployeeIds.includes(item.employeeId) ? 'bg-orange-50/20' : ''}`}>
+                                            filteredItems.map(item => {
+                                                const isVerified = verifiedEmployeeIds.includes(item.employeeId);
+                                                return (
+                                                <tr 
+                                                    key={item.employeeId} 
+                                                    className={`transition-colors ${
+                                                        isVerified 
+                                                            ? 'bg-emerald-50/80 hover:bg-emerald-100/70 border-l-4 border-l-emerald-500' 
+                                                            : selectedEmployeeIds.includes(item.employeeId) 
+                                                                ? 'bg-orange-50/30 hover:bg-orange-50/50' 
+                                                                : 'hover:bg-slate-50/60'
+                                                    }`}
+                                                >
                                                     <td className="py-3.5 px-4 text-center">
                                                         <input 
                                                             type="checkbox" 
@@ -1206,12 +1259,40 @@ export default function BenefitsPage() {
                                                             className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                                                         />
                                                     </td>
+
+                                                    {/* Flag de Conferência */}
+                                                    <td className="py-3.5 px-4 text-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleVerifiedEmployee(item.employeeId)}
+                                                            className={`inline-flex items-center justify-center p-1.5 rounded-lg border transition-all ${
+                                                                isVerified 
+                                                                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs hover:bg-emerald-700' 
+                                                                    : 'bg-white border-slate-300 text-slate-400 hover:border-emerald-500 hover:text-emerald-600'
+                                                            }`}
+                                                            title={isVerified ? "Marcado como Conferido (Clique para desmarcar)" : "Marcar como Conferido"}
+                                                        >
+                                                            {isVerified ? (
+                                                                <Check className="w-4 h-4 stroke-[3]" />
+                                                            ) : (
+                                                                <div className="w-4 h-4 border-2 border-slate-300 rounded" />
+                                                            )}
+                                                        </button>
+                                                    </td>
+
                                                     <td className="py-3.5 px-4 font-bold text-slate-900">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span>{item.employeeName}</span>
+                                                        <div className="flex items-center gap-1.5 group">
+                                                            <Link 
+                                                                href={`/admin/employees/${item.employeeId}?backTo=/admin/benefits`}
+                                                                className="hover:text-primary hover:underline flex items-center gap-1 transition-colors cursor-pointer"
+                                                                title="Abrir cadastro do colaborador para editar dados / cartão"
+                                                            >
+                                                                <span>{item.employeeName}</span>
+                                                                <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                                                            </Link>
                                                             {item.situationName && item.situationName !== "Ativo" && (
                                                                 <span 
-                                                                    className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md text-white shadow-xs"
+                                                                    className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md text-white shadow-xs shrink-0"
                                                                     style={{ backgroundColor: item.situationColor || '#ef4444' }}
                                                                 >
                                                                     {item.situationName}
@@ -1477,7 +1558,8 @@ export default function BenefitsPage() {
                                                         )}
                                                     </td>
                                                 </tr>
-                                            ))
+                                                );
+                                            })
                                         )}
                                     </tbody>
                                 </table>
