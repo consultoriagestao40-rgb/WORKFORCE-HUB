@@ -80,6 +80,8 @@ export interface BenefitsCalculationItem {
     absenteismoAward: number;
     absenteismoPeriod?: string;
     chavePix?: string;
+    urbsSic?: string;
+    urbsCqCtNf?: string;
 }
 
 // Helper: Calculate business days in a month (excluding weekends)
@@ -806,6 +808,8 @@ export async function getBenefitsCalculation(year: number, month: number) {
             employeeName: emp.name,
             employeeCpf: emp.cpf,
             chavePix: (emp.extraFields as any)?.chavePix || "",
+            urbsSic: emp.urbsSic || "",
+            urbsCqCtNf: emp.urbsCqCtNf || "",
             postoName,
             clientName,
             companyName: emp.company?.name || "Sem Empresa",

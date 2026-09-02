@@ -114,6 +114,14 @@ export default function BenefitsPage() {
     const [cajuSelectedYear, setCajuSelectedYear] = useState<number>(selectedYear);
     const [isLoadingCaju, setIsLoadingCaju] = useState(false);
 
+    // Export Urbs States
+    const [exportUrbsModalOpen, setExportUrbsModalOpen] = useState(false);
+    const [urbsSelectedCompany, setUrbsSelectedCompany] = useState<string>("all");
+    const [urbsSelectedClient, setUrbsSelectedClient] = useState<string>("all");
+    const [urbsSelectedMonth, setUrbsSelectedMonth] = useState<number>(selectedMonth);
+    const [urbsSelectedYear, setUrbsSelectedYear] = useState<number>(selectedYear);
+    const [isLoadingUrbs, setIsLoadingUrbs] = useState(false);
+
     // Conferência Checklist State (Persisted in localStorage per year-month)
     const [verifiedEmployeeIds, setVerifiedEmployeeIds] = useState<string[]>([]);
 
@@ -740,6 +748,128 @@ export default function BenefitsPage() {
         }
     };
 
+    // Export URBS TXT (Formato SBE: CQ/CT/NF;NOME_DO_FUNCIONARIO;VALOR)
+    const exportToUrbsTxt = async () => {
+        setIsLoadingUrbs(true);
+        try {
+            const res = await getBenefitsCalculation(urbsSelectedYear, urbsSelectedMonth);
+            const rawItems = res.items || [];
+
+            // Filter items that have URBS destination or amount for Urbs
+            let filtered = rawItems.filter(item => {
+                const isUrbs1 = (item.vtDestination || "").toUpperCase().includes("URBS") && item.vtTotalValue > 0;
+                const isUrbs2 = (item.vtDestination2 || "").toUpperCase().includes("URBS") && item.vtTotalValue2 > 0;
+                return isUrbs1 || isUrbs2;
+            });
+
+            if (urbsSelectedCompany !== "all") {
+                filtered = filtered.filter(item => item.companyName === urbsSelectedCompany);
+            }
+            if (urbsSelectedClient !== "all") {
+                filtered = filtered.filter(item => item.clientName === urbsSelectedClient);
+            }
+
+            if (filtered.length === 0) {
+                toast.error("Nenhum colaborador com compra de VT Urbs encontrado para os filtros selecionados.");
+                return;
+            }
+
+            // Generate TXT lines: CQ/CT/NF;NOME_DO_FUNCIONARIO;VALOR
+            let txtLines: string[] = [];
+            filtered.forEach(item => {
+                const cardIdentifier = (item.urbsCqCtNf || item.urbsSic || item.employeeCpf || "").replace(/\D/g, "");
+                
+                // Calculate Urbs Total (from vt1 and/or vt2)
+                let urbsAmount = 0;
+                if ((item.vtDestination || "").toUpperCase().includes("URBS")) {
+                    urbsAmount += item.vtTotalValue;
+                }
+                if ((item.vtDestination2 || "").toUpperCase().includes("URBS")) {
+                    urbsAmount += item.vtTotalValue2;
+                }
+
+                if (urbsAmount > 0) {
+                    const amountFormatted = urbsAmount.toFixed(2);
+                    txtLines.push(`${cardIdentifier};${item.employeeName};${amountFormatted}`);
+                }
+            });
+
+            if (txtLines.length === 0) {
+                toast.error("Nenhum valor de VT Urbs a ser exportado.");
+                return;
+            }
+
+            const txtContent = txtLines.join("\r\n");
+            const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+
+            const companyPart = urbsSelectedCompany === 'all' ? 'todas_empresas' : urbsSelectedCompany.replace(/\s+/g, '_');
+            const clientPart = urbsSelectedClient === 'all' ? 'todos_contratos' : urbsSelectedClient.replace(/\s+/g, '_');
+
+            link.download = `pedido_urbs_${companyPart}_${clientPart}_${urbsSelectedYear}_${String(urbsSelectedMonth).padStart(2, '0')}.txt`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            toast.success(`Arquivo TXT da URBS com ${txtLines.length} colaborador(es) exportado com sucesso!`);
+            setExportUrbsModalOpen(false);
+        } catch (error) {
+            console.error("Erro ao exportar arquivo URBS:", error);
+            toast.error("Ocorreu um erro ao gerar o arquivo URBS.");
+        } finally {
+            setIsLoadingUrbs(false);
+        }
+    };
+
+    // Export Selected Items directly to URBS TXT
+    const exportSelectedToUrbsTxt = () => {
+        if (selectedEmployeeIds.length === 0) {
+            toast.error("Nenhum colaborador selecionado.");
+            return;
+        }
+
+        const selectedItems = items.filter(item => selectedEmployeeIds.includes(item.employeeId));
+        const urbsItems = selectedItems.filter(item => {
+            const isUrbs1 = (item.vtDestination || "").toUpperCase().includes("URBS") && item.vtTotalValue > 0;
+            const isUrbs2 = (item.vtDestination2 || "").toUpperCase().includes("URBS") && item.vtTotalValue2 > 0;
+            return isUrbs1 || isUrbs2;
+        });
+
+        if (urbsItems.length === 0) {
+            toast.error("Nenhum dos colaboradores selecionados possui VT Urbs configurado.");
+            return;
+        }
+
+        let txtLines: string[] = [];
+        urbsItems.forEach(item => {
+            const cardIdentifier = (item.urbsCqCtNf || item.urbsSic || item.employeeCpf || "").replace(/\D/g, "");
+            let urbsAmount = 0;
+            if ((item.vtDestination || "").toUpperCase().includes("URBS")) {
+                urbsAmount += item.vtTotalValue;
+            }
+            if ((item.vtDestination2 || "").toUpperCase().includes("URBS")) {
+                urbsAmount += item.vtTotalValue2;
+            }
+
+            if (urbsAmount > 0) {
+                const amountFormatted = urbsAmount.toFixed(2);
+                txtLines.push(`${cardIdentifier};${item.employeeName};${amountFormatted}`);
+            }
+        });
+
+        const txtContent = txtLines.join("\r\n");
+        const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `pedido_urbs_selecionados_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast.success(`Arquivo TXT da URBS com ${txtLines.length} selecionado(s) exportado com sucesso!`);
+    };
+
     const exportOccurrencesToExcel = () => {
         const occurrencesItems = items.filter(item => item.vtOccurrencesDeducted > 0);
         if (occurrencesItems.length === 0) {
@@ -1063,6 +1193,14 @@ export default function BenefitsPage() {
                     </Button>
 
                     <Button 
+                        onClick={() => setExportUrbsModalOpen(true)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-md h-9 px-4 shrink-0"
+                        title="Exportar arquivo TXT para compra de VT no portal SBE da URBS"
+                    >
+                        <Bus className="w-4 h-4" /> Exportar URBS
+                    </Button>
+
+                    <Button 
                         onClick={exportToExcel}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-md h-9 px-4 shrink-0"
                     >
@@ -1278,11 +1416,20 @@ export default function BenefitsPage() {
                             </div>
 
                             {selectedEmployeeIds.length > 0 ? (
-                                <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-200">
+                                <div className="flex flex-wrap items-center gap-2 animate-in fade-in zoom-in duration-200">
                                     <div className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1.5 rounded-xl border border-orange-200/60 flex items-center gap-1.5">
                                         <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
                                         <span>{selectedEmployeeIds.length} selecionado(s)</span>
                                     </div>
+                                    <Button
+                                        onClick={exportSelectedToUrbsTxt}
+                                        size="sm"
+                                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs gap-1.5 rounded-xl shadow-xs h-8 px-3 transition-all active:scale-95"
+                                        title="Exportar arquivo TXT para URBS somente dos selecionados"
+                                    >
+                                        <Bus className="w-3.5 h-3.5" />
+                                        <span>Exportar TXT URBS</span>
+                                    </Button>
                                     <Button
                                         onClick={exportSelectedToExcel}
                                         size="sm"
@@ -2863,6 +3010,106 @@ export default function BenefitsPage() {
                 </DialogContent>
             </Dialog>
 
+            {/* Modal de Exportação URBS */}
+            <Dialog open={exportUrbsModalOpen} onOpenChange={setExportUrbsModalOpen}>
+                <DialogContent className="sm:max-w-md bg-white p-0 overflow-hidden rounded-3xl">
+                    <DialogHeader className="p-6 pb-2">
+                        <div className="flex items-center gap-2 text-blue-600 text-xs font-bold uppercase tracking-wider mb-1">
+                            <Bus className="w-4 h-4" /> Layout Oficial URBS (SBE)
+                        </div>
+                        <DialogTitle className="text-xl font-black text-slate-900">
+                            Exportar Lote de Compra URBS
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-slate-500">
+                            Gera o arquivo em formato <strong>TXT (.txt)</strong> com a estrutura <code>CQ/CT/NF;NOME;VALOR</code> pronto para importar no portal da URBS.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="p-6 pt-2 space-y-4 text-xs">
+                        <div className="space-y-1.5">
+                            <Label className="font-bold text-slate-700">Empresa Pagadora</Label>
+                            <Combobox
+                                options={[
+                                    { value: "all", label: "Todas as Empresas" },
+                                    ...uniqueCompanies.map(c => ({ value: c, label: c }))
+                                ]}
+                                value={urbsSelectedCompany}
+                                onChange={setUrbsSelectedCompany}
+                                placeholder="Selecione a Empresa"
+                                searchPlaceholder="Buscar empresa..."
+                                className="h-9"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label className="font-bold text-slate-700">Contrato / Cliente</Label>
+                            <Combobox
+                                options={[
+                                    { value: "all", label: "Todos os Contratos" },
+                                    ...uniqueClients.map(c => ({ value: c, label: c }))
+                                ]}
+                                value={urbsSelectedClient}
+                                onChange={setUrbsSelectedClient}
+                                placeholder="Selecione o Contrato"
+                                searchPlaceholder="Buscar contrato..."
+                                className="h-9"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <Label className="font-bold text-slate-700">Mês de Competência</Label>
+                                <Select value={String(urbsSelectedMonth)} onValueChange={val => setUrbsSelectedMonth(Number(val))}>
+                                    <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {monthNames.map((m, idx) => (
+                                            <SelectItem key={idx + 1} value={String(idx + 1)}>{m}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="font-bold text-slate-700">Ano</Label>
+                                <Select value={String(urbsSelectedYear)} onValueChange={val => setUrbsSelectedYear(Number(val))}>
+                                    <SelectTrigger className="h-9 w-full rounded-xl bg-white border-slate-200 text-xs">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="2025">2025</SelectItem>
+                                        <SelectItem value="2026">2026</SelectItem>
+                                        <SelectItem value="2027">2027</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-2xl text-[11px] text-blue-900 space-y-1">
+                            <div className="font-bold flex items-center gap-1.5">
+                                <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                <span>Padrão do Arquivo:</span>
+                            </div>
+                            <p className="font-mono text-[10px] text-blue-800 bg-white/80 p-1.5 rounded border border-blue-200">
+                                0001836501;Marcelo de Sousa;150.50
+                            </p>
+                        </div>
+                    </div>
+
+                    <DialogFooter className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={() => setExportUrbsModalOpen(false)}>Cancelar</Button>
+                        <Button 
+                            onClick={exportToUrbsTxt} 
+                            disabled={isLoadingUrbs}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-2"
+                        >
+                            {isLoadingUrbs ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Exportar TXT URBS
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Floating Batch Payment Action Bar */}
             {selectedEmployeeIds.length > 0 && (
                 <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-3xl shadow-xl flex items-center gap-6 z-50 border border-slate-800 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -2870,6 +3117,12 @@ export default function BenefitsPage() {
                         <span className="text-orange-400 font-extrabold">{selectedEmployeeIds.length}</span> colaborador(es) selecionado(s) para pagamento.
                     </div>
                     <div className="flex gap-2">
+                        <Button 
+                            onClick={exportSelectedToUrbsTxt}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs h-9 px-4 gap-1.5"
+                        >
+                            <Bus className="w-4 h-4" /> Exportar TXT URBS
+                        </Button>
                         <Button 
                             onClick={exportSelectedToExcel}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs h-9 px-4 gap-1.5"
