@@ -583,6 +583,107 @@ export default function BenefitsPage() {
         toast.success("Planilha Excel baixada com sucesso!");
     };
 
+    // Export Selected items to Excel
+    const exportSelectedToExcel = () => {
+        if (selectedEmployeeIds.length === 0) {
+            toast.error("Nenhum colaborador selecionado.");
+            return;
+        }
+
+        const selectedItems = items.filter(item => selectedEmployeeIds.includes(item.employeeId));
+        if (selectedItems.length === 0) {
+            toast.error("Nenhum registro correspondente encontrado.");
+            return;
+        }
+
+        let xml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#EA580C" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+  <Style ss:ID="Currency">
+   <NumberFormat ss:Format="R$#,##0.00"/>
+  </Style>
+  <Style ss:ID="Center">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Compra Selecionados">
+  <Table>
+   <Row ss:Height="24" ss:StyleID="Header">
+    <Cell><Data ss:Type="String">Colaborador</Data></Cell>
+    <Cell><Data ss:Type="String">CPF</Data></Cell>
+    <Cell><Data ss:Type="String">Posto</Data></Cell>
+    <Cell><Data ss:Type="String">Cliente</Data></Cell>
+    <Cell><Data ss:Type="String">Data Admissao</Data></Cell>
+    <Cell><Data ss:Type="String">Optante VT</Data></Cell>
+    <Cell><Data ss:Type="String">VT R$/Dia</Data></Cell>
+    <Cell><Data ss:Type="String">Faltas/Atestados (26-25)</Data></Cell>
+    <Cell><Data ss:Type="String">VT Base (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">VT Desconto (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">VT Valor Líquido (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">Destino VT</Data></Cell>
+    <Cell><Data ss:Type="String">VA Base (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">VA Desconto (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">VA Valor Líquido (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">Prêmio Assiduidade (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">Total Caju (R$)</Data></Cell>
+    <Cell><Data ss:Type="String">Destino VA</Data></Cell>
+    <Cell><Data ss:Type="String">Status Pagamento</Data></Cell>
+    <Cell><Data ss:Type="String">Data Pagamento</Data></Cell>
+    <Cell><Data ss:Type="String">Observacao / Lote</Data></Cell>
+   </Row>`;
+
+        selectedItems.forEach(item => {
+            xml += `
+   <Row>
+    <Cell><Data ss:Type="String">${item.employeeName}</Data></Cell>
+    <Cell><Data ss:Type="String">${item.employeeCpf}</Data></Cell>
+    <Cell><Data ss:Type="String">${item.postoName}</Data></Cell>
+    <Cell><Data ss:Type="String">${item.clientName}</Data></Cell>
+    <Cell ss:StyleID="Center"><Data ss:Type="String">${item.admissionDate}</Data></Cell>
+    <Cell ss:StyleID="Center"><Data ss:Type="String">${item.vtOptIn ? 'Sim' : 'Não'}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vtDailyValue}</Data></Cell>
+    <Cell ss:StyleID="Center"><Data ss:Type="Number">${item.vtOccurrencesDeducted}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vtOptIn ? item.vtBaseValue : 0}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vtOptIn ? item.vtDeductionValue : 0}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vtOptIn ? item.vtTotalValue : 0}</Data></Cell>
+    <Cell><Data ss:Type="String">${item.vtDestination}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaBaseValue}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaDeductionValue}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaTotalValue}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.absenteismoAward || 0}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${item.vaTotalValue + (item.absenteismoAward || 0)}</Data></Cell>
+    <Cell><Data ss:Type="String">${item.vaDestination}</Data></Cell>
+    <Cell ss:StyleID="Center"><Data ss:Type="String">${item.isPaid ? 'PAGO' : 'PENDENTE'}</Data></Cell>
+    <Cell ss:StyleID="Center"><Data ss:Type="String">${item.paidAt || '-'}</Data></Cell>
+    <Cell><Data ss:Type="String">${item.vtBatchNote || item.vaBatchNote || ''}</Data></Cell>
+   </Row>`;
+        });
+
+        xml += `
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+        const blob = new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `compra_beneficios_selecionados_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.xls`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast.success(`Planilha com ${selectedItems.length} selecionado(s) exportada com sucesso!`);
+    };
+
     const exportToCajuCsv = async () => {
         setIsLoadingCaju(true);
         try {
@@ -1176,11 +1277,31 @@ export default function BenefitsPage() {
                                 </div>
                             </div>
 
-                            {selectedEmployeeIds.length > 0 && (
-                                <div className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-lg">
-                                    {selectedEmployeeIds.length} selecionado(s) para pagamento em lote
+                            {selectedEmployeeIds.length > 0 ? (
+                                <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-200">
+                                    <div className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1.5 rounded-xl border border-orange-200/60 flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                                        <span>{selectedEmployeeIds.length} selecionado(s)</span>
+                                    </div>
+                                    <Button
+                                        onClick={exportSelectedToExcel}
+                                        size="sm"
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 rounded-xl shadow-xs h-8 px-3 transition-all active:scale-95"
+                                        title="Exportar planilha de compra somente dos colaboradores selecionados"
+                                    >
+                                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                                        <span>Exportar Selecionados ({selectedEmployeeIds.length})</span>
+                                    </Button>
+                                    <Button
+                                        onClick={() => setBatchPaymentModalOpen(true)}
+                                        size="sm"
+                                        className="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs gap-1.5 rounded-xl shadow-xs h-8 px-3 transition-all active:scale-95"
+                                    >
+                                        <Check className="w-3.5 h-3.5" />
+                                        <span>Dar Baixa</span>
+                                    </Button>
                                 </div>
-                            )}
+                            ) : null}
                         </div>
                     </div>
 
@@ -2749,6 +2870,12 @@ export default function BenefitsPage() {
                         <span className="text-orange-400 font-extrabold">{selectedEmployeeIds.length}</span> colaborador(es) selecionado(s) para pagamento.
                     </div>
                     <div className="flex gap-2">
+                        <Button 
+                            onClick={exportSelectedToExcel}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs h-9 px-4 gap-1.5"
+                        >
+                            <FileSpreadsheet className="w-4 h-4" /> Exportar XLSX Selecionados
+                        </Button>
                         <Button 
                             onClick={() => setBatchPaymentModalOpen(true)}
                             className="bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl text-xs h-9 px-4 gap-1.5"
