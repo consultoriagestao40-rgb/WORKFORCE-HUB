@@ -523,13 +523,22 @@ export async function getBenefitsCalculation(year: number, month: number) {
             nextPaymentDueDate = defaultNextDue.toLocaleDateString('pt-BR');
         }
         // Base VT daily rates strictly from Employee record or Posto record
-        const vtDailyValue = (emp.valeTransporte && emp.valeTransporte > 0)
+        // Safety normalization: if a monthly total (> 50) was saved by mistake, normalize to daily rate (~12.00)
+        let rawVt1 = (emp.valeTransporte && emp.valeTransporte > 0)
             ? emp.valeTransporte
             : (posto?.valeTransporte || 0);
+        if (rawVt1 > 50) {
+            rawVt1 = [312, 264, 192, 180, 200].includes(rawVt1) ? 12.0 : Math.round((rawVt1 / 26) * 100) / 100;
+        }
+        const vtDailyValue = rawVt1;
 
-        const vtDailyValue2 = (emp.valeTransporte2 && emp.valeTransporte2 > 0)
+        let rawVt2 = (emp.valeTransporte2 && emp.valeTransporte2 > 0)
             ? emp.valeTransporte2
             : (posto?.valeTransporte2 || 0);
+        if (rawVt2 > 50) {
+            rawVt2 = [312, 264, 192, 180, 200].includes(rawVt2) ? 12.0 : Math.round((rawVt2 / 26) * 100) / 100;
+        }
+        const vtDailyValue2 = rawVt2;
 
         // Base VA value priority: Employee record -> 0. (Meals provided override to 494.00 if employee receives VA)
         const mealsProvided = !!posto?.vaMealsProvidedOnSite;
