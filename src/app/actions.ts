@@ -1553,6 +1553,21 @@ export async function updateEmployee(formData: FormData) {
             include: { role: true, situation: true }
         });
 
+        if (!oldEmployee) {
+            return { error: "Colaborador não encontrado" };
+        }
+
+        // Validate roleId: if missing or invalid, keep the existing employee roleId
+        let effectiveRoleId = roleId;
+        if (!effectiveRoleId) {
+            effectiveRoleId = oldEmployee.roleId;
+        } else {
+            const roleExists = await prisma.role.findUnique({ where: { id: effectiveRoleId } });
+            if (!roleExists) {
+                effectiveRoleId = oldEmployee.roleId;
+            }
+        }
+
         const oldExtra = (oldEmployee?.extraFields as Record<string, any>) || {};
         const mergedExtra = extraFields ? { ...oldExtra, ...extraFields } : (Object.keys(oldExtra).length > 0 ? oldExtra : undefined);
 
@@ -1562,7 +1577,7 @@ export async function updateEmployee(formData: FormData) {
                 data: {
                     name,
                     cpf,
-                    roleId,
+                    roleId: effectiveRoleId,
                     companyId: (formData.get("companyId") === "no_company" || !formData.get("companyId")) ? null : (formData.get("companyId") as string),
                     type,
                     status,

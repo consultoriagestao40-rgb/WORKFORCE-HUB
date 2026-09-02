@@ -1201,7 +1201,8 @@ export default function BenefitsPage() {
                                                     className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
                                                 />
                                             </th>
-                                            <th className="py-4 px-4 text-center w-24">
+                                            <th className="py-4 px-4">Colaborador / CPF</th>
+                                            <th className="py-4 px-4 text-center w-28">
                                                 <div className="flex flex-col items-center">
                                                     <span>Conferido</span>
                                                     <span className="text-[9px] font-normal text-slate-400">
@@ -1209,7 +1210,6 @@ export default function BenefitsPage() {
                                                     </span>
                                                 </div>
                                             </th>
-                                            <th className="py-4 px-4">Colaborador / CPF</th>
                                             <th className="py-4 px-4">Posto &amp; Cliente</th>
                                             <th className="py-4 px-4">Optante VT?</th>
                                             <th className="py-4 px-4 text-center">Faltas / Ocorrências</th>
@@ -1260,26 +1260,6 @@ export default function BenefitsPage() {
                                                         />
                                                     </td>
 
-                                                    {/* Flag de Conferência */}
-                                                    <td className="py-3.5 px-4 text-center">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => toggleVerifiedEmployee(item.employeeId)}
-                                                            className={`inline-flex items-center justify-center p-1.5 rounded-lg border transition-all ${
-                                                                isVerified 
-                                                                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs hover:bg-emerald-700' 
-                                                                    : 'bg-white border-slate-300 text-slate-400 hover:border-emerald-500 hover:text-emerald-600'
-                                                            }`}
-                                                            title={isVerified ? "Marcado como Conferido (Clique para desmarcar)" : "Marcar como Conferido"}
-                                                        >
-                                                            {isVerified ? (
-                                                                <Check className="w-4 h-4 stroke-[3]" />
-                                                            ) : (
-                                                                <div className="w-4 h-4 border-2 border-slate-300 rounded" />
-                                                            )}
-                                                        </button>
-                                                    </td>
-
                                                     <td className="py-3.5 px-4 font-bold text-slate-900">
                                                         <div className="flex items-center gap-1.5 group">
                                                             <Link 
@@ -1300,6 +1280,26 @@ export default function BenefitsPage() {
                                                             )}
                                                         </div>
                                                         <div className="text-[10px] font-mono text-slate-400">{item.employeeCpf}</div>
+                                                    </td>
+
+                                                    {/* Flag de Conferência (À direita do nome) */}
+                                                    <td className="py-3.5 px-4 text-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleVerifiedEmployee(item.employeeId)}
+                                                            className={`inline-flex items-center justify-center p-1.5 rounded-lg border transition-all ${
+                                                                isVerified 
+                                                                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs hover:bg-emerald-700' 
+                                                                    : 'bg-white border-slate-300 text-slate-400 hover:border-emerald-500 hover:text-emerald-600'
+                                                            }`}
+                                                            title={isVerified ? "Marcado como Conferido (Clique para desmarcar)" : "Marcar como Conferido"}
+                                                        >
+                                                            {isVerified ? (
+                                                                <Check className="w-4 h-4 stroke-[3]" />
+                                                            ) : (
+                                                                <div className="w-4 h-4 border-2 border-slate-300 rounded" />
+                                                            )}
+                                                        </button>
                                                     </td>
 
                                                     <td className="py-3.5 px-4">
@@ -1642,6 +1642,7 @@ export default function BenefitsPage() {
                                                                     />
                                                                 </th>
                                                                 <th className="py-3 px-4">Colaborador</th>
+                                                                <th className="py-3 px-4 text-center w-24">Conferido</th>
                                                                 <th className="py-3 px-4">Posto &amp; Cliente</th>
                                                                 <th className="py-3 px-4">Optante VT?</th>
                                                                 <th className="py-3 px-4 text-center">Faltas</th>
@@ -1653,8 +1654,19 @@ export default function BenefitsPage() {
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-100">
-                                                            {group.items.map(item => (
-                                                                <tr key={item.employeeId} className={`hover:bg-slate-50/60 transition-colors ${selectedEmployeeIds.includes(item.employeeId) ? 'bg-orange-50/20' : ''}`}>
+                                                            {group.items.map(item => {
+                                                                const isVerified = verifiedEmployeeIds.includes(item.employeeId);
+                                                                return (
+                                                                <tr 
+                                                                    key={item.employeeId} 
+                                                                    className={`transition-colors ${
+                                                                        isVerified 
+                                                                            ? 'bg-emerald-50/80 hover:bg-emerald-100/70 border-l-4 border-l-emerald-500' 
+                                                                            : selectedEmployeeIds.includes(item.employeeId) 
+                                                                                ? 'bg-orange-50/30 hover:bg-orange-50/50' 
+                                                                                : 'hover:bg-slate-50/60'
+                                                                    }`}
+                                                                >
                                                                     <td className="py-3 px-4 text-center">
                                                                         <input 
                                                                             type="checkbox" 
@@ -1665,8 +1677,35 @@ export default function BenefitsPage() {
                                                                         />
                                                                     </td>
                                                                     <td className="py-3 px-4 font-bold text-slate-900">
-                                                                        <div>{item.employeeName}</div>
+                                                                        <div className="flex items-center gap-1.5 group">
+                                                                            <Link 
+                                                                                href={`/admin/employees/${item.employeeId}?backTo=/admin/benefits`}
+                                                                                className="hover:text-primary hover:underline flex items-center gap-1 transition-colors cursor-pointer"
+                                                                                title="Abrir cadastro do colaborador"
+                                                                            >
+                                                                                <span>{item.employeeName}</span>
+                                                                                <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                                                                            </Link>
+                                                                        </div>
                                                                         <div className="text-[9px] font-mono text-slate-400">{item.employeeCpf}</div>
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-center">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => toggleVerifiedEmployee(item.employeeId)}
+                                                                            className={`inline-flex items-center justify-center p-1 rounded-lg border transition-all ${
+                                                                                isVerified 
+                                                                                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs hover:bg-emerald-700' 
+                                                                                    : 'bg-white border-slate-300 text-slate-400 hover:border-emerald-500 hover:text-emerald-600'
+                                                                            }`}
+                                                                            title={isVerified ? "Marcado como Conferido" : "Marcar como Conferido"}
+                                                                        >
+                                                                            {isVerified ? (
+                                                                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                                                            ) : (
+                                                                                <div className="w-3.5 h-3.5 border-2 border-slate-300 rounded" />
+                                                                            )}
+                                                                        </button>
                                                                     </td>
                                                                     <td className="py-3 px-4">
                                                                         <div className="font-semibold text-slate-800">{item.postoName}</div>
@@ -1725,7 +1764,8 @@ export default function BenefitsPage() {
                                                                         )}
                                                                     </td>
                                                                 </tr>
-                                                            ))}
+                                                            );
+                                                        })}
                                                         </tbody>
                                                     </table>
                                                 </div>
@@ -1812,6 +1852,7 @@ export default function BenefitsPage() {
                                                                     />
                                                                 </th>
                                                                 <th className="py-3 px-4">Colaborador</th>
+                                                                <th className="py-3 px-4 text-center w-24">Conferido</th>
                                                                 <th className="py-3 px-4">Posto &amp; Cliente</th>
                                                                 <th className="py-3 px-4">Optante VT?</th>
                                                                 <th className="py-3 px-4 text-center">Faltas</th>
@@ -1823,8 +1864,19 @@ export default function BenefitsPage() {
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-100">
-                                                            {group.items.map(item => (
-                                                                <tr key={item.employeeId} className={`hover:bg-slate-50/60 transition-colors ${selectedEmployeeIds.includes(item.employeeId) ? 'bg-orange-50/20' : ''}`}>
+                                                            {group.items.map(item => {
+                                                                const isVerified = verifiedEmployeeIds.includes(item.employeeId);
+                                                                return (
+                                                                <tr 
+                                                                    key={item.employeeId} 
+                                                                    className={`transition-colors ${
+                                                                        isVerified 
+                                                                            ? 'bg-emerald-50/80 hover:bg-emerald-100/70 border-l-4 border-l-emerald-500' 
+                                                                            : selectedEmployeeIds.includes(item.employeeId) 
+                                                                                ? 'bg-orange-50/30 hover:bg-orange-50/50' 
+                                                                                : 'hover:bg-slate-50/60'
+                                                                    }`}
+                                                                >
                                                                     <td className="py-3 px-4 text-center">
                                                                         <input 
                                                                             type="checkbox" 
@@ -1835,8 +1887,35 @@ export default function BenefitsPage() {
                                                                         />
                                                                     </td>
                                                                     <td className="py-3 px-4 font-bold text-slate-900">
-                                                                        <div>{item.employeeName}</div>
+                                                                        <div className="flex items-center gap-1.5 group">
+                                                                            <Link 
+                                                                                href={`/admin/employees/${item.employeeId}?backTo=/admin/benefits`}
+                                                                                className="hover:text-primary hover:underline flex items-center gap-1 transition-colors cursor-pointer"
+                                                                                title="Abrir cadastro do colaborador"
+                                                                            >
+                                                                                <span>{item.employeeName}</span>
+                                                                                <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                                                                            </Link>
+                                                                        </div>
                                                                         <div className="text-[9px] font-mono text-slate-400">{item.employeeCpf}</div>
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-center">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => toggleVerifiedEmployee(item.employeeId)}
+                                                                            className={`inline-flex items-center justify-center p-1 rounded-lg border transition-all ${
+                                                                                isVerified 
+                                                                                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs hover:bg-emerald-700' 
+                                                                                    : 'bg-white border-slate-300 text-slate-400 hover:border-emerald-500 hover:text-emerald-600'
+                                                                            }`}
+                                                                            title={isVerified ? "Marcado como Conferido" : "Marcar como Conferido"}
+                                                                        >
+                                                                            {isVerified ? (
+                                                                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                                                            ) : (
+                                                                                <div className="w-3.5 h-3.5 border-2 border-slate-300 rounded" />
+                                                                            )}
+                                                                        </button>
                                                                     </td>
                                                                     <td className="py-3 px-4">
                                                                         <div className="font-semibold text-slate-800">{item.postoName}</div>
@@ -1895,7 +1974,8 @@ export default function BenefitsPage() {
                                                                         )}
                                                                     </td>
                                                                 </tr>
-                                                            ))}
+                                                            );
+                                                        })}
                                                         </tbody>
                                                     </table>
                                                 </div>
