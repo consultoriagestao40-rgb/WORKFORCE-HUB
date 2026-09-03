@@ -1639,9 +1639,16 @@ export default function BenefitsPage() {
                                                         {item.vtOccurrencesDeducted > 0 ? (
                                                             <Popover>
                                                                 <PopoverTrigger asChild>
-                                                                    <button className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-red-100 text-red-700 hover:bg-red-200 transition-colors cursor-pointer gap-1">
-                                                                        <AlertCircle className="w-3 h-3 text-red-600" />
-                                                                        -{item.vtOccurrencesDeducted} dia(s) <Info className="w-3 h-3 ml-0.5 opacity-60" />
+                                                                    <button className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-extrabold transition-colors cursor-pointer gap-1 ${
+                                                                        item.vaOccurrencesDeducted === 0
+                                                                            ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' 
+                                                                            : 'bg-red-100 text-red-700 hover:bg-red-200'
+                                                                    }`}>
+                                                                        <AlertCircle className={`w-3 h-3 ${item.vaOccurrencesDeducted === 0 ? 'text-amber-600' : 'text-red-600'}`} />
+                                                                        {item.vaOccurrencesDeducted === 0 
+                                                                            ? `${item.vtOccurrencesDeducted} atestado(s)` 
+                                                                            : `-${item.vtOccurrencesDeducted} dia(s)`}
+                                                                        <Info className="w-3 h-3 ml-0.5 opacity-60" />
                                                                     </button>
                                                                 </PopoverTrigger>
                                                                 <PopoverContent className="w-72 p-3 text-xs space-y-2">
