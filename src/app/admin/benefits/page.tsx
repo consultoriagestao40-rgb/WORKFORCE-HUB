@@ -748,6 +748,42 @@ export default function BenefitsPage() {
         }
     };
 
+    // Export Selected Items directly to Caju CSV
+    const exportSelectedToCajuCsv = () => {
+        if (selectedEmployeeIds.length === 0) {
+            toast.error("Nenhum colaborador selecionado.");
+            return;
+        }
+
+        const selectedItems = items.filter(item => selectedEmployeeIds.includes(item.employeeId));
+        if (selectedItems.length === 0) {
+            toast.error("Nenhum registro correspondente encontrado.");
+            return;
+        }
+
+        let csvContent = "CPF;Matricula (opcional);Valor Fixo em Auxilio Alimentacao;Mobilidade;Valor Fixo em Mobilidade;Home Office;Valor Fixo em Home Office;Multi\n";
+        
+        let validRowsCount = 0;
+        selectedItems.forEach(item => {
+            const rawCpf = (item.employeeCpf || "").replace(/\D/g, "");
+            const totalCaju = item.vaTotalValue + (item.absenteismoAward || 0);
+            const totalCajuFormatted = totalCaju.toFixed(2).replace(".", ",");
+            
+            csvContent += `${rawCpf};;${totalCajuFormatted};0;0;0;0;0\n`;
+            validRowsCount++;
+        });
+
+        const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `pedido_caju_selecionados_${selectedYear}_${String(selectedMonth).padStart(2, '0')}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast.success(`Arquivo CSV do Caju com ${validRowsCount} selecionado(s) exportado com sucesso!`);
+    };
+
     // Export URBS TXT (Formato SBE: CQ/CT/NF;NOME_DO_FUNCIONARIO;VALOR)
     const exportToUrbsTxt = async () => {
         setIsLoadingUrbs(true);
@@ -1421,6 +1457,15 @@ export default function BenefitsPage() {
                                         <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
                                         <span>{selectedEmployeeIds.length} selecionado(s)</span>
                                     </div>
+                                    <Button
+                                        onClick={exportSelectedToCajuCsv}
+                                        size="sm"
+                                        className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs gap-1.5 rounded-xl shadow-xs h-8 px-3 transition-all active:scale-95"
+                                        title="Exportar arquivo CSV para o Caju somente dos colaboradores selecionados"
+                                    >
+                                        <Download className="w-3.5 h-3.5" />
+                                        <span>Exportar Caju</span>
+                                    </Button>
                                     <Button
                                         onClick={exportSelectedToUrbsTxt}
                                         size="sm"
@@ -3117,6 +3162,12 @@ export default function BenefitsPage() {
                         <span className="text-orange-400 font-extrabold">{selectedEmployeeIds.length}</span> colaborador(es) selecionado(s) para pagamento.
                     </div>
                     <div className="flex gap-2">
+                        <Button 
+                            onClick={exportSelectedToCajuCsv}
+                            className="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl text-xs h-9 px-4 gap-1.5"
+                        >
+                            <Download className="w-4 h-4" /> Exportar CSV Caju
+                        </Button>
                         <Button 
                             onClick={exportSelectedToUrbsTxt}
                             className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs h-9 px-4 gap-1.5"
