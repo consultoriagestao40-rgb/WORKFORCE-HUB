@@ -412,7 +412,9 @@ export async function getPayrollPreview(year: number, month: number) {
             vaDiscountPercentage = emp.vaDiscountPercentage !== null && emp.vaDiscountPercentage !== undefined
                 ? emp.vaDiscountPercentage
                 : (posto?.vaDiscountPercentage !== null && posto?.vaDiscountPercentage !== undefined ? posto.vaDiscountPercentage : 20.0);
-            const rawBaseVaValue = emp.valeAlimentacao || 0;
+            const rawBaseVaValue = (emp.valeAlimentacao !== null && emp.valeAlimentacao !== undefined && emp.valeAlimentacao > 0)
+                ? emp.valeAlimentacao
+                : (posto?.valeAlimentacao || 0);
             const baseVaValue = (rawBaseVaValue > 0 && posto?.vaMealsProvidedOnSite) ? 494.00 : rawBaseVaValue;
             vaBaseValue = baseVaValue;
             vaNetValue = baseVaValue;

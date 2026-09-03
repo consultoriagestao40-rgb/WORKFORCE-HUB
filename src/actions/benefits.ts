@@ -546,9 +546,11 @@ export async function getBenefitsCalculation(year: number, month: number) {
         }
         const vtDailyValue2 = rawVt2;
 
-        // Base VA value priority: Employee record -> 0. (Meals provided override to 494.00 if employee receives VA)
+        // Base VA value priority: Employee record -> Posto record -> 0. (Meals provided override to 494.00 if employee receives VA)
         const mealsProvided = !!posto?.vaMealsProvidedOnSite;
-        const rawBaseVaValue = emp.valeAlimentacao || 0;
+        const rawBaseVaValue = (emp.valeAlimentacao !== null && emp.valeAlimentacao !== undefined && emp.valeAlimentacao > 0)
+            ? emp.valeAlimentacao
+            : (posto?.valeAlimentacao || 0);
         const baseVaValue = (rawBaseVaValue > 0 && mealsProvided) ? 494.00 : rawBaseVaValue;
 
         const pivotDateForVt = activeAssignment?.startDate ? new Date(activeAssignment.startDate) : admissionDateObj;
