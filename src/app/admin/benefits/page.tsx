@@ -1650,9 +1650,10 @@ export default function BenefitsPage() {
                                                                     </div>
                                                                     <div className="space-y-1.5 max-h-48 overflow-y-auto">
                                                                         {item.occurrencesList.map(occ => {
+                                                                            const isAtestado = occ.type === "Atestado Médico";
                                                                             const vtDisc = item.vtOptIn ? item.vtDailyValue : 0;
                                                                             const vtDisc2 = item.vtOptIn ? (item.vtDailyValue2 || 0) : 0;
-                                                                            const vaDisc = item.vaDailyValue || 0;
+                                                                            const vaDisc = isAtestado ? 0 : (item.vaDailyValue || 0);
                                                                             const totalDisc = vtDisc + vtDisc2 + vaDisc;
 
                                                                             return (
@@ -1669,9 +1670,11 @@ export default function BenefitsPage() {
                                                                                         {item.vtOptIn && vtDisc2 > 0 && (
                                                                                             <div>Desc. VT 2: <strong className="text-indigo-600">R$ {vtDisc2.toFixed(2)}</strong></div>
                                                                                         )}
-                                                                                        {vaDisc > 0 && (
-                                                                                            <div>Desc. VA: <strong className="text-orange-600">R$ {vaDisc.toFixed(2)}</strong></div>
-                                                                                        )}
+                                                                                        <div>
+                                                                                            Desc. VA: <strong className={isAtestado ? "text-slate-400" : "text-orange-600"}>
+                                                                                                {isAtestado ? "R$ 0,00 (Isento)" : `R$ ${vaDisc.toFixed(2)}`}
+                                                                                            </strong>
+                                                                                        </div>
                                                                                         {totalDisc > 0 && (
                                                                                             <div className="col-span-2 font-bold text-slate-700 border-t border-slate-100/70 pt-1.5 flex justify-between">
                                                                                                 <span>Desconto Total:</span>

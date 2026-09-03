@@ -506,7 +506,11 @@ export async function getBenefitsCalculation(year: number, month: number) {
             };
         });
 
-        const occurrencesCount = occurrencesList.length;
+        // VT is deducted for both Faltas and Atestados (employee did not commute)
+        const vtOccurrencesCount = occurrencesList.length;
+        // VA is strictly NOT deducted for medical certificates (Atestado Médico), only for unexcused/unjustified absences (Faltas)
+        const vaOccurrencesCount = occurrencesList.filter(o => o.type !== "Atestado Médico").length;
+        const occurrencesCount = vtOccurrencesCount;
 
         // Payments Info
         const lastPayment = emp.benefitPayments && emp.benefitPayments.length > 0 ? emp.benefitPayments[0] : null;
@@ -683,7 +687,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
                 const scheduledWorkDays = getVaDaysForDaily(posto?.schedule || "5x2", pivotDate, year, month);
                 
                 vaBaseValue = Math.round((scheduledWorkDays * vaDailyRate) * 100) / 100;
-                vaDeductionValue = Math.round((occurrencesCount * vaDailyRate) * 100) / 100;
+                vaDeductionValue = Math.round((vaOccurrencesCount * vaDailyRate) * 100) / 100;
                 
                 if (!paidOnVacation && vacationDays > 0) {
                     const estVacationWorkDays = Math.min(scheduledWorkDays, Math.round(vacationDays * (scheduledWorkDays / 30)));
@@ -693,8 +697,8 @@ export async function getBenefitsCalculation(year: number, month: number) {
                 vaTotalValue = Math.max(0, Math.round((vaBaseValue - vaDeductionValue - vaVacationDeduction) * 100) / 100);
                 
                 vaBatchNote = `${scheduledWorkDays} dias de escala (excl. fds/feriados) x R$ ${vaDailyRate.toFixed(2)}`;
-                if (occurrencesCount > 0) {
-                    vaBatchNote += ` | ${occurrencesCount} falta(s) abatida(s) no período 26-25`;
+                if (vaOccurrencesCount > 0) {
+                    vaBatchNote += ` | ${vaOccurrencesCount} falta(s) abatida(s) no período 26-25`;
                 }
                 if (vaVacationDeduction > 0) {
                     vaBatchNote += ` | ${vacationDays} dias de férias abatidos (-R$ ${vaVacationDeduction.toFixed(2)})`;
@@ -704,14 +708,14 @@ export async function getBenefitsCalculation(year: number, month: number) {
                 if (isVaMonthly) {
                     vaBaseValue = vaDailyRate;
                     const dailyDeductionRate = vaDailyRate / 30;
-                    vaDeductionValue = Math.round((occurrencesCount * dailyDeductionRate) * 100) / 100;
+                    vaDeductionValue = Math.round((vaOccurrencesCount * dailyDeductionRate) * 100) / 100;
                     
                     if (!paidOnVacation && vacationDays > 0) {
                         vaVacationDeduction = Math.min(vaBaseValue, Math.round((vacationDays * dailyDeductionRate) * 100) / 100);
                     }
                 } else {
                     vaBaseValue = Math.round((vaDailyRate * 30) * 100) / 100;
-                    vaDeductionValue = Math.round((vaDailyRate * occurrencesCount) * 100) / 100;
+                    vaDeductionValue = Math.round((vaDailyRate * vaOccurrencesCount) * 100) / 100;
                     
                     if (!paidOnVacation && vacationDays > 0) {
                         vaVacationDeduction = Math.min(vaBaseValue, Math.round((vacationDays * vaDailyRate) * 100) / 100);
@@ -719,8 +723,8 @@ export async function getBenefitsCalculation(year: number, month: number) {
                 }
                 vaTotalValue = Math.max(0, Math.round((vaBaseValue - vaDeductionValue - vaVacationDeduction) * 100) / 100);
 
-                if (occurrencesCount > 0) {
-                    vaBatchNote = `${occurrencesCount} falta(s)/atestado(s) abatido(s) no período 26-25`;
+                if (vaOccurrencesCount > 0) {
+                    vaBatchNote = `${vaOccurrencesCount} falta(s) abatida(s) no período 26-25`;
                 }
                 if (vaVacationDeduction > 0) {
                     if (vaBatchNote) {
@@ -819,8 +823,8 @@ export async function getBenefitsCalculation(year: number, month: number) {
             situationName,
             situationColor: emp.situation?.color || undefined,
             occurrencesList,
-            vtOccurrencesDeducted: occurrencesCount,
-            vaOccurrencesDeducted: occurrencesCount,
+            vtOccurrencesDeducted: vtOccurrencesCount,
+            vaOccurrencesDeducted: vaOccurrencesCount,
             isPaid,
             paidAt,
             lastPaymentDate,
