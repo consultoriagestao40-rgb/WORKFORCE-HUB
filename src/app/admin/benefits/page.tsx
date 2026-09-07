@@ -3433,6 +3433,8 @@ export default function BenefitsPage() {
                 onClose={() => setCajuReceiptModalOpen(false)} 
                 month={selectedMonth}
                 year={selectedYear}
+                selectedCompany={selectedCompany}
+                companies={uniqueCompanies}
                 onPaymentSuccess={loadData} 
             />
 

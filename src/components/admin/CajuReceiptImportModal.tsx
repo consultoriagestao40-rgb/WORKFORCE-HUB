@@ -21,6 +21,7 @@ import {
     CreditCard, 
     RefreshCw, 
     Search,
+    Building2,
     Download
 } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +34,8 @@ interface CajuReceiptImportModalProps {
     onClose?: () => void;
     month?: number;
     year?: number;
+    selectedCompany?: string;
+    companies?: string[];
     onPaymentSuccess?: () => void;
 }
 
@@ -43,6 +46,8 @@ export function CajuReceiptImportModal({
     onClose,
     month = new Date().getMonth() + 1,
     year = new Date().getFullYear(),
+    selectedCompany = "all",
+    companies = [],
     onPaymentSuccess
 }: CajuReceiptImportModalProps) {
     const isModalOpen = open ?? isOpen ?? false;
@@ -52,6 +57,11 @@ export function CajuReceiptImportModal({
         }
         onOpenChange?.(newVal);
     };
+
+    const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>(selectedCompany || "all");
+    const [detectedCompany, setDetectedCompany] = useState<string | null>(null);
+    const [detectedCnpj, setDetectedCnpj] = useState<string | null>(null);
+    const [rawParsedItems, setRawParsedItems] = useState<any[]>([]);
 
     const [isDragging, setIsDragging] = useState(false);
     const [isProcessingFile, setIsProcessingFile] = useState(false);
@@ -70,6 +80,41 @@ export function CajuReceiptImportModal({
     const [searchTerm, setSearchTerm] = useState("");
     const [filterTab, setFilterTab] = useState<"ALL" | "READY" | "MISMATCH" | "ALREADY_PAID" | "NOT_FOUND">("ALL");
     const [isExecutingPayment, setIsExecutingPayment] = useState(false);
+
+    const runPreview = async (items: any[], comp: string) => {
+        const prevRes = await previewCajuReconciliation({
+            items,
+            month,
+            year,
+            companyName: comp
+        });
+
+        setPreviewItems(prevRes.previewItems);
+        setSummary(prevRes.summary);
+
+        // Pre-select items that are READY or VALUE_MISMATCH (valid employees)
+        const preSelect = new Set<string>();
+        for (const item of prevRes.previewItems) {
+            if ((item.status === "READY" || item.status === "VALUE_MISMATCH") && item.employeeId) {
+                preSelect.add(item.employeeId);
+            }
+        }
+        setSelectedIds(preSelect);
+    };
+
+    const handleCompanyChange = async (newComp: string) => {
+        setSelectedCompanyFilter(newComp);
+        if (rawParsedItems.length > 0) {
+            setIsProcessingFile(true);
+            try {
+                await runPreview(rawParsedItems, newComp);
+            } catch (err: any) {
+                toast.error("Erro ao conciliar por empresa: " + (err.message || ""));
+            } finally {
+                setIsProcessingFile(false);
+            }
+        }
+    };
 
     const handleFile = async (file: File) => {
         const lowerName = file.name.toLowerCase();
@@ -103,24 +148,27 @@ export function CajuReceiptImportModal({
                 return;
             }
 
-            // Preview against WFH benefits calculation
-            const prevRes = await previewCajuReconciliation({
-                items: parsedItems,
-                month,
-                year
-            });
+            setRawParsedItems(parsedItems);
 
-            setPreviewItems(prevRes.previewItems);
-            setSummary(prevRes.summary);
+            let activeComp = selectedCompanyFilter;
+            if (data.detectedCompanyName) {
+                setDetectedCompany(data.detectedCompanyName);
+                if (data.detectedCnpj) setDetectedCnpj(data.detectedCnpj);
 
-            // Pre-select items that are READY or VALUE_MISMATCH (valid employees)
-            const preSelect = new Set<string>();
-            for (const item of prevRes.previewItems) {
-                if ((item.status === "READY" || item.status === "VALUE_MISMATCH") && item.employeeId) {
-                    preSelect.add(item.employeeId);
+                if (companies && companies.length > 0) {
+                    const normDet = data.detectedCompanyName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                    const matched = companies.find(c => {
+                        const normC = c.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                        return normDet.includes(normC) || normC.includes(normDet);
+                    });
+                    if (matched) {
+                        activeComp = matched;
+                        setSelectedCompanyFilter(matched);
+                    }
                 }
             }
-            setSelectedIds(preSelect);
+
+            await runPreview(parsedItems, activeComp);
 
             toast.success(`${parsedItems.length} registros identificados no comprovante!`, { id: toastId });
         } catch (err: any) {
@@ -285,6 +333,46 @@ export function CajuReceiptImportModal({
                                 </span>
                             )}
                         </label>
+                    </div>
+
+                    {/* Empresa Selector & Detected Banner */}
+                    <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
+                                <Building2 className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                    Empresa da Baixa:
+                                    {selectedCompanyFilter !== "all" ? (
+                                        <span className="text-orange-600 font-extrabold">{selectedCompanyFilter}</span>
+                                    ) : (
+                                        <span className="text-slate-500 font-medium">Todas as Empresas</span>
+                                    )}
+                                </div>
+                                {detectedCompany && (
+                                    <div className="text-[11px] text-emerald-700 font-medium flex items-center gap-1 mt-0.5">
+                                        <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                        <span>Identificada no comprovante: <strong>{detectedCompany}</strong>{detectedCnpj ? ` (${detectedCnpj})` : ""}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {companies.length > 0 && (
+                            <div className="w-full sm:w-64">
+                                <select
+                                    value={selectedCompanyFilter}
+                                    onChange={(e) => handleCompanyChange(e.target.value)}
+                                    className="w-full text-xs font-bold py-1.5 px-3 rounded-xl border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20 shadow-xs cursor-pointer"
+                                >
+                                    <option value="all">🏢 Todas as Empresas (Geral)</option>
+                                    {companies.map((c) => (
+                                        <option key={c} value={c}>🏢 {c}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </div>
 
                     {/* Summary Cards */}
@@ -475,7 +563,7 @@ export function CajuReceiptImportModal({
                                 </>
                             ) : (
                                 <>
-                                    <CheckCircle2 className="w-4 h-4" /> Baixar {selectedIds.size} Pagamento(s)
+                                    <CheckCircle2 className="w-4 h-4" /> Baixar {selectedIds.size} Pagamento(s) {selectedCompanyFilter !== "all" ? `(${selectedCompanyFilter})` : ""}
                                 </>
                             )}
                         </Button>

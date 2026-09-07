@@ -44,6 +44,7 @@ export async function previewCajuReconciliation(params: {
     items: ParsedCajuItem[];
     month: number;
     year: number;
+    companyName?: string;
 }): Promise<{
     previewItems: CajuReconciliationPreviewItem[];
     summary: {
@@ -58,11 +59,19 @@ export async function previewCajuReconciliation(params: {
     const user = await getCurrentUser();
     if (!user) throw new Error("Não autorizado.");
 
-    const { items = [], month, year } = params;
+    const { items = [], month, year, companyName } = params;
 
     // Fetch WFH benefits calculation for that month/year
     const calcResult = await getBenefitsCalculation(year, month);
-    const wfhItems = calcResult.items || [];
+    let wfhItems = calcResult.items || [];
+
+    if (companyName && companyName !== "all") {
+        const normTarget = normalizeName(companyName);
+        wfhItems = wfhItems.filter(w => {
+            const comp = normalizeName(w.companyName || "");
+            return comp.includes(normTarget) || normTarget.includes(comp);
+        });
+    }
 
     // Map WFH by clean CPF and normalized Name
     const wfhByCpf = new Map<string, typeof wfhItems[0]>();

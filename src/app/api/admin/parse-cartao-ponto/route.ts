@@ -158,11 +158,23 @@ export async function POST(req: NextRequest) {
         if (!g.Path2D) g.Path2D = class Path2D {};
         if (!g.ImageData) g.ImageData = class ImageData { constructor(public data: any, public width: number, public height: number) {} };
 
-        // Dynamically require pdf-parse (avoids Next.js static import issues)
+        // Dynamically require pdf-parse supporting both function (v1) and class (v2)
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const pdfParse = require("pdf-parse");
-        const pdfData = await pdfParse(buffer, { max: 0 });
-        const fullText: string = pdfData.text || "";
+        const pdfParseModule = require("pdf-parse");
+        let fullText = "";
+        if (pdfParseModule.PDFParse) {
+            const parser = new pdfParseModule.PDFParse(new Uint8Array(arrayBuffer));
+            await parser.load();
+            const res = await parser.getText();
+            if (res && Array.isArray(res.pages)) {
+                fullText = res.pages.map((p: any) => p.text || "").join("\n");
+            } else {
+                fullText = res?.text || (typeof res === "string" ? res : "");
+            }
+        } else if (typeof pdfParseModule === "function") {
+            const res = await pdfParseModule(buffer, { max: 0 });
+            fullText = res?.text || "";
+        }
 
         if (!fullText.trim()) {
             return NextResponse.json({ error: "Não foi possível extrair texto do PDF. Verifique se o arquivo é um PDF de texto (não escaneado)." }, { status: 422 });
