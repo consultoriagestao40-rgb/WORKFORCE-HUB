@@ -66,7 +66,7 @@ export default function BenefitsPage() {
     const [config, setConfig] = useState<any>(null);
 
     const [searchTerm, setSearchTerm] = useState("");
-    const [filterOption, setFilterOption] = useState<"ALL" | "VT_ONLY" | "VA_ONLY" | "NON_VT" | "PAID" | "PENDING">("ALL");
+    const [filterOption, setFilterOption] = useState<"ALL" | "VT_ONLY" | "VA_ONLY" | "NON_VT" | "PAID" | "PENDING" | "DIVERGENCE">("ALL");
     const [activeTab, setActiveTab] = useState<"BUY" | "ALERTS" | "CONFIG">("BUY");
 
     const [selectedCompany, setSelectedCompany] = useState<string>("all");
@@ -1073,8 +1073,8 @@ export default function BenefitsPage() {
         };
     });
 
-    // Filter Items
-    const filteredItems = effectiveItems.filter(item => {
+    // Base items matching search, company, and client
+    const baseItems = effectiveItems.filter(item => {
         const matchesSearch = 
             item.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
             item.employeeCpf.includes(searchTerm) ||
@@ -1089,16 +1089,25 @@ export default function BenefitsPage() {
         const matchesClient = selectedClient === "all" || item.clientName === selectedClient;
         if (!matchesClient) return false;
 
+        return true;
+    });
+
+    const totalBaseCount = baseItems.length;
+    const totalPaidCount = baseItems.filter(i => i.isPaid).length;
+    const totalPendingCount = baseItems.filter(i => !i.isPaid).length;
+    const totalDivergenceCount = baseItems.filter(i => i.hasDivergence).length;
+
+    // Filter Items by filterOption
+    const filteredItems = baseItems.filter(item => {
         if (filterOption === "VT_ONLY") return item.vtOptIn && item.vtTotalValue > 0;
         if (filterOption === "VA_ONLY") return item.vaTotalValue > 0;
         if (filterOption === "NON_VT") return !item.vtOptIn;
         if (filterOption === "PAID") return item.isPaid;
         if (filterOption === "PENDING") return !item.isPaid;
+        if (filterOption === "DIVERGENCE") return !!item.hasDivergence;
 
         return true;
     }).sort((a, b) => {
-        if (a.isPaid && !b.isPaid) return 1;
-        if (!a.isPaid && b.isPaid) return -1;
         return a.employeeName.localeCompare(b.employeeName);
     });
 
@@ -1383,13 +1392,22 @@ export default function BenefitsPage() {
                 </div>
 
                 {/* Status de Pagamentos */}
-                <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm space-y-2">
-                    <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold uppercase tracking-wider">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Compras Pagas
+                <div 
+                    onClick={() => setFilterOption(prev => prev === "PAID" ? "ALL" : "PAID")}
+                    className={`p-5 rounded-3xl border shadow-sm space-y-2 cursor-pointer transition-all select-none active:scale-[0.98] ${
+                        filterOption === "PAID"
+                            ? "bg-emerald-600 text-white border-emerald-600 shadow-emerald-600/20"
+                            : "bg-white border-slate-200/80 hover:bg-emerald-50/40 hover:border-emerald-300"
+                    }`}
+                >
+                    <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${filterOption === "PAID" ? "text-emerald-100" : "text-emerald-600"}`}>
+                        <CheckCircle2 className={`w-4 h-4 ${filterOption === "PAID" ? "text-white" : "text-emerald-500"}`} /> Compras Pagas
                     </div>
-                    <div className="text-2xl font-black text-emerald-600 whitespace-nowrap">{paidCount} <span className="text-xs font-bold text-slate-400">/ {filteredItems.length}</span></div>
-                    <div className="text-[11px] text-slate-500 font-medium">
-                        {filteredItems.length - paidCount} compras pendentes de marcação.
+                    <div className={`text-2xl font-black whitespace-nowrap ${filterOption === "PAID" ? "text-white" : "text-emerald-600"}`}>
+                        {totalPaidCount} <span className={`text-xs font-bold ${filterOption === "PAID" ? "text-emerald-200" : "text-slate-400"}`}>/ {totalBaseCount}</span>
+                    </div>
+                    <div className={`text-[11px] font-medium ${filterOption === "PAID" ? "text-emerald-100" : "text-slate-500"}`}>
+                        {totalPendingCount} compras pendentes (clique para filtrar).
                     </div>
                 </div>
 
@@ -1486,6 +1504,7 @@ export default function BenefitsPage() {
                                         <SelectItem value="ALL">Todos os Benefícios</SelectItem>
                                         <SelectItem value="PENDING">Pendente de Pagamento</SelectItem>
                                         <SelectItem value="PAID">Já Pagos</SelectItem>
+                                        <SelectItem value="DIVERGENCE">Com Divergência</SelectItem>
                                         <SelectItem value="VT_ONLY">Apenas com VT &gt; R$0</SelectItem>
                                         <SelectItem value="VA_ONLY">Apenas com VA &gt; R$0</SelectItem>
                                         <SelectItem value="NON_VT">Não Optantes pelo VT</SelectItem>
@@ -1569,6 +1588,109 @@ export default function BenefitsPage() {
                                 </div>
                             ) : null}
                         </div>
+
+                        {/* Quick Filter Pills */}
+                        <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Status Baixa:</span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                <button
+                                    onClick={() => setFilterOption("ALL")}
+                                    className={`px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        filterOption === "ALL" 
+                                            ? "bg-slate-900 text-white shadow-xs" 
+                                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                    }`}
+                                >
+                                    <span>Todos</span>
+                                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${filterOption === "ALL" ? "bg-slate-700 text-slate-200" : "bg-slate-200 text-slate-600"}`}>
+                                        {totalBaseCount}
+                                    </span>
+                                </button>
+
+                                <button
+                                    onClick={() => setFilterOption("PAID")}
+                                    className={`px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        filterOption === "PAID" 
+                                            ? "bg-emerald-600 text-white shadow-xs shadow-emerald-600/20" 
+                                            : "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                                    }`}
+                                >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>Pagos / Baixados via Caju</span>
+                                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${filterOption === "PAID" ? "bg-emerald-700 text-emerald-100" : "bg-emerald-200 text-emerald-800"}`}>
+                                        {totalPaidCount}
+                                    </span>
+                                </button>
+
+                                <button
+                                    onClick={() => setFilterOption("PENDING")}
+                                    className={`px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        filterOption === "PENDING" 
+                                            ? "bg-amber-600 text-white shadow-xs shadow-amber-600/20" 
+                                            : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+                                    }`}
+                                >
+                                    <Clock className="w-3.5 h-3.5" />
+                                    <span>Não Baixados / Pendentes</span>
+                                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${filterOption === "PENDING" ? "bg-amber-700 text-amber-100" : "bg-amber-200 text-amber-800"}`}>
+                                        {totalPendingCount}
+                                    </span>
+                                </button>
+
+                                <button
+                                    onClick={() => setFilterOption(prev => prev === "DIVERGENCE" ? "ALL" : "DIVERGENCE")}
+                                    className={`px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        filterOption === "DIVERGENCE" 
+                                            ? "bg-red-600 text-white shadow-xs shadow-red-600/20" 
+                                            : totalDivergenceCount > 0
+                                                ? "bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
+                                                : "bg-slate-100 text-slate-400 border border-slate-200 hover:bg-slate-200"
+                                    }`}
+                                    title={totalDivergenceCount === 0 ? "Nenhuma divergência encontrada entre o comprovante Caju e o cálculo WFH" : "Filtrar apenas colaboradores com divergência de valor"}
+                                >
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    <span>Com Divergência</span>
+                                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                                        filterOption === "DIVERGENCE" 
+                                            ? "bg-red-700 text-red-100" 
+                                            : totalDivergenceCount > 0
+                                                ? "bg-red-200 text-red-800"
+                                                : "bg-slate-200 text-slate-500"
+                                    }`}>
+                                        {totalDivergenceCount}
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Informative Filter Banners */}
+                        {filterOption === "PENDING" && (
+                            <div className="flex items-center justify-between px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800 text-xs font-medium animate-in fade-in duration-200">
+                                <div className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                                    <span>Exibindo <strong>{filteredItems.length} colaboradores não baixados / pendentes</strong> que ainda não constam como pagos no mês de {monthNames[selectedMonth - 1]}/{selectedYear}.</span>
+                                </div>
+                                <button onClick={() => setFilterOption("ALL")} className="text-[11px] font-bold underline hover:text-amber-950 cursor-pointer">Limpar filtro</button>
+                            </div>
+                        )}
+                        {filterOption === "PAID" && (
+                            <div className="flex items-center justify-between px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-xs font-medium animate-in fade-in duration-200">
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                    <span>Exibindo <strong>{filteredItems.length} colaboradores já baixados / pagos</strong> (comprovante Caju / baixa manual).</span>
+                                </div>
+                                <button onClick={() => setFilterOption("ALL")} className="text-[11px] font-bold underline hover:text-emerald-950 cursor-pointer">Limpar filtro</button>
+                            </div>
+                        )}
+                        {filterOption === "DIVERGENCE" && (
+                            <div className="flex items-center justify-between px-4 py-2.5 bg-red-50 border border-red-200 rounded-2xl text-red-800 text-xs font-medium animate-in fade-in duration-200">
+                                <div className="flex items-center gap-2">
+                                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                                    <span>Exibindo <strong>{filteredItems.length} colaboradores com divergência</strong> entre o valor pago no comprovante Caju e o previsto calculado pelo sistema WFH.</span>
+                                </div>
+                                <button onClick={() => setFilterOption("ALL")} className="text-[11px] font-bold underline hover:text-red-950 cursor-pointer">Limpar filtro</button>
+                            </div>
+                        )}
                     </div>
 
                     {groupedView === "colaborador" ? (
@@ -2124,24 +2246,48 @@ export default function BenefitsPage() {
                                                     {/* Status / Ação de Pagamento */}
                                                     <td className="py-3.5 px-4 text-center">
                                                         {item.isPaid ? (
-                                                            <div className="space-y-0.5">
-                                                                <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                                                    <CheckCircle2 className="w-3 h-3 mr-1" /> PAGO
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                                                                    <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-600" />
+                                                                    PAGO {item.paidBenefitType ? `(${item.paidBenefitType})` : ""}
                                                                 </span>
-                                                                <div className="text-[9px] text-slate-400 font-medium">{item.paidAt}</div>
+                                                                {item.paidVaAmount ? (
+                                                                    <span className="text-[10px] font-bold text-emerald-900">
+                                                                        VA: {formatCurrency(item.paidVaAmount)}
+                                                                    </span>
+                                                                ) : null}
+                                                                {item.hasDivergence && (
+                                                                    <span 
+                                                                        title={`Divergência: Pago R$ ${item.paidVaAmount?.toFixed(2)} vs Previsto WFH R$ ${(item.vaTotalValue + (item.absenteismoAward || 0)).toFixed(2)} (Diferença: ${item.vaDifference && item.vaDifference > 0 ? '+' : ''}R$ ${item.vaDifference?.toFixed(2)})`}
+                                                                        className="inline-flex items-center px-2 py-0.5 rounded-lg text-[9px] font-black bg-amber-100 text-amber-900 border border-amber-300 cursor-help"
+                                                                    >
+                                                                        <AlertTriangle className="w-2.5 h-2.5 mr-1 text-amber-600 shrink-0" />
+                                                                        Dif: {item.vaDifference && item.vaDifference > 0 ? '+' : ''}R$ {item.vaDifference?.toFixed(2)}
+                                                                    </span>
+                                                                )}
+                                                                {item.paidAt && (
+                                                                    <div className="text-[9px] text-slate-400 font-medium" title={item.paymentNotes}>
+                                                                        {item.paidAt.split(" ")[0]}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         ) : (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                onClick={() => {
-                                                                    setSelectedItemForPayment(item);
-                                                                    setPaymentModalOpen(true);
-                                                                }}
-                                                                className="text-[10px] font-bold h-7 px-3 rounded-xl border-orange-300 text-orange-600 hover:bg-orange-50 hover:border-orange-400"
-                                                            >
-                                                                Marcar como Pago
-                                                            </Button>
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                                    <Clock className="w-2.5 h-2.5 mr-1 text-amber-500" /> Pendente
+                                                                </span>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => {
+                                                                        setSelectedItemForPayment(item);
+                                                                        setPaymentModalOpen(true);
+                                                                    }}
+                                                                    className="text-[9px] font-bold h-6 px-2 rounded-lg border-orange-300 text-orange-600 hover:bg-orange-50 hover:border-orange-400"
+                                                                >
+                                                                    Dar Baixa
+                                                                </Button>
+                                                            </div>
                                                         )}
                                                     </td>
                                                 </tr>

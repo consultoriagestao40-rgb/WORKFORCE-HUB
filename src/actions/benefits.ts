@@ -35,6 +35,12 @@ export interface BenefitsCalculationItem {
     paidAt?: string;
     lastPaymentDate?: string;
     nextPaymentDueDate?: string;
+    paidBenefitType?: string;
+    paidVaAmount?: number;
+    paidVtAmount?: number;
+    paymentNotes?: string;
+    vaDifference?: number;
+    hasDivergence?: boolean;
 
     // VT
     vtOptIn: boolean;
@@ -517,6 +523,10 @@ export async function getBenefitsCalculation(year: number, month: number) {
         const isPaid = !!lastPayment;
         const paidAt = lastPayment ? new Date(lastPayment.paidAt).toLocaleString('pt-BR') : undefined;
         const lastPaymentDate = lastPayment ? new Date(lastPayment.paidAt).toLocaleDateString('pt-BR') : undefined;
+        const paidBenefitType = lastPayment?.benefitType || undefined;
+        const paidVaAmount = lastPayment?.vaAmount ? Number(lastPayment.vaAmount) : 0;
+        const paidVtAmount = lastPayment?.vtAmount ? Number(lastPayment.vtAmount) : 0;
+        const paymentNotes = lastPayment?.notes || undefined;
         
         let nextPaymentDueDate: string | undefined = undefined;
 
@@ -811,6 +821,12 @@ export async function getBenefitsCalculation(year: number, month: number) {
             }
         }
 
+        const expectedVa = vaTotalValue + (absenteismoAward || 0);
+        const vaDifference = isPaid && paidVaAmount > 0 
+            ? Math.round((paidVaAmount - expectedVa) * 100) / 100 
+            : 0;
+        const hasDivergence = isPaid && paidVaAmount > 0 && Math.abs(vaDifference) > 0.05;
+
         return {
             employeeId: emp.id,
             employeeName: emp.name,
@@ -833,6 +849,12 @@ export async function getBenefitsCalculation(year: number, month: number) {
             paidAt,
             lastPaymentDate,
             nextPaymentDueDate,
+            paidBenefitType,
+            paidVaAmount,
+            paidVtAmount,
+            paymentNotes,
+            vaDifference,
+            hasDivergence,
             vtOptIn: emp.vtOptIn,
             vtDailyValue,
             vtWorkingDays: 22,
