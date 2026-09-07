@@ -546,11 +546,13 @@ export async function getBenefitsCalculation(year: number, month: number) {
         }
         const vtDailyValue2 = rawVt2;
 
-        // Base VA value priority: Employee record -> Posto record -> 0. (Meals provided override to 494.00 if employee receives VA)
+        // Base VA value: Posto é SEMPRE a fonte de verdade principal.
+        // O valor do colaborador (emp.valeAlimentacao) só é usado se o posto não tiver VA configurado.
+        // Isso garante que alterações no posto reflitam imediatamente, sem necessidade de atualizar cada colaborador.
         const mealsProvided = !!posto?.vaMealsProvidedOnSite;
-        const rawBaseVaValue = (emp.valeAlimentacao !== null && emp.valeAlimentacao !== undefined && emp.valeAlimentacao > 0)
-            ? emp.valeAlimentacao
-            : (posto?.valeAlimentacao || 0);
+        const rawBaseVaValue = (posto?.valeAlimentacao && posto.valeAlimentacao > 0)
+            ? posto.valeAlimentacao
+            : (emp.valeAlimentacao && emp.valeAlimentacao > 0 ? emp.valeAlimentacao : 0);
         const baseVaValue = (rawBaseVaValue > 0 && mealsProvided) ? 494.00 : rawBaseVaValue;
 
         const pivotDateForVt = activeAssignment?.startDate ? new Date(activeAssignment.startDate) : admissionDateObj;

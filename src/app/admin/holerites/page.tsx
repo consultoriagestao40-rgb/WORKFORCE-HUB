@@ -22,7 +22,13 @@ import {
     Building2,
     Layers,
     FileCheck,
-    HelpCircle
+    HelpCircle,
+    Combine,
+    GripVertical,
+    Trash2,
+    FilePlus,
+    ArrowUp,
+    ArrowDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,13 +49,14 @@ import {
 import { PDFDocument } from "pdf-lib";
 
 export default function HoleritesPage() {
+    const [activeTab, setActiveTab] = useState<'split' | 'merge'>('split');
     const [pdfJsLoaded, setPdfJsLoaded] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [progressPercent, setProgressPercent] = useState(0);
     const [progressText, setProgressText] = useState("");
     
-    // File state
+    // File state (split)
     const [sourceFile, setSourceFile] = useState<File | null>(null);
     const [items, setItems] = useState<ExtractedHoleriteItem[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
@@ -71,6 +78,14 @@ export default function HoleritesPage() {
     // ZIP downloading state
     const [isGeneratingZip, setIsGeneratingZip] = useState(false);
     const [zipProgress, setZipProgress] = useState(0);
+
+    // --- MERGE STATE ---
+    type MergeFile = { id: string; file: File; pageCount: number | null };
+    const [mergeFiles, setMergeFiles] = useState<MergeFile[]>([]);
+    const [isMergeDragging, setIsMergeDragging] = useState(false);
+    const [isMerging, setIsMerging] = useState(false);
+    const [mergeOutputName, setMergeOutputName] = useState("Documentos_Unidos");
+    const mergeFileInputRef = useRef<HTMLInputElement>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -284,6 +299,73 @@ export default function HoleritesPage() {
     const detectedCompanies = Array.from(new Set(items.map(i => i.companyName).filter(Boolean)));
     const detectedCompetences = Array.from(new Set(items.map(i => i.competence).filter(Boolean)));
 
+    // --- MERGE LOGIC ---
+    const addMergeFiles = async (files: FileList | File[]) => {
+        const pdfFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith(".pdf"));
+        if (pdfFiles.length === 0) return;
+
+        const newEntries: { id: string; file: File; pageCount: number | null }[] = [];
+        for (const file of pdfFiles) {
+            try {
+                const ab = await file.arrayBuffer();
+                const doc = await PDFDocument.load(ab, { ignoreEncryption: true });
+                newEntries.push({ id: `merge-${Date.now()}-${Math.random()}`, file, pageCount: doc.getPageCount() });
+            } catch {
+                newEntries.push({ id: `merge-${Date.now()}-${Math.random()}`, file, pageCount: null });
+            }
+        }
+        setMergeFiles(prev => [...prev, ...newEntries]);
+    };
+
+    const removeMergeFile = (id: string) => setMergeFiles(prev => prev.filter(f => f.id !== id));
+
+    const moveMergeFile = (id: string, dir: 'up' | 'down') => {
+        setMergeFiles(prev => {
+            const idx = prev.findIndex(f => f.id === id);
+            if (idx === -1) return prev;
+            const newArr = [...prev];
+            const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+            if (swapIdx < 0 || swapIdx >= newArr.length) return prev;
+            [newArr[idx], newArr[swapIdx]] = [newArr[swapIdx], newArr[idx]];
+            return newArr;
+        });
+    };
+
+    const handleMerge = async () => {
+        if (mergeFiles.length < 2) {
+            toast.error("Adicione pelo menos 2 arquivos PDF para juntar.");
+            return;
+        }
+        try {
+            setIsMerging(true);
+            const merged = await PDFDocument.create();
+            for (const entry of mergeFiles) {
+                const ab = await entry.file.arrayBuffer();
+                const doc = await PDFDocument.load(ab, { ignoreEncryption: true });
+                const pages = await merged.copyPages(doc, doc.getPageIndices());
+                pages.forEach(p => merged.addPage(p));
+            }
+            const bytes = await merged.save();
+            const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${mergeOutputName.trim() || "Documentos_Unidos"}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            const totalPages = mergeFiles.reduce((s, f) => s + (f.pageCount || 0), 0);
+            toast.success(`${mergeFiles.length} arquivos unidos em um PDF de ${totalPages} página(s)!`);
+        } catch (err: any) {
+            console.error(err);
+            toast.error("Falha ao juntar os arquivos PDF.");
+        } finally {
+            setIsMerging(false);
+        }
+    };
+
+
     return (
         <div className="p-6 md:p-8 space-y-8 max-w-[1600px] mx-auto min-h-screen">
             {/* Load PDF.js from reliable CDN */}
@@ -299,8 +381,38 @@ export default function HoleritesPage() {
                 }}
             />
 
+            {/* Tab Switcher */}
+            <div className="flex items-center gap-2 bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-sm w-fit">
+                <button
+                    onClick={() => setActiveTab('split')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                        activeTab === 'split'
+                            ? 'bg-teal-600 text-white shadow-md shadow-teal-600/20'
+                            : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                    }`}
+                >
+                    <Scissors className="w-4 h-4" />
+                    Separar PDF
+                </button>
+                <button
+                    onClick={() => setActiveTab('merge')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                        activeTab === 'merge'
+                            ? 'bg-violet-600 text-white shadow-md shadow-violet-600/20'
+                            : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                    }`}
+                >
+                    <Combine className="w-4 h-4" />
+                    Juntar PDFs
+                </button>
+            </div>
+
+
+            {/* ===== SPLIT TAB ===== */}
+            {activeTab === 'split' && (<>
             {/* Header Section (Light theme matching other pages) */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
+
                 <div className="space-y-1">
                     <div className="flex items-center gap-3">
                         <div className="p-3 bg-teal-500/10 text-teal-600 rounded-2xl">
@@ -806,6 +918,203 @@ export default function HoleritesPage() {
                     </div>
                 </DialogContent>
             </Dialog>
+            </>) /* end split tab */}
+
+            {/* ===== MERGE TAB ===== */}
+            {activeTab === 'merge' && (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                    {/* Merge Header */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <div className="p-3 bg-violet-500/10 text-violet-600 rounded-2xl">
+                                <Combine className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h1 className="text-2xl font-black tracking-tight text-slate-900">Juntar PDFs</h1>
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-violet-700 text-[11px] font-bold">
+                                        <Combine className="w-3 h-3" />
+                                        Fusão de Arquivos
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-500 font-medium mt-1">
+                                    Adicione múltiplos arquivos PDF, defina a ordem e baixe como um único arquivo unificado.
+                                </p>
+                            </div>
+                        </div>
+                        {mergeFiles.length >= 2 && (
+                            <div className="flex items-center gap-3 shrink-0">
+                                <div className="flex items-center gap-2">
+                                    <label className="text-xs text-slate-500 font-semibold whitespace-nowrap">Nome do arquivo:</label>
+                                    <input
+                                        type="text"
+                                        value={mergeOutputName}
+                                        onChange={e => setMergeOutputName(e.target.value)}
+                                        className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 w-52"
+                                        placeholder="Documentos_Unidos"
+                                    />
+                                    <span className="text-xs text-slate-400">.pdf</span>
+                                </div>
+                                <Button
+                                    onClick={handleMerge}
+                                    disabled={isMerging}
+                                    className="bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl h-11 shadow-md shadow-violet-600/20 px-6"
+                                >
+                                    {isMerging ? (
+                                        <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Juntando...</>
+                                    ) : (
+                                        <><Download className="w-4 h-4 mr-2" />Juntar e Baixar PDF</>
+                                    )}
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Drop Zone for Merge */}
+                    <div
+                        onDragOver={e => { e.preventDefault(); setIsMergeDragging(true); }}
+                        onDragLeave={() => setIsMergeDragging(false)}
+                        onDrop={e => {
+                            e.preventDefault();
+                            setIsMergeDragging(false);
+                            if (e.dataTransfer.files) addMergeFiles(e.dataTransfer.files);
+                        }}
+                        onClick={() => mergeFileInputRef.current?.click()}
+                        className={`border-2 border-dashed rounded-3xl p-8 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-3 bg-white ${
+                            isMergeDragging
+                                ? 'border-violet-500 bg-violet-50/50 scale-[1.01]'
+                                : 'border-slate-300 hover:border-violet-400 hover:bg-slate-50/60 shadow-sm'
+                        }`}
+                    >
+                        <input
+                            ref={mergeFileInputRef}
+                            type="file"
+                            accept="application/pdf"
+                            multiple
+                            className="hidden"
+                            onChange={e => { if (e.target.files) addMergeFiles(e.target.files); }}
+                        />
+                        <div className="w-16 h-16 rounded-2xl bg-violet-50 border border-violet-200 flex items-center justify-center">
+                            <FilePlus className="w-8 h-8 text-violet-600" />
+                        </div>
+                        <div>
+                            <p className="font-bold text-slate-800">Arraste os PDFs aqui ou clique para selecionar</p>
+                            <p className="text-xs text-slate-500 mt-1">Selecione múltiplos arquivos de uma vez — suporta qualquer PDF</p>
+                        </div>
+                        <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-violet-600 text-white font-bold text-sm shadow-md shadow-violet-600/20">
+                            <Upload className="w-4 h-4" />
+                            Selecionar Arquivos PDF
+                        </div>
+                    </div>
+
+                    {/* File List */}
+                    {mergeFiles.length > 0 && (
+                        <div className="bg-white border border-slate-200/80 rounded-3xl shadow-sm overflow-hidden">
+                            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                                    <Layers className="w-4 h-4 text-violet-600" />
+                                    {mergeFiles.length} arquivo(s) na fila
+                                    <span className="text-xs font-normal text-slate-400 ml-1">
+                                        • {mergeFiles.reduce((s, f) => s + (f.pageCount || 0), 0)} páginas no total
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={() => setMergeFiles([])}
+                                    className="text-xs text-slate-400 hover:text-red-500 transition-colors flex items-center gap-1 font-semibold"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Limpar tudo
+                                </button>
+                            </div>
+                            <div className="divide-y divide-slate-100">
+                                {mergeFiles.map((entry, idx) => (
+                                    <div key={entry.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50/60 transition-colors group">
+                                        {/* Order badge */}
+                                        <span className="w-7 h-7 rounded-lg bg-violet-100 text-violet-700 text-xs font-black flex items-center justify-center shrink-0">
+                                            {idx + 1}
+                                        </span>
+                                        {/* File icon */}
+                                        <div className="p-2 rounded-xl bg-slate-100 text-slate-500 shrink-0">
+                                            <FileText className="w-4 h-4" />
+                                        </div>
+                                        {/* File info */}
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-semibold text-slate-800 truncate" title={entry.file.name}>{entry.file.name}</p>
+                                            <p className="text-xs text-slate-400 mt-0.5">
+                                                {(entry.file.size / (1024 * 1024)).toFixed(2)} MB
+                                                {entry.pageCount !== null ? ` • ${entry.pageCount} página(s)` : ''}
+                                            </p>
+                                        </div>
+                                        {/* Move up/down */}
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={() => moveMergeFile(entry.id, 'up')}
+                                                disabled={idx === 0}
+                                                className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 transition-all text-slate-500"
+                                                title="Mover para cima"
+                                            >
+                                                <ArrowUp className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => moveMergeFile(entry.id, 'down')}
+                                                disabled={idx === mergeFiles.length - 1}
+                                                className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 transition-all text-slate-500"
+                                                title="Mover para baixo"
+                                            >
+                                                <ArrowDown className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => removeMergeFile(entry.id)}
+                                                className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all"
+                                                title="Remover"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            {mergeFiles.length >= 2 && (
+                                <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
+                                    <p className="text-xs text-slate-500">
+                                        Os arquivos serão unidos na ordem listada acima.
+                                    </p>
+                                    <Button
+                                        onClick={handleMerge}
+                                        disabled={isMerging}
+                                        className="bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl shadow-md shadow-violet-600/20"
+                                    >
+                                        {isMerging ? (
+                                            <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Processando...</>
+                                        ) : (
+                                            <><Download className="w-4 h-4 mr-2" />Juntar e Baixar ({mergeFiles.reduce((s, f) => s + (f.pageCount || 0), 0)} pgs)</>
+                                        )}
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Empty state tips */}
+                    {mergeFiles.length === 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {[
+                                { icon: <FilePlus className="w-5 h-5 text-violet-600" />, title: 'Adicione quantos PDFs quiser', desc: 'Sem limite de arquivos. Pode adicionar em lotes.' },
+                                { icon: <GripVertical className="w-5 h-5 text-violet-600" />, title: 'Defina a ordem', desc: 'Use as setas para reordenar os arquivos antes de unir.' },
+                                { icon: <Download className="w-5 h-5 text-violet-600" />, title: 'Baixe como um único PDF', desc: '100% no navegador, sem upload para servidores externos.' },
+                            ].map((tip, i) => (
+                                <div key={i} className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm flex gap-4 items-start">
+                                    <div className="p-2.5 rounded-xl bg-violet-50 shrink-0">{tip.icon}</div>
+                                    <div>
+                                        <p className="text-sm font-bold text-slate-800">{tip.title}</p>
+                                        <p className="text-xs text-slate-500 mt-1">{tip.desc}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

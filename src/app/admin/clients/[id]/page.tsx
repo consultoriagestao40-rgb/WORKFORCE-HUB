@@ -62,7 +62,12 @@ async function getClientDetails(id: string) {
 
 async function getActiveEmployees() {
     return await prisma.employee.findMany({
-        where: { status: 'Ativo' },
+        where: {
+            status: 'Ativo',
+            situation: {
+                name: { notIn: ['Desligado', 'Demitido'] }
+            }
+        },
         include: { role: true },
         orderBy: { name: 'asc' }
     });

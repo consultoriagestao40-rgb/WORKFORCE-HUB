@@ -5,6 +5,7 @@ export interface ExtractedHoleriteItem {
     id: string;
     pageIndices: number[]; // 0-indexed page numbers in the source PDF
     pageNumbersDisplay: string; // e.g. "1" or "1-2"
+    pageNumber?: number;
     employeeName: string;
     cpf: string;
     registrationCode?: string;
@@ -15,6 +16,14 @@ export interface ExtractedHoleriteItem {
     customFileName?: string;
     pdfBytes?: Uint8Array;
     pdfBlobUrl?: string;
+    // Campos Financeiros & Auditoria
+    baseSalary?: number;
+    totalEarnings?: number; // Total Vencimentos / Proventos
+    totalDeductions?: number; // Total Descontos
+    netSalary?: number; // Valor Líquido
+    workedDays?: number; // Dias trabalhados informados
+    absenceDays?: number; // Faltas
+    absenceDeduction?: number; // R$ Desconto de faltas
 }
 
 export type NamingPattern = 
@@ -78,6 +87,13 @@ export function extractDataFromPageText(text: string, pageNumber: number): {
     cnpj?: string;
     competence?: string;
     payrollType?: string;
+    baseSalary?: number;
+    totalEarnings?: number;
+    totalDeductions?: number;
+    netSalary?: number;
+    workedDays?: number;
+    absenceDays?: number;
+    absenceDeduction?: number;
 } {
     let employeeName = `Colaborador_Pagina_${pageNumber}`;
     let cpf = '';
@@ -235,6 +251,70 @@ export function extractDataFromPageText(text: string, pageNumber: number): {
         }
     }
 
+    // 7. Extract Financial Values (Base Salary, Total Earnings, Total Deductions, Net Salary, Absence Deductions)
+    const parseCurrency = (valStr: string | undefined): number => {
+        if (!valStr) return 0;
+        const clean = valStr.replace(/[^\d,\.-]/g, '').replace(/\./g, '').replace(',', '.');
+        const num = parseFloat(clean);
+        return isNaN(num) ? 0 : num;
+    };
+
+    let baseSalary = 0;
+    let totalEarnings = 0;
+    let totalDeductions = 0;
+    let netSalary = 0;
+    let absenceDays = 0;
+    let absenceDeduction = 0;
+    let workedDays = 30;
+
+    // Base Salary: "Salário Base 1.764,00" or "Sal. Base: 1.764,00"
+    const baseSalMatch = normalizedText.match(/(?:Sal[aá]rio\s*Base|Sal\.?\s*Base)[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
+    if (baseSalMatch) {
+        baseSalary = parseCurrency(baseSalMatch[1]);
+    }
+
+    // Total Earnings: "Total de Vencimentos: 2.150,00" or "Total Proventos: 2.150,00"
+    const earningsMatch = normalizedText.match(/(?:Total\s*(?:de\s*)?(?:Vencimentos|Proventos))[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
+    if (earningsMatch) {
+        totalEarnings = parseCurrency(earningsMatch[1]);
+    }
+
+    // Total Deductions: "Total de Descontos: 320,00" or "Total Descontos: 320,00"
+    const deductionsMatch = normalizedText.match(/(?:Total\s*(?:de\s*)?Descontos)[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
+    if (deductionsMatch) {
+        totalDeductions = parseCurrency(deductionsMatch[1]);
+    }
+
+    // Net Salary: "Valor Líquido: 1.830,00" or "Líquido a Receber: 1.830,00"
+    const netMatch = normalizedText.match(/(?:Valor\s*L[ií]quido|L[ií]quido\s*a\s*Receber|Total\s*L[ií]quido)[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
+    if (netMatch) {
+        netSalary = parseCurrency(netMatch[1]);
+    }
+
+    // Rubricas de faltas e dias trabalhados
+    for (const l of lines) {
+        const upperL = l.toUpperCase();
+        if (upperL.includes('FALTA') && !upperL.includes('DESCONTO') && !upperL.includes('TOTAL')) {
+            // e.g. "050 FALTAS 3,00 176,40" or "FALTAS INJUSTIFICADAS 2,00 117,60"
+            const amounts = Array.from(l.matchAll(/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/g)).map(m => m[1]);
+            if (amounts.length >= 2) {
+                // First is reference (days), second is deduction value
+                const days = parseFloat(amounts[0].replace(',', '.'));
+                if (!isNaN(days) && days > 0 && days <= 31) absenceDays += days;
+                absenceDeduction += parseCurrency(amounts[1]);
+            } else if (amounts.length === 1) {
+                absenceDeduction += parseCurrency(amounts[0]);
+            }
+        }
+        if (upperL.includes('SALARIO BASE') || upperL.includes('HORAS NORMAIS') || upperL.includes('DIAS TRABALHADOS')) {
+            const daysMatch = l.match(/([0-9]{1,2},[0-9]{2})\s+[0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}/);
+            if (daysMatch) {
+                const days = parseFloat(daysMatch[1].replace(',', '.'));
+                if (!isNaN(days) && days >= 0 && days <= 31) workedDays = days;
+            }
+        }
+    }
+
     return {
         employeeName,
         cpf,
@@ -242,7 +322,14 @@ export function extractDataFromPageText(text: string, pageNumber: number): {
         companyName,
         cnpj,
         competence,
-        payrollType
+        payrollType,
+        baseSalary,
+        totalEarnings,
+        totalDeductions,
+        netSalary,
+        workedDays,
+        absenceDays,
+        absenceDeduction
     };
 }
 

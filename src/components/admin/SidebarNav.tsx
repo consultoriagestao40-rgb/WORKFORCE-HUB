@@ -97,6 +97,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
                 <NavLink href="/admin/dismissal-monitor" icon={ShieldAlert} label="Monitor de Desligamento" colorClass="text-rose-500" />
                 <NavLink href="/admin/financial-costs" icon={DollarSign} label="Gestão de Custos" colorClass="text-emerald-500" />
                 <NavLink href="/admin/payroll-preview" icon={Calculator} label="Prévia de Folha" colorClass="text-sky-400" />
+                <NavLink href="/admin/payroll-audit" icon={ShieldAlert} label="Auditoria de Folha" colorClass="text-purple-400 font-bold" />
                 <NavLink href="/admin/benefits" icon={CreditCard} label="Compra de Benefícios" colorClass="text-orange-400" />
                 <NavLink href="/admin/holerites" icon={Scissors} label="Separador de Holerites" colorClass="text-teal-400 font-bold" />
 

@@ -969,6 +969,14 @@ export async function assignEmployee(formData: FormData) {
             }
         });
 
+        // 3.1 Sincronizar empresa do colaborador com a empresa do cliente do posto
+        if (posto.client?.companyId) {
+            await tx.employee.update({
+                where: { id: employeeId },
+                data: { companyId: posto.client.companyId }
+            });
+        }
+
         // 4. Log new assignment
         const emp = await tx.employee.findUnique({ where: { id: employeeId } });
         const currentUser = await getCurrentUser();
@@ -1477,9 +1485,29 @@ export async function updatePosto(formData: FormData) {
         });
     }
 
+    // ✅ SYNC AUTOMÁTICO: Propaga VA e VT do posto para todos os colaboradores ativos naquele posto
+    // Isso garante que qualquer alteração no posto reflita imediatamente na compra de benefícios
+    const postoAnterior = await prisma.posto.findUnique({ where: { id } });
+    
+    // Busca todos os colaboradores ativos no posto
+    const colaboradoresAtivos = await prisma.assignment.findMany({
+        where: { postoId: id, endDate: null },
+        select: { employeeId: true }
+    });
+    const empIds = colaboradoresAtivos.map(a => a.employeeId);
+
+    if (empIds.length > 0 && valeAlimentacao > 0) {
+        // Atualiza VA de todos os colaboradores ativos neste posto
+        await prisma.employee.updateMany({
+            where: { id: { in: empIds } },
+            data: { valeAlimentacao }
+        });
+    }
+
     revalidatePath(`/admin/clients/${posto.clientId}`);
     revalidatePath("/admin/payroll-preview");
     revalidatePath("/admin/benefits");
+    revalidatePath("/admin/employees");
 }
 
 export async function updateEmployee(formData: FormData) {
@@ -1571,6 +1599,19 @@ export async function updateEmployee(formData: FormData) {
         const oldExtra = (oldEmployee?.extraFields as Record<string, any>) || {};
         const mergedExtra = extraFields ? { ...oldExtra, ...extraFields } : (Object.keys(oldExtra).length > 0 ? oldExtra : undefined);
 
+        // Derive consistent status from situation
+        let effectiveStatus = status;
+        if (situationId) {
+            const sit = await prisma.situation.findUnique({ where: { id: situationId } });
+            if (sit) {
+                const isDismissed = sit.name.toLowerCase().includes("desligado") || sit.name.toLowerCase().includes("demitido");
+                effectiveStatus = isDismissed ? "Desligado" : "Ativo";
+            }
+        }
+        if (!effectiveStatus) {
+            effectiveStatus = oldEmployee.status;
+        }
+
         const result = await prisma.$transaction(async (tx) => {
             const updated = await tx.employee.update({
                 where: { id },
@@ -1580,7 +1621,7 @@ export async function updateEmployee(formData: FormData) {
                     roleId: effectiveRoleId,
                     companyId: (formData.get("companyId") === "no_company" || !formData.get("companyId")) ? null : (formData.get("companyId") as string),
                     type,
-                    status,
+                    status: effectiveStatus,
                     situationId: situationId || undefined,
                     admissionDate: parseDateString(admissionDateStr) || undefined,
                     lastVacationStart: parseDateString(lastVacationStartStr),
@@ -1746,6 +1787,8 @@ export async function updateEmployee(formData: FormData) {
 
         revalidatePath("/admin/employees");
         revalidatePath(`/admin/employees/${id}`);
+        revalidatePath("/admin/benefits");
+        revalidatePath("/admin/payroll-preview");
 
         return { success: true };
     } catch (e: any) {

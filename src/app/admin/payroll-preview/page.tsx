@@ -21,7 +21,8 @@ import {
     Download,
     RefreshCw,
     ArrowUpDown,
-    ChevronUp
+    ChevronUp,
+    ShieldAlert
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -719,6 +720,16 @@ export default function PayrollPreviewPage() {
                         >
                             <ClipboardCheck className="w-4 h-4" />
                             <span>Rubricas Onvio</span>
+                        </Link>
+
+                        {/* Auditoria & Cruzamento Triplo */}
+                        <Link
+                            href="/admin/payroll-audit"
+                            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs h-11 px-4 rounded-2xl border border-purple-500/30 transition-all cursor-pointer shadow-lg shadow-slate-950/20 active:scale-[0.98]"
+                            title="Auditoria e cruzamento: Holerites da Contabilidade vs Cartão Ponto vs WFH"
+                        >
+                            <ShieldAlert className="w-4 h-4" />
+                            <span>Auditoria de Folha</span>
                         </Link>
                     </div>
                 </div>

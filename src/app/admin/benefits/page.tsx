@@ -24,7 +24,10 @@ import {
     Copy,
     ExternalLink,
     CheckSquare,
-    Square
+    Square,
+    Edit,
+    X,
+    UploadCloud
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +39,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { toast } from "sonner";
 import { getBenefitsCalculation, updateBenefitsConfig, markBenefitAsPaid, getSystemUsers, markMultipleBenefitsAsPaid, BenefitsCalculationItem } from "@/actions/benefits";
 import { syncSecullumOccurrences, testSecullumConnectionAction } from "@/actions/secullum";
+import { CajuReceiptImportModal } from "@/components/admin/CajuReceiptImportModal";
 
 export default function BenefitsPage() {
     const today = new Date();
@@ -113,6 +117,7 @@ export default function BenefitsPage() {
     const [cajuSelectedMonth, setCajuSelectedMonth] = useState<number>(selectedMonth);
     const [cajuSelectedYear, setCajuSelectedYear] = useState<number>(selectedYear);
     const [isLoadingCaju, setIsLoadingCaju] = useState(false);
+    const [cajuReceiptModalOpen, setCajuReceiptModalOpen] = useState(false);
 
     // Export Urbs States
     const [exportUrbsModalOpen, setExportUrbsModalOpen] = useState(false);
@@ -124,6 +129,11 @@ export default function BenefitsPage() {
 
     // Conferência Checklist State (Persisted in localStorage per year-month)
     const [verifiedEmployeeIds, setVerifiedEmployeeIds] = useState<string[]>([]);
+    
+    // Manual Overrides State (Persisted in localStorage per year-month for quick adjustments)
+    const [manualOverrides, setManualOverrides] = useState<{ [employeeId: string]: { vtTotalValue?: number; vtTotalValue2?: number; vaTotalValue?: number; absenteismoAward?: number } }>({});
+    const [editingCell, setEditingCell] = useState<{ employeeId: string; field: 'vtTotalValue' | 'vtTotalValue2' | 'vaTotalValue' | 'absenteismoAward' } | null>(null);
+    const [editInputValue, setEditInputValue] = useState<string>("");
 
     useEffect(() => {
         try {
@@ -134,10 +144,52 @@ export default function BenefitsPage() {
             } else {
                 setVerifiedEmployeeIds([]);
             }
+
+            const overridesKey = `benefits_overrides_${selectedYear}_${selectedMonth}`;
+            const savedOverrides = localStorage.getItem(overridesKey);
+            if (savedOverrides) {
+                setManualOverrides(JSON.parse(savedOverrides));
+            } else {
+                setManualOverrides({});
+            }
         } catch (e) {
-            console.error("Erro ao carregar status de conferência:", e);
+            console.error("Erro ao carregar dados do storage:", e);
         }
     }, [selectedYear, selectedMonth]);
+
+    const saveManualOverride = (employeeId: string, field: 'vtTotalValue' | 'vtTotalValue2' | 'vaTotalValue' | 'absenteismoAward', rawVal: string) => {
+        const numVal = parseFloat(rawVal.replace(',', '.'));
+        const isClear = isNaN(numVal);
+
+        setManualOverrides(prev => {
+            const currentEmp = { ...(prev[employeeId] || {}) };
+            if (isClear) {
+                delete currentEmp[field];
+            } else {
+                currentEmp[field] = Math.max(0, Math.round(numVal * 100) / 100);
+            }
+
+            const next = { ...prev };
+            if (Object.keys(currentEmp).length === 0) {
+                delete next[employeeId];
+            } else {
+                next[employeeId] = currentEmp;
+            }
+
+            try {
+                const overridesKey = `benefits_overrides_${selectedYear}_${selectedMonth}`;
+                localStorage.setItem(overridesKey, JSON.stringify(next));
+            } catch (e) {
+                console.error("Erro ao salvar ajuste manual:", e);
+            }
+            return next;
+        });
+        setEditingCell(null);
+    };
+
+    const clearManualOverride = (employeeId: string, field: 'vtTotalValue' | 'vtTotalValue2' | 'vaTotalValue' | 'absenteismoAward') => {
+        saveManualOverride(employeeId, field, "");
+    };
 
     const toggleVerifiedEmployee = (employeeId: string) => {
         setVerifiedEmployeeIds(prev => {
@@ -1007,8 +1059,22 @@ export default function BenefitsPage() {
         );
     };
 
+    // Merge raw items with manualOverrides
+    const effectiveItems = items.map(item => {
+        const override = manualOverrides[item.employeeId];
+        if (!override) return item;
+        return {
+            ...item,
+            vtTotalValue: override.vtTotalValue !== undefined ? override.vtTotalValue : item.vtTotalValue,
+            vtTotalValue2: override.vtTotalValue2 !== undefined ? override.vtTotalValue2 : item.vtTotalValue2,
+            vaTotalValue: override.vaTotalValue !== undefined ? override.vaTotalValue : item.vaTotalValue,
+            absenteismoAward: override.absenteismoAward !== undefined ? override.absenteismoAward : item.absenteismoAward,
+            isManuallyAdjusted: !!(override.vtTotalValue !== undefined || override.vtTotalValue2 !== undefined || override.vaTotalValue !== undefined || override.absenteismoAward !== undefined)
+        };
+    });
+
     // Filter Items
-    const filteredItems = items.filter(item => {
+    const filteredItems = effectiveItems.filter(item => {
         const matchesSearch = 
             item.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
             item.employeeCpf.includes(searchTerm) ||
@@ -1226,6 +1292,14 @@ export default function BenefitsPage() {
                         className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-md h-9 px-4 shrink-0"
                     >
                         <Download className="w-4 h-4" /> Exportar Pedido Caju
+                    </Button>
+
+                    <Button 
+                        onClick={() => setCajuReceiptModalOpen(true)}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-md h-9 px-4 shrink-0"
+                        title="Fazer baixa automática de VA via comprovante Caju (PDF, CSV ou Excel)"
+                    >
+                        <UploadCloud className="w-4 h-4" /> Baixar via Caju
                     </Button>
 
                     <Button 
@@ -1706,76 +1780,146 @@ export default function BenefitsPage() {
                                                         )}
                                                     </td>
 
+                                                    {/* VT a Comprar */}
                                                     <td className="py-3.5 px-4 text-right">
-                                                         <Popover>
-                                                             <PopoverTrigger asChild>
-                                                                 <button className="font-black text-indigo-700 hover:text-indigo-800 underline decoration-dashed cursor-pointer text-right block w-full">
-                                                                     <div>{formatCurrency(item.vtTotalValue)}</div>
-                                                                     {item.vtTotalValue2 > 0 && (
-                                                                         <div className="text-[10px] font-bold text-slate-500 mt-0.5">VT 2: {formatCurrency(item.vtTotalValue2)}</div>
-                                                                     )}
-                                                                 </button>
-                                                             </PopoverTrigger>
-                                                             <PopoverContent className="w-68 p-3 text-xs space-y-2">
-                                                                 <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">
-                                                                     Composição do VT a Pagar
-                                                                 </div>
-                                                                 <div className="space-y-1.5 font-semibold text-slate-650 text-[10px]">
-                                                                     <div className="border-b border-slate-100 pb-1.5">
-                                                                         <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Vale Transporte 1 ({item.vtDestination})</span>
-                                                                         <div className="flex justify-between">
-                                                                             <span>Valor Base:</span>
-                                                                             <span>R$ {item.vtBaseValue.toFixed(2)}</span>
-                                                                         </div>
-                                                                         {item.vtDeductionValue > 0 && (
-                                                                             <div className="flex justify-between text-red-600">
-                                                                                 <span>(-) Descontos ({item.vtOccurrencesDeducted} faltas):</span>
-                                                                                 <span>- R$ {item.vtDeductionValue.toFixed(2)}</span>
-                                                                             </div>
-                                                                         )}
-                                                                         <div className="flex justify-between font-bold text-indigo-700 pt-0.5">
-                                                                             <span>Subtotal VT 1:</span>
-                                                                             <span>R$ {item.vtTotalValue.toFixed(2)}</span>
-                                                                         </div>
-                                                                     </div>
+                                                        {editingCell?.employeeId === item.employeeId && editingCell?.field === 'vtTotalValue' ? (
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    value={editInputValue}
+                                                                    autoFocus
+                                                                    onChange={e => setEditInputValue(e.target.value)}
+                                                                    onKeyDown={e => {
+                                                                        if (e.key === 'Enter') saveManualOverride(item.employeeId, 'vtTotalValue', editInputValue);
+                                                                        if (e.key === 'Escape') setEditingCell(null);
+                                                                    }}
+                                                                    className="w-24 px-2 py-1 text-xs font-black text-right border-2 border-indigo-500 rounded-md bg-white shadow-md focus:outline-none ring-2 ring-indigo-200"
+                                                                />
+                                                                <button
+                                                                    onClick={() => saveManualOverride(item.employeeId, 'vtTotalValue', editInputValue)}
+                                                                    className="p-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 shadow-xs"
+                                                                    title="Salvar valor neste mês"
+                                                                >
+                                                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setEditingCell(null)}
+                                                                    className="p-1.5 bg-slate-200 text-slate-600 rounded-md hover:bg-slate-300"
+                                                                    title="Cancelar"
+                                                                >
+                                                                    <X className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="group/cell flex items-center justify-end gap-1.5">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setEditingCell({ employeeId: item.employeeId, field: 'vtTotalValue' });
+                                                                        setEditInputValue(String(item.vtTotalValue));
+                                                                    }}
+                                                                    className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
+                                                                    title="Editar valor de VT neste mês"
+                                                                >
+                                                                    <Edit className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <Popover>
+                                                                    <PopoverTrigger asChild>
+                                                                        <button 
+                                                                            onDoubleClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setEditingCell({ employeeId: item.employeeId, field: 'vtTotalValue' });
+                                                                                setEditInputValue(String(item.vtTotalValue));
+                                                                            }}
+                                                                            className={`font-black hover:underline decoration-dashed cursor-pointer text-right block ${
+                                                                            manualOverrides[item.employeeId]?.vtTotalValue !== undefined 
+                                                                                ? 'text-amber-600 bg-amber-50/80 px-2 py-0.5 rounded-lg border border-amber-200 shadow-2xs' 
+                                                                                : 'text-indigo-700 hover:text-indigo-800'
+                                                                        }`}>
+                                                                            <div className="flex items-center justify-end gap-1">
+                                                                                {manualOverrides[item.employeeId]?.vtTotalValue !== undefined && (
+                                                                                    <span className="text-[8px] bg-amber-500 text-white px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">Ajustado</span>
+                                                                                )}
+                                                                                <span>{formatCurrency(item.vtTotalValue)}</span>
+                                                                            </div>
+                                                                            {item.vtTotalValue2 > 0 && (
+                                                                                <div className="text-[10px] font-bold text-slate-500 mt-0.5">VT 2: {formatCurrency(item.vtTotalValue2)}</div>
+                                                                            )}
+                                                                        </button>
+                                                                    </PopoverTrigger>
+                                                                    <PopoverContent className="w-72 p-3.5 text-xs space-y-2.5">
+                                                                        <div className="font-bold text-slate-900 border-b pb-1.5 text-[11px] flex justify-between items-center">
+                                                                            <span>Composição do VT a Pagar</span>
+                                                                            <div className="flex items-center gap-1.5">
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setEditingCell({ employeeId: item.employeeId, field: 'vtTotalValue' });
+                                                                                        setEditInputValue(String(item.vtTotalValue));
+                                                                                    }}
+                                                                                    className="text-[9px] text-indigo-600 hover:underline font-bold"
+                                                                                >
+                                                                                    Editar
+                                                                                </button>
+                                                                                {manualOverrides[item.employeeId]?.vtTotalValue !== undefined && (
+                                                                                    <button 
+                                                                                        onClick={() => clearManualOverride(item.employeeId, 'vtTotalValue')}
+                                                                                        className="text-[9px] text-red-600 hover:underline font-bold"
+                                                                                    >
+                                                                                        Restaurar
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="space-y-1.5 font-semibold text-slate-650 text-[10px]">
+                                                                            <div className="border-b border-slate-100 pb-1.5">
+                                                                                <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Vale Transporte 1 ({item.vtDestination})</span>
+                                                                                <div className="flex justify-between">
+                                                                                    <span>Valor Base:</span>
+                                                                                    <span>R$ {item.vtBaseValue.toFixed(2)}</span>
+                                                                                </div>
+                                                                                {item.vtDeductionValue > 0 && (
+                                                                                    <div className="flex justify-between text-red-600">
+                                                                                        <span>(-) Descontos ({item.vtOccurrencesDeducted} faltas):</span>
+                                                                                        <span>- R$ {item.vtDeductionValue.toFixed(2)}</span>
+                                                                                    </div>
+                                                                                )}
+                                                                                <div className="flex justify-between font-bold text-indigo-700 pt-0.5">
+                                                                                    <span>Subtotal VT 1:</span>
+                                                                                    <span>R$ {item.vtTotalValue.toFixed(2)}</span>
+                                                                                </div>
+                                                                            </div>
 
-                                                                     {item.vtTotalValue2 > 0 && (
-                                                                         <div className="border-b border-slate-100 pb-1.5">
-                                                                             <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Vale Transporte 2 ({item.vtDestination2})</span>
-                                                                             <div className="flex justify-between">
-                                                                                 <span>Valor Base:</span>
-                                                                                 <span>R$ {item.vtBaseValue2.toFixed(2)}</span>
-                                                                             </div>
-                                                                             {item.vtDeductionValue2 > 0 && (
-                                                                                 <div className="flex justify-between text-red-600">
-                                                                                     <span>(-) Descontos ({item.vtOccurrencesDeducted} faltas):</span>
-                                                                                     <span>- R$ {item.vtDeductionValue2.toFixed(2)}</span>
-                                                                                 </div>
-                                                                             )}
-                                                                             <div className="flex justify-between font-bold text-slate-650 pt-0.5">
-                                                                                 <span>Subtotal VT 2:</span>
-                                                                                 <span>R$ {item.vtTotalValue2.toFixed(2)}</span>
-                                                                             </div>
-                                                                         </div>
-                                                                     )}
+                                                                            {item.vtTotalValue2 > 0 && (
+                                                                                <div className="border-b border-slate-100 pb-1.5">
+                                                                                    <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Vale Transporte 2 ({item.vtDestination2})</span>
+                                                                                    <div className="flex justify-between">
+                                                                                        <span>Valor Base:</span>
+                                                                                        <span>R$ {item.vtBaseValue2.toFixed(2)}</span>
+                                                                                    </div>
+                                                                                    {item.vtDeductionValue2 > 0 && (
+                                                                                        <div className="flex justify-between text-red-600">
+                                                                                            <span>(-) Descontos ({item.vtOccurrencesDeducted} faltas):</span>
+                                                                                            <span>- R$ {item.vtDeductionValue2.toFixed(2)}</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    <div className="flex justify-between font-bold text-slate-650 pt-0.5">
+                                                                                        <span>Subtotal VT 2:</span>
+                                                                                        <span>R$ {item.vtTotalValue2.toFixed(2)}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
 
-                                                                     {item.vtPayrollDiscount !== undefined && item.vtPayrollDiscount > 0 && (
-                                                                         <div className="border-b border-slate-100 pb-1.5 text-orange-700">
-                                                                             <div className="flex justify-between">
-                                                                                 <span>(-) Desconto em Folha ({item.vtDiscountPercentage}%):</span>
-                                                                                 <span>- R$ {item.vtPayrollDiscount.toFixed(2)}</span>
-                                                                             </div>
-                                                                         </div>
-                                                                     )}
-
-                                                                     <div className="flex justify-between font-bold text-slate-800 pt-1 text-[11px]">
-                                                                         <span>Total Geral VT:</span>
-                                                                         <span className="text-indigo-700">R$ {(item.vtTotalValue + (item.vtTotalValue2 || 0)).toFixed(2)}</span>
-                                                                     </div>
-                                                                 </div>
-                                                             </PopoverContent>
-                                                         </Popover>
-                                                     </td>
+                                                                            <div className="flex justify-between font-bold text-slate-800 pt-1 text-[11px]">
+                                                                                <span>Total Geral VT:</span>
+                                                                                <span className="text-indigo-700">R$ {(item.vtTotalValue + (item.vtTotalValue2 || 0)).toFixed(2)}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </PopoverContent>
+                                                                </Popover>
+                                                            </div>
+                                                        )}
+                                                    </td>
 
                                                     <td className="py-3.5 px-4">
                                                          <div className="flex flex-col gap-1">
@@ -1790,52 +1934,125 @@ export default function BenefitsPage() {
                                                          </div>
                                                      </td>
 
-                                                    <td className="py-3.5 px-4 text-right font-black text-orange-600">
-                                                         <Popover>
-                                                             <PopoverTrigger asChild>
-                                                                 <button className="font-black text-orange-600 hover:text-orange-700 underline decoration-dashed cursor-pointer text-right block w-full">
-                                                                     {formatCurrency(item.vaTotalValue)}
-                                                                 </button>
-                                                             </PopoverTrigger>
-                                                             <PopoverContent className="w-64 p-3 text-xs space-y-2">
-                                                                 <div className="font-bold text-slate-900 border-b pb-1 text-[11px]">
-                                                                     Composição do VA a Pagar
-                                                                 </div>
-                                                                 <div className="space-y-1.5 font-semibold text-slate-650 text-[10px]">
-                                                                     <div className="flex justify-between">
-                                                                         <span>Valor Base {item.vaMealsProvidedOnSite ? "(Refeição no Local)" : ""}:</span>
-                                                                         <span>R$ {item.vaBaseValue.toFixed(2)}</span>
-                                                                     </div>
-                                                                     {item.vaDeductionValue > 0 && (
-                                                                         <div className="flex justify-between text-red-600">
-                                                                             <span>(-) Descontos ({item.vaOccurrencesDeducted} faltas):</span>
-                                                                             <span>- R$ {item.vaDeductionValue.toFixed(2)}</span>
-                                                                         </div>
-                                                                     )}
-                                                                     {item.vaVacationDeduction !== undefined && item.vaVacationDeduction > 0 && (
-                                                                         <div className="flex justify-between text-red-600">
-                                                                             <span>(-) Proporcional Férias ({item.vaVacationDays} dias):</span>
-                                                                             <span>- R$ {item.vaVacationDeduction.toFixed(2)}</span>
-                                                                         </div>
-                                                                     )}
-                                                                     {item.vaPayrollDiscount !== undefined && item.vaPayrollDiscount > 0 && (
-                                                                         <div className="flex justify-between text-orange-700 border-t border-dashed border-slate-100 pt-1">
-                                                                             <span>(-) Desconto em Folha ({item.vaDiscountPercentage}%):</span>
-                                                                             <span>- R$ {item.vaPayrollDiscount.toFixed(2)}</span>
-                                                                         </div>
-                                                                     )}
-                                                                     <div className="flex justify-between font-bold text-slate-800 border-t border-slate-100 pt-1 text-[11px]">
-                                                                         <span>Total Líquido:</span>
-                                                                         <span className="text-orange-600">R$ {item.vaTotalValue.toFixed(2)}</span>
-                                                                     </div>
-                                                                 </div>
-                                                                 {item.vaBatchNote && (
-                                                                     <div className="text-[9px] text-slate-400 border-t border-slate-100/70 pt-1 mt-1 italic font-medium leading-normal">
-                                                                         Info: {item.vaBatchNote}
-                                                                     </div>
-                                                                 )}
-                                                             </PopoverContent>
-                                                         </Popover>
+                                                    {/* VA a Comprar */}
+                                                    <td className="py-3.5 px-4 text-right">
+                                                        {editingCell?.employeeId === item.employeeId && editingCell?.field === 'vaTotalValue' ? (
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    value={editInputValue}
+                                                                    autoFocus
+                                                                    onChange={e => setEditInputValue(e.target.value)}
+                                                                    onKeyDown={e => {
+                                                                        if (e.key === 'Enter') saveManualOverride(item.employeeId, 'vaTotalValue', editInputValue);
+                                                                        if (e.key === 'Escape') setEditingCell(null);
+                                                                    }}
+                                                                    className="w-24 px-2 py-1 text-xs font-black text-right border-2 border-orange-500 rounded-md bg-white shadow-md focus:outline-none ring-2 ring-orange-200"
+                                                                />
+                                                                <button
+                                                                    onClick={() => saveManualOverride(item.employeeId, 'vaTotalValue', editInputValue)}
+                                                                    className="p-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 shadow-xs"
+                                                                    title="Salvar valor neste mês"
+                                                                >
+                                                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setEditingCell(null)}
+                                                                    className="p-1.5 bg-slate-200 text-slate-600 rounded-md hover:bg-slate-300"
+                                                                    title="Cancelar"
+                                                                >
+                                                                    <X className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="group/cell flex items-center justify-end gap-1.5">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setEditingCell({ employeeId: item.employeeId, field: 'vaTotalValue' });
+                                                                        setEditInputValue(String(item.vaTotalValue));
+                                                                    }}
+                                                                    className="p-1 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all cursor-pointer"
+                                                                    title="Editar valor de VA neste mês"
+                                                                >
+                                                                    <Edit className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <Popover>
+                                                                    <PopoverTrigger asChild>
+                                                                        <button 
+                                                                            onDoubleClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setEditingCell({ employeeId: item.employeeId, field: 'vaTotalValue' });
+                                                                                setEditInputValue(String(item.vaTotalValue));
+                                                                            }}
+                                                                            className={`font-black hover:underline decoration-dashed cursor-pointer text-right block ${
+                                                                            manualOverrides[item.employeeId]?.vaTotalValue !== undefined
+                                                                                ? 'text-amber-600 bg-amber-50/80 px-2 py-0.5 rounded-lg border border-amber-200 shadow-2xs'
+                                                                                : 'text-orange-600 hover:text-orange-700'
+                                                                        }`}>
+                                                                            <div className="flex items-center justify-end gap-1">
+                                                                                {manualOverrides[item.employeeId]?.vaTotalValue !== undefined && (
+                                                                                    <span className="text-[8px] bg-amber-500 text-white px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">Ajustado</span>
+                                                                                )}
+                                                                                <span>{formatCurrency(item.vaTotalValue)}</span>
+                                                                            </div>
+                                                                        </button>
+                                                                    </PopoverTrigger>
+                                                                    <PopoverContent className="w-72 p-3.5 text-xs space-y-2.5">
+                                                                        <div className="font-bold text-slate-900 border-b pb-1.5 text-[11px] flex justify-between items-center">
+                                                                            <span>Composição do VA a Pagar</span>
+                                                                            <div className="flex items-center gap-1.5">
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setEditingCell({ employeeId: item.employeeId, field: 'vaTotalValue' });
+                                                                                        setEditInputValue(String(item.vaTotalValue));
+                                                                                    }}
+                                                                                    className="text-[9px] text-orange-600 hover:underline font-bold"
+                                                                                >
+                                                                                    Editar
+                                                                                </button>
+                                                                                {manualOverrides[item.employeeId]?.vaTotalValue !== undefined && (
+                                                                                    <button 
+                                                                                        onClick={() => clearManualOverride(item.employeeId, 'vaTotalValue')}
+                                                                                        className="text-[9px] text-red-600 hover:underline font-bold"
+                                                                                    >
+                                                                                        Restaurar
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="space-y-1.5 font-semibold text-slate-650 text-[10px]">
+                                                                            <div className="flex justify-between">
+                                                                                <span>Valor Base {item.vaMealsProvidedOnSite ? "(Refeição no Local)" : ""}:</span>
+                                                                                <span>R$ {item.vaBaseValue.toFixed(2)}</span>
+                                                                            </div>
+                                                                            {item.vaDeductionValue > 0 && (
+                                                                                <div className="flex justify-between text-red-600">
+                                                                                    <span>(-) Descontos ({item.vaOccurrencesDeducted} faltas):</span>
+                                                                                    <span>- R$ {item.vaDeductionValue.toFixed(2)}</span>
+                                                                                </div>
+                                                                            )}
+                                                                            {item.vaVacationDeduction !== undefined && item.vaVacationDeduction > 0 && (
+                                                                                <div className="flex justify-between text-red-600">
+                                                                                    <span>(-) Proporcional Férias ({item.vaVacationDays} dias):</span>
+                                                                                    <span>- R$ {item.vaVacationDeduction.toFixed(2)}</span>
+                                                                                </div>
+                                                                            )}
+                                                                            <div className="flex justify-between font-bold text-slate-800 border-t border-slate-100 pt-1 text-[11px]">
+                                                                                <span>Total Líquido:</span>
+                                                                                <span className="text-orange-600">R$ {item.vaTotalValue.toFixed(2)}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                        {item.vaBatchNote && (
+                                                                            <div className="text-[9px] text-slate-400 border-t border-slate-100/70 pt-1 mt-1 italic font-medium leading-normal">
+                                                                                Info: {item.vaBatchNote}
+                                                                            </div>
+                                                                        )}
+                                                                    </PopoverContent>
+                                                                </Popover>
+                                                            </div>
+                                                        )}
                                                     </td>
 
                                                     <td className="py-3.5 px-4">
@@ -1844,14 +2061,59 @@ export default function BenefitsPage() {
                                                          </span>
                                                      </td>
 
+                                                     {/* Prêmio Assiduidade */}
                                                      <td className="py-3.5 px-4 text-right">
-                                                         {item.absenteismoAward > 0 ? (
-                                                             <div className="text-right">
-                                                                 <span className="font-extrabold text-rose-600">{formatCurrency(item.absenteismoAward)}</span>
-                                                                 <div className="text-[9px] text-slate-400 font-bold capitalize">({item.absenteismoPeriod})</div>
+                                                         {editingCell?.employeeId === item.employeeId && editingCell?.field === 'absenteismoAward' ? (
+                                                             <div className="flex items-center justify-end gap-1">
+                                                                 <input
+                                                                     type="number"
+                                                                     step="0.01"
+                                                                     value={editInputValue}
+                                                                     autoFocus
+                                                                     onChange={e => setEditInputValue(e.target.value)}
+                                                                     onKeyDown={e => {
+                                                                         if (e.key === 'Enter') saveManualOverride(item.employeeId, 'absenteismoAward', editInputValue);
+                                                                         if (e.key === 'Escape') setEditingCell(null);
+                                                                     }}
+                                                                     className="w-24 px-2 py-1 text-xs font-black text-right border-2 border-rose-500 rounded-md bg-white shadow-md focus:outline-none ring-2 ring-rose-200"
+                                                                 />
+                                                                 <button
+                                                                     onClick={() => saveManualOverride(item.employeeId, 'absenteismoAward', editInputValue)}
+                                                                     className="p-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 shadow-xs"
+                                                                 >
+                                                                     <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                                                 </button>
+                                                                 <button
+                                                                     onClick={() => setEditingCell(null)}
+                                                                     className="p-1.5 bg-slate-200 text-slate-600 rounded-md hover:bg-slate-300"
+                                                                 >
+                                                                     <X className="w-3.5 h-3.5" />
+                                                                 </button>
                                                              </div>
                                                          ) : (
-                                                             <span className="text-slate-400 font-medium">-</span>
+                                                             <div className="group/cell flex items-center justify-end gap-1.5">
+                                                                 <button
+                                                                     onClick={(e) => {
+                                                                         e.stopPropagation();
+                                                                         setEditingCell({ employeeId: item.employeeId, field: 'absenteismoAward' });
+                                                                         setEditInputValue(String(item.absenteismoAward || 0));
+                                                                     }}
+                                                                     className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                                                                     title="Editar assiduidade manual neste mês"
+                                                                 >
+                                                                     <Edit className="w-3.5 h-3.5" />
+                                                                 </button>
+                                                                 {item.absenteismoAward > 0 ? (
+                                                                     <div className="text-right">
+                                                                         <span className={`font-extrabold ${manualOverrides[item.employeeId]?.absenteismoAward !== undefined ? 'text-amber-600 bg-amber-50/80 px-2 py-0.5 rounded-lg border border-amber-200' : 'text-rose-600'}`}>
+                                                                             {formatCurrency(item.absenteismoAward)}
+                                                                         </span>
+                                                                         <div className="text-[9px] text-slate-400 font-bold capitalize">({item.absenteismoPeriod})</div>
+                                                                     </div>
+                                                                 ) : (
+                                                                     <span className="text-slate-400 font-medium">-</span>
+                                                                 )}
+                                                             </div>
                                                          )}
                                                      </td>
 
@@ -3164,6 +3426,15 @@ export default function BenefitsPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Caju Receipt Reconciliation Modal */}
+            <CajuReceiptImportModal 
+                isOpen={cajuReceiptModalOpen} 
+                onClose={() => setCajuReceiptModalOpen(false)} 
+                month={selectedMonth}
+                year={selectedYear}
+                onPaymentSuccess={loadData} 
+            />
 
             {/* Floating Batch Payment Action Bar */}
             {selectedEmployeeIds.length > 0 && (
