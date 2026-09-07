@@ -19,6 +19,7 @@ export interface PayrollAuditRow {
     employeeName: string;
     cpf: string;
     folha?: string;
+    companyId?: string;
     companyName?: string;
     clientName?: string;
     postoName?: string;
@@ -58,6 +59,7 @@ export interface PayrollAuditRow {
     wfh?: {
         situation: string;
         status: string;
+        companyId?: string;
         companyName?: string;
         clientName?: string;
         jobTitle?: string;
@@ -122,6 +124,23 @@ function normalizeName(name: string | undefined | null): string {
 }
 
 /**
+ * Lista empresas para filtro de auditoria
+ */
+export async function getPayrollAuditCompanies(): Promise<{ id: string; name: string; cnpj: string | null }[]> {
+    try {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Não autorizado.");
+        return await prisma.company.findMany({
+            select: { id: true, name: true, cnpj: true },
+            orderBy: { name: "asc" }
+        });
+    } catch (error) {
+        console.error("Erro ao buscar empresas para auditoria:", error);
+        return [];
+    }
+}
+
+/**
  * Cruza Holerites × Ponto × WFH
  */
 export async function runPayrollAudit(params: {
@@ -137,10 +156,14 @@ export async function runPayrollAudit(params: {
 
     const { year, month, companyId, holeriteItems = [], pointItems = [] } = params;
 
-    // 1. Fetch WFH active/registered employees
+    let targetCompany: { id: string; name: string; cnpj: string | null } | null = null;
     const whereEmployee: any = {};
     if (companyId && companyId !== "all") {
         whereEmployee.companyId = companyId;
+        targetCompany = await prisma.company.findUnique({
+            where: { id: companyId },
+            select: { id: true, name: true, cnpj: true }
+        });
     }
 
     // Cutoff window for occurrences (Day 26 of month-2 to Day 25 of month-1)
@@ -178,40 +201,70 @@ export async function runPayrollAudit(params: {
     });
 
     // 2. Build index maps
-    // Holerite map by clean CPF and by normalized Name
+    // Holerite map by clean CPF, normalized Name, and registration code
     const holeriteByCpf = new Map<string, ExtractedHoleriteItem>();
     const holeriteByName = new Map<string, ExtractedHoleriteItem>();
+    const holeriteByCode = new Map<string, ExtractedHoleriteItem>();
     for (const h of holeriteItems) {
         const cpf = cleanCpfDigits(h.cpf);
         if (cpf) holeriteByCpf.set(cpf, h);
         const norm = normalizeName(h.employeeName);
         if (norm) holeriteByName.set(norm, h);
+        if (h.registrationCode) holeriteByCode.set(h.registrationCode.trim(), h);
     }
 
-    // Point map by clean CPF and by normalized Name
+    // Point map by clean CPF, normalized Name, and folha code
     const pointByCpf = new Map<string, ParsedPointEmployee>();
     const pointByName = new Map<string, ParsedPointEmployee>();
+    const pointByCode = new Map<string, ParsedPointEmployee>();
     for (const p of pointItems) {
         const cpf = cleanCpfDigits(p.cpf);
         if (cpf) pointByCpf.set(cpf, p);
         const norm = normalizeName(p.name);
         if (norm) pointByName.set(norm, p);
+        if (p.folha) pointByCode.set(p.folha.trim(), p);
     }
 
-    // Set of all unique identifiers (CPF or Name)
-    const processedKeys = new Set<string>();
+    // Tracking sets to ensure zero cross-over duplicates
+    const matchedHoleriteIds = new Set<string>();
+    const matchedPointKeys = new Set<string>();
+    const processedEmpKeys = new Set<string>();
     const rows: PayrollAuditRow[] = [];
 
     // 3. Process each WFH Employee
     for (const emp of wfhEmployees) {
         const cpfDigits = cleanCpfDigits(emp.cpf);
         const normName = normalizeName(emp.name);
-        const key = cpfDigits || normName;
-        if (processedKeys.has(key)) continue;
-        processedKeys.add(key);
+        const empExtra = emp.extraFields as Record<string, any> | null;
+        const empCode = empExtra?.matricula?.toString().trim() || empExtra?.codigo?.toString().trim() || "";
 
-        const holerite = (cpfDigits && holeriteByCpf.get(cpfDigits)) || holeriteByName.get(normName);
-        const point = (cpfDigits && pointByCpf.get(cpfDigits)) || pointByName.get(normName);
+        if (cpfDigits && processedEmpKeys.has(cpfDigits)) continue;
+        if (normName && processedEmpKeys.has(normName)) continue;
+
+        if (cpfDigits) processedEmpKeys.add(cpfDigits);
+        if (normName) processedEmpKeys.add(normName);
+        if (empCode) processedEmpKeys.add(`code:${empCode}`);
+
+        const holerite = (cpfDigits && holeriteByCpf.get(cpfDigits))
+            || holeriteByName.get(normName)
+            || (empCode ? holeriteByCode.get(empCode) : undefined);
+
+        if (holerite) {
+            matchedHoleriteIds.add(holerite.id);
+            if (holerite.cpf) processedEmpKeys.add(cleanCpfDigits(holerite.cpf));
+            if (holerite.employeeName) processedEmpKeys.add(normalizeName(holerite.employeeName));
+        }
+
+        const point = (cpfDigits && pointByCpf.get(cpfDigits))
+            || pointByName.get(normName)
+            || (empCode ? pointByCode.get(empCode) : undefined);
+
+        if (point) {
+            const pKey = cleanCpfDigits(point.cpf) || normalizeName(point.name);
+            matchedPointKeys.add(pKey);
+            if (point.cpf) processedEmpKeys.add(cleanCpfDigits(point.cpf));
+            if (point.name) processedEmpKeys.add(normalizeName(point.name));
+        }
 
         const activeAssignment = emp.assignments && emp.assignments.length > 0 ? emp.assignments[0] : null;
         const posto = activeAssignment?.posto;
@@ -330,7 +383,8 @@ export async function runPayrollAudit(params: {
             name: emp.name,
             employeeName: emp.name,
             cpf: emp.cpf || "",
-            folha: point?.folha || holerite?.registrationCode || "",
+            folha: point?.folha || holerite?.registrationCode || empExtra?.matricula?.toString() || "",
+            companyId: emp.companyId || undefined,
             companyName: emp.company?.name || holerite?.companyName || "Sem Empresa",
             clientName: posto?.client?.name || "Interno / Rotativo",
             postoName: posto?.role?.name || emp.role?.name || "Cargo não informado",
@@ -362,6 +416,7 @@ export async function runPayrollAudit(params: {
             wfh: {
                 situation: situationName,
                 status: emp.status,
+                companyId: emp.companyId || undefined,
                 companyName: emp.company?.name,
                 clientName: posto?.client?.name || "Interno / Rotativo",
                 jobTitle: posto?.role?.name || emp.role?.name || "Cargo não informado",
@@ -393,13 +448,41 @@ export async function runPayrollAudit(params: {
 
     // 4. Process Holerites that are NOT in WFH at all (pessoas na folha que nem existem no sistema!)
     for (const h of holeriteItems) {
+        if (matchedHoleriteIds.has(h.id)) continue;
+
         const cpfDigits = cleanCpfDigits(h.cpf);
         const normName = normalizeName(h.employeeName);
-        const key = cpfDigits || normName;
-        if (processedKeys.has(key)) continue;
-        processedKeys.add(key);
+        const code = h.registrationCode?.trim() || "";
+
+        if (cpfDigits && processedEmpKeys.has(cpfDigits)) continue;
+        if (normName && processedEmpKeys.has(normName)) continue;
+        if (code && processedEmpKeys.has(`code:${code}`)) continue;
+
+        // Se uma empresa específica foi filtrada, verificar se o holerite pertence a ela
+        if (targetCompany) {
+            const cleanTargetCnpj = cleanCpfDigits(targetCompany.cnpj);
+            const cleanHCnpj = cleanCpfDigits(h.cnpj);
+            if (cleanTargetCnpj && cleanHCnpj && cleanTargetCnpj !== cleanHCnpj) {
+                continue;
+            }
+            if (h.companyName && targetCompany.name) {
+                const normHComp = normalizeName(h.companyName);
+                const normTargetComp = normalizeName(targetCompany.name);
+                if (!normHComp.includes(normTargetComp) && !normTargetComp.includes(normHComp)) {
+                    continue;
+                }
+            }
+        }
+
+        matchedHoleriteIds.add(h.id);
+        if (cpfDigits) processedEmpKeys.add(cpfDigits);
+        if (normName) processedEmpKeys.add(normName);
 
         const point = (cpfDigits && pointByCpf.get(cpfDigits)) || pointByName.get(normName);
+        if (point) {
+            const pKey = cleanCpfDigits(point.cpf) || normalizeName(point.name);
+            matchedPointKeys.add(pKey);
+        }
 
         const holeriteNet = h.netSalary || (h.totalEarnings ? h.totalEarnings - (h.totalDeductions || 0) : 0);
         const diagMsg = `🚨 Holerite gerado (R$ ${holeriteNet.toFixed(2)}), mas colaborador NÃO EXISTE no cadastro do WFH!`;
@@ -410,7 +493,8 @@ export async function runPayrollAudit(params: {
             employeeName: h.employeeName,
             cpf: h.cpf || "",
             folha: h.registrationCode || point?.folha || "",
-            companyName: h.companyName || "Contabilidade",
+            companyId: targetCompany?.id || undefined,
+            companyName: h.companyName || targetCompany?.name || "Contabilidade",
             clientName: "NÃO CADASTRADO NO WFH",
             postoName: "Desconhecido",
             wfhSituation: "NÃO CONSTA NO SISTEMA",
@@ -457,6 +541,78 @@ export async function runPayrollAudit(params: {
                 companyName: h.companyName,
                 role: h.payrollType
             }
+        });
+    }
+
+    // 5. Process Point records that are NOT in WFH and NOT in Holerite
+    for (const p of pointItems) {
+        const cpfDigits = cleanCpfDigits(p.cpf);
+        const normName = normalizeName(p.name);
+        const pKey = cpfDigits || normName;
+        const code = p.folha?.trim() || "";
+
+        if (matchedPointKeys.has(pKey)) continue;
+        if (cpfDigits && processedEmpKeys.has(cpfDigits)) continue;
+        if (normName && processedEmpKeys.has(normName)) continue;
+        if (code && processedEmpKeys.has(`code:${code}`)) continue;
+
+        if (targetCompany && p.company) {
+            const normPComp = normalizeName(p.company);
+            const normTargetComp = normalizeName(targetCompany.name);
+            if (!normPComp.includes(normTargetComp) && !normTargetComp.includes(normPComp)) {
+                continue;
+            }
+        }
+
+        matchedPointKeys.add(pKey);
+        if (cpfDigits) processedEmpKeys.add(cpfDigits);
+        if (normName) processedEmpKeys.add(normName);
+
+        const diagMsg = `⚠️ Colaborador registrou ponto (${p.workedHours.toFixed(1)}h), mas NÃO CONSTA no WFH nem possui Holerite!`;
+        rows.push({
+            id: `point-only-${cpfDigits || normName.replace(/\s+/g, "_")}`,
+            name: p.name,
+            employeeName: p.name,
+            cpf: p.cpf || "",
+            folha: p.folha || "",
+            companyId: targetCompany?.id || undefined,
+            companyName: p.company || targetCompany?.name || "Secullum",
+            clientName: "NÃO CADASTRADO NO WFH",
+            postoName: "Desconhecido",
+            wfhSituation: "NÃO CONSTA NO SISTEMA",
+            wfhStatus: "NÃO CADASTRADO",
+            wfhBaseSalary: 0,
+            wfhFaltasCount: 0,
+            hasPoint: true,
+            pointWorkedHours: p.workedHours,
+            pointPunchesCount: p.punchesCount,
+            pointFaltasCount: p.faltasCount,
+            pointFaltasHours: p.faltasHours,
+            pointExtrasHours: p.extrasHours,
+            pointNoturnoHours: p.noturnoHours,
+            hasHolerite: false,
+            holeriteBaseSalary: 0,
+            holeriteTotalEarnings: 0,
+            holeriteTotalDeductions: 0,
+            holeriteNetSalary: 0,
+            holeriteAbsenceDays: 0,
+            holeriteAbsenceDeduction: 0,
+            holeriteWorkedDays: 0,
+            status: "MISSING_HOLERITE",
+            riskLevel: "HIGH",
+            severity: "HIGH",
+            diagnosticMessage: diagMsg,
+            discrepancies: [diagMsg],
+            suggestedAction: "Verificar se trabalhou e precisa de emissão de holerite complementar ou inclusão no sistema.",
+            wfh: undefined,
+            point: {
+                workedHours: `${p.workedHours.toFixed(1)}h`,
+                punchCount: p.punchesCount,
+                absenceDays: p.faltasCount,
+                absenceHours: p.faltasHours > 0 ? `${p.faltasHours.toFixed(1)}h` : undefined,
+                extraHours: p.extrasHours > 0 ? `${p.extrasHours.toFixed(1)}h` : undefined
+            },
+            holerite: undefined
         });
     }
 

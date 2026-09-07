@@ -12,6 +12,7 @@ export interface ParsedPointEmployee {
     atrasosHours: number;
     punchesCount: number;
     department?: string;
+    company?: string;
     rawText?: string;
 }
 

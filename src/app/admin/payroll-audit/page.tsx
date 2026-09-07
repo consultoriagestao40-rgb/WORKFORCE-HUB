@@ -33,12 +33,16 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { extractDataFromPageText, ExtractedHoleriteItem } from "@/lib/holerite-processor";
 import { parsePointExcel, parsePointPdfText, ParsedPointEmployee } from "@/lib/point-parser";
-import { runPayrollAudit, PayrollAuditResult, AuditRow } from "@/actions/payroll-audit";
+import { runPayrollAudit, getPayrollAuditCompanies, PayrollAuditResult, AuditRow } from "@/actions/payroll-audit";
 
 export default function PayrollAuditPage() {
     const today = new Date();
     const [selectedYear, setSelectedYear] = useState<number>(today.getFullYear());
     const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth() + 1);
+
+    // Companies Filter
+    const [companies, setCompanies] = useState<{ id: string; name: string; cnpj: string | null }[]>([]);
+    const [selectedCompanyId, setSelectedCompanyId] = useState<string>("all");
 
     const [pdfJsLoaded, setPdfJsLoaded] = useState(false);
 
@@ -64,6 +68,15 @@ export default function PayrollAuditPage() {
     // Refs for file inputs
     const pointInputRef = useRef<HTMLInputElement | null>(null);
     const holeriteInputRef = useRef<HTMLInputElement | null>(null);
+
+    // Load available companies
+    useEffect(() => {
+        getPayrollAuditCompanies().then(comps => {
+            if (comps && comps.length > 0) {
+                setCompanies(comps);
+            }
+        });
+    }, []);
 
     // Ensure PDF.js worker is configured
     useEffect(() => {
@@ -190,6 +203,7 @@ export default function PayrollAuditPage() {
             const res = await runPayrollAudit({
                 year: selectedYear,
                 month: selectedMonth,
+                companyId: selectedCompanyId !== "all" ? selectedCompanyId : undefined,
                 holeriteItems,
                 pointItems
             });
@@ -227,8 +241,34 @@ export default function PayrollAuditPage() {
         });
     };
 
+    // Filter rows by company
+    const rowsForCompany = (auditResult?.rows || []).filter(row => {
+        if (selectedCompanyId === "all") return true;
+        if (row.companyId === selectedCompanyId) return true;
+        const targetComp = companies.find(c => c.id === selectedCompanyId);
+        if (!targetComp) return true;
+        const targetCompName = targetComp.name.toLowerCase();
+        const rowCompName = (row.wfh?.companyName || row.companyName || "").toLowerCase();
+        return rowCompName.includes(targetCompName) || targetCompName.includes(rowCompName);
+    });
+
+    const activeSummary = (selectedCompanyId === "all" || !auditResult) ? auditResult?.summary : {
+        totalEvaluated: rowsForCompany.length,
+        totalAudited: rowsForCompany.length,
+        criticalCount: rowsForCompany.filter(r => r.status === "CRITICAL_RISK").length,
+        criticalRiskCount: rowsForCompany.filter(r => r.status === "CRITICAL_RISK").length,
+        missingHoleriteCount: rowsForCompany.filter(r => r.status === "MISSING_HOLERITE").length,
+        missingPointCount: rowsForCompany.filter(r => r.status === "MISSING_POINT").length,
+        deductionMismatchCount: rowsForCompany.filter(r => r.status === "DEDUCTION_MISMATCH").length,
+        mismatchCount: rowsForCompany.filter(r => r.status === "DEDUCTION_MISMATCH" || r.status === "SALARY_MISMATCH").length,
+        alignedCount: rowsForCompany.filter(r => r.status === "ALIGNED").length,
+        totalHoleriteNet: rowsForCompany.reduce((acc, r) => acc + (r.hasHolerite ? r.holeriteNetSalary : 0), 0),
+        totalSuspectedOverpayment: rowsForCompany.filter(r => r.status === "CRITICAL_RISK").reduce((acc, r) => acc + r.holeriteNetSalary, 0),
+        totalOverpaymentSuspected: rowsForCompany.filter(r => r.status === "CRITICAL_RISK").reduce((acc, r) => acc + r.holeriteNetSalary, 0)
+    };
+
     // Filter rows based on tab and search
-    const filteredRows = (auditResult?.rows || []).filter(row => {
+    const filteredRows = rowsForCompany.filter(row => {
         if (activeTab !== "ALL" && row.status !== activeTab) {
             return false;
         }
@@ -239,14 +279,14 @@ export default function PayrollAuditPage() {
         const digits = searchTerm.replace(/\D/g, "");
         const matchName = row.name.toLowerCase().includes(term);
         const matchCpf = digits.length > 0 && row.cpf.replace(/\D/g, "").includes(digits);
-        const matchCompany = (row.wfh?.companyName || row.holerite?.companyName || "").toLowerCase().includes(term);
+        const matchCompany = (row.wfh?.companyName || row.companyName || "").toLowerCase().includes(term);
 
         return matchName || matchCpf || matchCompany;
     });
 
     // Export to Excel (.xlsx)
     const exportToExcel = () => {
-        if (!auditResult || auditResult.rows.length === 0) {
+        if (!auditResult || rowsForCompany.length === 0) {
             toast.error("Nenhum dado auditado para exportar.");
             return;
         }
@@ -286,7 +326,7 @@ export default function PayrollAuditPage() {
                 ALIGNED: "ALINHADO / 100% OK"
             };
 
-            const dataRows = auditResult.rows.map(r => [
+            const dataRows = rowsForCompany.map(r => [
                 statusLabelMap[r.status] || r.status,
                 r.severity,
                 r.name,
@@ -311,6 +351,10 @@ export default function PayrollAuditPage() {
                 r.discrepancies.join("; ")
             ]);
 
+            const companyPart = selectedCompanyId === "all" 
+                ? "todas_empresas" 
+                : (companies.find(c => c.id === selectedCompanyId)?.name || "empresa").toLowerCase().replace(/[^a-z0-9]/gi, "_");
+
             const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
             ws["!cols"] = [
                 { wch: 26 }, { wch: 12 }, { wch: 35 }, { wch: 16 }, { wch: 24 },
@@ -322,7 +366,7 @@ export default function PayrollAuditPage() {
 
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Auditoria Folha");
-            XLSX.writeFile(wb, `Auditoria_Folha_Tripla_${String(selectedMonth).padStart(2, "0")}_${selectedYear}.xlsx`);
+            XLSX.writeFile(wb, `Auditoria_Folha_${companyPart}_${String(selectedMonth).padStart(2, "0")}_${selectedYear}.xlsx`);
             toast.success("Relatório de auditoria exportado com sucesso!");
         } catch (error: any) {
             console.error("Erro ao exportar relatório:", error);
@@ -368,7 +412,25 @@ export default function PayrollAuditPage() {
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-3 self-start md:self-center shrink-0">
+                    <div className="flex flex-wrap items-center gap-3 self-start md:self-center shrink-0">
+                        {/* Seletor de Empresa */}
+                        <div className="flex items-center gap-2 bg-slate-800/80 p-2 rounded-2xl border border-slate-700/60 backdrop-blur-sm">
+                            <Building2 className="w-4 h-4 text-purple-400 ml-1.5 shrink-0" />
+                            <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+                                <SelectTrigger className="h-8 border-none bg-transparent hover:bg-slate-700 text-white font-bold text-xs rounded-xl min-w-[170px] max-w-[250px] cursor-pointer">
+                                    <SelectValue placeholder="Empresa" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-slate-900 border-slate-800 text-white text-xs">
+                                    <SelectItem value="all">Todas as Empresas</SelectItem>
+                                    {companies.map(c => (
+                                        <SelectItem key={c.id} value={c.id}>
+                                            {c.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
                         {/* Seletor Mês/Ano */}
                         <div className="flex items-center gap-2 bg-slate-800/80 p-2 rounded-2xl border border-slate-700/60 backdrop-blur-sm">
                             <Calendar className="w-4 h-4 text-purple-400 ml-1.5" />
@@ -561,6 +623,9 @@ export default function PayrollAuditPage() {
                     <div>
                         <h4 className="text-sm font-black tracking-tight">Cruzar Holerite × Ponto × Sistema WFH</h4>
                         <p className="text-[11px] text-purple-200">
+                            {selectedCompanyId !== "all" 
+                                ? `Empresa Alvo: ${companies.find(c => c.id === selectedCompanyId)?.name || "Selecionada"} • ` 
+                                : "Todas as Empresas • "}
                             {pointItems.length} cartões de ponto e {holeriteItems.length} holerites prontos para auditoria cruzada.
                         </p>
                     </div>
@@ -605,10 +670,10 @@ export default function PayrollAuditPage() {
                                     <ShieldAlert className="w-4 h-4" />
                                 </span>
                             </div>
-                            <div className="text-3xl font-black text-red-600">{auditResult.summary.criticalRiskCount}</div>
+                            <div className="text-3xl font-black text-red-600">{activeSummary?.criticalRiskCount ?? 0}</div>
                             <div className="text-[11px] font-bold text-red-700 mt-1">
-                                {auditResult.summary.criticalRiskCount > 0 ? (
-                                    <>🚨 {fmtCurrency(auditResult.summary.totalOverpaymentSuspected)} em risco</>
+                                {(activeSummary?.criticalRiskCount ?? 0) > 0 ? (
+                                    <>🚨 {fmtCurrency(activeSummary?.totalOverpaymentSuspected)} em risco</>
                                 ) : (
                                     <>Nenhum pagamento indevido</>
                                 )}
@@ -630,7 +695,7 @@ export default function PayrollAuditPage() {
                                     <AlertTriangle className="w-4 h-4" />
                                 </span>
                             </div>
-                            <div className="text-3xl font-black text-amber-600">{auditResult.summary.missingHoleriteCount}</div>
+                            <div className="text-3xl font-black text-amber-600">{activeSummary?.missingHoleriteCount ?? 0}</div>
                             <div className="text-[11px] font-semibold text-slate-500 mt-1">Trabalhou no ponto, sem holerite</div>
                         </div>
 
@@ -649,7 +714,7 @@ export default function PayrollAuditPage() {
                                     <Clock className="w-4 h-4" />
                                 </span>
                             </div>
-                            <div className="text-3xl font-black text-slate-700">{auditResult.summary.missingPointCount}</div>
+                            <div className="text-3xl font-black text-slate-700">{activeSummary?.missingPointCount ?? 0}</div>
                             <div className="text-[11px] font-semibold text-slate-500 mt-1">Holerite sem registro de ponto</div>
                         </div>
 
@@ -668,7 +733,7 @@ export default function PayrollAuditPage() {
                                     <AlertCircle className="w-4 h-4" />
                                 </span>
                             </div>
-                            <div className="text-3xl font-black text-indigo-600">{auditResult.summary.mismatchCount}</div>
+                            <div className="text-3xl font-black text-indigo-600">{activeSummary?.mismatchCount ?? 0}</div>
                             <div className="text-[11px] font-semibold text-slate-500 mt-1">Diferenças em faltas ou salário</div>
                         </div>
 
@@ -687,7 +752,7 @@ export default function PayrollAuditPage() {
                                     <CheckCircle2 className="w-4 h-4" />
                                 </span>
                             </div>
-                            <div className="text-3xl font-black text-emerald-600">{auditResult.summary.alignedCount}</div>
+                            <div className="text-3xl font-black text-emerald-600">{activeSummary?.alignedCount ?? 0}</div>
                             <div className="text-[11px] font-semibold text-slate-500 mt-1">Dados perfeitamente coincidentes</div>
                         </div>
                     </div>
@@ -704,7 +769,7 @@ export default function PayrollAuditPage() {
                                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                                 }`}
                             >
-                                Todos ({auditResult.summary.totalAudited})
+                                Todos ({activeSummary?.totalAudited ?? 0})
                             </button>
                             <button
                                 onClick={() => setActiveTab("CRITICAL_RISK")}
@@ -714,7 +779,7 @@ export default function PayrollAuditPage() {
                                         : "bg-red-50 text-red-700 hover:bg-red-100"
                                 }`}
                             >
-                                🚨 Risco Crítico ({auditResult.summary.criticalRiskCount})
+                                🚨 Risco Crítico ({activeSummary?.criticalRiskCount ?? 0})
                             </button>
                             <button
                                 onClick={() => setActiveTab("MISSING_HOLERITE")}
@@ -724,7 +789,7 @@ export default function PayrollAuditPage() {
                                         : "bg-amber-50 text-amber-700 hover:bg-amber-100"
                                 }`}
                             >
-                                Sem Holerite ({auditResult.summary.missingHoleriteCount})
+                                Sem Holerite ({activeSummary?.missingHoleriteCount ?? 0})
                             </button>
                             <button
                                 onClick={() => setActiveTab("MISSING_POINT")}
@@ -734,7 +799,7 @@ export default function PayrollAuditPage() {
                                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                                 }`}
                             >
-                                Sem Ponto ({auditResult.summary.missingPointCount})
+                                Sem Ponto ({activeSummary?.missingPointCount ?? 0})
                             </button>
                             <button
                                 onClick={() => setActiveTab("DEDUCTION_MISMATCH")}
@@ -744,7 +809,7 @@ export default function PayrollAuditPage() {
                                         : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
                                 }`}
                             >
-                                Divergências ({auditResult.summary.mismatchCount})
+                                Divergências ({activeSummary?.mismatchCount ?? 0})
                             </button>
                             <button
                                 onClick={() => setActiveTab("ALIGNED")}
@@ -754,7 +819,7 @@ export default function PayrollAuditPage() {
                                         : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                                 }`}
                             >
-                                Alinhados ({auditResult.summary.alignedCount})
+                                Alinhados ({activeSummary?.alignedCount ?? 0})
                             </button>
                         </div>
 

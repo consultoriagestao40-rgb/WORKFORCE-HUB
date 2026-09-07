@@ -267,28 +267,37 @@ export function extractDataFromPageText(text: string, pageNumber: number): {
     let absenceDeduction = 0;
     let workedDays = 30;
 
-    // Base Salary: "Salário Base 1.764,00" or "Sal. Base: 1.764,00"
-    const baseSalMatch = normalizedText.match(/(?:Sal[aá]rio\s*Base|Sal\.?\s*Base)[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
-    if (baseSalMatch) {
-        baseSalary = parseCurrency(baseSalMatch[1]);
+    // Base Salary: value after or value before
+    // e.g. "Salário Base 1.764,00" or "2.611,00 Salário Base"
+    const baseSalMatch1 = normalizedText.match(/(?:Sal[aá]rio\s*Base|Sal\.?\s*Base)[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
+    const baseSalMatch2 = normalizedText.match(/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})\s*(?:Sal[aá]rio\s*Base|Sal\.?\s*Base)/i);
+    if (baseSalMatch1) {
+        baseSalary = parseCurrency(baseSalMatch1[1]);
+    } else if (baseSalMatch2) {
+        baseSalary = parseCurrency(baseSalMatch2[1]);
     }
 
-    // Total Earnings: "Total de Vencimentos: 2.150,00" or "Total Proventos: 2.150,00"
-    const earningsMatch = normalizedText.match(/(?:Total\s*(?:de\s*)?(?:Vencimentos|Proventos))[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
-    if (earningsMatch) {
-        totalEarnings = parseCurrency(earningsMatch[1]);
+    // Total Earnings, Total Deductions, Net Salary:
+    // Format 1: Domínio layout "Declaro ter recebido a importância líquida discriminada neste recibo. [Vencimentos] [Descontos] [Líquido]"
+    const totalsDominioMatch = normalizedText.match(/(?:Declaro ter recebido a import[aâ]ncia l[ií]quida discriminada neste recibo|Total de Vencimentos[\s\S]*?Valor L[ií]quido)[\s\S]*?([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})\s+([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})\s+([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
+    if (totalsDominioMatch) {
+        totalEarnings = parseCurrency(totalsDominioMatch[1]);
+        totalDeductions = parseCurrency(totalsDominioMatch[2]);
+        netSalary = parseCurrency(totalsDominioMatch[3]);
+    } else {
+        // Standard labels
+        const earningsMatch = normalizedText.match(/(?:Total\s*(?:de\s*)?(?:Vencimentos|Proventos))[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
+        if (earningsMatch) totalEarnings = parseCurrency(earningsMatch[1]);
+
+        const deductionsMatch = normalizedText.match(/(?:Total\s*(?:de\s*)?Descontos)[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
+        if (deductionsMatch) totalDeductions = parseCurrency(deductionsMatch[1]);
+
+        const netMatch = normalizedText.match(/(?:Valor\s*L[ií]quido|L[ií]quido\s*a\s*Receber|Total\s*L[ií]quido)[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
+        if (netMatch) netSalary = parseCurrency(netMatch[1]);
     }
 
-    // Total Deductions: "Total de Descontos: 320,00" or "Total Descontos: 320,00"
-    const deductionsMatch = normalizedText.match(/(?:Total\s*(?:de\s*)?Descontos)[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
-    if (deductionsMatch) {
-        totalDeductions = parseCurrency(deductionsMatch[1]);
-    }
-
-    // Net Salary: "Valor Líquido: 1.830,00" or "Líquido a Receber: 1.830,00"
-    const netMatch = normalizedText.match(/(?:Valor\s*L[ií]quido|L[ií]quido\s*a\s*Receber|Total\s*L[ií]quido)[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
-    if (netMatch) {
-        netSalary = parseCurrency(netMatch[1]);
+    if (netSalary === 0 && totalEarnings > 0) {
+        netSalary = Math.max(0, totalEarnings - totalDeductions);
     }
 
     // Rubricas de faltas e dias trabalhados
