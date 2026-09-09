@@ -5,6 +5,8 @@ import { PrismaClient } from "@prisma/client";
 import { startOfDay, addMinutes } from "date-fns";
 import { generateRoster } from "@/lib/scheduling";
 
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -258,7 +260,9 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Parâmetros obrigatórios ausentes" }, { status: 400 });
         }
 
-        const targetDate = startOfDay(new Date(date));
+        // Garante meia-noite pura UTC idêntico ao GET independente de fuso-horário
+        const targetDateStr = (typeof date === "string" && date.includes("T")) ? date.split("T")[0] : String(date);
+        const targetDate = new Date(targetDateStr + "T00:00:00Z");
 
         const posto = await prisma.posto.findUnique({
             where: { id: postoId }
@@ -349,17 +353,23 @@ export async function POST(request: Request) {
             const reembolsoUrl = process.env.DATABASE_URL_REEMBOLSO || "postgresql://neondb_owner:npg_FAXvef5z2oLN@ep-lingering-poetry-ahaduz92-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require";
 
             let finalNotes = notes;
-            if (coverageType === "DIARISTA" && diaristaId && reembolsoUrl) {
-                const tempPrisma = new PrismaClient({ datasources: { db: { url: reembolsoUrl } } });
-                try {
-                    const dbDiaristas = await tempPrisma.$queryRawUnsafe('SELECT nome FROM "Diarista" WHERE id = $1 LIMIT 1', diaristaId) as any[];
-                    if (dbDiaristas && dbDiaristas.length > 0) {
-                        finalNotes = `${dbDiaristas[0].nome}${notes ? ' | ' + notes : ''}`;
+            if (coverageType === "DIARISTA" && diaristaId) {
+                if (body.diaristaName) {
+                    finalNotes = `${body.diaristaName}${notes ? ' | ' + notes : ''}`;
+                } else if (reembolsoUrl) {
+                    try {
+                        const tempPrisma = new PrismaClient({ datasources: { db: { url: reembolsoUrl } } });
+                        try {
+                            const dbDiaristas = await tempPrisma.$queryRawUnsafe('SELECT nome FROM "Diarista" WHERE id = $1 LIMIT 1', diaristaId) as any[];
+                            if (dbDiaristas && dbDiaristas.length > 0) {
+                                finalNotes = `${dbDiaristas[0].nome}${notes ? ' | ' + notes : ''}`;
+                            }
+                        } finally {
+                            await tempPrisma.$disconnect().catch(() => {});
+                        }
+                    } catch (err: any) {
+                        console.error("Erro ao buscar nome da diarista:", (err as any).message);
                     }
-                } catch (err: any) {
-                    console.error("Erro ao buscar nome da diarista:", (err as any).message);
-                } finally {
-                    await tempPrisma.$disconnect();
                 }
             }
 
@@ -409,17 +419,18 @@ export async function POST(request: Request) {
                     });
                 }
 
-                // INTEGRAÇÃO: Lançar diária automaticamente no Reembolso Fácil
+                // INTEGRAÇÃO: Lançar diária automaticamente no Reembolso Fácil de forma segura
                 if (reembolsoUrl) {
-                    const prismaReembolso = new PrismaClient({
-                        datasources: {
-                            db: {
-                                url: reembolsoUrl
-                            }
-                        }
-                    });
-
+                    let prismaReembolso: PrismaClient | null = null;
                     try {
+                        prismaReembolso = new PrismaClient({
+                            datasources: {
+                                db: {
+                                    url: reembolsoUrl
+                                }
+                            }
+                        });
+
                         const localPosto = await prisma.posto.findUnique({
                             where: { id: postoId },
                             include: {
@@ -555,10 +566,12 @@ export async function POST(request: Request) {
 
                             console.log("Diária integrada criada no Reembolso Fácil! ID:", newCoberturaId);
                         }
-                    } catch (err) {
-                        console.error("Erro ao registrar diária no Reembolso Fácil:", (err as any).message);
+                    } catch (err: any) {
+                        console.error("Erro ao registrar diária no Reembolso Fácil:", err.message);
                     } finally {
-                        await prismaReembolso.$disconnect();
+                        if (prismaReembolso) {
+                            await prismaReembolso.$disconnect().catch(() => {});
+                        }
                     }
                 }
             } else {
@@ -589,15 +602,16 @@ export async function POST(request: Request) {
                 if (existing.coverageType === "DIARISTA" && existing.posto) {
                     const reembolsoUrl = process.env.DATABASE_URL_REEMBOLSO || "postgresql://neondb_owner:npg_FAXvef5z2oLN@ep-lingering-poetry-ahaduz92-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require";
                     if (reembolsoUrl) {
-                        const prismaReembolso = new PrismaClient({
-                            datasources: {
-                                db: {
-                                    url: reembolsoUrl
-                                }
-                            }
-                        });
-
+                        let prismaReembolso: PrismaClient | null = null;
                         try {
+                            prismaReembolso = new PrismaClient({
+                                datasources: {
+                                    db: {
+                                        url: reembolsoUrl
+                                    }
+                                }
+                            });
+
                             const clientName = existing.posto.client.name;
 
                             // 1. Buscar o ID do posto correspondente no Reembolso Fácil
@@ -621,7 +635,9 @@ export async function POST(request: Request) {
                         } catch (err: any) {
                             console.error("Erro ao remover diária integrada no Reembolso Fácil:", err.message);
                         } finally {
-                            await prismaReembolso.$disconnect();
+                            if (prismaReembolso) {
+                                await prismaReembolso.$disconnect().catch(() => {});
+                            }
                         }
                     }
                 }

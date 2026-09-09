@@ -422,15 +422,17 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
                     notes: "Confirmado manualmente pela mesa de operações"
                 })
             });
-            const data = await res.json();
-            if (data.success) {
+            const text = await res.text();
+            let data: any;
+            try { data = JSON.parse(text); } catch { throw new Error(`Falha no servidor (${res.status})`); }
+            if (res.ok && data.success) {
                 toast.success(`Presença manual confirmada para ${item.employee?.name || "Titular"}`);
                 fetchData();
             } else {
                 toast.error(data.error || "Erro ao salvar presença");
             }
-        } catch (e) {
-            toast.error("Erro ao salvar presença.");
+        } catch (e: any) {
+            toast.error(e?.message || "Erro ao salvar presença.");
         }
     };
 
@@ -448,15 +450,17 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
                     notes: "Marcado falta pela mesa de operações"
                 })
             });
-            const data = await res.json();
-            if (data.success) {
+            const text = await res.text();
+            let data: any;
+            try { data = JSON.parse(text); } catch { throw new Error(`Falha no servidor (${res.status})`); }
+            if (res.ok && data.success) {
                 toast.success("Falta registrada para o posto.");
                 fetchData();
             } else {
                 toast.error(data.error || "Erro ao registrar falta");
             }
-        } catch (e) {
-            toast.error("Erro ao registrar falta.");
+        } catch (e: any) {
+            toast.error(e?.message || "Erro ao registrar falta.");
         }
     };
 
@@ -472,15 +476,17 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
                     date
                 })
             });
-            const data = await res.json();
-            if (data.success) {
+            const text = await res.text();
+            let data: any;
+            try { data = JSON.parse(text); } catch { throw new Error(`Falha no servidor (${res.status})`); }
+            if (res.ok && data.success) {
                 toast.success("Ocorrência desfeita com sucesso.");
                 fetchData();
             } else {
                 toast.error(data.error || "Erro ao desfazer ocorrência");
             }
-        } catch (e) {
-            toast.error("Erro ao desfazer ocorrência.");
+        } catch (e: any) {
+            toast.error(e?.message || "Erro ao desfazer ocorrência.");
         }
     };
 
@@ -488,6 +494,7 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
     const handleOpenTreatDialog = (item: AttendanceItem) => {
         setSelectedItem(item);
         setCoverageType("RESERVA_TECNICA");
+        setReservaSearch("");
         setSelectedReservaId(reservaList[0]?.id || "");
         setDiaristaCost((item.billingValue / 30).toFixed(2));
         setNotes("");
@@ -530,6 +537,10 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
                 }
                 payload.diaristaCost = parseFloat(diaristaCost) || 0;
                 payload.diaristaId = selectedDiaristaId;
+                const foundDiarista = diaristas.find(d => d.id === selectedDiaristaId);
+                if (foundDiarista) {
+                    payload.diaristaName = foundDiarista.nome;
+                }
                 if (selectedMotivoId) {
                     payload.motivoId = selectedMotivoId;
                 }
@@ -544,16 +555,24 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
                 body: JSON.stringify(payload)
             });
 
-            const data = await res.json();
-            if (data.success) {
+            const text = await res.text();
+            let data: any;
+            try {
+                data = JSON.parse(text);
+            } catch {
+                throw new Error(`Falha no servidor (${res.status}): ${text.slice(0, 100)}`);
+            }
+
+            if (res.ok && data.success) {
                 toast.success("Tratativa de escala salva com sucesso!");
                 setOpenDialog(false);
                 fetchData();
             } else {
-                toast.error(data.error || "Erro ao salvar tratativa");
+                toast.error(data.error || data.details || "Erro ao salvar tratativa");
             }
-        } catch (e) {
-            toast.error("Erro de conexão ao salvar cobertura.");
+        } catch (e: any) {
+            console.error("Erro ao salvar cobertura:", e);
+            toast.error(e?.message || "Erro de conexão ao salvar cobertura.");
         } finally {
             setActionLoading(false);
         }
@@ -1615,26 +1634,36 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
                                     onChange={(e) => setReservaSearch(e.target.value)}
                                     className="h-10 text-xs border-slate-200"
                                 />
-                                {reservaList.length > 0 ? (
-                                    <select
-                                        value={selectedReservaId}
-                                        onChange={(e) => setSelectedReservaId(e.target.value)}
-                                        className="h-10 rounded-md border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer mt-1"
-                                    >
-                                        <option value="">Selecione um Reserva...</option>
-                                        {reservaList
-                                            .filter(r => r.name.toLowerCase().includes(reservaSearch.toLowerCase()))
-                                            .map(r => (
+                                {(() => {
+                                    const filtered = reservaList.filter(r => r.name.toLowerCase().includes(reservaSearch.toLowerCase()));
+                                    if (reservaList.length === 0) {
+                                        return (
+                                            <div className="text-xs text-amber-600 bg-amber-50 p-3 rounded-lg flex items-center gap-2 border border-amber-100 font-semibold">
+                                                <AlertTriangle className="w-4 h-4 shrink-0" />
+                                                Nenhum funcionário ativo disponível para escala hoje.
+                                            </div>
+                                        );
+                                    }
+                                    if (filtered.length === 0) {
+                                        return (
+                                            <div className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                                Nenhum colaborador encontrado para &quot;{reservaSearch}&quot;.
+                                            </div>
+                                        );
+                                    }
+                                    return (
+                                        <select
+                                            value={selectedReservaId}
+                                            onChange={(e) => setSelectedReservaId(e.target.value)}
+                                            className="h-10 rounded-md border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer mt-1"
+                                        >
+                                            <option value="">Selecione um Reserva ({filtered.length} disponíveis)...</option>
+                                            {filtered.map(r => (
                                                 <option key={r.id} value={r.id}>{r.name}</option>
-                                            ))
-                                        }
-                                    </select>
-                                ) : (
-                                    <div className="text-xs text-amber-600 bg-amber-50 p-3 rounded-lg flex items-center gap-2 border border-amber-100 font-semibold">
-                                        <AlertTriangle className="w-4 h-4 shrink-0" />
-                                        Nenhum funcionário ativo disponível para escala hoje.
-                                    </div>
-                                )}
+                                            ))}
+                                        </select>
+                                    );
+                                })()}
                             </div>
                         )}
 

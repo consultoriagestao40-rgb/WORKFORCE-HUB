@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { PrismaClient } from "@prisma/client";
 
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
+    let prismaReembolso: PrismaClient | null = null;
     try {
         const user = await getCurrentUser();
         if (!user || (user.role !== "ADMIN" && user.role !== "GESTOR" && user.role !== "SUPERVISOR")) {
@@ -11,7 +14,7 @@ export async function GET(request: Request) {
 
         const reembolsoUrl = process.env.DATABASE_URL_REEMBOLSO || "postgresql://neondb_owner:npg_FAXvef5z2oLN@ep-lingering-poetry-ahaduz92-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require";
 
-        const prismaReembolso = new PrismaClient({
+        prismaReembolso = new PrismaClient({
             datasources: {
                 db: {
                     url: reembolsoUrl
@@ -23,11 +26,13 @@ export async function GET(request: Request) {
             'SELECT id, nome FROM "Diarista" WHERE ativo = true ORDER BY nome ASC'
         );
 
-        await prismaReembolso.$disconnect();
-
         return NextResponse.json({ success: true, diaristas });
     } catch (error: any) {
         console.error("Erro ao buscar diaristas do Reembolso Fácil:", error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    } finally {
+        if (prismaReembolso) {
+            await prismaReembolso.$disconnect().catch(() => {});
+        }
     }
 }
