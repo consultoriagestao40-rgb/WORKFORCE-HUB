@@ -20,6 +20,7 @@ interface EditPostoSheetProps {
         billingValue: number;
         requiredWorkload: number;
         isNightShift: boolean;
+        isReservaTecnica?: boolean;
         baseSalary: number;
         insalubridade: number;
         periculosidade: number;
@@ -302,18 +303,38 @@ export function EditPostoSheet({ posto, schedules, roles }: EditPostoSheetProps)
                         </div>
                     </div>
 
-                    <div className="flex items-center space-x-2 pt-2 pb-6">
-                        <input
-                            type="checkbox"
-                            id={`nightShift-${posto.id}`}
-                            name="isNightShift"
-                            value="true"
-                            defaultChecked={posto.isNightShift}
-                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <Label htmlFor={`nightShift-${posto.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                            Posto com Adicional Noturno?
-                        </Label>
+                    <div className="space-y-3 pt-2 pb-6">
+                        <div className="flex items-center space-x-2">
+                            <input
+                                type="checkbox"
+                                id={`nightShift-${posto.id}`}
+                                name="isNightShift"
+                                value="true"
+                                defaultChecked={posto.isNightShift}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                            />
+                            <Label htmlFor={`nightShift-${posto.id}`} className="text-sm font-medium leading-none cursor-pointer">
+                                Posto com Adicional Noturno?
+                            </Label>
+                        </div>
+                        <div className="flex items-start space-x-2 bg-sky-50 border border-sky-200/80 p-2.5 rounded-lg">
+                            <input
+                                type="checkbox"
+                                id={`isReservaTecnica-${posto.id}`}
+                                name="isReservaTecnica"
+                                value="true"
+                                defaultChecked={posto.isReservaTecnica || false}
+                                className="w-4 h-4 text-sky-600 bg-white border-sky-300 rounded focus:ring-sky-500 mt-0.5 cursor-pointer"
+                            />
+                            <div>
+                                <Label htmlFor={`isReservaTecnica-${posto.id}`} className="text-sm font-bold text-sky-900 cursor-pointer block">
+                                    Posto de RT - Reserva Técnica?
+                                </Label>
+                                <span className="text-[11px] text-sky-700 leading-tight block mt-0.5">
+                                    Identifica este posto como cobertura de Reserva Técnica, diferenciando do quadro efetivo do contrato nos relatórios.
+                                </span>
+                            </div>
+                        </div>
                     </div>
 
                     <Button type="submit" className="w-full" disabled={isSaving}>

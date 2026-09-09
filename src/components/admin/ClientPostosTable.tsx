@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { AssignmentDialog } from "./AssignmentDialog";
 import { EditPostoSheet } from "./EditPostoSheet";
@@ -114,8 +114,8 @@ export function ClientPostosTable({
                             Ocupante Atual {renderSortIcon("ocupante")}
                         </button>
                     </TableHead>
-                    <TableHead>Faturamento</TableHead>
-                    <TableHead className="text-right">Ação</TableHead>
+                    <TableHead className="print:hidden">Faturamento</TableHead>
+                    <TableHead className="text-right print:hidden">Ação</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -152,20 +152,40 @@ export function ClientPostosTable({
                     }
 
                     const isClosed = (posto as any).status === 'ENCERRADO';
+                    const isRT = !!(posto as any).isReservaTecnica;
 
                     return (
-                        <TableRow key={posto.id} className={isClosed ? "bg-slate-50/70 opacity-85" : statusAlert ? "bg-red-50/30" : ""}>
+                        <TableRow 
+                            key={posto.id} 
+                            className={`${
+                                isClosed 
+                                    ? "bg-slate-50/70 opacity-85" 
+                                    : isRT 
+                                        ? "bg-sky-50/35 border-l-4 border-l-sky-500 font-medium" 
+                                        : statusAlert 
+                                            ? "bg-red-50/30" 
+                                            : ""
+                            }`}
+                        >
                             <TableCell className="font-medium">
                                 <div className="flex items-center gap-1.5 flex-wrap group">
                                     <span className={isClosed ? "line-through text-slate-500" : ""}>
                                         Posto {postos.indexOf(posto) + 1} - {posto.role.name}
                                     </span>
+                                    {isRT && (
+                                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-300 shadow-sm inline-flex items-center gap-1 print:border-sky-600 print:text-sky-900 print:bg-sky-50 print:font-bold" title="Posto de Reserva Técnica (não compõe o quadro efetivo)">
+                                            <ShieldCheck className="w-3 h-3 text-sky-600 print:hidden" />
+                                            RT - Reserva Técnica
+                                        </span>
+                                    )}
                                     {isClosed ? (
                                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
                                             Encerrado
                                         </span>
                                     ) : (
-                                        <EditPostoSheet posto={posto} schedules={schedules} roles={roles} />
+                                        <span className="print:hidden">
+                                            <EditPostoSheet posto={posto} schedules={schedules} roles={roles} />
+                                        </span>
                                     )}
                                 </div>
                             </TableCell>
@@ -191,10 +211,10 @@ export function ClientPostosTable({
                                     </div>
                                 ) : activeEmployee ? (
                                     <div className="flex flex-col">
-                                        <Link href={`/admin/employees/${activeEmployee.id}`} className="text-blue-600 hover:underline font-medium">
+                                        <Link href={`/admin/employees/${activeEmployee.id}`} className="text-blue-600 hover:underline font-medium print:text-slate-900 print:no-underline">
                                             {activeEmployee.name}
                                         </Link>
-                                        <span className="text-[10px] text-slate-400">Carga: {activeEmployee.workload}h</span>
+                                        <span className="text-[10px] text-slate-400 print:text-slate-500">Carga: {activeEmployee.workload}h</span>
                                         {statusAlert}
                                     </div>
                                 ) : (
@@ -204,7 +224,7 @@ export function ClientPostosTable({
                                     </div>
                                 )}
                             </TableCell>
-                            <TableCell className={isClosed ? "text-slate-400" : ""}>
+                            <TableCell className={`print:hidden ${isClosed ? "text-slate-400" : ""}`}>
                                 <div className="flex flex-col">
                                     <span className={isClosed ? "line-through text-slate-400" : ""}>
                                         R$ {posto.billingValue.toFixed(2)}
@@ -212,7 +232,7 @@ export function ClientPostosTable({
                                     {isClosed && <span className="text-[10px] text-slate-400">Não faturado</span>}
                                 </div>
                             </TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right print:hidden">
                                 {!isClosed ? (
                                     <>
                                         <AssignmentDialog

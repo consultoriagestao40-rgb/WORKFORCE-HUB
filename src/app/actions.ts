@@ -422,6 +422,7 @@ export async function createPosto(formData: FormData) {
     const billingValue = parseFloat(formData.get("billingValue") as string) || 0;
     const requiredWorkload = parseInt(formData.get("requiredWorkload") as string) || 220;
     const isNightShift = formData.get("isNightShift") === "true";
+    const isReservaTecnica = formData.get("isReservaTecnica") === "true";
 
     const baseSalary = parseFloat(formData.get("baseSalary") as string) || 0;
     const insalubridade = parseFloat(formData.get("insalubridade") as string) || 0;
@@ -453,6 +454,7 @@ export async function createPosto(formData: FormData) {
             billingValue,
             requiredWorkload,
             isNightShift,
+            isReservaTecnica,
             baseSalary,
             insalubridade,
             periculosidade,
@@ -1475,6 +1477,7 @@ export async function updatePosto(formData: FormData) {
     const billingValue = parseFloat(formData.get("billingValue") as string) || 0;
     const requiredWorkload = parseInt(formData.get("requiredWorkload") as string) || 220;
     const isNightShift = formData.get("isNightShift") === "true";
+    const isReservaTecnica = formData.get("isReservaTecnica") === "true";
 
     const baseSalary = parseFloat(formData.get("baseSalary") as string) || 0;
     const insalubridade = parseFloat(formData.get("insalubridade") as string) || 0;
@@ -1506,6 +1509,7 @@ export async function updatePosto(formData: FormData) {
             billingValue,
             requiredWorkload,
             isNightShift,
+            isReservaTecnica,
             baseSalary,
             insalubridade,
             periculosidade,
@@ -1582,6 +1586,20 @@ export async function updatePosto(formData: FormData) {
     revalidatePath("/admin/payroll-preview");
     revalidatePath("/admin/benefits");
     revalidatePath("/admin/employees");
+}
+
+export async function togglePostoReservaTecnica(id: string, isReservaTecnica: boolean) {
+    const userRole = await getCurrentUserRole();
+    if (userRole !== 'ADMIN' && userRole !== 'COORD_RH') throw new Error("Unauthorized");
+
+    const posto = await prisma.posto.update({
+        where: { id },
+        data: { isReservaTecnica }
+    });
+
+    revalidatePath(`/admin/clients/${posto.clientId}`);
+    revalidatePath("/admin/clients");
+    return { success: true };
 }
 
 export async function updateEmployee(formData: FormData) {

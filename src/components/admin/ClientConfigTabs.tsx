@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +12,9 @@ import { ClientVacantPostosDialog } from "./ClientVacantPostosDialog";
 import { saveNpsQuestions, saveSlaConfig, saveSlaMonthlyValueWithClient } from "@/app/admin/requests/actions";
 import { 
     Plus, Trash2, Save, Calendar, CheckCircle2, 
-    ClipboardList, Award, Smile, Info, TrendingUp, UserPlus, UserMinus, Download, RefreshCw
+    ClipboardList, Award, Smile, Info, TrendingUp, UserPlus, UserMinus, Download, RefreshCw, Printer
 } from "lucide-react";
+import { useReactToPrint } from "react-to-print";
 import { toast } from "sonner";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend } from "recharts";
 import * as XLSX from "xlsx";
@@ -302,6 +303,29 @@ export function ClientConfigTabs({
     const closedPostos = (client.postos || []).filter((p: any) => p.status === 'ENCERRADO');
     const occupiedCount = activePostos.filter((p: any) => p.assignments.some((a: any) => !a.endDate)).length;
 
+    // Quadro Efetivo vs Reserva Técnica (RT)
+    const rtCount = activePostos.filter((p: any) => !!p.isReservaTecnica).length;
+    const efetivoCount = activePostos.length - rtCount;
+
+    // Ref para impressão / exportação de PDF
+    const printRef = useRef<HTMLDivElement>(null);
+    const handlePrint = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `Contrato_${client.name ? client.name.replace(/\s+/g, '_') : 'Cliente'}_Quadro_de_Postos`,
+        pageStyle: `
+            @page { 
+                size: portrait; 
+                margin: 10mm; 
+            }
+            @media print {
+                body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                .no-print, [data-no-print] { display: none !important; }
+                table { width: 100% !important; border-collapse: collapse !important; }
+                th, td { font-size: 11px !important; padding: 6px 8px !important; }
+            }
+        `
+    });
+
     return (
         <div className="space-y-6">
             {/* TOTALIZERS */}
@@ -312,8 +336,15 @@ export function ClientConfigTabs({
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{activePostos.length}</div>
-                        <p className="text-xs text-slate-500 mt-1">
-                            {occupiedCount} Ocupados {closedPostos.length > 0 && `(${closedPostos.length} encerrado${closedPostos.length > 1 ? 's' : ''})`}
+                        <p className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-1.5">
+                            <span className="font-semibold text-slate-700">{efetivoCount} Quadro</span>
+                            {rtCount > 0 && (
+                                <span className="font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded text-[10px]">
+                                    +{rtCount} RT
+                                </span>
+                            )}
+                            <span>• {occupiedCount} Ocupados</span>
+                            {closedPostos.length > 0 && <span className="text-slate-400">({closedPostos.length} encerrado{closedPostos.length > 1 ? 's' : ''})</span>}
                         </p>
                     </CardContent>
                 </Card>
@@ -380,17 +411,60 @@ export function ClientConfigTabs({
                             <CardTitle>Postos Contratados</CardTitle>
                             <CardDescription>Veja todos os postos de trabalho e profissionais vinculados.</CardDescription>
                         </div>
-                        <NewPostoSheet clientId={client.id} schedules={schedules} roles={roles} />
+                        <div className="flex items-center gap-2">
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handlePrint && handlePrint()} 
+                                className="h-9 gap-1.5 font-bold text-xs rounded-xl bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 shadow-sm"
+                            >
+                                <Printer className="w-4 h-4" />
+                                Exportar PDF
+                            </Button>
+                            <NewPostoSheet clientId={client.id} schedules={schedules} roles={roles} />
+                        </div>
                     </CardHeader>
                     <CardContent>
-                        <ClientPostosTable
-                            postos={client.postos}
-                            employees={employees}
-                            schedules={schedules}
-                            roles={roles}
-                            situations={situations}
-                            userRole={userRole || ""}
-                        />
+                        <div ref={printRef} className="print:p-4 print:bg-white space-y-4">
+                            {/* Header Exclusivo para PDF / Impressão */}
+                            <div className="hidden print:block border-b-2 border-slate-800 pb-3 mb-4">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">WORKFORCE HUB • GESTÃO OPERACIONAL</div>
+                                        <h1 className="text-xl font-black text-slate-900 mt-0.5">Quadro Operacional de Postos</h1>
+                                        <p className="text-sm font-bold text-slate-700 mt-0.5">{client.name}</p>
+                                    </div>
+                                    <div className="text-right text-[10px] text-slate-500">
+                                        <div>Emissão: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                                        <div className="font-semibold text-slate-700 mt-0.5">Relatório Oficial de Lotação</div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2 mt-3 pt-2 border-t border-slate-200 text-center">
+                                    <div className="p-1.5 bg-slate-50 rounded border border-slate-200">
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase block">Total de Postos</span>
+                                        <span className="text-base font-black text-slate-800">{activePostos.length}</span>
+                                    </div>
+                                    <div className="p-1.5 bg-slate-50 rounded border border-slate-200">
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase block">Quadro Efetivo</span>
+                                        <span className="text-base font-black text-slate-800">{efetivoCount}</span>
+                                    </div>
+                                    <div className="p-1.5 bg-sky-50 rounded border border-sky-200">
+                                        <span className="text-[9px] font-bold text-sky-800 uppercase block">Reserva Técnica (RT)</span>
+                                        <span className="text-base font-black text-sky-700">{rtCount}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <ClientPostosTable
+                                postos={client.postos}
+                                employees={employees}
+                                schedules={schedules}
+                                roles={roles}
+                                situations={situations}
+                                userRole={userRole || ""}
+                            />
+                        </div>
                     </CardContent>
                 </Card>
             )}
