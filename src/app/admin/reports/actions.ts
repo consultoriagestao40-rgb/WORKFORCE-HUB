@@ -168,27 +168,55 @@ export async function getReportsData(year: number) {
             const clientPostosIds = client.postos.map(p => p.id);
             const clientAssignments = assignments.filter(asg => clientPostosIds.includes(asg.postoId));
 
+            // Agrupar alocações por colaborador único para evitar duplicidades de admissões/demissões
+            // Cada colaborador quando demitido deve ter uma data de admissão e uma demissão apenas
+            const empMap = new Map<string, typeof clientAssignments>();
+            clientAssignments.forEach(asg => {
+                const empKey = (asg.employee?.name || asg.employeeId || "").trim().toUpperCase();
+                if (!empMap.has(empKey)) {
+                    empMap.set(empKey, []);
+                }
+                empMap.get(empKey)!.push(asg);
+            });
+
+            const uniqueEmployees = Array.from(empMap.values()).map(asgs => {
+                const firstStart = new Date(Math.min(...asgs.map(a => a.startDate.getTime())));
+                const hasActive = asgs.some(a => a.endDate === null || a.endDate > end);
+                const allEnded = asgs.every(a => a.endDate !== null);
+                const maxEndDate = allEnded ? new Date(Math.max(...asgs.map(a => a.endDate!.getTime()))) : null;
+                const isDismissed = asgs.some(a => 
+                    a.employee?.status === "Desligado" ||
+                    a.employee?.status === "Inativo" ||
+                    a.employee?.situation?.name?.toLowerCase().includes("desligado") ||
+                    Boolean(a.employee?.dismissalReason)
+                );
+
+                return {
+                    firstStart,
+                    hasActive,
+                    maxEndDate,
+                    isDismissed
+                };
+            });
+
             const monthlyData = months.map(m => {
                 const monthStart = new Date(year, m, 1);
                 const monthEnd = new Date(year, m + 1, 0, 23, 59, 59, 999);
 
-                // Admissões (novas alocações que começaram neste mês)
-                const admissions = clientAssignments.filter(asg => 
-                    asg.startDate >= monthStart && asg.startDate <= monthEnd
-                );
-
-                // Demissões/Encruzamentos (alocações encerradas neste mês)
-                const departures = clientAssignments.filter(asg => 
-                    asg.endDate && asg.endDate >= monthStart && asg.endDate <= monthEnd
-                );
-
-                // Headcount ativo (alocação ativa em qualquer momento do mês)
-                const activeHeadcount = clientAssignments.filter(asg => 
-                    asg.startDate <= monthEnd && (asg.endDate === null || asg.endDate >= monthStart)
+                // Admissões (colaboradores únicos cuja data de início neste contrato ocorreu neste mês)
+                const admissionsCount = uniqueEmployees.filter(e => 
+                    e.firstStart >= monthStart && e.firstStart <= monthEnd
                 ).length;
 
-                const admissionsCount = admissions.length;
-                const departuresCount = departures.length;
+                // Demissões (colaboradores únicos demitidos cujo encerramento definitivo neste contrato ocorreu neste mês)
+                const departuresCount = uniqueEmployees.filter(e => 
+                    e.isDismissed && !e.hasActive && e.maxEndDate && e.maxEndDate >= monthStart && e.maxEndDate <= monthEnd
+                ).length;
+
+                // Headcount ativo (colaboradores únicos com vínculo ativo no contrato durante o mês)
+                const activeHeadcount = uniqueEmployees.filter(e => 
+                    e.firstStart <= monthEnd && (e.maxEndDate === null || e.maxEndDate >= monthStart)
+                ).length;
 
                 const rate = activeHeadcount > 0 
                     ? (((admissionsCount + departuresCount) / 2) / activeHeadcount) * 100 
@@ -549,33 +577,76 @@ export async function getReportsData(year: number) {
         const highestDemandClient = [...recruitmentReport]
             .sort((a, b) => b.totalClosed - a.totalClosed)[0]?.clientName || "-";
 
-        // Turnover raw events list
-        const turnoverRawEvents = assignments.flatMap(asg => {
-            const results = [];
-            if (asg.startDate >= start && asg.startDate <= end) {
-                results.push({
-                    employeeName: asg.employee?.name || "-",
-                    situation: asg.employee?.situation?.name || "Ativo",
-                    clientName: asg.posto?.client?.name || "-",
-                    companyName: asg.posto?.client?.company?.name || "-",
-                    postoRole: asg.posto?.role?.name || "-",
+        // Turnover raw events list - Agrupado por colaborador único por contrato
+        // "cada colaborador quando demitido, deve ter uma data de admissão e uma demissão apenas"
+        const turnoverClientEmpMap = new Map<string, typeof assignments>();
+        assignments.forEach(asg => {
+            const clientId = asg.posto?.client?.id || "unknown";
+            const empKey = (asg.employee?.name || asg.employeeId || "").trim().toUpperCase();
+            const groupKey = `${clientId}___${empKey}`;
+            if (!turnoverClientEmpMap.has(groupKey)) {
+                turnoverClientEmpMap.set(groupKey, []);
+            }
+            turnoverClientEmpMap.get(groupKey)!.push(asg);
+        });
+
+        const turnoverRawEvents: Array<{
+            employeeName: string;
+            situation: string;
+            clientName: string;
+            companyName: string;
+            postoRole: string;
+            eventType: "Admissão" | "Demissão";
+            date: string;
+        }> = [];
+
+        turnoverClientEmpMap.forEach(asgs => {
+            asgs.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+            const firstAsg = asgs[0];
+            const lastAsg = asgs[asgs.length - 1];
+
+            const firstStart = new Date(Math.min(...asgs.map(a => a.startDate.getTime())));
+            const hasActive = asgs.some(a => a.endDate === null || a.endDate > end);
+            const allEnded = asgs.every(a => a.endDate !== null);
+            const maxEndDate = allEnded ? new Date(Math.max(...asgs.map(a => a.endDate!.getTime()))) : null;
+
+            const isDismissed = asgs.some(a => 
+                a.employee?.status === "Desligado" ||
+                a.employee?.status === "Inativo" ||
+                a.employee?.situation?.name?.toLowerCase().includes("desligado") ||
+                Boolean(a.employee?.dismissalReason)
+            );
+
+            const situationLabel = isDismissed ? "Desligado" : (lastAsg.employee?.situation?.name || lastAsg.employee?.status || "Ativo");
+
+            // Evento 1: Admissão (exatamente 1 data de admissão se dentro do período selecionado)
+            if (firstStart >= start && firstStart <= end) {
+                turnoverRawEvents.push({
+                    employeeName: firstAsg.employee?.name || "-",
+                    situation: situationLabel,
+                    clientName: firstAsg.posto?.client?.name || "-",
+                    companyName: firstAsg.posto?.client?.company?.name || "-",
+                    postoRole: firstAsg.posto?.role?.name || "-",
                     eventType: "Admissão",
-                    date: asg.startDate.toISOString().split("T")[0]
+                    date: firstStart.toISOString().split("T")[0]
                 });
             }
-            if (asg.endDate && asg.endDate >= start && asg.endDate <= end) {
-                results.push({
-                    employeeName: asg.employee?.name || "-",
-                    situation: asg.employee?.situation?.name || "Ativo",
-                    clientName: asg.posto?.client?.name || "-",
-                    companyName: asg.posto?.client?.company?.name || "-",
-                    postoRole: asg.posto?.role?.name || "-",
+
+            // Evento 2: Demissão (exatamente 1 data de demissão apenas se o colaborador foi realmente demitido e encerrou vínculo)
+            if (isDismissed && !hasActive && maxEndDate && maxEndDate >= start && maxEndDate <= end) {
+                turnoverRawEvents.push({
+                    employeeName: lastAsg.employee?.name || "-",
+                    situation: situationLabel,
+                    clientName: lastAsg.posto?.client?.name || "-",
+                    companyName: lastAsg.posto?.client?.company?.name || "-",
+                    postoRole: lastAsg.posto?.role?.name || "-",
                     eventType: "Demissão",
-                    date: asg.endDate.toISOString().split("T")[0]
+                    date: maxEndDate.toISOString().split("T")[0]
                 });
             }
-            return results;
-        }).sort((a, b) => a.date.localeCompare(b.date));
+        });
+
+        turnoverRawEvents.sort((a, b) => a.date.localeCompare(b.date));
 
         // Absenteísmo raw events list
         const absenteismoRawEvents = occurrences.map(occ => ({
@@ -858,12 +929,7 @@ export async function getMonthTurnoverDetails(clientId: string, year: number, mo
 
         const list = await prisma.assignment.findMany({
             where: {
-                postoId: { in: postosIds },
-                startDate: { lte: monthEnd },
-                OR: [
-                    { endDate: null },
-                    { endDate: { gte: monthStart } }
-                ]
+                postoId: { in: postosIds }
             },
             include: {
                 employee: {
@@ -876,30 +942,63 @@ export async function getMonthTurnoverDetails(clientId: string, year: number, mo
             orderBy: { startDate: "asc" }
         });
 
-        const events: any[] = [];
+        // Agrupar alocações por colaborador único
+        // "cada colaborador quando demitido, deve ter uma data de admissão e uma demissão apenas"
+        const empMap = new Map<string, typeof list>();
         list.forEach(asg => {
-            if (asg.startDate >= monthStart && asg.startDate <= monthEnd) {
+            const empKey = (asg.employee?.name || asg.employeeId || "").trim().toUpperCase();
+            if (!empMap.has(empKey)) {
+                empMap.set(empKey, []);
+            }
+            empMap.get(empKey)!.push(asg);
+        });
+
+        const events: any[] = [];
+
+        empMap.forEach((asgs) => {
+            asgs.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+            const firstAsg = asgs[0];
+            const lastAsg = asgs[asgs.length - 1];
+
+            const firstStart = new Date(Math.min(...asgs.map(a => a.startDate.getTime())));
+            const hasActive = asgs.some(a => a.endDate === null || a.endDate > monthEnd);
+            const allEnded = asgs.every(a => a.endDate !== null);
+            const maxEndDate = allEnded ? new Date(Math.max(...asgs.map(a => a.endDate!.getTime()))) : null;
+
+            const isDismissed = asgs.some(a => 
+                a.employee?.status === "Desligado" ||
+                a.employee?.status === "Inativo" ||
+                a.employee?.situation?.name?.toLowerCase().includes("desligado") ||
+                Boolean(a.employee?.dismissalReason)
+            );
+
+            const situationLabel = isDismissed ? "Desligado" : (lastAsg.employee?.situation?.name || lastAsg.employee?.status || "Ativo");
+
+            // Evento 1: Admissão (exatamente 1 data de admissão neste contrato)
+            if (firstStart >= monthStart && firstStart <= monthEnd) {
                 events.push({
-                    id: `${asg.id}-admissao`,
-                    employeeName: asg.employee?.name || "-",
-                    situation: asg.employee?.situation?.name || "Ativo",
-                    clientName: asg.posto?.client?.name || "-",
-                    companyName: asg.posto?.client?.company?.name || "-",
-                    postoRole: asg.posto?.role?.name || "-",
+                    id: `${firstAsg.id}-admissao`,
+                    employeeName: firstAsg.employee?.name || "-",
+                    situation: situationLabel,
+                    clientName: firstAsg.posto?.client?.name || "-",
+                    companyName: firstAsg.posto?.client?.company?.name || "-",
+                    postoRole: firstAsg.posto?.role?.name || "-",
                     eventType: "Admissão",
-                    date: asg.startDate.toISOString().split("T")[0]
+                    date: firstStart.toISOString().split("T")[0]
                 });
             }
-            if (asg.endDate && asg.endDate >= monthStart && asg.endDate <= monthEnd) {
+
+            // Evento 2: Demissão (exatamente 1 data de demissão neste contrato, apenas se realmente demitido)
+            if (isDismissed && !hasActive && maxEndDate && maxEndDate >= monthStart && maxEndDate <= monthEnd) {
                 events.push({
-                    id: `${asg.id}-demissao`,
-                    employeeName: asg.employee?.name || "-",
-                    situation: asg.employee?.situation?.name || "Ativo",
-                    clientName: asg.posto?.client?.name || "-",
-                    companyName: asg.posto?.client?.company?.name || "-",
-                    postoRole: asg.posto?.role?.name || "-",
+                    id: `${lastAsg.id}-demissao`,
+                    employeeName: lastAsg.employee?.name || "-",
+                    situation: situationLabel,
+                    clientName: lastAsg.posto?.client?.name || "-",
+                    companyName: lastAsg.posto?.client?.company?.name || "-",
+                    postoRole: lastAsg.posto?.role?.name || "-",
                     eventType: "Demissão",
-                    date: asg.endDate.toISOString().split("T")[0]
+                    date: maxEndDate.toISOString().split("T")[0]
                 });
             }
         });
