@@ -29,6 +29,12 @@ export async function createVacancyFromPosto(
 
     if (!posto) throw new Error("Posto not found");
 
+    // BLOCKER: Prevent vacancy creation for closed postos (e.g. contract reduction)
+    if ((posto as any).status === 'ENCERRADO') {
+        console.log(`[createVacancyFromPosto] Posto ${postoId} está encerrado por redução de contrato. Vaga não será criada.`);
+        return null;
+    }
+
     // BLOCKER: Prevent vacancy creation for ROTATIVO
     if (posto.client.name === 'ROTATIVO') {
         throw new Error("Não é permitido abrir vaga para o posto ROTATIVO.");
@@ -1077,20 +1083,24 @@ export async function deleteVacancy(id: string) {
 }
 
 async function syncBacklogGaps() {
-    // 0. Auto-fechar vagas abertas de clientes inativos/encerrados
+    // 0. Auto-fechar vagas abertas de clientes inativos/encerrados ou postos encerrados
     try {
         await prisma.vacancy.updateMany({
             where: {
                 status: 'OPEN',
-                posto: { client: { isActive: false } }
+                OR: [
+                    { posto: { client: { isActive: false } } },
+                    { posto: { status: 'ENCERRADO' } }
+                ]
             },
             data: { status: 'CLOSED' }
         });
     } catch (e) {}
 
-    // 1. Get all postos that currently have NO active assignment (apenas de clientes ativos)
+    // 1. Get all postos that currently have NO active assignment (apenas de clientes ativos e postos ativos)
     const vacantPostos = await prisma.posto.findMany({
         where: {
+            status: { not: 'ENCERRADO' },
             client: { 
                 name: { not: 'ROTATIVO' },
                 isActive: true

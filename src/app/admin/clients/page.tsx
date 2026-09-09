@@ -9,7 +9,7 @@ async function getClients() {
         include: {
             company: { select: { id: true, name: true } },
             accountManager: { select: { id: true, name: true } },
-            _count: { select: { postos: true } }
+            _count: { select: { postos: { where: { status: { not: 'ENCERRADO' } } } } }
         }
     });
 }
@@ -36,6 +36,7 @@ async function getVacantStats() {
     const [postos, monthlyCoverages] = await Promise.all([
         prisma.posto.findMany({
             where: {
+                status: { not: 'ENCERRADO' },
                 client: { isActive: true }
             },
             include: {

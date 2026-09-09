@@ -8,6 +8,7 @@ import { AssignmentDialog } from "./AssignmentDialog";
 import { EditPostoSheet } from "./EditPostoSheet";
 import { ScheduleDialog } from "./ScheduleDialog";
 import { DeletePostoButton } from "./DeletePostoButton";
+import { ClosePostoDialog } from "./ClosePostoDialog";
 
 interface ClientPostosTableProps {
     postos: any[];
@@ -150,24 +151,45 @@ export function ClientPostosTable({
                         }
                     }
 
+                    const isClosed = (posto as any).status === 'ENCERRADO';
+
                     return (
-                        <TableRow key={posto.id} className={statusAlert ? "bg-red-50/30" : ""}>
+                        <TableRow key={posto.id} className={isClosed ? "bg-slate-50/70 opacity-85" : statusAlert ? "bg-red-50/30" : ""}>
                             <TableCell className="font-medium">
-                                <div className="flex items-center gap-1 group">
-                                    Posto {postos.indexOf(posto) + 1} - {posto.role.name}
-                                    <EditPostoSheet posto={posto} schedules={schedules} roles={roles} />
+                                <div className="flex items-center gap-1.5 flex-wrap group">
+                                    <span className={isClosed ? "line-through text-slate-500" : ""}>
+                                        Posto {postos.indexOf(posto) + 1} - {posto.role.name}
+                                    </span>
+                                    {isClosed ? (
+                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                            Encerrado
+                                        </span>
+                                    ) : (
+                                        <EditPostoSheet posto={posto} schedules={schedules} roles={roles} />
+                                    )}
                                 </div>
                             </TableCell>
-                            <TableCell>{posto.schedule}</TableCell>
-                            <TableCell>{posto.requiredWorkload}h</TableCell>
+                            <TableCell className={isClosed ? "text-slate-400" : ""}>{posto.schedule}</TableCell>
+                            <TableCell className={isClosed ? "text-slate-400" : ""}>{posto.requiredWorkload}h</TableCell>
                             <TableCell>
                                 <div className="flex flex-col">
-                                    <span>{posto.startTime} - {posto.endTime}</span>
+                                    <span className={isClosed ? "text-slate-400" : ""}>{posto.startTime} - {posto.endTime}</span>
                                     {posto.isNightShift && <span className="text-[10px] text-purple-600 font-bold uppercase">Noturno</span>}
                                 </div>
                             </TableCell>
                             <TableCell>
-                                {activeEmployee ? (
+                                {isClosed ? (
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded w-fit border border-amber-200/60">
+                                            Contrato Reduzido
+                                        </span>
+                                        {posto.endedAt && (
+                                            <span className="text-[10px] text-slate-400 mt-0.5">
+                                                Desde {new Date(posto.endedAt).toLocaleDateString('pt-BR')}
+                                            </span>
+                                        )}
+                                    </div>
+                                ) : activeEmployee ? (
                                     <div className="flex flex-col">
                                         <Link href={`/admin/employees/${activeEmployee.id}`} className="text-blue-600 hover:underline font-medium">
                                             {activeEmployee.name}
@@ -182,34 +204,65 @@ export function ClientPostosTable({
                                     </div>
                                 )}
                             </TableCell>
-                            <TableCell>R$ {posto.billingValue.toFixed(2)}</TableCell>
+                            <TableCell className={isClosed ? "text-slate-400" : ""}>
+                                <div className="flex flex-col">
+                                    <span className={isClosed ? "line-through text-slate-400" : ""}>
+                                        R$ {posto.billingValue.toFixed(2)}
+                                    </span>
+                                    {isClosed && <span className="text-[10px] text-slate-400">Não faturado</span>}
+                                </div>
+                            </TableCell>
                             <TableCell className="text-right">
-                                <AssignmentDialog
-                                    postoId={posto.id}
-                                    postoRole={posto.role.name}
-                                    activeEmployeeName={activeEmployee?.name}
-                                    employees={employees}
-                                    situations={situations}
-                                    currentSchedule={posto.schedule}
-                                    scheduleOptions={schedules}
-                                />
+                                {!isClosed ? (
+                                    <>
+                                        <AssignmentDialog
+                                            postoId={posto.id}
+                                            postoRole={posto.role.name}
+                                            activeEmployeeName={activeEmployee?.name}
+                                            employees={employees}
+                                            situations={situations}
+                                            currentSchedule={posto.schedule}
+                                            scheduleOptions={schedules}
+                                        />
 
-                                {activeEmployee && (
-                                    <ScheduleDialog
-                                        postoId={posto.id}
-                                        postoRole={posto.role.name}
-                                        currentSchedule={posto.schedule}
-                                        startDate={currentAssignment.startDate}
-                                        scheduleOptions={schedules}
-                                        assignmentId={currentAssignment.id}
-                                    />
-                                )}
+                                        {activeEmployee && (
+                                            <ScheduleDialog
+                                                postoId={posto.id}
+                                                postoRole={posto.role.name}
+                                                currentSchedule={posto.schedule}
+                                                startDate={currentAssignment.startDate}
+                                                scheduleOptions={schedules}
+                                                assignmentId={currentAssignment.id}
+                                            />
+                                        )}
 
-                                {userRole === 'ADMIN' && (
-                                    <DeletePostoButton
-                                        postoId={posto.id}
-                                        postoRole={posto.role.name}
-                                    />
+                                        <ClosePostoDialog
+                                            postoId={posto.id}
+                                            postoRole={posto.role.name}
+                                            isClosed={false}
+                                        />
+
+                                        {userRole === 'ADMIN' && (
+                                            <DeletePostoButton
+                                                postoId={posto.id}
+                                                postoRole={posto.role.name}
+                                            />
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="flex items-center justify-end gap-1">
+                                        <ClosePostoDialog
+                                            postoId={posto.id}
+                                            postoRole={posto.role.name}
+                                            isClosed={true}
+                                        />
+                                        {userRole === 'ADMIN' && (
+                                            <DeletePostoButton
+                                                postoId={posto.id}
+                                                postoRole={posto.role.name}
+                                            />
+                                        )}
+                                    </div>
                                 )}
                             </TableCell>
                         </TableRow>

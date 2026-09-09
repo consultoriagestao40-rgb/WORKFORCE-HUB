@@ -779,6 +779,10 @@ export async function assignEmployee(formData: FormData) {
 
     if (!employee || !posto) return { error: "Dados não encontrados." };
 
+    if ((posto as any).status === 'ENCERRADO') {
+        return { error: "Este posto está encerrado por redução de contrato e não pode receber novas alocações." };
+    }
+
     // Update Posto Schedule if provided and different
     if (schedule && schedule !== posto.schedule) {
         await prisma.posto.update({
@@ -1345,13 +1349,16 @@ export async function deleteClient(id: string) {
         if (postoIds.length > 0) {
             // 2. Cascade delete Posto dependencies
             await tx.assignment.deleteMany({ where: { postoId: { in: postoIds } } });
+            await tx.assignment.updateMany({ where: { originPostoId: { in: postoIds } }, data: { originPostoId: null } });
             await tx.coverage.deleteMany({ where: { postoId: { in: postoIds } } });
             await tx.occurrence.deleteMany({ where: { postoId: { in: postoIds } } });
+            await tx.attendance.deleteMany({ where: { postoId: { in: postoIds } } });
+            await tx.scheduleOverride.deleteMany({ where: { postoId: { in: postoIds } } });
 
-            // 2.1 Close Vacancies linked to these Postos
+            // 2.1 Unlink and close Vacancies linked to these Postos
             await tx.vacancy.updateMany({
-                where: { postoId: { in: postoIds }, status: 'OPEN' },
-                data: { status: 'CLOSED' }
+                where: { postoId: { in: postoIds } },
+                data: { postoId: null, status: 'CLOSED' }
             });
 
             // 3. Delete Postos
@@ -1365,6 +1372,70 @@ export async function deleteClient(id: string) {
     revalidatePath("/admin/clients");
 }
 
+export async function closePosto(id: string, reason?: string) {
+    const userRole = await getCurrentUserRole();
+    if (userRole !== 'ADMIN' && userRole !== 'COORD_RH') throw new Error("Unauthorized");
+
+    const posto = await prisma.posto.findUnique({
+        where: { id },
+        include: { assignments: { where: { endDate: null } } }
+    });
+    if (!posto) throw new Error("Posto não encontrado");
+
+    await prisma.$transaction(async (tx) => {
+        // 1. Se houver colaborador ativo alocado, finaliza a alocação atual
+        if (posto.assignments && posto.assignments.length > 0) {
+            await tx.assignment.updateMany({
+                where: { postoId: id, endDate: null },
+                data: { endDate: new Date() }
+            });
+        }
+
+        // 2. Fecha qualquer vaga aberta ou em espera para este posto no R&S
+        await tx.vacancy.updateMany({
+            where: { postoId: id, status: { in: ['OPEN', 'HOLD'] } },
+            data: { status: 'CLOSED' }
+        });
+
+        // 3. Marca o posto como ENCERRADO
+        await (tx.posto as any).update({
+            where: { id },
+            data: {
+                status: 'ENCERRADO',
+                endedAt: new Date(),
+                closureReason: reason || 'Redução de Contrato'
+            }
+        });
+    });
+
+    revalidatePath(`/admin/clients/${posto.clientId}`);
+    revalidatePath("/admin/clients");
+    revalidatePath("/admin/recrutamento");
+    return { success: true };
+}
+
+export async function reopenPosto(id: string) {
+    const userRole = await getCurrentUserRole();
+    if (userRole !== 'ADMIN' && userRole !== 'COORD_RH') throw new Error("Unauthorized");
+
+    const posto = await prisma.posto.findUnique({ where: { id } });
+    if (!posto) throw new Error("Posto não encontrado");
+
+    await (prisma.posto as any).update({
+        where: { id },
+        data: {
+            status: 'ATIVO',
+            endedAt: null,
+            closureReason: null
+        }
+    });
+
+    revalidatePath(`/admin/clients/${posto.clientId}`);
+    revalidatePath("/admin/clients");
+    revalidatePath("/admin/recrutamento");
+    return { success: true };
+}
+
 export async function deletePosto(id: string) {
     const userRole = await getCurrentUserRole();
     if (userRole !== 'ADMIN') throw new Error("Unauthorized");
@@ -1375,13 +1446,16 @@ export async function deletePosto(id: string) {
     await prisma.$transaction(async (tx) => {
         // 1. Cascade delete dependencies
         await tx.assignment.deleteMany({ where: { postoId: id } });
+        await tx.assignment.updateMany({ where: { originPostoId: id }, data: { originPostoId: null } });
         await tx.coverage.deleteMany({ where: { postoId: id } });
         await tx.occurrence.deleteMany({ where: { postoId: id } });
+        await tx.attendance.deleteMany({ where: { postoId: id } });
+        await tx.scheduleOverride.deleteMany({ where: { postoId: id } });
 
-        // 1.1 Close open vacancies for this Posto
+        // 1.1 Unlink vacancies for this Posto and close open ones
         await tx.vacancy.updateMany({
-            where: { postoId: id, status: 'OPEN' },
-            data: { status: 'CLOSED' }
+            where: { postoId: id },
+            data: { postoId: null, status: 'CLOSED' }
         });
 
         // 2. Delete Posto

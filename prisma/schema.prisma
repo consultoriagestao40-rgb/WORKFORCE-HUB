@@ -140,8 +140,11 @@ model Posto {
   absenteismoAwardPeriod String     @default("mensal")
   absenteismoAwardType   String       @default("prorrata")
   absenteismoMinDays     Int          @default(0)
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  status                 String       @default("ATIVO")
+  endedAt                DateTime?
+  closureReason          String?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
   originAssignments Assignment[] @relation("OriginPosto")
   assignments       Assignment[]
   coverages         Coverage[]

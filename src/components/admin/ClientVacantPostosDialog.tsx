@@ -20,6 +20,7 @@ interface ClientVacantPostosDialogProps {
 export function ClientVacantPostosDialog({ postos }: ClientVacantPostosDialogProps) {
     const vacantPostos = useMemo(() => {
         return postos.filter(posto => {
+            if (posto.status === 'ENCERRADO') return false;
             const hasActiveAssignment = posto.assignments.some((a: any) => !a.endDate);
             return !hasActiveAssignment;
         });

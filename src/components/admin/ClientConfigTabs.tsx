@@ -297,6 +297,11 @@ export function ClientConfigTabs({
         }
     };
 
+    // Postos ativos vs encerrados
+    const activePostos = (client.postos || []).filter((p: any) => p.status !== 'ENCERRADO');
+    const closedPostos = (client.postos || []).filter((p: any) => p.status === 'ENCERRADO');
+    const occupiedCount = activePostos.filter((p: any) => p.assignments.some((a: any) => !a.endDate)).length;
+
     return (
         <div className="space-y-6">
             {/* TOTALIZERS */}
@@ -306,14 +311,14 @@ export function ClientConfigTabs({
                         <CardTitle className="text-sm font-medium text-slate-500">Total de Postos</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{client.postos.length}</div>
+                        <div className="text-2xl font-bold">{activePostos.length}</div>
                         <p className="text-xs text-slate-500 mt-1">
-                            {client.postos.filter((p: any) => p.assignments.some((a: any) => !a.endDate)).length} Ocupados
+                            {occupiedCount} Ocupados {closedPostos.length > 0 && `(${closedPostos.length} encerrado${closedPostos.length > 1 ? 's' : ''})`}
                         </p>
                     </CardContent>
                 </Card>
 
-                <ClientVacantPostosDialog postos={client.postos} />
+                <ClientVacantPostosDialog postos={activePostos} />
 
                 <Card className="shadow-sm border-slate-200/60">
                     <CardHeader className="pb-2">
@@ -322,7 +327,7 @@ export function ClientConfigTabs({
                     <CardContent>
                         <div className="text-2xl font-bold text-green-600">
                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                                client.postos.reduce((acc: number, p: any) => acc + p.billingValue, 0)
+                                activePostos.reduce((acc: number, p: any) => acc + p.billingValue, 0)
                             )}
                         </div>
                     </CardContent>
@@ -334,7 +339,7 @@ export function ClientConfigTabs({
                     <CardContent>
                         <div className="text-2xl font-bold text-blue-600">
                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                                client.postos.reduce((acc: number, p: any) => acc + (p.baseSalary || 0) + (p.insalubridade || 0) + (p.periculosidade || 0) + (p.gratificacao || 0) + (p.outrosAdicionais || 0), 0)
+                                activePostos.reduce((acc: number, p: any) => acc + (p.baseSalary || 0) + (p.insalubridade || 0) + (p.periculosidade || 0) + (p.gratificacao || 0) + (p.outrosAdicionais || 0), 0)
                             )}
                         </div>
                         <p className="text-xs text-slate-500 mt-1 italic">

@@ -30,6 +30,7 @@ async function getAdminStats() {
     const [postos, budgetAgg, cashExposureAgg, vagoDaysCount, extraCostsAgg, recentCoverages, recentAssignments, vacationEmployees, monthlyCoverages, companies, activeEmployeesList] = await Promise.all([
         // 1. Postos & Assignments (fetch ALL assignments touching this month)
         prisma.posto.findMany({
+            where: { status: { not: 'ENCERRADO' } },
             include: {
                 assignments: {
                     include: {
@@ -46,7 +47,10 @@ async function getAdminStats() {
                 }
             }
         }),
-        prisma.posto.aggregate({ _sum: { billingValue: true } }),
+        prisma.posto.aggregate({
+            _sum: { billingValue: true },
+            where: { status: { not: 'ENCERRADO' } }
+        }),
         prisma.coverage.aggregate({
             _sum: { costValue: true },
             where: { type: 'DIARISTA', date: { gte: firstDayOfMonth } }
