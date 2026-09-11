@@ -205,11 +205,17 @@ export async function getPayrollPreview(year: number, month: number) {
         const lastWorkingDayObj = lastWorkingDayStr ? new Date(lastWorkingDayStr) : null;
 
         let daysWorked = totalDaysInMonth;
-        let baseSalary = emp.salary;
-        let insalubridade = emp.insalubridade;
-        let periculosidade = emp.periculosidade;
-        let gratificacao = emp.gratificacao;
-        let outrosAdicionais = emp.outrosAdicionais;
+        const initialSalary = emp.salary > 0 ? emp.salary : (posto?.baseSalary || 0);
+        const initialInsalubridade = emp.insalubridade > 0 ? emp.insalubridade : (posto?.insalubridade || 0);
+        const initialPericulosidade = emp.periculosidade > 0 ? emp.periculosidade : (posto?.periculosidade || 0);
+        const initialGratificacao = emp.gratificacao > 0 ? emp.gratificacao : (posto?.gratificacao || 0);
+        const initialOutrosAdicionais = emp.outrosAdicionais > 0 ? emp.outrosAdicionais : (posto?.outrosAdicionais || 0);
+
+        let baseSalary = initialSalary;
+        let insalubridade = initialInsalubridade;
+        let periculosidade = initialPericulosidade;
+        let gratificacao = initialGratificacao;
+        let outrosAdicionais = initialOutrosAdicionais;
 
         // If employee was admitted and/or stopped working this month (due to abandonment / dismissal)
         if (lastWorkingDayObj) {
@@ -225,18 +231,18 @@ export async function getPayrollPreview(year: number, month: number) {
                 // Stopped working in a previous month
                 daysWorked = 0;
             }
-            baseSalary = Math.round(((emp.salary / totalDaysInMonth) * daysWorked) * 100) / 100;
-            insalubridade = Math.round(((emp.insalubridade / totalDaysInMonth) * daysWorked) * 100) / 100;
-            periculosidade = Math.round(((emp.periculosidade / totalDaysInMonth) * daysWorked) * 100) / 100;
-            gratificacao = Math.round(((emp.gratificacao / totalDaysInMonth) * daysWorked) * 100) / 100;
-            outrosAdicionais = Math.round(((emp.outrosAdicionais / totalDaysInMonth) * daysWorked) * 100) / 100;
+            baseSalary = Math.round(((initialSalary / totalDaysInMonth) * daysWorked) * 100) / 100;
+            insalubridade = Math.round(((initialInsalubridade / totalDaysInMonth) * daysWorked) * 100) / 100;
+            periculosidade = Math.round(((initialPericulosidade / totalDaysInMonth) * daysWorked) * 100) / 100;
+            gratificacao = Math.round(((initialGratificacao / totalDaysInMonth) * daysWorked) * 100) / 100;
+            outrosAdicionais = Math.round(((initialOutrosAdicionais / totalDaysInMonth) * daysWorked) * 100) / 100;
         } else if (isAdmittedThisMonth) {
             daysWorked = totalDaysInMonth - admissionDayVal + 1;
-            baseSalary = Math.round(((emp.salary / totalDaysInMonth) * daysWorked) * 100) / 100;
-            insalubridade = Math.round(((emp.insalubridade / totalDaysInMonth) * daysWorked) * 100) / 100;
-            periculosidade = Math.round(((emp.periculosidade / totalDaysInMonth) * daysWorked) * 100) / 100;
-            gratificacao = Math.round(((emp.gratificacao / totalDaysInMonth) * daysWorked) * 100) / 100;
-            outrosAdicionais = Math.round(((emp.outrosAdicionais / totalDaysInMonth) * daysWorked) * 100) / 100;
+            baseSalary = Math.round(((initialSalary / totalDaysInMonth) * daysWorked) * 100) / 100;
+            insalubridade = Math.round(((initialInsalubridade / totalDaysInMonth) * daysWorked) * 100) / 100;
+            periculosidade = Math.round(((initialPericulosidade / totalDaysInMonth) * daysWorked) * 100) / 100;
+            gratificacao = Math.round(((initialGratificacao / totalDaysInMonth) * daysWorked) * 100) / 100;
+            outrosAdicionais = Math.round(((initialOutrosAdicionais / totalDaysInMonth) * daysWorked) * 100) / 100;
         }
 
         // Vacation check for this reference month
@@ -302,7 +308,7 @@ export async function getPayrollPreview(year: number, month: number) {
         const dsrDeductionsCount = getUniqueWeeksCount(faltaDates);
 
         // Absence and DSR deductions based on full fixed salary + additionals / 30
-        const fullFixedSalary = emp.salary + emp.insalubridade + emp.periculosidade + emp.gratificacao + emp.outrosAdicionais;
+        const fullFixedSalary = initialSalary + initialInsalubridade + initialPericulosidade + initialGratificacao + initialOutrosAdicionais;
         const dailyRate = fullFixedSalary / 30;
         const faltaDeduction = Math.round((dailyRate * faltasCount) * 100) / 100;
         const dsrDeduction = Math.round((dailyRate * dsrDeductionsCount) * 100) / 100;

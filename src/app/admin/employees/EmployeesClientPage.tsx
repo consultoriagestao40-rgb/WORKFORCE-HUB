@@ -156,11 +156,11 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                 "Carga Horária": emp.workload || 220,
 
                 // Financeiro
-                "Salário Base": emp.salary || 0,
-                "Insalubridade": emp.insalubridade || 0,
-                "Periculosidade": emp.periculosidade || 0,
-                "Gratificação": emp.gratificacao || 0,
-                "Outros Adicionais": emp.outrosAdicionais || 0,
+                "Salário Base": emp.salary || activeAssignment?.posto?.baseSalary || 0,
+                "Insalubridade": emp.insalubridade || activeAssignment?.posto?.insalubridade || 0,
+                "Periculosidade": emp.periculosidade || activeAssignment?.posto?.periculosidade || 0,
+                "Gratificação CCT": emp.gratificacao || activeAssignment?.posto?.gratificacao || 0,
+                "Outros Adicionais": emp.outrosAdicionais || activeAssignment?.posto?.outrosAdicionais || 0,
 
                 // Benefícios
                 "Vale Alimentação": emp.valeAlimentacao || 0,
@@ -187,7 +187,7 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
             { wch: 12 }, // Salário
             { wch: 12 }, // Insalubridade
             { wch: 12 }, // Periculosidade
-            { wch: 12 }, // Gratificação
+            { wch: 15 }, // Gratificação CCT
             { wch: 12 }, // Outros
             { wch: 12 }, // VA
             { wch: 12 }, // VT

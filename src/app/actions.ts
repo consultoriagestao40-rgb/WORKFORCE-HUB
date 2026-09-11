@@ -975,11 +975,33 @@ export async function assignEmployee(formData: FormData) {
             }
         });
 
-        // 3.1 Sincronizar empresa do colaborador com a empresa do cliente do posto
+        // 3.1 Sincronizar empresa e pacote financeiro do colaborador com o posto de destino
+        const empUpdateData: any = {};
         if (posto.client?.companyId) {
+            empUpdateData.companyId = posto.client.companyId;
+        }
+        if (posto.roleId) {
+            empUpdateData.roleId = posto.roleId;
+        }
+        if (posto.baseSalary > 0) {
+            empUpdateData.salary = posto.baseSalary;
+        }
+        if (posto.gratificacao !== undefined && posto.gratificacao !== null) {
+            empUpdateData.gratificacao = posto.gratificacao;
+        }
+        if (posto.insalubridade !== undefined && posto.insalubridade !== null) {
+            empUpdateData.insalubridade = posto.insalubridade;
+        }
+        if (posto.periculosidade !== undefined && posto.periculosidade !== null) {
+            empUpdateData.periculosidade = posto.periculosidade;
+        }
+        if (posto.outrosAdicionais !== undefined && posto.outrosAdicionais !== null) {
+            empUpdateData.outrosAdicionais = posto.outrosAdicionais;
+        }
+        if (Object.keys(empUpdateData).length > 0) {
             await tx.employee.update({
                 where: { id: employeeId },
-                data: { companyId: posto.client.companyId }
+                data: empUpdateData
             });
         }
 

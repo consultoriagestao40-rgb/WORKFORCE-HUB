@@ -47,7 +47,7 @@ export default function PayrollPreviewPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSyncingSecullum, setIsSyncingSecullum] = useState(false);
     const [items, setItems] = useState<PayrollPreviewItem[]>([]);
-    const [sortField, setSortField] = useState<'none' | 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'absenteismoAward' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'diversosDescontos' | 'emprestimos' | 'convenios' | 'sindicato' | 'inss' | 'irrf' | 'netSalary'>('none');
+    const [sortField, setSortField] = useState<'none' | 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'gratificacao' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'absenteismoAward' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'diversosDescontos' | 'emprestimos' | 'convenios' | 'sindicato' | 'inss' | 'irrf' | 'netSalary'>('none');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
     const [searchTerm, setSearchTerm] = useState("");
@@ -227,7 +227,7 @@ export default function PayrollPreviewPage() {
         return matchesSearch && matchesCompany && matchesClient;
     });
 
-    const handleSort = (field: 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'absenteismoAward' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'diversosDescontos' | 'emprestimos' | 'convenios' | 'sindicato' | 'inss' | 'irrf' | 'netSalary') => {
+    const handleSort = (field: Exclude<typeof sortField, 'none'>) => {
         if (sortField === field) {
             setSortDirection(prev => prev === 'desc' ? 'asc' : 'desc');
         } else {
@@ -265,9 +265,13 @@ export default function PayrollPreviewPage() {
                 valA = a.periculosidade;
                 valB = b.periculosidade;
                 break;
+            case 'gratificacao':
+                valA = a.gratificacao;
+                valB = b.gratificacao;
+                break;
             case 'outrosAdicionais':
-                valA = a.gratificacao + a.outrosAdicionais;
-                valB = b.gratificacao + b.outrosAdicionais;
+                valA = a.outrosAdicionais;
+                valB = b.outrosAdicionais;
                 break;
             case 'horasExtras':
                 valA = a.horasExtras50Value + a.horasExtras100Value;
@@ -551,7 +555,7 @@ export default function PayrollPreviewPage() {
                     "Salário Base (R$)": item.baseSalary,
                     "Insalubridade (R$)": item.insalubridade,
                     "Periculosidade (R$)": item.periculosidade,
-                    "Gratificação (R$)": item.gratificacao,
+                    "Gratificação CCT (R$)": item.gratificacao,
                     "Outros Adicionais (R$)": item.outrosAdicionais,
                     "Salário Bruto (R$)": item.totalGrossSalary,
                     "Atrasos (Horas)": item.atrasosHours,
@@ -886,13 +890,14 @@ export default function PayrollPreviewPage() {
                 ) : groupedView === "colaborador" ? (
                     /* LISTAGEM POR COLABORADOR */
                     <div className="overflow-x-auto relative">
-                        <table className="text-left border-collapse" style={{ minWidth: "2750px", tableLayout: "fixed" }}>
+                        <table className="text-left border-collapse" style={{ minWidth: "2890px", tableLayout: "fixed" }}>
                             <colgroup>
                                 <col style={{ width: "280px" }} /> {/* Colaborador */}
                                 <col style={{ width: "220px" }} /> {/* Empresa / Posto */}
                                 <col style={{ width: "130px" }} /> {/* Salário Base */}
                                 <col style={{ width: "130px" }} /> {/* Insalubridade */}
                                 <col style={{ width: "130px" }} /> {/* Periculosidade */}
+                                <col style={{ width: "140px" }} /> {/* Gratificação CCT */}
                                 <col style={{ width: "140px" }} /> {/* Outros Adicionais */}
                                 <col style={{ width: "140px" }} /> {/* H. Extras */}
                                 <col style={{ width: "140px" }} /> {/* Adic. Noturno */}
@@ -962,6 +967,16 @@ export default function PayrollPreviewPage() {
                                         <div className="flex items-center justify-end gap-1">
                                             <span>Periculosidade</span>
                                             {renderSortIcon('periculosidade')}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="py-3 px-4 text-right cursor-pointer select-none hover:bg-slate-100/80 transition-colors group" 
+                                        style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20 }}
+                                        onClick={() => handleSort('gratificacao')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Gratificação CCT</span>
+                                            {renderSortIcon('gratificacao')}
                                         </div>
                                     </th>
                                     <th 
@@ -1232,9 +1247,13 @@ export default function PayrollPreviewPage() {
                                         <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
                                             {item.periculosidade > 0 ? formatCurrency(item.periculosidade) : "-"}
                                         </td>
+                                        {/* Gratificação CCT */}
+                                        <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
+                                            {item.gratificacao > 0 ? formatCurrency(item.gratificacao) : "-"}
+                                        </td>
                                         {/* Outros Adicionais */}
                                         <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
-                                            {item.gratificacao + item.outrosAdicionais > 0 ? formatCurrency(item.gratificacao + item.outrosAdicionais) : "-"}
+                                            {item.outrosAdicionais > 0 ? formatCurrency(item.outrosAdicionais) : "-"}
                                         </td>
                                         {/* H. Extras */}
                                         <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
@@ -1754,12 +1773,13 @@ export default function PayrollPreviewPage() {
                                                         <div className="overflow-hidden border-t border-b border-slate-100 pl-12 pr-4 py-3">
                                                             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">Detalhamento dos Colaboradores</span>
                                                             <div className="overflow-x-auto">
-                                                                <table className="text-left border-collapse bg-white rounded-2xl border border-slate-200/60 overflow-hidden text-[11px]" style={{ minWidth: "2460px", tableLayout: "fixed" }}>
+                                                                <table className="text-left border-collapse bg-white rounded-2xl border border-slate-200/60 overflow-hidden text-[11px]" style={{ minWidth: "2590px", tableLayout: "fixed" }}>
                                                                     <colgroup>
                                                                         <col style={{ width: "260px" }} /> {/* Colaborador */}
                                                                         <col style={{ width: "120px" }} /> {/* Salário Base */}
                                                                         <col style={{ width: "120px" }} /> {/* Insalubridade */}
                                                                         <col style={{ width: "120px" }} /> {/* Periculosidade */}
+                                                                        <col style={{ width: "130px" }} /> {/* Gratificação CCT */}
                                                                         <col style={{ width: "130px" }} /> {/* Outros Adicionais */}
                                                                                                                                                  <col style={{ width: "130px" }} /> {/* H. Extras */}
                                                                          <col style={{ width: "130px" }} /> {/* Adic. Noturno */}
@@ -1790,6 +1810,7 @@ export default function PayrollPreviewPage() {
                                                                             <th className="py-2.5 px-3 text-right">Salário Base</th>
                                                                             <th className="py-2.5 px-3 text-right">Insalubridade</th>
                                                                             <th className="py-2.5 px-3 text-right">Periculosidade</th>
+                                                                            <th className="py-2.5 px-3 text-right">Gratificação CCT</th>
                                                                             <th className="py-2.5 px-3 text-right">Outros Adicionais</th>
                                                                                                                                                          <th className="py-2.5 px-3 text-right bg-sky-50/50">H. Extras</th>
                                                                              <th className="py-2.5 px-3 text-right bg-sky-50/50">Adic. Noturno</th>
@@ -1834,7 +1855,10 @@ export default function PayrollPreviewPage() {
                                                                                     {sub.periculosidade > 0 ? formatCurrency(sub.periculosidade) : "-"}
                                                                                 </td>
                                                                                 <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
-                                                                                    {sub.gratificacao + sub.outrosAdicionais > 0 ? formatCurrency(sub.gratificacao + sub.outrosAdicionais) : "-"}
+                                                                                    {sub.gratificacao > 0 ? formatCurrency(sub.gratificacao) : "-"}
+                                                                                </td>
+                                                                                <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
+                                                                                    {sub.outrosAdicionais > 0 ? formatCurrency(sub.outrosAdicionais) : "-"}
                                                                                 </td>
                                                                                  {/* H. Extras */}
                                                                                  <td className="py-2.5 px-3 text-right font-medium text-slate-700 whitespace-nowrap">
