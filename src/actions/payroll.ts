@@ -71,6 +71,7 @@ export interface PayrollPreviewItem {
     convenios: number;
     sindicato: number;
     hourlyRate: number;
+    observacoes: string;
     
     // Net
     totalDeductions: number;
@@ -329,6 +330,7 @@ export async function getPayrollPreview(year: number, month: number) {
         const customAjudaCusto = monthlyAdj.ajudaCusto !== undefined && monthlyAdj.ajudaCusto !== null 
             ? parseFloat(monthlyAdj.ajudaCusto) 
             : null;
+        const observacoes = monthlyAdj.observacoes || "";
 
         const hourlyRate = fullFixedSalary / (emp.workload || 220);
         const atrasosDeduction = Math.round((hourlyRate * atrasosHours) * 100) / 100;
@@ -488,6 +490,7 @@ export async function getPayrollPreview(year: number, month: number) {
             convenios,
             sindicato,
             hourlyRate: Math.round(hourlyRate * 100) / 100,
+            observacoes,
             totalDeductions,
             netSalary,
             isAdmittedThisMonth,
@@ -564,7 +567,8 @@ export async function updateMonthlyDeductions(
     adicionalNoturnoHours: number,
     convenios: number,
     sindicato: number,
-    ajudaCusto: number
+    ajudaCusto: number,
+    observacoes: string = ""
 ) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Não autorizado");
@@ -593,7 +597,7 @@ export async function updateMonthlyDeductions(
         }
     });
 
-    // 2. Save convenios, sindicato and custom ajudaCusto into Employee.extraFields.monthlyAdjustments
+    // 2. Save convenios, sindicato, custom ajudaCusto and observacoes into Employee.extraFields.monthlyAdjustments
     const emp = await prisma.employee.findUnique({ where: { id: employeeId } });
     if (emp) {
         const extra = (emp.extraFields as any) || {};
@@ -601,7 +605,8 @@ export async function updateMonthlyDeductions(
         monthlyAdjustments[`${year}-${month}`] = {
             convenios,
             sindicato,
-            ajudaCusto
+            ajudaCusto,
+            observacoes: observacoes?.trim() || ""
         };
         await prisma.employee.update({
             where: { id: employeeId },

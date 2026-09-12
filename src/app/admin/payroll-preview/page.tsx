@@ -22,10 +22,12 @@ import {
     RefreshCw,
     ArrowUpDown,
     ChevronUp,
-    ShieldAlert
+    ShieldAlert,
+    FileText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -73,6 +75,7 @@ export default function PayrollPreviewPage() {
     const [inputConvenios, setInputConvenios] = useState("");
     const [inputSindicato, setInputSindicato] = useState("");
     const [inputAjudaCusto, setInputAjudaCusto] = useState("");
+    const [inputObservacoes, setInputObservacoes] = useState("");
     const [isSavingDeductions, setIsSavingDeductions] = useState(false);
 
     const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -139,6 +142,7 @@ export default function PayrollPreviewPage() {
         setInputConvenios(item.convenios > 0 ? item.convenios.toString() : "");
         setInputSindicato(item.sindicato > 0 ? item.sindicato.toString() : "");
         setInputAjudaCusto(item.ajudaCusto > 0 ? item.ajudaCusto.toString() : "");
+        setInputObservacoes(item.observacoes || "");
         setEditDeductionsOpen(true);
     };
 
@@ -166,7 +170,8 @@ export default function PayrollPreviewPage() {
                 noturnas,
                 convenios,
                 sindicato,
-                ajudaCusto
+                ajudaCusto,
+                inputObservacoes
             );
 
             if (res.success) {
@@ -595,7 +600,8 @@ export default function PayrollPreviewPage() {
                     "Desc. INSS (R$)": item.inssDeduction,
                     "Desc. IRRF (R$)": item.irrfDeduction,
                     "Total Descontos (R$)": item.totalDeductions,
-                    "Salário Líquido (R$)": item.netSalary
+                    "Salário Líquido (R$)": item.netSalary,
+                    "Observações dos Lançamentos": item.observacoes || "-"
                 };
             });
 
@@ -1220,10 +1226,31 @@ export default function PayrollPreviewPage() {
                                                     <button 
                                                         onClick={() => handleOpenEditDeductions(item)}
                                                         className="text-slate-400 hover:text-slate-800 hover:bg-slate-100 p-0.5 rounded transition-all cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                                        title="Lançar Empréstimo / Descontos"
+                                                        title="Lançar Empréstimo / Descontos / Observações"
                                                     >
                                                         <Edit className="w-3 h-3" />
                                                     </button>
+                                                    {item.observacoes && (
+                                                        <Popover>
+                                                            <PopoverTrigger asChild>
+                                                                <button 
+                                                                    className="text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                                                                    title="Ver anotações dos lançamentos"
+                                                                >
+                                                                    <FileText className="w-3 h-3 text-amber-600" />
+                                                                    <span>Obs</span>
+                                                                </button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-80 p-3.5 text-xs space-y-2 bg-white shadow-xl border border-amber-200 rounded-2xl z-50">
+                                                                <div className="font-bold text-amber-900 border-b border-amber-100 pb-1.5 text-[11px] flex items-center gap-1.5">
+                                                                    <FileText className="w-3.5 h-3.5 text-amber-600" /> Observações dos Lançamentos Avulsos
+                                                                </div>
+                                                                <p className="text-slate-700 whitespace-pre-wrap leading-relaxed text-[11px]">
+                                                                    {item.observacoes}
+                                                                </p>
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    )}
                                                 </div>
                                                 <div className="text-[10px] text-slate-400 font-medium mt-0.5">CPF: {item.employeeCpf} | {item.postoName}</div>
                                             </div>
@@ -1841,7 +1868,37 @@ export default function PayrollPreviewPage() {
                                                                             <tr key={sub.employeeId} className="hover:bg-slate-50/80 transition-colors">
                                                                                 <td className="py-2.5 px-3 whitespace-nowrap">
                                                                                     <div>
-                                                                                        <div className="font-bold text-slate-850">{sub.employeeName}</div>
+                                                                                        <div className="flex items-center gap-1.5">
+                                                                                            <span className="font-bold text-slate-850">{sub.employeeName}</span>
+                                                                                            <button 
+                                                                                                onClick={() => handleOpenEditDeductions(sub)}
+                                                                                                className="text-slate-400 hover:text-slate-800 hover:bg-slate-100 p-0.5 rounded transition-all cursor-pointer"
+                                                                                                title="Lançar Empréstimo / Descontos / Observações"
+                                                                                            >
+                                                                                                <Edit className="w-3 h-3" />
+                                                                                            </button>
+                                                                                            {sub.observacoes && (
+                                                                                                <Popover>
+                                                                                                    <PopoverTrigger asChild>
+                                                                                                        <button 
+                                                                                                            className="text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-1.5 py-0.5 rounded text-[9px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                                                                                                            title="Ver anotações dos lançamentos"
+                                                                                                        >
+                                                                                                            <FileText className="w-2.5 h-2.5 text-amber-600" />
+                                                                                                            <span>Obs</span>
+                                                                                                        </button>
+                                                                                                    </PopoverTrigger>
+                                                                                                    <PopoverContent className="w-80 p-3.5 text-xs space-y-2 bg-white shadow-xl border border-amber-200 rounded-2xl z-50">
+                                                                                                        <div className="font-bold text-amber-900 border-b border-amber-100 pb-1.5 text-[11px] flex items-center gap-1.5">
+                                                                                                            <FileText className="w-3.5 h-3.5 text-amber-600" /> Observações dos Lançamentos Avulsos
+                                                                                                        </div>
+                                                                                                        <p className="text-slate-700 whitespace-pre-wrap leading-relaxed text-[11px]">
+                                                                                                            {sub.observacoes}
+                                                                                                        </p>
+                                                                                                    </PopoverContent>
+                                                                                                </Popover>
+                                                                                            )}
+                                                                                        </div>
                                                                                         <div className="text-[9px] text-slate-400 font-medium">CPF: {sub.employeeCpf} | {sub.postoName}</div>
                                                                                     </div>
                                                                                 </td>
@@ -2409,6 +2466,23 @@ export default function PayrollPreviewPage() {
                                             />
                                         </div>
                                     </div>
+                                </div>
+
+                                <div className="space-y-1.5 border-t border-slate-100 pt-3">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="font-bold text-slate-750 flex items-center gap-1.5">
+                                            <FileText className="w-3.5 h-3.5 text-slate-500" />
+                                            Observações / Justificativa dos Lançamentos
+                                        </Label>
+                                        <span className="text-[10px] text-slate-400 font-normal">Sai no Excel para conferência</span>
+                                    </div>
+                                    <Textarea 
+                                        placeholder="Anote o motivo de cada lançamento avulso (ex: R$ 150 ajuda combustível visita obra X; bônus cobertura dia Y; desconto adiantamento...)"
+                                        value={inputObservacoes}
+                                        onChange={(e) => setInputObservacoes(e.target.value)}
+                                        className="min-h-[85px] w-full rounded-xl bg-white border-slate-200 text-xs focus:ring-red-500/20 focus:border-red-500 resize-y leading-relaxed"
+                                        rows={3}
+                                    />
                                 </div>
                             </div>
                         </div>
