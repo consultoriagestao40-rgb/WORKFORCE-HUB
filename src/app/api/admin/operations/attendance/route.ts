@@ -254,7 +254,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { action, postoId, date, employeeId, coveredById, coverageType, notes, diaristaCost, diaristaId, motivoId } = body;
+        const { action, postoId, date, employeeId, coveredById, coverageType, notes, diaristaCost, diaristaId, motivoId, empresaId } = body;
 
         if (!postoId || !date) {
             return NextResponse.json({ error: "Parâmetros obrigatórios ausentes" }, { status: 400 });
@@ -434,12 +434,52 @@ export async function POST(request: Request) {
                         const localPosto = await prisma.posto.findUnique({
                             where: { id: postoId },
                             include: {
-                                client: true
+                                client: {
+                                    include: {
+                                        company: true
+                                    }
+                                }
                             }
                         });
 
                         if (localPosto) {
                             const clientName = localPosto.client.name;
+                            const companyName = localPosto.client.company?.name || "";
+
+                            // 0. Mapear ou validar a Empresa no Reembolso Fácil
+                            let finalEmpresaId: string | null = empresaId || null;
+                            try {
+                                const dbEmpresas = await prismaReembolso.$queryRawUnsafe(
+                                    'SELECT id, nome FROM "Empresa" WHERE ativo = true'
+                                ) as any[];
+
+                                if (finalEmpresaId && dbEmpresas && dbEmpresas.length > 0) {
+                                    const exists = dbEmpresas.some(e => e.id === finalEmpresaId);
+                                    if (!exists) finalEmpresaId = null;
+                                }
+
+                                if (!finalEmpresaId && dbEmpresas && dbEmpresas.length > 0) {
+                                    const normTarget = companyName.toLowerCase();
+                                    const matched = dbEmpresas.find(e => {
+                                        const normEmp = (e.nome || "").toLowerCase();
+                                        if (normTarget.includes("tratamento") && normEmp.includes("tratamento")) return true;
+                                        if (normTarget.includes("spot") && normEmp.includes("spot")) return true;
+                                        if (normTarget.includes("clean tech") && (normEmp.includes("clean tech") || normEmp.includes("cleantech"))) return true;
+                                        if (normTarget.includes("facilities") && normEmp.includes("facilities")) return true;
+                                        if (normEmp.includes(normTarget) || normTarget.includes(normEmp)) return true;
+                                        return false;
+                                    });
+
+                                    if (matched) {
+                                        finalEmpresaId = matched.id;
+                                    } else {
+                                        const defaultEmp = dbEmpresas.find(e => (e.nome || "").toLowerCase().includes("facilities")) || dbEmpresas[0];
+                                        finalEmpresaId = defaultEmp?.id || null;
+                                    }
+                                }
+                            } catch (e: any) {
+                                console.error("Erro ao mapear empresa no Reembolso Fácil:", e.message);
+                            }
 
                             // 1. Buscar ou criar o Posto (Cliente) no Reembolso Fácil
                             const reembolsoPosto = await prismaReembolso.$queryRawUnsafe(
@@ -546,8 +586,8 @@ export async function POST(request: Request) {
                             await prismaReembolso.$executeRawUnsafe(
                                 `INSERT INTO "Cobertura" (
                                     id, data, valor, status, "postoId", "diaristaId", "reservaId", "motivoId", 
-                                    "cargaHorariaId", "meioPagamentoSolicitadoId", "supervisorId", observacao, "createdAt", "updatedAt"
-                                ) VALUES ($1, $2, $3, CAST($4 AS "StatusCobertura"), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+                                    "cargaHorariaId", "meioPagamentoSolicitadoId", "supervisorId", "empresaId", observacao, "createdAt", "updatedAt"
+                                ) VALUES ($1, $2, $3, CAST($4 AS "StatusCobertura"), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
                                 newCoberturaId,
                                 targetDate,
                                 finalCost,
@@ -559,12 +599,13 @@ export async function POST(request: Request) {
                                 cargaHorariaId,
                                 meioPagamentoSolicitadoId,
                                 supervisorId,
+                                finalEmpresaId,
                                 observacaoFinal,
                                 new Date(),
                                 new Date()
                             );
 
-                            console.log("Diária integrada criada no Reembolso Fácil! ID:", newCoberturaId);
+                            console.log("Diária integrada criada no Reembolso Fácil! ID:", newCoberturaId, "Empresa ID:", finalEmpresaId);
                         }
                     } catch (err: any) {
                         console.error("Erro ao registrar diária no Reembolso Fácil:", err.message);

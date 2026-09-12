@@ -119,6 +119,9 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
     const [motivos, setMotivos] = useState<Array<{ id: string; descricao: string }>>([]);
     const [loadingMotivos, setLoadingMotivos] = useState<boolean>(false);
     const [selectedMotivoId, setSelectedMotivoId] = useState<string>("");
+    const [empresas, setEmpresas] = useState<Array<{ id: string; nome: string }>>([]);
+    const [loadingEmpresas, setLoadingEmpresas] = useState<boolean>(false);
+    const [selectedEmpresaId, setSelectedEmpresaId] = useState<string>("");
     const [actionLoading, setActionLoading] = useState<boolean>(false);
 
     // Dialog state for disciplinary measures
@@ -352,6 +355,44 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
         fetchMotivos();
     }, [fetchMotivos]);
 
+    const fetchEmpresas = useCallback(async () => {
+        setLoadingEmpresas(true);
+        try {
+            const res = await fetch("/api/admin/operations/empresas");
+            const data = await res.json();
+            if (data.success) {
+                setEmpresas(data.empresas || []);
+            } else {
+                console.error("Erro ao buscar empresas:", data.error);
+            }
+        } catch (e) {
+            console.error("Erro ao conectar empresas:", e);
+        } finally {
+            setLoadingEmpresas(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchEmpresas();
+    }, [fetchEmpresas]);
+
+    // Sincronizar auto-seleção da empresa do Reembolso Fácil quando as empresas carregarem ou o item mudar
+    useEffect(() => {
+        if (openDialog && selectedItem && !selectedEmpresaId && empresas.length > 0) {
+            const normCompany = (selectedItem.companyName || "").toLowerCase();
+            const matchedEmpresa = empresas.find(e => {
+                const normE = (e.nome || "").toLowerCase();
+                if (normCompany.includes("tratamento") && normE.includes("tratamento")) return true;
+                if (normCompany.includes("spot") && normE.includes("spot")) return true;
+                if (normCompany.includes("clean tech") && (normE.includes("clean tech") || normE.includes("cleantech"))) return true;
+                if (normCompany.includes("facilities") && normE.includes("facilities")) return true;
+                if (normE.includes(normCompany) || normCompany.includes(normE)) return true;
+                return false;
+            });
+            setSelectedEmpresaId(matchedEmpresa ? matchedEmpresa.id : (empresas[0]?.id || ""));
+        }
+    }, [openDialog, selectedItem, selectedEmpresaId, empresas]);
+
     const handleDateChange = (newDate: string) => {
         startTransition(() => {
             setDate(newDate);
@@ -504,6 +545,24 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
         } else {
             setSelectedMotivoId("db8bec65-1a90-41bf-ba13-0ead0232541f"); // Falta Injustificada
         }
+
+        // Auto-selecionar empresa correspondente no Reembolso Fácil
+        if (empresas.length > 0) {
+            const normCompany = (item.companyName || "").toLowerCase();
+            const matchedEmpresa = empresas.find(e => {
+                const normE = (e.nome || "").toLowerCase();
+                if (normCompany.includes("tratamento") && normE.includes("tratamento")) return true;
+                if (normCompany.includes("spot") && normE.includes("spot")) return true;
+                if (normCompany.includes("clean tech") && (normE.includes("clean tech") || normE.includes("cleantech"))) return true;
+                if (normCompany.includes("facilities") && normE.includes("facilities")) return true;
+                if (normE.includes(normCompany) || normCompany.includes(normE)) return true;
+                return false;
+            });
+            setSelectedEmpresaId(matchedEmpresa ? matchedEmpresa.id : (empresas[0]?.id || ""));
+        } else {
+            setSelectedEmpresaId("");
+        }
+
         setOpenDialog(true);
     };
 
@@ -543,6 +602,9 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
                 }
                 if (selectedMotivoId) {
                     payload.motivoId = selectedMotivoId;
+                }
+                if (selectedEmpresaId) {
+                    payload.empresaId = selectedEmpresaId;
                 }
             } else if (coverageType === "VAGO") {
                 payload.action = "COBERTURA";
@@ -1669,6 +1731,32 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
 
                         {coverageType === "DIARISTA" && (
                             <>
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-black text-slate-700 uppercase">Empresa Vinculada (Reembolso Fácil)</label>
+                                        {selectedItem?.companyName && (
+                                            <span className="text-[10px] text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded">
+                                                Posto: {selectedItem.companyName}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {loadingEmpresas ? (
+                                        <span className="text-xs text-slate-400 font-semibold animate-pulse">Carregando empresas...</span>
+                                    ) : empresas.length > 0 ? (
+                                        <select
+                                            value={selectedEmpresaId}
+                                            onChange={(e) => setSelectedEmpresaId(e.target.value)}
+                                            className="h-10 rounded-md border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer"
+                                        >
+                                            <option value="">Selecione a Empresa...</option>
+                                            {empresas.map(e => (
+                                                <option key={e.id} value={e.id}>{e.nome}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <span className="text-xs text-slate-400">Nenhuma empresa encontrada.</span>
+                                    )}
+                                </div>
                                 <div className="flex flex-col gap-2">
                                     <label className="text-xs font-black text-slate-700 uppercase">Motivo do Lançamento (Reembolso Fácil)</label>
                                     {loadingMotivos ? (
