@@ -22,7 +22,9 @@ import { ExtraGroupItem, ExtraPhoneItem } from "@/lib/rh-notifications";
 interface RhRecipientSelectorProps {
     value: string;
     onChange: (newValue: string) => void;
+    operationsGroupJid?: string | null;
     operationsGroupName?: string | null;
+    adminGroupJid?: string | null;
     adminGroupName?: string | null;
     extraGroups: ExtraGroupItem[];
     extraPhones: ExtraPhoneItem[];
@@ -31,18 +33,29 @@ interface RhRecipientSelectorProps {
 export function RhRecipientSelector({
     value,
     onChange,
+    operationsGroupJid,
     operationsGroupName,
+    adminGroupJid,
     adminGroupName,
     extraGroups = [],
     extraPhones = []
 }: RhRecipientSelectorProps) {
     const [open, setOpen] = useState(false);
 
+    const hasOperations = Boolean(operationsGroupJid && operationsGroupJid.trim());
+    const hasAdmin = Boolean(adminGroupJid && adminGroupJid.trim());
+    const validExtraGroups = extraGroups.filter(g => Boolean(g.jid && g.jid.trim()));
+
     const selectedIds = value 
         ? value.split(",").map((s) => s.trim()).filter(Boolean) 
         : [];
 
-    const totalAvailable = 2 + extraGroups.length + extraPhones.length;
+    // Contagem apenas de canais que realmente existem e possuem telefone/JID configurado
+    const totalAvailable = 
+        (hasOperations ? 1 : 0) + 
+        (hasAdmin ? 1 : 0) + 
+        validExtraGroups.length + 
+        extraPhones.length;
 
     const toggleItem = (id: string) => {
         let newSelected: string[];
@@ -55,12 +68,11 @@ export function RhRecipientSelector({
     };
 
     const handleSelectAll = () => {
-        const allIds = [
-            "OPERATIONS",
-            "ADMIN",
-            ...extraGroups.map((g) => g.id),
-            ...extraPhones.map((p) => p.id)
-        ];
+        const allIds: string[] = [];
+        if (hasOperations) allIds.push("OPERATIONS");
+        if (hasAdmin) allIds.push("ADMIN");
+        validExtraGroups.forEach(g => allIds.push(g.id));
+        extraPhones.forEach(p => allIds.push(p.id));
         onChange(allIds.join(","));
     };
 
@@ -70,43 +82,52 @@ export function RhRecipientSelector({
 
     // Label de resumo no botão
     const getButtonSummary = () => {
-        if (selectedIds.length === 0) {
+        if (totalAvailable === 0) {
             return {
-                text: "Nenhum canal selecionado",
+                text: "Nenhum canal cadastrado",
                 variant: "empty"
             };
         }
 
-        if (selectedIds.length === totalAvailable && totalAvailable > 0) {
+        // Canais selecionados que realmente existem
+        const validSelected: string[] = [];
+        if (hasOperations && selectedIds.includes("OPERATIONS")) {
+            validSelected.push(operationsGroupName || "Operações");
+        }
+        if (hasAdmin && selectedIds.includes("ADMIN")) {
+            validSelected.push(adminGroupName || "Administrativo");
+        }
+        for (const g of validExtraGroups) {
+            if (selectedIds.includes(g.id)) validSelected.push(g.name);
+        }
+        for (const p of extraPhones) {
+            if (selectedIds.includes(p.id)) validSelected.push(p.name);
+        }
+
+        if (validSelected.length === 0) {
             return {
-                text: `Todos os Destinatários (${selectedIds.length})`,
+                text: "Nenhum canal marcado",
+                variant: "empty"
+            };
+        }
+
+        if (validSelected.length === totalAvailable && totalAvailable > 0) {
+            return {
+                text: `Todos os Destinatários (${validSelected.length})`,
                 variant: "all"
             };
         }
 
-        // Montar resumo amigável dos canais marcados
-        const names: string[] = [];
-        if (selectedIds.includes("OPERATIONS")) names.push("Operações");
-        if (selectedIds.includes("ADMIN")) names.push("Administrativo");
-
-        for (const g of extraGroups) {
-            if (selectedIds.includes(g.id)) names.push(g.name);
+        if (validSelected.length === 1) {
+            return { text: validSelected[0], variant: "partial", count: validSelected.length };
         }
-
-        for (const p of extraPhones) {
-            if (selectedIds.includes(p.id)) names.push(p.name);
-        }
-
-        if (names.length === 1) {
-            return { text: names[0], variant: "partial", count: selectedIds.length };
-        }
-        if (names.length === 2) {
-            return { text: `${names[0]}, ${names[1]}`, variant: "partial", count: selectedIds.length };
+        if (validSelected.length === 2) {
+            return { text: `${validSelected[0]}, ${validSelected[1]}`, variant: "partial", count: validSelected.length };
         }
         return { 
-            text: `${names[0]}, ${names[1]} +${names.length - 2}`, 
+            text: `${validSelected[0]}, ${validSelected[1]} +${validSelected.length - 2}`, 
             variant: "partial", 
-            count: selectedIds.length 
+            count: validSelected.length 
         };
     };
 
@@ -168,94 +189,104 @@ export function RhRecipientSelector({
                             <span>Grupos do WhatsApp</span>
                         </div>
 
-                        <div className="space-y-1">
-                            {/* Grupo Operações */}
-                            <label
-                                onClick={() => toggleItem("OPERATIONS")}
-                                className={cn(
-                                    "flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer select-none",
-                                    selectedIds.includes("OPERATIONS") 
-                                        ? "bg-blue-50/70 border-blue-200 text-blue-950 font-bold" 
-                                        : "bg-white border-slate-200/70 text-slate-600 hover:bg-slate-50"
-                                )}
-                            >
-                                <div className="flex items-center gap-2 truncate">
-                                    <div className={cn(
-                                        "w-4 h-4 rounded-md flex items-center justify-center border transition-all",
-                                        selectedIds.includes("OPERATIONS")
-                                            ? "bg-blue-600 border-blue-600 text-white"
-                                            : "border-slate-300 bg-white"
-                                    )}>
-                                        {selectedIds.includes("OPERATIONS") && <Check className="w-3 h-3 stroke-[3]" />}
-                                    </div>
-                                    <span className="text-xs truncate">
-                                        {operationsGroupName || "Grupo de Operações"}
-                                    </span>
-                                </div>
-                                <Badge className="bg-blue-100 text-blue-800 text-[9px] px-1.5 py-0 border-0 font-bold shrink-0">
-                                    Ops
-                                </Badge>
-                            </label>
-
-                            {/* Grupo Administrativo */}
-                            <label
-                                onClick={() => toggleItem("ADMIN")}
-                                className={cn(
-                                    "flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer select-none",
-                                    selectedIds.includes("ADMIN") 
-                                        ? "bg-purple-50/70 border-purple-200 text-purple-950 font-bold" 
-                                        : "bg-white border-slate-200/70 text-slate-600 hover:bg-slate-50"
-                                )}
-                            >
-                                <div className="flex items-center gap-2 truncate">
-                                    <div className={cn(
-                                        "w-4 h-4 rounded-md flex items-center justify-center border transition-all",
-                                        selectedIds.includes("ADMIN")
-                                            ? "bg-purple-600 border-purple-600 text-white"
-                                            : "border-slate-300 bg-white"
-                                    )}>
-                                        {selectedIds.includes("ADMIN") && <Check className="w-3 h-3 stroke-[3]" />}
-                                    </div>
-                                    <span className="text-xs truncate">
-                                        {adminGroupName || "Grupo do Administrativo"}
-                                    </span>
-                                </div>
-                                <Badge className="bg-purple-100 text-purple-800 text-[9px] px-1.5 py-0 border-0 font-bold shrink-0">
-                                    Adm
-                                </Badge>
-                            </label>
-
-                            {/* Grupos Extras Cadastrados */}
-                            {extraGroups.map((grp) => (
-                                <label
-                                    key={grp.id}
-                                    onClick={() => toggleItem(grp.id)}
-                                    className={cn(
-                                        "flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer select-none",
-                                        selectedIds.includes(grp.id) 
-                                            ? "bg-indigo-50/70 border-indigo-200 text-indigo-950 font-bold" 
-                                            : "bg-white border-slate-200/70 text-slate-600 hover:bg-slate-50"
-                                    )}
-                                >
-                                    <div className="flex items-center gap-2 truncate">
-                                        <div className={cn(
-                                            "w-4 h-4 rounded-md flex items-center justify-center border transition-all",
-                                            selectedIds.includes(grp.id)
-                                                ? "bg-indigo-600 border-indigo-600 text-white"
-                                                : "border-slate-300 bg-white"
-                                        )}>
-                                            {selectedIds.includes(grp.id) && <Check className="w-3 h-3 stroke-[3]" />}
+                        {!hasOperations && !hasAdmin && validExtraGroups.length === 0 ? (
+                            <p className="text-[10px] text-slate-400 italic p-2 bg-slate-50 rounded-xl text-center border border-dashed border-slate-200">
+                                Nenhum grupo configurado no topo ainda (insira o ID/JID do WhatsApp).
+                            </p>
+                        ) : (
+                            <div className="space-y-1">
+                                {/* Grupo Operações */}
+                                {hasOperations && (
+                                    <label
+                                        onClick={() => toggleItem("OPERATIONS")}
+                                        className={cn(
+                                            "flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer select-none",
+                                            selectedIds.includes("OPERATIONS") 
+                                                ? "bg-blue-50/70 border-blue-200 text-blue-950 font-bold" 
+                                                : "bg-white border-slate-200/70 text-slate-600 hover:bg-slate-50"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-2 truncate">
+                                            <div className={cn(
+                                                "w-4 h-4 rounded-md flex items-center justify-center border transition-all",
+                                                selectedIds.includes("OPERATIONS")
+                                                    ? "bg-blue-600 border-blue-600 text-white"
+                                                    : "border-slate-300 bg-white"
+                                            )}>
+                                                {selectedIds.includes("OPERATIONS") && <Check className="w-3 h-3 stroke-[3]" />}
+                                            </div>
+                                            <span className="text-xs truncate">
+                                                {operationsGroupName || "Grupo de Operações"}
+                                            </span>
                                         </div>
-                                        <span className="text-xs truncate">
-                                            {grp.name}
-                                        </span>
-                                    </div>
-                                    <Badge className="bg-indigo-100 text-indigo-800 text-[9px] px-1.5 py-0 border-0 font-bold shrink-0">
-                                        Extra
-                                    </Badge>
-                                </label>
-                            ))}
-                        </div>
+                                        <Badge className="bg-blue-100 text-blue-800 text-[9px] px-1.5 py-0 border-0 font-bold shrink-0">
+                                            Ops
+                                        </Badge>
+                                    </label>
+                                )}
+
+                                {/* Grupo Administrativo */}
+                                {hasAdmin && (
+                                    <label
+                                        onClick={() => toggleItem("ADMIN")}
+                                        className={cn(
+                                            "flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer select-none",
+                                            selectedIds.includes("ADMIN") 
+                                                ? "bg-purple-50/70 border-purple-200 text-purple-950 font-bold" 
+                                                : "bg-white border-slate-200/70 text-slate-600 hover:bg-slate-50"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-2 truncate">
+                                            <div className={cn(
+                                                "w-4 h-4 rounded-md flex items-center justify-center border transition-all",
+                                                selectedIds.includes("ADMIN")
+                                                    ? "bg-purple-600 border-purple-600 text-white"
+                                                    : "border-slate-300 bg-white"
+                                            )}>
+                                                {selectedIds.includes("ADMIN") && <Check className="w-3 h-3 stroke-[3]" />}
+                                            </div>
+                                            <span className="text-xs truncate">
+                                                {adminGroupName || "Grupo do Administrativo"}
+                                            </span>
+                                        </div>
+                                        <Badge className="bg-purple-100 text-purple-800 text-[9px] px-1.5 py-0 border-0 font-bold shrink-0">
+                                            Adm
+                                        </Badge>
+                                    </label>
+                                )}
+
+                                {/* Grupos Extras Cadastrados */}
+                                {validExtraGroups.map((grp) => (
+                                    <label
+                                        key={grp.id}
+                                        onClick={() => toggleItem(grp.id)}
+                                        className={cn(
+                                            "flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer select-none",
+                                            selectedIds.includes(grp.id) 
+                                                ? "bg-indigo-50/70 border-indigo-200 text-indigo-950 font-bold" 
+                                                : "bg-white border-slate-200/70 text-slate-600 hover:bg-slate-50"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-2 truncate">
+                                            <div className={cn(
+                                                "w-4 h-4 rounded-md flex items-center justify-center border transition-all",
+                                                selectedIds.includes(grp.id)
+                                                    ? "bg-indigo-600 border-indigo-600 text-white"
+                                                    : "border-slate-300 bg-white"
+                                            )}>
+                                                {selectedIds.includes(grp.id) && <Check className="w-3 h-3 stroke-[3]" />}
+                                            </div>
+                                            <span className="text-xs truncate">
+                                                {grp.name}
+                                            </span>
+                                        </div>
+                                        <Badge className="bg-indigo-100 text-indigo-800 text-[9px] px-1.5 py-0 border-0 font-bold shrink-0">
+                                            Extra
+                                        </Badge>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Seção 2: Destinatários Individuais (WhatsApp Privado) */}

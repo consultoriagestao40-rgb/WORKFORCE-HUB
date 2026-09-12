@@ -197,44 +197,54 @@ export default function RhNotificationsPage() {
         }
     };
 
+    const persistConfig = async (overrides: {
+        newExtraPhones?: ExtraPhoneItem[];
+        newExtraGroups?: ExtraGroupItem[];
+    } = {}) => {
+        const phonesToSave = overrides.newExtraPhones !== undefined ? overrides.newExtraPhones : extraPhones;
+        const groupsToSave = overrides.newExtraGroups !== undefined ? overrides.newExtraGroups : extraGroups;
+
+        return await saveRhNotificationConfig({
+            isActive,
+            operationsGroupJid: operationsGroupJid || null,
+            operationsGroupName: operationsGroupName || null,
+            adminGroupJid: adminGroupJid || null,
+            adminGroupName: adminGroupName || null,
+            extraGroups: groupsToSave,
+            extraPhones: phonesToSave,
+            notifyOnboarding,
+            notifyOnboardingChannels,
+            notifyAbandonment,
+            notifyAbandonmentChannels,
+            notifyCandidateSelected,
+            notifyCandidateSelectedChannels,
+            notifyDismissalRequest,
+            notifyDismissalRequestChannels,
+            notifyVacationScheduled,
+            notifyVacationScheduledChannels,
+            notifyPostoMovement,
+            notifyPostoMovementChannels,
+            notifyDailyRescisaoDeadline,
+            notifyDailyRescisaoChannels,
+            notifyDailyTelegramDeadline,
+            notifyDailyTelegramChannels,
+            notifyDailyProbationDeadline,
+            notifyDailyProbationChannels,
+            notifyDailyVacationDeadline,
+            notifyDailyVacationChannels,
+            notifyVacationEveStart,
+            notifyVacationEveStartChannels,
+            notifyVacationEveReturn,
+            notifyVacationEveReturnChannels,
+            notifyDirectSupervisor
+        });
+    };
+
     const handleSave = async () => {
         setSaving(true);
         try {
-            await saveRhNotificationConfig({
-                isActive,
-                operationsGroupJid: operationsGroupJid || null,
-                operationsGroupName: operationsGroupName || null,
-                adminGroupJid: adminGroupJid || null,
-                adminGroupName: adminGroupName || null,
-                extraGroups,
-                extraPhones,
-                notifyOnboarding,
-                notifyOnboardingChannels,
-                notifyAbandonment,
-                notifyAbandonmentChannels,
-                notifyCandidateSelected,
-                notifyCandidateSelectedChannels,
-                notifyDismissalRequest,
-                notifyDismissalRequestChannels,
-                notifyVacationScheduled,
-                notifyVacationScheduledChannels,
-                notifyPostoMovement,
-                notifyPostoMovementChannels,
-                notifyDailyRescisaoDeadline,
-                notifyDailyRescisaoChannels,
-                notifyDailyTelegramDeadline,
-                notifyDailyTelegramChannels,
-                notifyDailyProbationDeadline,
-                notifyDailyProbationChannels,
-                notifyDailyVacationDeadline,
-                notifyDailyVacationChannels,
-                notifyVacationEveStart,
-                notifyVacationEveStartChannels,
-                notifyVacationEveReturn,
-                notifyVacationEveReturnChannels,
-                notifyDirectSupervisor
-            });
-            toast.success("Configurações de automação salvas com sucesso!");
+            await persistConfig();
+            toast.success("Todas as configurações de automação salvas com sucesso!");
         } catch (err: any) {
             toast.error(err.message || "Erro ao salvar configurações.");
         } finally {
@@ -260,7 +270,7 @@ export default function RhNotificationsPage() {
         }
     };
 
-    const handleAddExtraGroup = () => {
+    const handleAddExtraGroup = async () => {
         if (!newExtraGroupName.trim() || !newExtraGroupJid.trim()) {
             toast.error("Preencha o nome do grupo e o ID/JID do WhatsApp.");
             return;
@@ -274,23 +284,42 @@ export default function RhNotificationsPage() {
             active: true
         };
 
-        setExtraGroups(prev => [...prev, newItem]);
+        const updated = [...extraGroups, newItem];
+        setExtraGroups(updated);
         setNewExtraGroupName("");
         setNewExtraGroupJid("");
         setNewExtraGroupChannel("ALL");
-        toast.success(`Grupo adicional "${newItem.name}" adicionado com sucesso!`);
+
+        try {
+            await persistConfig({ newExtraGroups: updated });
+            toast.success(`Grupo "${newItem.name}" adicionado e salvo com sucesso!`);
+        } catch (err: any) {
+            toast.error("Erro ao salvar grupo: " + (err.message || "Erro"));
+        }
     };
 
-    const handleRemoveExtraGroup = (id: string) => {
-        setExtraGroups(prev => prev.filter(g => g.id !== id));
-        toast.success("Grupo removido.");
+    const handleRemoveExtraGroup = async (id: string) => {
+        const updated = extraGroups.filter(g => g.id !== id);
+        setExtraGroups(updated);
+        try {
+            await persistConfig({ newExtraGroups: updated });
+            toast.success("Grupo removido com sucesso!");
+        } catch (err: any) {
+            toast.error("Erro ao remover grupo: " + (err.message || "Erro"));
+        }
     };
 
-    const handleToggleExtraGroup = (id: string) => {
-        setExtraGroups(prev => prev.map(g => g.id === id ? { ...g, active: !g.active } : g));
+    const handleToggleExtraGroup = async (id: string) => {
+        const updated = extraGroups.map(g => g.id === id ? { ...g, active: !g.active } : g);
+        setExtraGroups(updated);
+        try {
+            await persistConfig({ newExtraGroups: updated });
+        } catch (err: any) {
+            toast.error("Erro ao atualizar grupo: " + (err.message || "Erro"));
+        }
     };
 
-    const handleAddExtraPhone = () => {
+    const handleAddExtraPhone = async () => {
         if (!newPhoneNumber.trim() || !newPhoneName.trim()) {
             toast.error("Preencha o nome e o número de WhatsApp.");
             return;
@@ -309,19 +338,39 @@ export default function RhNotificationsPage() {
             active: true
         };
 
-        setExtraPhones(prev => [...prev, newItem]);
+        const updated = [...extraPhones, newItem];
+        setExtraPhones(updated);
         setNewPhoneName("");
         setNewPhoneNumber("");
         setNewPhoneRole("");
-        toast.success(`Destinatário individual ${newItem.name} adicionado!`);
+
+        try {
+            await persistConfig({ newExtraPhones: updated });
+            toast.success(`Contato "${newItem.name}" adicionado e salvo com sucesso!`);
+        } catch (err: any) {
+            toast.error("Erro ao salvar contato: " + (err.message || "Erro"));
+        }
     };
 
-    const handleRemoveExtraPhone = (id: string) => {
-        setExtraPhones(prev => prev.filter(p => p.id !== id));
+    const handleRemoveExtraPhone = async (id: string) => {
+        const updated = extraPhones.filter(p => p.id !== id);
+        setExtraPhones(updated);
+        try {
+            await persistConfig({ newExtraPhones: updated });
+            toast.success("Contato removido com sucesso!");
+        } catch (err: any) {
+            toast.error("Erro ao remover contato: " + (err.message || "Erro"));
+        }
     };
 
-    const handleToggleExtraPhone = (id: string) => {
-        setExtraPhones(prev => prev.map(p => p.id === id ? { ...p, active: !p.active } : p));
+    const handleToggleExtraPhone = async (id: string) => {
+        const updated = extraPhones.map(p => p.id === id ? { ...p, active: !p.active } : p);
+        setExtraPhones(updated);
+        try {
+            await persistConfig({ newExtraPhones: updated });
+        } catch (err: any) {
+            toast.error("Erro ao atualizar contato: " + (err.message || "Erro"));
+        }
     };
 
     const handleRefreshLogs = async () => {
@@ -900,7 +949,9 @@ export default function RhNotificationsPage() {
                                     <RhRecipientSelector
                                         value={notifyOnboardingChannels}
                                         onChange={setNotifyOnboardingChannels}
+                                        operationsGroupJid={operationsGroupJid}
                                         operationsGroupName={operationsGroupName}
+                                        adminGroupJid={adminGroupJid}
                                         adminGroupName={adminGroupName}
                                         extraGroups={extraGroups}
                                         extraPhones={extraPhones}
@@ -924,7 +975,9 @@ export default function RhNotificationsPage() {
                                     <RhRecipientSelector
                                         value={notifyAbandonmentChannels}
                                         onChange={setNotifyAbandonmentChannels}
+                                        operationsGroupJid={operationsGroupJid}
                                         operationsGroupName={operationsGroupName}
+                                        adminGroupJid={adminGroupJid}
                                         adminGroupName={adminGroupName}
                                         extraGroups={extraGroups}
                                         extraPhones={extraPhones}
@@ -948,7 +1001,9 @@ export default function RhNotificationsPage() {
                                     <RhRecipientSelector
                                         value={notifyCandidateSelectedChannels}
                                         onChange={setNotifyCandidateSelectedChannels}
+                                        operationsGroupJid={operationsGroupJid}
                                         operationsGroupName={operationsGroupName}
+                                        adminGroupJid={adminGroupJid}
                                         adminGroupName={adminGroupName}
                                         extraGroups={extraGroups}
                                         extraPhones={extraPhones}
@@ -972,7 +1027,9 @@ export default function RhNotificationsPage() {
                                     <RhRecipientSelector
                                         value={notifyDismissalRequestChannels}
                                         onChange={setNotifyDismissalRequestChannels}
+                                        operationsGroupJid={operationsGroupJid}
                                         operationsGroupName={operationsGroupName}
+                                        adminGroupJid={adminGroupJid}
                                         adminGroupName={adminGroupName}
                                         extraGroups={extraGroups}
                                         extraPhones={extraPhones}
@@ -996,7 +1053,9 @@ export default function RhNotificationsPage() {
                                     <RhRecipientSelector
                                         value={notifyVacationScheduledChannels}
                                         onChange={setNotifyVacationScheduledChannels}
+                                        operationsGroupJid={operationsGroupJid}
                                         operationsGroupName={operationsGroupName}
+                                        adminGroupJid={adminGroupJid}
                                         adminGroupName={adminGroupName}
                                         extraGroups={extraGroups}
                                         extraPhones={extraPhones}
@@ -1020,7 +1079,9 @@ export default function RhNotificationsPage() {
                                     <RhRecipientSelector
                                         value={notifyPostoMovementChannels}
                                         onChange={setNotifyPostoMovementChannels}
+                                        operationsGroupJid={operationsGroupJid}
                                         operationsGroupName={operationsGroupName}
+                                        adminGroupJid={adminGroupJid}
                                         adminGroupName={adminGroupName}
                                         extraGroups={extraGroups}
                                         extraPhones={extraPhones}
@@ -1059,7 +1120,9 @@ export default function RhNotificationsPage() {
                                     <RhRecipientSelector
                                         value={notifyDailyRescisaoChannels}
                                         onChange={setNotifyDailyRescisaoChannels}
+                                        operationsGroupJid={operationsGroupJid}
                                         operationsGroupName={operationsGroupName}
+                                        adminGroupJid={adminGroupJid}
                                         adminGroupName={adminGroupName}
                                         extraGroups={extraGroups}
                                         extraPhones={extraPhones}
@@ -1080,7 +1143,9 @@ export default function RhNotificationsPage() {
                                     <RhRecipientSelector
                                         value={notifyDailyTelegramChannels}
                                         onChange={setNotifyDailyTelegramChannels}
+                                        operationsGroupJid={operationsGroupJid}
                                         operationsGroupName={operationsGroupName}
+                                        adminGroupJid={adminGroupJid}
                                         adminGroupName={adminGroupName}
                                         extraGroups={extraGroups}
                                         extraPhones={extraPhones}
@@ -1101,7 +1166,9 @@ export default function RhNotificationsPage() {
                                     <RhRecipientSelector
                                         value={notifyDailyProbationChannels}
                                         onChange={setNotifyDailyProbationChannels}
+                                        operationsGroupJid={operationsGroupJid}
                                         operationsGroupName={operationsGroupName}
+                                        adminGroupJid={adminGroupJid}
                                         adminGroupName={adminGroupName}
                                         extraGroups={extraGroups}
                                         extraPhones={extraPhones}
@@ -1122,7 +1189,9 @@ export default function RhNotificationsPage() {
                                     <RhRecipientSelector
                                         value={notifyDailyVacationChannels}
                                         onChange={setNotifyDailyVacationChannels}
+                                        operationsGroupJid={operationsGroupJid}
                                         operationsGroupName={operationsGroupName}
+                                        adminGroupJid={adminGroupJid}
                                         adminGroupName={adminGroupName}
                                         extraGroups={extraGroups}
                                         extraPhones={extraPhones}
@@ -1143,7 +1212,9 @@ export default function RhNotificationsPage() {
                                     <RhRecipientSelector
                                         value={notifyVacationEveStartChannels}
                                         onChange={setNotifyVacationEveStartChannels}
+                                        operationsGroupJid={operationsGroupJid}
                                         operationsGroupName={operationsGroupName}
+                                        adminGroupJid={adminGroupJid}
                                         adminGroupName={adminGroupName}
                                         extraGroups={extraGroups}
                                         extraPhones={extraPhones}
@@ -1164,7 +1235,9 @@ export default function RhNotificationsPage() {
                                     <RhRecipientSelector
                                         value={notifyVacationEveReturnChannels}
                                         onChange={setNotifyVacationEveReturnChannels}
+                                        operationsGroupJid={operationsGroupJid}
                                         operationsGroupName={operationsGroupName}
+                                        adminGroupJid={adminGroupJid}
                                         adminGroupName={adminGroupName}
                                         extraGroups={extraGroups}
                                         extraPhones={extraPhones}
