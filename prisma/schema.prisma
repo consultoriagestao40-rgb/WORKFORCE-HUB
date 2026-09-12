@@ -1199,5 +1199,68 @@ model DismissalTemplate {
   @@index([category])
 }
 
+// Configurações Globais das Automações e Notificações de RH via WhatsApp
+model RhNotificationConfig {
+  id                               String   @id @default(uuid())
+  // Grupos WhatsApp (Z-API phone/JID)
+  operationsGroupJid               String?  // Ex: 120363xxx@g.us ou 120363xxx-group
+  operationsGroupName              String?  // Nome de exibição do grupo
+  adminGroupJid                    String?  // Ex: 120363xxx@g.us ou 120363xxx-group
+  adminGroupName                   String?  // Nome de exibição do grupo
 
+  // Destinatários Individuais Extras (JSON: Array<{ id: string, name: string, phone: string, role?: string, active: boolean }>)
+  extraPhones                      Json?    
 
+  // Liga/Desliga e Direcionamento por Tipo de Movimento
+  notifyOnboarding                 Boolean  @default(true) // Nova Admissão / Alocação
+  notifyOnboardingChannels         String   @default("OPERATIONS,ADMIN") // "OPERATIONS" | "ADMIN" | "OPERATIONS,ADMIN"
+
+  notifyAbandonment                Boolean  @default(true) // Processo de Abandono de Emprego
+  notifyAbandonmentChannels        String   @default("OPERATIONS,ADMIN")
+
+  notifyCandidateSelected          Boolean  @default(true) // Candidato Selecionado para Vaga
+  notifyCandidateSelectedChannels  String   @default("OPERATIONS,ADMIN")
+
+  notifyDismissalRequest           Boolean  @default(true) // Solicitação de Desligamento / Término Experiência
+  notifyDismissalRequestChannels   String   @default("OPERATIONS,ADMIN")
+
+  notifyVacationScheduled          Boolean  @default(true) // Férias Programadas
+  notifyVacationScheduledChannels  String   @default("OPERATIONS,ADMIN")
+
+  notifyPostoMovement              Boolean  @default(true) // Mudança para Posto Rotativo / Reserva
+  notifyPostoMovementChannels      String   @default("OPERATIONS,ADMIN")
+
+  // Prazos Diários (Robô Matinal das 08h00)
+  notifyDailyRescisaoDeadline      Boolean  @default(true) // Vencimento do prazo de rescisão hoje (Art. 477)
+  notifyDailyTelegramDeadline      Boolean  @default(true) // Dia de enviar 1º ou 2º telegrama
+  notifyDailyProbationDeadline     Boolean  @default(true) // Vencimento de contrato de experiência em breve
+  notifyDailyVacationDeadline      Boolean  @default(true) // Férias a vencer
+
+  // Regra inteligente: Notificar também o supervisor do contrato diretamente no privado dele
+  notifyDirectSupervisor           Boolean  @default(true)
+
+  // Status Geral da Automação
+  isActive                         Boolean  @default(true)
+
+  createdAt                        DateTime @default(now())
+  updatedAt                        DateTime @updatedAt
+}
+
+// Histórico de Logs de Notificações Enviadas pelo RH
+model RhNotificationLog {
+  id           String   @id @default(uuid())
+  event        String   // 'ABANDONO' | 'ADMISSAO' | 'CANDIDATO_SELECIONADO' | 'DESLIGAMENTO' | 'ROTATIVO' | 'FERIAS' | 'PRAZO_RESCISAO' | 'TELEGRAMA' | 'EXPERIENCIA' | 'TESTE'
+  title        String
+  message      String   @db.Text
+  targetType   String   // 'GROUP' | 'INDIVIDUAL' | 'SUPERVISOR'
+  targetId     String   // Número de telefone ou JID do grupo
+  targetName   String?  // Nome legível do grupo ou pessoa
+  status       String   // 'SENT' | 'FAILED'
+  zapiId       String?
+  errorMessage String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([event, createdAt])
+  @@index([status])
+}

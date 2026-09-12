@@ -3,6 +3,10 @@
         {
             "path": "/api/cron/vacation-return",
             "schedule": "0 8 * * *"
+        },
+        {
+            "path": "/api/cron/daily-rh-alerts",
+            "schedule": "0 11 * * *"
         }
     ]
 }

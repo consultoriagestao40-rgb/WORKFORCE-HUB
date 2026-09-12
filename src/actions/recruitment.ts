@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { VacancyStatus } from "@prisma/client";
 import { addBusinessDays } from "@/lib/business-days";
 import { createNotification } from "./notifications";
+import { dispatchRhNotification } from "@/lib/rh-notifications";
 
 // --- Helper: Create Vacancy from Posto ---
 export async function createVacancyFromPosto(
@@ -2463,11 +2464,13 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
     }
 
     // 9. Posto Assignment
+    let targetPostoObj: any = null;
     if (targetPostoId && targetPostoId !== "ROTATIVO_VIRTUAL") {
         const targetPosto = await prisma.posto.findUnique({
             where: { id: targetPostoId },
-            include: { client: true, role: true }
+            include: { client: { include: { accountManager: true } }, role: true }
         });
+        targetPostoObj = targetPosto;
 
         if (targetPosto) {
             // GUARDA 1: Verificar se candidato tem isAllocated=false explícito (foi desvinculado manualmente)
@@ -2610,6 +2613,29 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
         });
     } catch (cErr) {
         console.warn("Candidate extra update notice:", cErr);
+    }
+
+    // Dispatch WhatsApp Notification for New Admission
+    try {
+        const clientName = targetPostoObj?.client?.name || "Sem Posto Fixo";
+        const roleName = targetPostoObj?.role?.name || "Auxiliar";
+        const supervisor = targetPostoObj?.client?.accountManager;
+        const admDateFormatted = admissionDate ? new Date(admissionDate).toLocaleDateString("pt-BR") : "Imediato";
+
+        await dispatchRhNotification({
+            event: 'ADMISSAO',
+            title: `Nova Admissão: ${name}`,
+            message: `📢 *[RH - NOVA ADMISSÃO / ALOCAÇÃO]*\n\n` +
+                     `👤 *Colaborador:* ${name}\n` +
+                     `💼 *Cargo:* ${roleName}\n` +
+                     `📍 *Cliente/Contrato:* ${clientName}\n` +
+                     `📅 *Início das Atividades:* ${admDateFormatted}\n` +
+                     `✍️ *Admitido via:* Recrutamento & Seleção (ATS / Kit Admissão)`,
+            contractSupervisorPhone: supervisor?.phone,
+            contractSupervisorName: supervisor?.name
+        });
+    } catch (notifErr) {
+        console.error("[syncCandidateToEmployeeAndPosto] Non-fatal notification error:", notifErr);
     }
 
     return {
@@ -2946,7 +2972,16 @@ export async function selectCandidateForVacancy(vacancyId: string, candidateId: 
 
     const vacancy = await prisma.vacancy.findUnique({
         where: { id: vacancyId },
-        include: { candidates: true }
+        include: { 
+            candidates: true,
+            posto: {
+                include: {
+                    client: {
+                        include: { accountManager: true }
+                    }
+                }
+            }
+        }
     });
     if (!vacancy) throw new Error("Vaga não encontrada");
 
@@ -2990,6 +3025,27 @@ export async function selectCandidateForVacancy(vacancyId: string, candidateId: 
             userId: user.id
         }
     });
+
+    // Dispatch WhatsApp Notification
+    try {
+        const clientName = vacancy.posto?.client?.name || "Geral";
+        const supervisor = vacancy.posto?.client?.accountManager;
+
+        await dispatchRhNotification({
+            event: 'CANDIDATO_SELECIONADO',
+            title: `Candidato Selecionado: ${candidate.name}`,
+            message: `🎯 *[R&S - CANDIDATO SELECIONADO PARA VAGA]*\n\n` +
+                     `👤 *Candidato:* ${candidate.name}\n` +
+                     `💼 *Vaga:* ${vacancy.title}\n` +
+                     `📍 *Cliente/Contrato:* ${clientName}\n` +
+                     `✍️ *Selecionado por:* ${user.name}\n` +
+                     `📋 *Status:* Aprovado na triagem! Avançando para coleta de documentos e Kit Admissão.`,
+            contractSupervisorPhone: supervisor?.phone,
+            contractSupervisorName: supervisor?.name
+        });
+    } catch (notifErr) {
+        console.error("[selectCandidateForVacancy] Non-fatal notification error:", notifErr);
+    }
 
     revalidatePath("/admin/recrutamento");
     return { success: true, selectedCandidateId: candidateId, selectedCandidateName: candidate.name };

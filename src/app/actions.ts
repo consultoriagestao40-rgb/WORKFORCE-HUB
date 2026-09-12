@@ -8,6 +8,7 @@ import { webcrypto } from "crypto";
 import { getCurrentUserRole, getCurrentUser } from "@/lib/auth";
 import { createVacancyFromPosto } from "@/actions/recruitment";
 import { processVacationReturns } from "@/lib/cron/vacation-return";
+import { dispatchRhNotification } from "@/lib/rh-notifications";
 
 function parseDateString(str: string | null | undefined): Date | null {
     if (!str) return null;
@@ -1041,6 +1042,46 @@ export async function assignEmployee(formData: FormData) {
             console.error("Error creating vacancy:", error);
             // Don't fail the whole operation if vacancy creation fails
         }
+    }
+
+    // Dispatch notification for Assignment / Movement to Rotativo
+    try {
+        const isRotativo = posto.client.name.toUpperCase() === "ROTATIVO";
+        const empName = employee.name;
+        const startDateFormatted = startDate.toLocaleDateString("pt-BR");
+
+        if (isRotativo) {
+            await dispatchRhNotification({
+                event: 'ROTATIVO',
+                title: `Movimentação para Rotativo: ${empName}`,
+                message: `🔄 *[OPERAÇÕES - MUDANÇA PARA CENTRO DE CUSTO ROTATIVO]*\n\n` +
+                         `👤 *Colaborador:* ${empName}\n` +
+                         `📍 *Destino:* Centro de Custo Rotativo / Reserva Técnica\n` +
+                         `📝 *Motivo:* ${reason || 'Remanejamento de posto'}\n` +
+                         `📅 *Data da Alteração:* ${startDateFormatted}`
+            });
+        } else {
+            const clientWithSupervisor = await prisma.client.findUnique({
+                where: { id: posto.clientId },
+                include: { accountManager: true }
+            });
+            const supervisor = clientWithSupervisor?.accountManager;
+
+            await dispatchRhNotification({
+                event: 'ADMISSAO',
+                title: `Alocação no Posto: ${empName}`,
+                message: `📢 *[OPERAÇÕES / RH - COLABORADOR ALOCADO NO POSTO]*\n\n` +
+                         `👤 *Colaborador:* ${empName}\n` +
+                         `📍 *Cliente/Contrato:* ${posto.client.name}\n` +
+                         `💼 *Função:* ${posto.role.name}\n` +
+                         `📅 *Início das Atividades:* ${startDateFormatted}\n` +
+                         `📝 *Motivo/Obs:* ${reason || 'Alocação padrão'}`,
+                contractSupervisorPhone: supervisor?.phone,
+                contractSupervisorName: supervisor?.name
+            });
+        }
+    } catch (notifErr) {
+        console.error("[assignEmployee] Non-fatal notification error:", notifErr);
     }
 
     revalidatePath(`/admin/clients`);
@@ -3203,7 +3244,7 @@ export async function initiateEmployeeDismissalProcess(data: {
                 include: { 
                     assignments: {
                         where: { endDate: null },
-                        include: { posto: { include: { client: true } } }
+                        include: { posto: { include: { client: { include: { accountManager: true } } } } }
                     }
                 }
             });
@@ -3383,6 +3424,70 @@ export async function initiateEmployeeDismissalProcess(data: {
                     console.error("Error creating vacancy during dismissal initiate:", err);
                 }
             }
+        }
+
+        // Dispatch WhatsApp Notification to Groups and Supervisor
+        try {
+            const empData = await prisma.employee.findUnique({
+                where: { id: data.employeeId },
+                include: {
+                    assignments: {
+                        where: { endDate: null },
+                        include: { posto: { include: { client: { include: { accountManager: true } } } } }
+                    }
+                }
+            });
+
+            if (empData) {
+                const isAbandono = data.initiative === 'ABANDONO' || data.dismissalSubType === 'ABANDONO' || data.processType === 'Processo de abandono';
+                const isTerminoExp = data.dismissalSubType?.startsWith('TERMINO_EXP');
+                const activeAss = empData.assignments[0];
+                const clientName = activeAss?.posto?.client?.name || "Sem Posto Fixo";
+                const supervisor = activeAss?.posto?.client?.accountManager;
+
+                if (isAbandono) {
+                    await dispatchRhNotification({
+                        event: 'ABANDONO',
+                        title: `Início de Abandono: ${empData.name}`,
+                        message: `⚠️ *[RH - PROCESSO DE ABANDONO INICIADO]*\n\n` +
+                                 `👤 *Colaborador:* ${empData.name}\n` +
+                                 `📍 *Cliente/Contrato:* ${clientName}\n` +
+                                 `📅 *Início das Faltas:* ${data.startDate || 'Não informada'}\n` +
+                                 `📬 *Próxima Ação:* Envio do 1º Telegrama com AR convocando para justificativa de faltas.\n` +
+                                 `✍️ *Registrado por:* ${user.name}`,
+                        contractSupervisorPhone: supervisor?.phone,
+                        contractSupervisorName: supervisor?.name
+                    });
+                } else if (isTerminoExp) {
+                    await dispatchRhNotification({
+                        event: 'DESLIGAMENTO',
+                        title: `Término de Experiência: ${empData.name}`,
+                        message: `📄 *[RH - TÉRMINO DE CONTRATO DE EXPERIÊNCIA]*\n\n` +
+                                 `👤 *Colaborador:* ${empData.name}\n` +
+                                 `📍 *Cliente/Contrato:* ${clientName}\n` +
+                                 `📅 *Último dia:* ${data.endDate || data.startDate || 'A definir'}\n` +
+                                 `⚠️ *Operações:* Solicitação de rescisão por término de experiência registrada. Programar substituição.\n` +
+                                 `✍️ *Registrado por:* ${user.name}`,
+                        contractSupervisorPhone: supervisor?.phone,
+                        contractSupervisorName: supervisor?.name
+                    });
+                } else {
+                    await dispatchRhNotification({
+                        event: 'DESLIGAMENTO',
+                        title: `Desligamento: ${empData.name}`,
+                        message: `📄 *[RH - SOLICITAÇÃO DE DESLIGAMENTO]*\n\n` +
+                                 `👤 *Colaborador:* ${empData.name}\n` +
+                                 `🏷️ *Tipo:* ${data.processType} (${data.dismissalSubType})\n` +
+                                 `📍 *Cliente/Contrato:* ${clientName}\n` +
+                                 `📅 *Previsão de Saída:* ${data.endDate || data.startDate || 'Imediato'}\n` +
+                                 `✍️ *Registrado por:* ${user.name}`,
+                        contractSupervisorPhone: supervisor?.phone,
+                        contractSupervisorName: supervisor?.name
+                    });
+                }
+            }
+        } catch (notifErr) {
+            console.error("[initiateDismissalProcess] Non-fatal notification error:", notifErr);
         }
 
         revalidatePath("/admin/employees");
