@@ -1235,6 +1235,8 @@ model RhNotificationConfig {
   notifyDailyTelegramDeadline      Boolean  @default(true) // Dia de enviar 1º ou 2º telegrama
   notifyDailyProbationDeadline     Boolean  @default(true) // Vencimento de contrato de experiência em breve
   notifyDailyVacationDeadline      Boolean  @default(true) // Férias a vencer
+  notifyVacationEveStart           Boolean  @default(true) // 1 dia antes do início das férias
+  notifyVacationEveReturn          Boolean  @default(true) // 1 dia antes do retorno das férias
 
   // Regra inteligente: Notificar também o supervisor do contrato diretamente no privado dele
   notifyDirectSupervisor           Boolean  @default(true)

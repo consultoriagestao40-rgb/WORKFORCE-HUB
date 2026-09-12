@@ -2046,6 +2046,44 @@ export async function addVacation(formData: FormData) {
 
     await processVacationReturns().catch((err) => console.error("Error processing vacation returns after create:", err));
 
+    // Dispatch WhatsApp Notification for Scheduled Vacation
+    try {
+        const emp = await prisma.employee.findUnique({
+            where: { id: employeeId },
+            include: {
+                role: true,
+                assignments: {
+                    where: { endDate: null },
+                    include: { posto: { include: { client: { include: { accountManager: true } } } } }
+                }
+            }
+        });
+        if (emp) {
+            const clientName = emp.assignments[0]?.posto?.client?.name || "Sem Posto Fixo";
+            const roleName = emp.role?.name || "Auxiliar";
+            const supervisor = emp.assignments[0]?.posto?.client?.accountManager;
+            const startFormatted = startDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+            const endFormatted = endDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+
+            await dispatchRhNotification({
+                event: 'FERIAS',
+                title: `Férias Programadas: ${emp.name}`,
+                message: `🏖️ *[RH - FÉRIAS PROGRAMADAS]*\n\n` +
+                         `👤 *Colaborador:* ${emp.name}\n` +
+                         `💼 *Cargo:* ${roleName}\n` +
+                         `📍 *Cliente/Contrato:* ${clientName}\n` +
+                         `📅 *Período de Gozo:* ${startFormatted} até ${endFormatted} (${daysTaken} dias)\n` +
+                         (daysSold > 0 ? `💰 *Abono Pecuniário (Dias Vendidos):* ${daysSold} dias\n` : '') +
+                         (notes ? `📝 *Observação:* ${notes}\n` : '') +
+                         `⚠️ *Operações:* Programar escala de cobertura para o posto no período.`,
+                contractSupervisorPhone: supervisor?.phone,
+                contractSupervisorName: supervisor?.name
+            });
+        }
+    } catch (notifErr) {
+        console.error("[createVacation] Non-fatal notification error:", notifErr);
+    }
+
     revalidatePath("/admin");
     revalidatePath("/admin/vacation-monitor");
     revalidatePath("/admin/employees");

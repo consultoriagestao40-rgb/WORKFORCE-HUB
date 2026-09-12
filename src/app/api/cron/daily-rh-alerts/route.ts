@@ -243,6 +243,100 @@ export async function GET(request: Request) {
             }
         }
 
+        // 3. FÉRIAS: 1 DIA ANTES DO INÍCIO E 1 DIA ANTES DO RETORNO
+        if (config.notifyVacationEveStart || config.notifyVacationEveReturn) {
+            const allActiveVacations = await prisma.vacation.findMany({
+                where: {
+                    endDate: { gte: todayStart }
+                },
+                include: {
+                    employee: {
+                        include: {
+                            role: true,
+                            assignments: {
+                                where: { endDate: null },
+                                include: {
+                                    posto: {
+                                        include: {
+                                            client: {
+                                                include: {
+                                                    accountManager: true
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                take: 1
+                            }
+                        }
+                    }
+                }
+            });
+
+            for (const vac of allActiveVacations) {
+                const emp = vac.employee;
+                if (!emp) continue;
+
+                const supervisor = emp.assignments[0]?.posto?.client?.accountManager;
+                const supervisorPhone = supervisor?.phone || null;
+                const supervisorName = supervisor?.name || null;
+                const clientName = emp.assignments[0]?.posto?.client?.name || "Sem Posto Fixo";
+                const roleName = emp.role?.name || "Auxiliar";
+
+                const startVac = startOfDay(new Date(vac.startDate));
+                const endVac = startOfDay(new Date(vac.endDate));
+
+                // A. 1 DIA ANTES DO INÍCIO DAS FÉRIAS
+                if (config.notifyVacationEveStart) {
+                    const daysToStart = differenceInDays(startVac, todayStart);
+                    if (daysToStart === 1) {
+                        const msg = `🏖️ *[OPERAÇÕES / RH - FÉRIAS INICIAM AMANHÃ]*\n\n` +
+                                    `👤 *Colaborador:* ${emp.name}\n` +
+                                    `📍 *Cliente/Contrato:* ${clientName}\n` +
+                                    `💼 *Cargo:* ${roleName}\n` +
+                                    `📅 *Início do Afastamento:* AMANHÃ (${format(vac.startDate, 'dd/MM/yyyy')})\n` +
+                                    `📅 *Término Previsto:* ${format(vac.endDate, 'dd/MM/yyyy')} (${vac.daysTaken} dias de férias)\n` +
+                                    `⚠️ *Operações:* Confirmar que o colaborador de cobertura / diarista já está ciente e alocado para assumir o posto a partir de amanhã!`;
+
+                        await dispatchRhNotification({
+                            event: 'FERIAS',
+                            title: `Férias Iniciam Amanhã: ${emp.name}`,
+                            message: msg,
+                            contractSupervisorPhone: supervisorPhone,
+                            contractSupervisorName: supervisorName,
+                            metadata: { employeeId: emp.id, type: 'VACATION_EVE_START' }
+                        });
+                        alertsSent++;
+                    }
+                }
+
+                // B. 1 DIA ANTES DO RETORNO DAS FÉRIAS (Último dia de férias é HOJE, volta AMANHÃ)
+                if (config.notifyVacationEveReturn) {
+                    const daysToEnd = differenceInDays(endVac, todayStart);
+                    if (daysToEnd === 0) {
+                        const returnDate = addDays(vac.endDate, 1);
+                        const msg = `🏖️ *[OPERAÇÕES / RH - RETORNO DE FÉRIAS AMANHÃ]*\n\n` +
+                                    `👤 *Colaborador:* ${emp.name}\n` +
+                                    `📍 *Cliente/Contrato:* ${clientName}\n` +
+                                    `💼 *Cargo:* ${roleName}\n` +
+                                    `📅 *Último dia de férias:* HOJE (${format(vac.endDate, 'dd/MM/yyyy')})\n` +
+                                    `🔔 *Retorno ao Trabalho:* AMANHÃ (${format(returnDate, 'dd/MM/yyyy')})\n` +
+                                    `⚠️ *Operações:* Receber o colaborador titular de volta ao posto e finalizar ou remanejar a cobertura temporária.`;
+
+                        await dispatchRhNotification({
+                            event: 'FERIAS',
+                            title: `Retorno de Férias Amanhã: ${emp.name}`,
+                            message: msg,
+                            contractSupervisorPhone: supervisorPhone,
+                            contractSupervisorName: supervisorName,
+                            metadata: { employeeId: emp.id, type: 'VACATION_EVE_RETURN' }
+                        });
+                        alertsSent++;
+                    }
+                }
+            }
+        }
+
         return NextResponse.json({
             success: true,
             alertsSent,

@@ -78,6 +78,8 @@ export default function RhNotificationsPage() {
     const [notifyDailyTelegramDeadline, setNotifyDailyTelegramDeadline] = useState(true);
     const [notifyDailyProbationDeadline, setNotifyDailyProbationDeadline] = useState(true);
     const [notifyDailyVacationDeadline, setNotifyDailyVacationDeadline] = useState(true);
+    const [notifyVacationEveStart, setNotifyVacationEveStart] = useState(true);
+    const [notifyVacationEveReturn, setNotifyVacationEveReturn] = useState(true);
 
     // Supervisor
     const [notifyDirectSupervisor, setNotifyDirectSupervisor] = useState(true);
@@ -129,6 +131,8 @@ export default function RhNotificationsPage() {
                 setNotifyDailyTelegramDeadline(config.notifyDailyTelegramDeadline);
                 setNotifyDailyProbationDeadline(config.notifyDailyProbationDeadline);
                 setNotifyDailyVacationDeadline(config.notifyDailyVacationDeadline);
+                setNotifyVacationEveStart(config.notifyVacationEveStart ?? true);
+                setNotifyVacationEveReturn(config.notifyVacationEveReturn ?? true);
 
                 setNotifyDirectSupervisor(config.notifyDirectSupervisor);
             }
@@ -189,6 +193,8 @@ export default function RhNotificationsPage() {
                 notifyDailyTelegramDeadline,
                 notifyDailyProbationDeadline,
                 notifyDailyVacationDeadline,
+                notifyVacationEveStart,
+                notifyVacationEveReturn,
                 notifyDirectSupervisor
             });
             toast.success("Configurações de automação salvas com sucesso!");
@@ -823,6 +829,28 @@ export default function RhNotificationsPage() {
                                     </span>
                                 </div>
                                 <Switch checked={notifyDailyVacationDeadline} onCheckedChange={setNotifyDailyVacationDeadline} />
+                            </div>
+
+                            {/* 1 dia antes do início das férias */}
+                            <div className="p-3.5 bg-amber-50/60 border border-amber-200 rounded-2xl flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <span className="font-bold text-xs text-amber-950 block">🏖️ Férias: 1 dia antes do início</span>
+                                    <span className="text-[11px] text-amber-800 block">
+                                        Avisa 1 dia antes do afastamento para confirmar escala de cobertura no posto.
+                                    </span>
+                                </div>
+                                <Switch checked={notifyVacationEveStart} onCheckedChange={setNotifyVacationEveStart} />
+                            </div>
+
+                            {/* 1 dia antes do retorno das férias */}
+                            <div className="p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-2xl flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <span className="font-bold text-xs text-emerald-950 block">🏖️ Férias: 1 dia antes do retorno</span>
+                                    <span className="text-[11px] text-emerald-800 block">
+                                        Avisa no último dia de férias que o colaborador retorna amanhã para receber o titular.
+                                    </span>
+                                </div>
+                                <Switch checked={notifyVacationEveReturn} onCheckedChange={setNotifyVacationEveReturn} />
                             </div>
                         </div>
                     </div>

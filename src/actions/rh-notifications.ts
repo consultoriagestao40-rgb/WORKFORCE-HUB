@@ -40,6 +40,8 @@ export async function getRhNotificationConfig() {
                 notifyDailyTelegramDeadline: true,
                 notifyDailyProbationDeadline: true,
                 notifyDailyVacationDeadline: true,
+                notifyVacationEveStart: true,
+                notifyVacationEveReturn: true,
                 notifyDirectSupervisor: true
             }
         });
@@ -71,6 +73,8 @@ export async function saveRhNotificationConfig(data: {
     notifyDailyTelegramDeadline: boolean;
     notifyDailyProbationDeadline: boolean;
     notifyDailyVacationDeadline: boolean;
+    notifyVacationEveStart: boolean;
+    notifyVacationEveReturn: boolean;
     notifyDirectSupervisor: boolean;
 }) {
     const user = await getCurrentUser();
