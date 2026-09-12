@@ -111,20 +111,14 @@
 
 /* Custom scrollbar para a barra lateral */
 .sidebar-scrollbar {
-  overflow-y: hidden;
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE 10+ */
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
 .sidebar-scrollbar::-webkit-scrollbar {
   width: 5px;
   background: transparent;
-  display: none;
-}
-
-.sidebar-scrollbar:hover {
-  overflow-y: auto;
-  scrollbar-width: thin;
 }
 
 .sidebar-scrollbar:hover::-webkit-scrollbar {

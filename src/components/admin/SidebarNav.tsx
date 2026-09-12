@@ -66,6 +66,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
                 <NavLink href="/admin/clients" icon={Building} label="Cliente & Contrato" />
                 <NavLink href="/admin/performance" icon={Landmark} label="Gestão de Contratos" />
                 <NavLink href="/admin/reports" icon={BarChart} label="Relatórios" />
+                <NavLink href="/admin/notificacoes-rh" icon={BellRing} label="Notificações & WhatsApp" colorClass="text-emerald-400 font-bold" />
 
                 {role === 'ADMIN' && (
                     <NavLink href="/admin/users" icon={ShieldAlert} label="Gestão de Acessos" colorClass="text-indigo-400" />
@@ -85,7 +86,6 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
 
                 <NavLink href="/admin/operations" icon={Clock} label="Mesa de Operações" colorClass="text-indigo-400" />
                 <NavLink href="/admin/atendimento" icon={Headphones} label="Atendimento RH" colorClass="text-emerald-400 font-bold" />
-                <NavLink href="/admin/notificacoes-rh" icon={BellRing} label="Notificações & WhatsApp" colorClass="text-emerald-400 font-bold" />
                 <NavLink href="/admin/disciplinary" icon={Scale} label="Gestão de Medidas" colorClass="text-rose-500" />
                 <NavLink href="/admin/epi" icon={Shirt} label="EPIs & Uniformes" colorClass="text-amber-400" />
                 <NavLink href="/admin/requests" icon={Inbox} label="Central de Solicitações" colorClass="text-orange-400" />
