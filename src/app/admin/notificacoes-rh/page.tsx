@@ -32,7 +32,7 @@ import {
     sendTestRhNotification, 
     getRhNotificationLogs 
 } from "@/actions/rh-notifications";
-import { ExtraPhoneItem } from "@/lib/rh-notifications";
+import { ExtraPhoneItem, ExtraGroupItem } from "@/lib/rh-notifications";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,7 @@ export default function RhNotificationsPage() {
     const [operationsGroupName, setOperationsGroupName] = useState("");
     const [adminGroupJid, setAdminGroupJid] = useState("");
     const [adminGroupName, setAdminGroupName] = useState("");
+    const [extraGroups, setExtraGroups] = useState<ExtraGroupItem[]>([]);
     const [extraPhones, setExtraPhones] = useState<ExtraPhoneItem[]>([]);
 
     // Toggles de Eventos
@@ -92,6 +93,11 @@ export default function RhNotificationsPage() {
     const [newPhoneNumber, setNewPhoneNumber] = useState("");
     const [newPhoneRole, setNewPhoneRole] = useState("");
 
+    // Novo Grupo Adicional
+    const [newExtraGroupName, setNewExtraGroupName] = useState("");
+    const [newExtraGroupJid, setNewExtraGroupJid] = useState("");
+    const [newExtraGroupChannel, setNewExtraGroupChannel] = useState<"OPERATIONS" | "ADMIN" | "ALL">("ALL");
+
     // Logs
     const [logs, setLogs] = useState<any[]>([]);
     const [loadingLogs, setLoadingLogs] = useState(false);
@@ -107,6 +113,7 @@ export default function RhNotificationsPage() {
                 setOperationsGroupName(config.operationsGroupName || "");
                 setAdminGroupJid(config.adminGroupJid || "");
                 setAdminGroupName(config.adminGroupName || "");
+                setExtraGroups((config.extraGroups as unknown as ExtraGroupItem[]) || []);
                 setExtraPhones((config.extraPhones as unknown as ExtraPhoneItem[]) || []);
 
                 setNotifyOnboarding(config.notifyOnboarding);
@@ -176,6 +183,7 @@ export default function RhNotificationsPage() {
                 operationsGroupName: operationsGroupName || null,
                 adminGroupJid: adminGroupJid || null,
                 adminGroupName: adminGroupName || null,
+                extraGroups,
                 extraPhones,
                 notifyOnboarding,
                 notifyOnboardingChannels,
@@ -221,6 +229,36 @@ export default function RhNotificationsPage() {
         } finally {
             setTestingTarget(null);
         }
+    };
+
+    const handleAddExtraGroup = () => {
+        if (!newExtraGroupName.trim() || !newExtraGroupJid.trim()) {
+            toast.error("Preencha o nome do grupo e o ID/JID do WhatsApp.");
+            return;
+        }
+
+        const newItem: ExtraGroupItem = {
+            id: `group-${Date.now()}`,
+            name: newExtraGroupName.trim(),
+            jid: newExtraGroupJid.trim(),
+            channel: newExtraGroupChannel,
+            active: true
+        };
+
+        setExtraGroups(prev => [...prev, newItem]);
+        setNewExtraGroupName("");
+        setNewExtraGroupJid("");
+        setNewExtraGroupChannel("ALL");
+        toast.success(`Grupo adicional "${newItem.name}" adicionado com sucesso!`);
+    };
+
+    const handleRemoveExtraGroup = (id: string) => {
+        setExtraGroups(prev => prev.filter(g => g.id !== id));
+        toast.success("Grupo removido.");
+    };
+
+    const handleToggleExtraGroup = (id: string) => {
+        setExtraGroups(prev => prev.map(g => g.id === id ? { ...g, active: !g.active } : g));
     };
 
     const handleAddExtraPhone = () => {
@@ -388,32 +426,61 @@ export default function RhNotificationsPage() {
                         </div>
 
                         {availableGroups.length > 0 && (
-                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs space-y-2">
-                                <p className="font-bold text-amber-900 text-[11px]">Grupos detectados no WhatsApp da empresa:</p>
-                                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
+                            <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl text-xs space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                    <p className="font-bold text-amber-900 text-[11px]">
+                                        Grupos detectados no WhatsApp da empresa ({availableGroups.length}):
+                                    </p>
+                                    <span className="text-[10px] text-amber-700">Clique em uma das opções para vincular rapidamente</span>
+                                </div>
+                                <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1">
                                     {availableGroups.map((g) => (
-                                        <button
+                                        <div
                                             key={g.id}
-                                            type="button"
-                                            onClick={() => {
-                                                if (!operationsGroupJid) {
-                                                    setOperationsGroupJid(g.phone);
-                                                    setOperationsGroupName(g.name);
-                                                    toast.success(`Selecionado como Grupo de Operações: ${g.name}`);
-                                                } else if (!adminGroupJid) {
-                                                    setAdminGroupJid(g.phone);
-                                                    setAdminGroupName(g.name);
-                                                    toast.success(`Selecionado como Grupo do Administrativo: ${g.name}`);
-                                                } else {
-                                                    setOperationsGroupJid(g.phone);
-                                                    setOperationsGroupName(g.name);
-                                                    toast.success(`Grupo de Operações atualizado: ${g.name}`);
-                                                }
-                                            }}
-                                            className="px-2 py-1 bg-white hover:bg-amber-100 border border-amber-300 rounded-lg text-[10px] font-semibold text-slate-700 cursor-pointer transition-colors shadow-2xs"
+                                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:border-amber-400 border border-amber-200 rounded-xl text-[11px] text-slate-700 shadow-2xs transition-all"
                                         >
-                                            ➕ {g.name}
-                                        </button>
+                                            <span className="font-bold text-slate-800 max-w-[160px] truncate" title={g.name}>
+                                                👥 {g.name}
+                                            </span>
+                                            <div className="flex items-center gap-1 pl-1 border-l border-slate-200">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setOperationsGroupJid(g.phone);
+                                                        setOperationsGroupName(g.name);
+                                                        toast.success(`Definido como Grupo de Operações: ${g.name}`);
+                                                    }}
+                                                    className="px-1.5 py-0.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded text-[9px] font-bold cursor-pointer transition-colors"
+                                                    title="Definir como Grupo de Operações"
+                                                >
+                                                    Ops
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setAdminGroupJid(g.phone);
+                                                        setAdminGroupName(g.name);
+                                                        toast.success(`Definido como Grupo do Administrativo: ${g.name}`);
+                                                    }}
+                                                    className="px-1.5 py-0.5 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded text-[9px] font-bold cursor-pointer transition-colors"
+                                                    title="Definir como Grupo do Administrativo"
+                                                >
+                                                    Adm
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setNewExtraGroupName(g.name);
+                                                        setNewExtraGroupJid(g.phone);
+                                                        toast.success(`Preenchido no formulário de Grupo Adicional: ${g.name}`);
+                                                    }}
+                                                    className="px-1.5 py-0.5 bg-amber-500 text-white hover:bg-amber-600 rounded text-[9px] font-bold cursor-pointer transition-colors"
+                                                    title="Preencher no cadastro de Grupo Extra"
+                                                >
+                                                    + Extra
+                                                </button>
+                                            </div>
+                                        </div>
                                     ))}
                                 </div>
                             </div>
@@ -498,6 +565,151 @@ export default function RhNotificationsPage() {
                                         className="h-9 text-xs bg-white rounded-xl border-slate-200 font-mono text-[11px]"
                                     />
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Seção 1.5: Grupos Adicionais / Setoriais do WhatsApp (Ilimitados) */}
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Users className="w-5 h-5 text-indigo-600" />
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-sm font-black text-slate-800">Grupos Adicionais / Setoriais</h2>
+                                        <Badge className="bg-indigo-600 text-white text-[9px] font-bold">Ilimitados</Badge>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500">
+                                        Cadastre quantos grupos adicionais precisar (ex: Supervisão Noturna, Diretoria, Líderes de Contrato, RH Regional).
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Lista de Grupos Adicionais */}
+                        <div className="space-y-2.5">
+                            {extraGroups.length === 0 ? (
+                                <p className="text-xs text-slate-400 italic p-3.5 bg-slate-50 rounded-2xl text-center border border-dashed border-slate-200">
+                                    Nenhum grupo adicional cadastrado. Adicione novos grupos pelo formulário abaixo.
+                                </p>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {extraGroups.map((grp) => (
+                                        <div
+                                            key={grp.id}
+                                            className={cn(
+                                                "p-3.5 rounded-2xl border flex flex-col justify-between gap-3 transition-all",
+                                                grp.active ? "bg-white border-slate-200 shadow-2xs" : "bg-slate-50 border-slate-200/60 opacity-60"
+                                            )}
+                                        >
+                                            <div className="space-y-1">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <span className="font-bold text-xs text-slate-900 leading-tight">
+                                                        {grp.name}
+                                                    </span>
+                                                    {grp.channel === 'ALL' && (
+                                                        <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100 text-[9px] px-1.5 py-0 border border-indigo-200">
+                                                            Todos os Alertas
+                                                        </Badge>
+                                                    )}
+                                                    {grp.channel === 'OPERATIONS' && (
+                                                        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 text-[9px] px-1.5 py-0 border border-blue-200">
+                                                            Operações
+                                                        </Badge>
+                                                    )}
+                                                    {grp.channel === 'ADMIN' && (
+                                                        <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 text-[9px] px-1.5 py-0 border border-purple-200">
+                                                            Administrativo
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 font-mono truncate" title={grp.jid}>
+                                                    {grp.jid}
+                                                </p>
+                                            </div>
+
+                                            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => handleTestNotification(grp.jid, grp.name)}
+                                                    disabled={testingTarget === grp.jid}
+                                                    className="h-6 text-[10px] text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-2 cursor-pointer"
+                                                >
+                                                    {testingTarget === grp.jid ? "Enviando..." : "Testar"}
+                                                </Button>
+
+                                                <div className="flex items-center gap-2">
+                                                    <Switch
+                                                        checked={grp.active}
+                                                        onCheckedChange={() => handleToggleExtraGroup(grp.id)}
+                                                        className="scale-75 data-[state=checked]:bg-indigo-600"
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => handleRemoveExtraGroup(grp.id)}
+                                                        className="h-7 w-7 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Formulário de Novo Grupo Adicional */}
+                        <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-3">
+                            <h3 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                <Plus className="w-3.5 h-3.5 text-indigo-600" />
+                                Cadastrar Novo Grupo Adicional
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] text-slate-500 font-semibold">Nome do Grupo</Label>
+                                    <Input
+                                        placeholder="Ex: Supervisão Noturna"
+                                        value={newExtraGroupName}
+                                        onChange={(e) => setNewExtraGroupName(e.target.value)}
+                                        className="h-9 text-xs bg-white rounded-xl border-slate-200"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] text-slate-500 font-semibold">ID / JID do WhatsApp</Label>
+                                    <Input
+                                        placeholder="Ex: 120363xxxxxxxxx@g.us"
+                                        value={newExtraGroupJid}
+                                        onChange={(e) => setNewExtraGroupJid(e.target.value)}
+                                        className="h-9 text-xs bg-white rounded-xl border-slate-200 font-mono text-[11px]"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] text-slate-500 font-semibold">Canal de Alertas</Label>
+                                    <select
+                                        value={newExtraGroupChannel}
+                                        onChange={(e) => setNewExtraGroupChannel(e.target.value as any)}
+                                        className="w-full h-9 px-3 text-xs bg-white rounded-xl border border-slate-200 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="ALL">Todos os Alertas (Ops + Adm)</option>
+                                        <option value="OPERATIONS">Apenas Alertas de Operações</option>
+                                        <option value="ADMIN">Apenas Alertas Administrativos</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="flex justify-end pt-1">
+                                <Button
+                                    type="button"
+                                    onClick={handleAddExtraGroup}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 px-4 rounded-xl cursor-pointer shadow-xs font-bold"
+                                >
+                                    <Plus className="w-3.5 h-3.5 mr-1" />
+                                    Adicionar Grupo Adicional
+                                </Button>
                             </div>
                         </div>
                     </div>

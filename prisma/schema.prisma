@@ -1208,6 +1208,9 @@ model RhNotificationConfig {
   adminGroupJid                    String?  // Ex: 120363xxx@g.us ou 120363xxx-group
   adminGroupName                   String?  // Nome de exibição do grupo
 
+  // Grupos Adicionais Extras (JSON: Array<{ id: string, name: string, jid: string, channel: string, active: boolean }>)
+  extraGroups                      Json?
+
   // Destinatários Individuais Extras (JSON: Array<{ id: string, name: string, phone: string, role?: string, active: boolean }>)
   extraPhones                      Json?    
 

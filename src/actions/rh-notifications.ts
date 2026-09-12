@@ -7,7 +7,8 @@ import {
     dispatchRhNotification, 
     fetchZapiGroups, 
     sendZapiRaw,
-    ExtraPhoneItem 
+    ExtraPhoneItem,
+    ExtraGroupItem
 } from "@/lib/rh-notifications";
 
 export async function getRhNotificationConfig() {
@@ -23,6 +24,7 @@ export async function getRhNotificationConfig() {
                 operationsGroupName: null,
                 adminGroupJid: null,
                 adminGroupName: null,
+                extraGroups: [],
                 extraPhones: [],
                 notifyOnboarding: true,
                 notifyOnboardingChannels: "OPERATIONS,ADMIN",
@@ -56,6 +58,7 @@ export async function saveRhNotificationConfig(data: {
     operationsGroupName?: string | null;
     adminGroupJid?: string | null;
     adminGroupName?: string | null;
+    extraGroups: ExtraGroupItem[];
     extraPhones: ExtraPhoneItem[];
     notifyOnboarding: boolean;
     notifyOnboardingChannels: string;
@@ -90,6 +93,7 @@ export async function saveRhNotificationConfig(data: {
             where: { id: currentConfig.id },
             data: {
                 ...data,
+                extraGroups: data.extraGroups as any,
                 extraPhones: data.extraPhones as any
             }
         });
@@ -97,6 +101,7 @@ export async function saveRhNotificationConfig(data: {
         updated = await prisma.rhNotificationConfig.create({
             data: {
                 ...data,
+                extraGroups: data.extraGroups as any,
                 extraPhones: data.extraPhones as any
             }
         });

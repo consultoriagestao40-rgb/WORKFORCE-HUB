@@ -24,6 +24,14 @@ export interface ExtraPhoneItem {
     active: boolean;
 }
 
+export interface ExtraGroupItem {
+    id: string;
+    name: string;
+    jid: string;
+    channel: 'OPERATIONS' | 'ADMIN' | 'ALL';
+    active: boolean;
+}
+
 export interface DispatchNotificationPayload {
     event: RhNotificationEventType;
     title: string;
@@ -197,7 +205,27 @@ export async function dispatchRhNotification(payload: DispatchNotificationPayloa
             });
         }
 
-        // 3. Números Individuais Extras
+        // 3. Grupos Adicionais / Setoriais Extras (ilimitados)
+        const extraGroupsList = (config.extraGroups as unknown as ExtraGroupItem[]) || [];
+        for (const extraGrp of extraGroupsList) {
+            if (extraGrp.active && extraGrp.jid) {
+                const matchesOperations = channels.includes("OPERATIONS") && (extraGrp.channel === 'OPERATIONS' || extraGrp.channel === 'ALL');
+                const matchesAdmin = channels.includes("ADMIN") && (extraGrp.channel === 'ADMIN' || extraGrp.channel === 'ALL');
+                
+                if (matchesOperations || matchesAdmin) {
+                    const alreadyIncluded = targetsToSend.some(t => t.targetId === extraGrp.jid);
+                    if (!alreadyIncluded) {
+                        targetsToSend.push({
+                            targetId: extraGrp.jid,
+                            targetName: extraGrp.name || "Grupo Adicional",
+                            targetType: 'GROUP'
+                        });
+                    }
+                }
+            }
+        }
+
+        // 4. Números Individuais Extras
         const extraPhonesList = (config.extraPhones as unknown as ExtraPhoneItem[]) || [];
         for (const extra of extraPhonesList) {
             if (extra.active && extra.phone) {
