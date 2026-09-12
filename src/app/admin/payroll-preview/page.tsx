@@ -23,7 +23,8 @@ import {
     ArrowUpDown,
     ChevronUp,
     ShieldAlert,
-    FileText
+    FileText,
+    MessageSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,12 +35,274 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Combobox } from "@/components/ui/combobox";
 import { toast } from "sonner";
-import { getPayrollPreview, PayrollPreviewItem, updateMonthlyDeductions } from "@/actions/payroll";
+import { getPayrollPreview, PayrollPreviewItem, updateMonthlyDeductions, InstallmentPlan } from "@/actions/payroll";
 import { syncSecullumOccurrences } from "@/actions/secullum";
 import * as XLSX from "xlsx";
 import Link from "next/link";
 import { ClipboardCheck } from "lucide-react";
 import { ImportSecullumSheetDialog } from "@/components/admin/ImportSecullumSheetDialog";
+import { cn } from "@/lib/utils";
+
+interface FieldCommentPopoverProps {
+    fieldKey: string;
+    fieldLabel: string;
+    currentValue: number;
+    onValueChange?: (newVal: string) => void;
+    note: string;
+    onNoteChange: (newNote: string) => void;
+    allowInstallments?: boolean;
+    installment?: InstallmentPlan;
+    onInstallmentChange?: (plan: InstallmentPlan | undefined) => void;
+    currentMonth: number;
+    currentYear: number;
+}
+
+function FieldCommentPopover({
+    fieldKey,
+    fieldLabel,
+    currentValue,
+    onValueChange,
+    note,
+    onNoteChange,
+    allowInstallments = false,
+    installment,
+    onInstallmentChange,
+    currentMonth,
+    currentYear
+}: FieldCommentPopoverProps) {
+    const [open, setOpen] = useState(false);
+    const [tempNote, setTempNote] = useState(note || "");
+    const [isInstallmentActive, setIsInstallmentActive] = useState(!!installment && installment.totalInstallments > 1);
+    const [numInstallments, setNumInstallments] = useState(installment?.totalInstallments || 3);
+    const [mode, setMode] = useState<'divide' | 'repeat'>(installment?.mode || 'divide');
+
+    useEffect(() => {
+        if (open) {
+            setTempNote(note || "");
+            setIsInstallmentActive(!!installment && installment.totalInstallments > 1);
+            setNumInstallments(installment?.totalInstallments || 3);
+            setMode(installment?.mode || 'divide');
+        }
+    }, [open, note, installment]);
+
+    const hasNote = !!note?.trim();
+    const hasInstallment = !!installment && installment.totalInstallments > 1;
+
+    const baseVal = currentValue > 0 ? currentValue : (installment?.totalValue || 0);
+    const monthlyVal = mode === 'divide'
+        ? (numInstallments > 0 ? Math.round((baseVal / numInstallments) * 100) / 100 : baseVal)
+        : baseVal;
+
+    const handleSave = () => {
+        onNoteChange(tempNote);
+        if (allowInstallments && onInstallmentChange) {
+            if (isInstallmentActive && numInstallments > 1) {
+                const plan: InstallmentPlan = {
+                    totalInstallments: numInstallments,
+                    mode,
+                    totalValue: mode === 'divide' ? baseVal : monthlyVal * numInstallments,
+                    installmentValue: monthlyVal
+                };
+                onInstallmentChange(plan);
+                if (mode === 'divide' && onValueChange && monthlyVal > 0) {
+                    onValueChange(monthlyVal.toString());
+                }
+            } else {
+                onInstallmentChange(undefined);
+            }
+        }
+        setOpen(false);
+    };
+
+    const handleClear = () => {
+        setTempNote("");
+        setIsInstallmentActive(false);
+        onNoteChange("");
+        if (onInstallmentChange) onInstallmentChange(undefined);
+        setOpen(false);
+    };
+
+    const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    let endMonth = currentMonth + (numInstallments - 1);
+    let endYear = currentYear;
+    while (endMonth > 12) {
+        endMonth -= 12;
+        endYear += 1;
+    }
+    const endStr = `${monthNames[endMonth - 1]}/${endYear}`;
+    const startStr = `${monthNames[currentMonth - 1]}/${currentYear}`;
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <button
+                    type="button"
+                    className={cn(
+                        "flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-all cursor-pointer select-none",
+                        (hasNote || hasInstallment)
+                            ? "bg-amber-100 text-amber-900 border border-amber-300 font-bold shadow-2xs"
+                            : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                    )}
+                    title={hasNote || hasInstallment ? `Ver anotação / parcelamento (${fieldLabel})` : `Adicionar anotação ou parcelas (${fieldLabel})`}
+                >
+                    <div className="relative">
+                        <MessageSquare className={cn("w-3 h-3", (hasNote || hasInstallment) ? "text-amber-700 fill-amber-300" : "text-slate-400")} />
+                        {(hasNote || hasInstallment) && (
+                            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
+                        )}
+                    </div>
+                    {hasInstallment ? (
+                        <span className="text-[9px] font-black text-red-700">{installment.totalInstallments}x</span>
+                    ) : hasNote ? (
+                        <span className="text-[9px] font-bold text-amber-800">Nota</span>
+                    ) : (
+                        <span className="text-[9px]">+ Nota</span>
+                    )}
+                </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 p-3.5 space-y-3 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 text-xs">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <div className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
+                        <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Anotação: {fieldLabel}</span>
+                    </div>
+                    {hasInstallment && (
+                        <span className="bg-red-50 text-red-700 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full border border-red-200">
+                            {installment.totalInstallments} parcelas
+                        </span>
+                    )}
+                </div>
+
+                <div className="space-y-1">
+                    <Label className="text-[10px] font-bold text-slate-600">Justificativa / Motivo</Label>
+                    <Textarea
+                        placeholder={`Anote aqui do que se trata este valor de ${fieldLabel}...`}
+                        value={tempNote}
+                        onChange={(e) => setTempNote(e.target.value)}
+                        className="min-h-[55px] text-xs resize-y rounded-xl bg-slate-50/50 border-slate-200"
+                        rows={2}
+                    />
+                </div>
+
+                {allowInstallments && (
+                    <div className="space-y-2 border-t border-slate-100 pt-2.5">
+                        <label className="flex items-center gap-2 font-bold text-slate-800 cursor-pointer select-none text-[11px]">
+                            <input
+                                type="checkbox"
+                                checked={isInstallmentActive}
+                                onChange={(e) => setIsInstallmentActive(e.target.checked)}
+                                className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 cursor-pointer"
+                            />
+                            <span>Parcelar / Repetir nos próximos meses</span>
+                        </label>
+
+                        {isInstallmentActive && (
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5 text-[11px]">
+                                <div className="flex items-center justify-between gap-1">
+                                    <span className="font-semibold text-slate-600">Qtd Parcelas:</span>
+                                    <div className="flex items-center gap-1">
+                                        {[2, 3, 4, 6, 12].map(n => (
+                                            <button
+                                                key={n}
+                                                type="button"
+                                                onClick={() => setNumInstallments(n)}
+                                                className={cn(
+                                                    "px-1.5 py-0.5 rounded font-bold text-[10px] transition-colors cursor-pointer",
+                                                    numInstallments === n
+                                                        ? "bg-red-600 text-white shadow-xs"
+                                                        : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                                                )}
+                                            >
+                                                {n}x
+                                            </button>
+                                        ))}
+                                        <input
+                                            type="number"
+                                            min="2"
+                                            max="36"
+                                            value={numInstallments}
+                                            onChange={(e) => setNumInstallments(Math.max(2, parseInt(e.target.value) || 2))}
+                                            className="w-10 h-6 px-1 text-center bg-white border border-slate-200 rounded font-bold text-slate-800 text-[10px]"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1 pt-1 border-t border-slate-200/60">
+                                    <span className="font-medium text-slate-600 text-[10px]">Forma de cálculo:</span>
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setMode('divide')}
+                                            className={cn(
+                                                "p-1.5 rounded-lg border text-left flex flex-col transition-all cursor-pointer",
+                                                mode === 'divide'
+                                                    ? "bg-white border-red-500 ring-1 ring-red-500 shadow-xs text-slate-900"
+                                                    : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                                            )}
+                                        >
+                                            <span className="font-bold text-[10px]">Dividir valor</span>
+                                            <span className="text-[9px] text-slate-500 font-medium">
+                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthlyVal)} / mês
+                                            </span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setMode('repeat')}
+                                            className={cn(
+                                                "p-1.5 rounded-lg border text-left flex flex-col transition-all cursor-pointer",
+                                                mode === 'repeat'
+                                                    ? "bg-white border-red-500 ring-1 ring-red-500 shadow-xs text-slate-900"
+                                                    : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                                            )}
+                                        >
+                                            <span className="font-bold text-[10px]">Repetir valor</span>
+                                            <span className="text-[9px] text-slate-500 font-medium">
+                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(baseVal)} / mês
+                                            </span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white p-2 rounded-lg border border-slate-200/70 text-[10px] space-y-0.5">
+                                    <div className="font-bold text-slate-800 flex justify-between">
+                                        <span>Programação:</span>
+                                        <span className="text-red-600">
+                                            {numInstallments}x de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthlyVal)}
+                                        </span>
+                                    </div>
+                                    <div className="text-[9px] text-slate-500">
+                                        Lançará de {startStr} (1ª) até {endStr} ({numInstallments}ª).
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleClear}
+                        className="h-7 text-xs text-slate-500 hover:text-red-600 px-2"
+                    >
+                        Limpar
+                    </Button>
+                    <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleSave}
+                        className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white font-bold px-3"
+                    >
+                        Salvar Anotação
+                    </Button>
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+}
 
 export default function PayrollPreviewPage() {
     const today = new Date();
@@ -75,7 +338,20 @@ export default function PayrollPreviewPage() {
     const [inputConvenios, setInputConvenios] = useState("");
     const [inputSindicato, setInputSindicato] = useState("");
     const [inputAjudaCusto, setInputAjudaCusto] = useState("");
-    const [inputObservacoes, setInputObservacoes] = useState("");
+    const [fieldNotes, setFieldNotes] = useState<Record<string, string>>({});
+    const [fieldInstallments, setFieldInstallments] = useState<Record<string, InstallmentPlan>>({});
+
+    const updateFieldInstallment = (field: string, plan: InstallmentPlan | undefined) => {
+        setFieldInstallments(prev => {
+            const next = { ...prev };
+            if (plan) {
+                next[field] = plan;
+            } else {
+                delete next[field];
+            }
+            return next;
+        });
+    };
     const [isSavingDeductions, setIsSavingDeductions] = useState(false);
 
     const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -142,7 +418,8 @@ export default function PayrollPreviewPage() {
         setInputConvenios(item.convenios > 0 ? item.convenios.toString() : "");
         setInputSindicato(item.sindicato > 0 ? item.sindicato.toString() : "");
         setInputAjudaCusto(item.ajudaCusto > 0 ? item.ajudaCusto.toString() : "");
-        setInputObservacoes(item.observacoes || "");
+        setFieldNotes(item.fieldNotes || {});
+        setFieldInstallments({});
         setEditDeductionsOpen(true);
     };
 
@@ -171,7 +448,9 @@ export default function PayrollPreviewPage() {
                 convenios,
                 sindicato,
                 ajudaCusto,
-                inputObservacoes
+                "",
+                fieldNotes,
+                fieldInstallments
             );
 
             if (res.success) {
@@ -1585,7 +1864,28 @@ export default function PayrollPreviewPage() {
                                         {/* Diversos Descontos */}
                                         <td className="py-3 px-4 text-right text-red-500 bg-red-50/5 whitespace-nowrap font-medium">
                                             {item.diversosDescontos > 0 ? (
-                                                <span className="font-bold">-{formatCurrency(item.diversosDescontos)}</span>
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span className="font-bold">-{formatCurrency(item.diversosDescontos)}</span>
+                                                    {item.fieldNotes?.diversos && (
+                                                        <Popover>
+                                                            <PopoverTrigger asChild>
+                                                                <button 
+                                                                    className="text-amber-700 hover:text-amber-900 p-0.5 cursor-pointer relative" 
+                                                                    title={item.fieldNotes.diversos}
+                                                                >
+                                                                    <MessageSquare className="w-3 h-3 fill-amber-300 text-amber-600" />
+                                                                    <span className="absolute -top-0.5 -right-0.5 w-1 h-1 bg-red-500 rounded-full" />
+                                                                </button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-64 p-2.5 text-xs bg-white shadow-xl border border-amber-200 rounded-xl z-50">
+                                                                <div className="font-bold text-amber-900 text-[11px] border-b border-amber-100 pb-1 flex items-center gap-1">
+                                                                    <MessageSquare className="w-3 h-3 text-amber-600" /> Descontos Diversos
+                                                                </div>
+                                                                <div className="text-slate-700 mt-1 whitespace-pre-wrap text-[11px]">{item.fieldNotes.diversos}</div>
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    )}
+                                                </div>
                                             ) : (
                                                 <span className="text-slate-350">-</span>
                                             )}
@@ -1593,7 +1893,28 @@ export default function PayrollPreviewPage() {
                                         {/* Empréstimos */}
                                         <td className="py-3 px-4 text-right text-red-500 bg-red-50/5 whitespace-nowrap font-medium">
                                             {item.emprestimos > 0 ? (
-                                                <span className="font-bold">-{formatCurrency(item.emprestimos)}</span>
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span className="font-bold">-{formatCurrency(item.emprestimos)}</span>
+                                                    {item.fieldNotes?.emprestimos && (
+                                                        <Popover>
+                                                            <PopoverTrigger asChild>
+                                                                <button 
+                                                                    className="text-amber-700 hover:text-amber-900 p-0.5 cursor-pointer relative" 
+                                                                    title={item.fieldNotes.emprestimos}
+                                                                >
+                                                                    <MessageSquare className="w-3 h-3 fill-amber-300 text-amber-600" />
+                                                                    <span className="absolute -top-0.5 -right-0.5 w-1 h-1 bg-red-500 rounded-full" />
+                                                                </button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-64 p-2.5 text-xs bg-white shadow-xl border border-amber-200 rounded-xl z-50">
+                                                                <div className="font-bold text-amber-900 text-[11px] border-b border-amber-100 pb-1 flex items-center gap-1">
+                                                                    <MessageSquare className="w-3 h-3 text-amber-600" /> Empréstimos
+                                                                </div>
+                                                                <div className="text-slate-700 mt-1 whitespace-pre-wrap text-[11px]">{item.fieldNotes.emprestimos}</div>
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    )}
+                                                </div>
                                             ) : (
                                                 <span className="text-slate-350">-</span>
                                             )}
@@ -1601,7 +1922,28 @@ export default function PayrollPreviewPage() {
                                         {/* Convênios */}
                                         <td className="py-3 px-4 text-right text-red-500 bg-red-50/5 whitespace-nowrap font-medium">
                                             {item.convenios > 0 ? (
-                                                <span className="font-bold">-{formatCurrency(item.convenios)}</span>
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span className="font-bold">-{formatCurrency(item.convenios)}</span>
+                                                    {item.fieldNotes?.convenios && (
+                                                        <Popover>
+                                                            <PopoverTrigger asChild>
+                                                                <button 
+                                                                    className="text-amber-700 hover:text-amber-900 p-0.5 cursor-pointer relative" 
+                                                                    title={item.fieldNotes.convenios}
+                                                                >
+                                                                    <MessageSquare className="w-3 h-3 fill-amber-300 text-amber-600" />
+                                                                    <span className="absolute -top-0.5 -right-0.5 w-1 h-1 bg-red-500 rounded-full" />
+                                                                </button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-64 p-2.5 text-xs bg-white shadow-xl border border-amber-200 rounded-xl z-50">
+                                                                <div className="font-bold text-amber-900 text-[11px] border-b border-amber-100 pb-1 flex items-center gap-1">
+                                                                    <MessageSquare className="w-3 h-3 text-amber-600" /> Convênios
+                                                                </div>
+                                                                <div className="text-slate-700 mt-1 whitespace-pre-wrap text-[11px]">{item.fieldNotes.convenios}</div>
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    )}
+                                                </div>
                                             ) : (
                                                 <span className="text-slate-350">-</span>
                                             )}
@@ -1609,7 +1951,28 @@ export default function PayrollPreviewPage() {
                                         {/* Sindicato */}
                                         <td className="py-3 px-4 text-right text-red-500 bg-red-50/5 whitespace-nowrap font-medium">
                                             {item.sindicato > 0 ? (
-                                                <span className="font-bold">-{formatCurrency(item.sindicato)}</span>
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span className="font-bold">-{formatCurrency(item.sindicato)}</span>
+                                                    {item.fieldNotes?.sindicato && (
+                                                        <Popover>
+                                                            <PopoverTrigger asChild>
+                                                                <button 
+                                                                    className="text-amber-700 hover:text-amber-900 p-0.5 cursor-pointer relative" 
+                                                                    title={item.fieldNotes.sindicato}
+                                                                >
+                                                                    <MessageSquare className="w-3 h-3 fill-amber-300 text-amber-600" />
+                                                                    <span className="absolute -top-0.5 -right-0.5 w-1 h-1 bg-red-500 rounded-full" />
+                                                                </button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-64 p-2.5 text-xs bg-white shadow-xl border border-amber-200 rounded-xl z-50">
+                                                                <div className="font-bold text-amber-900 text-[11px] border-b border-amber-100 pb-1 flex items-center gap-1">
+                                                                    <MessageSquare className="w-3 h-3 text-amber-600" /> Sindicato
+                                                                </div>
+                                                                <div className="text-slate-700 mt-1 whitespace-pre-wrap text-[11px]">{item.fieldNotes.sindicato}</div>
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    )}
+                                                </div>
                                             ) : (
                                                 <span className="text-slate-350">-</span>
                                             )}
@@ -2167,16 +2530,88 @@ export default function PayrollPreviewPage() {
                                                                                      ) : "-"}
                                                                                 </td>
                                                                                 <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
-                                                                                    {sub.diversosDescontos > 0 ? `-${formatCurrency(sub.diversosDescontos)}` : "-"}
+                                                                                    {sub.diversosDescontos > 0 ? (
+                                                                                        <div className="flex items-center justify-end gap-1">
+                                                                                            <span>-{formatCurrency(sub.diversosDescontos)}</span>
+                                                                                            {sub.fieldNotes?.diversos && (
+                                                                                                <Popover>
+                                                                                                    <PopoverTrigger asChild>
+                                                                                                        <button className="text-amber-700 hover:text-amber-900 p-0.5 cursor-pointer relative" title={sub.fieldNotes.diversos}>
+                                                                                                            <MessageSquare className="w-2.5 h-2.5 fill-amber-300 text-amber-600" />
+                                                                                                            <span className="absolute -top-0.5 -right-0.5 w-1 h-1 bg-red-500 rounded-full" />
+                                                                                                        </button>
+                                                                                                    </PopoverTrigger>
+                                                                                                    <PopoverContent className="w-64 p-2.5 text-xs bg-white shadow-xl border border-amber-200 rounded-xl z-50">
+                                                                                                        <div className="font-bold text-amber-900 text-[11px] border-b border-amber-100 pb-1">Descontos Diversos</div>
+                                                                                                        <div className="text-slate-700 mt-1 whitespace-pre-wrap text-[11px]">{sub.fieldNotes.diversos}</div>
+                                                                                                    </PopoverContent>
+                                                                                                </Popover>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    ) : "-"}
                                                                                 </td>
                                                                                 <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
-                                                                                    {sub.emprestimos > 0 ? `-${formatCurrency(sub.emprestimos)}` : "-"}
+                                                                                    {sub.emprestimos > 0 ? (
+                                                                                        <div className="flex items-center justify-end gap-1">
+                                                                                            <span>-{formatCurrency(sub.emprestimos)}</span>
+                                                                                            {sub.fieldNotes?.emprestimos && (
+                                                                                                <Popover>
+                                                                                                    <PopoverTrigger asChild>
+                                                                                                        <button className="text-amber-700 hover:text-amber-900 p-0.5 cursor-pointer relative" title={sub.fieldNotes.emprestimos}>
+                                                                                                            <MessageSquare className="w-2.5 h-2.5 fill-amber-300 text-amber-600" />
+                                                                                                            <span className="absolute -top-0.5 -right-0.5 w-1 h-1 bg-red-500 rounded-full" />
+                                                                                                        </button>
+                                                                                                    </PopoverTrigger>
+                                                                                                    <PopoverContent className="w-64 p-2.5 text-xs bg-white shadow-xl border border-amber-200 rounded-xl z-50">
+                                                                                                        <div className="font-bold text-amber-900 text-[11px] border-b border-amber-100 pb-1">Empréstimos</div>
+                                                                                                        <div className="text-slate-700 mt-1 whitespace-pre-wrap text-[11px]">{sub.fieldNotes.emprestimos}</div>
+                                                                                                    </PopoverContent>
+                                                                                                </Popover>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    ) : "-"}
                                                                                 </td>
                                                                                 <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
-                                                                                    {sub.convenios > 0 ? `-${formatCurrency(sub.convenios)}` : "-"}
+                                                                                    {sub.convenios > 0 ? (
+                                                                                        <div className="flex items-center justify-end gap-1">
+                                                                                            <span>-{formatCurrency(sub.convenios)}</span>
+                                                                                            {sub.fieldNotes?.convenios && (
+                                                                                                <Popover>
+                                                                                                    <PopoverTrigger asChild>
+                                                                                                        <button className="text-amber-700 hover:text-amber-900 p-0.5 cursor-pointer relative" title={sub.fieldNotes.convenios}>
+                                                                                                            <MessageSquare className="w-2.5 h-2.5 fill-amber-300 text-amber-600" />
+                                                                                                            <span className="absolute -top-0.5 -right-0.5 w-1 h-1 bg-red-500 rounded-full" />
+                                                                                                        </button>
+                                                                                                    </PopoverTrigger>
+                                                                                                    <PopoverContent className="w-64 p-2.5 text-xs bg-white shadow-xl border border-amber-200 rounded-xl z-50">
+                                                                                                        <div className="font-bold text-amber-900 text-[11px] border-b border-amber-100 pb-1">Convênios</div>
+                                                                                                        <div className="text-slate-700 mt-1 whitespace-pre-wrap text-[11px]">{sub.fieldNotes.convenios}</div>
+                                                                                                    </PopoverContent>
+                                                                                                </Popover>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    ) : "-"}
                                                                                 </td>
                                                                                 <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
-                                                                                    {sub.sindicato > 0 ? `-${formatCurrency(sub.sindicato)}` : "-"}
+                                                                                    {sub.sindicato > 0 ? (
+                                                                                        <div className="flex items-center justify-end gap-1">
+                                                                                            <span>-{formatCurrency(sub.sindicato)}</span>
+                                                                                            {sub.fieldNotes?.sindicato && (
+                                                                                                <Popover>
+                                                                                                    <PopoverTrigger asChild>
+                                                                                                        <button className="text-amber-700 hover:text-amber-900 p-0.5 cursor-pointer relative" title={sub.fieldNotes.sindicato}>
+                                                                                                            <MessageSquare className="w-2.5 h-2.5 fill-amber-300 text-amber-600" />
+                                                                                                            <span className="absolute -top-0.5 -right-0.5 w-1 h-1 bg-red-500 rounded-full" />
+                                                                                                        </button>
+                                                                                                    </PopoverTrigger>
+                                                                                                    <PopoverContent className="w-64 p-2.5 text-xs bg-white shadow-xl border border-amber-200 rounded-xl z-50">
+                                                                                                        <div className="font-bold text-amber-900 text-[11px] border-b border-amber-100 pb-1">Sindicato</div>
+                                                                                                        <div className="text-slate-700 mt-1 whitespace-pre-wrap text-[11px]">{sub.fieldNotes.sindicato}</div>
+                                                                                                    </PopoverContent>
+                                                                                                </Popover>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    ) : "-"}
                                                                                 </td>
                                                                                 <td className="py-2.5 px-3 text-right text-red-500 whitespace-nowrap">
                                                                                     {sub.inssDeduction > 0 ? `-${formatCurrency(sub.inssDeduction)}` : "-"}
@@ -2336,9 +2771,15 @@ export default function PayrollPreviewPage() {
                                     <div className="space-y-1.5">
                                         <div className="flex justify-between items-center">
                                             <Label className="font-bold text-slate-750 text-[10px]">H. Extras 50%</Label>
-                                            <span className="text-[9px] font-bold text-emerald-605">
-                                                {inputExtras50 ? (parseFloat(inputExtras50) > 0 ? formatCurrency(selectedEmployeeItem.hourlyRate * 1.5 * parseFloat(inputExtras50)) : 'R$ 0,00') : 'R$ 0,00'}
-                                            </span>
+                                            <FieldCommentPopover
+                                                fieldKey="extras50"
+                                                fieldLabel="H. Extras 50%"
+                                                currentValue={parseFloat(inputExtras50) || 0}
+                                                note={fieldNotes["extras50"] || ""}
+                                                onNoteChange={(n) => setFieldNotes(prev => ({ ...prev, extras50: n }))}
+                                                currentMonth={selectedMonth}
+                                                currentYear={selectedYear}
+                                            />
                                         </div>
                                         <Input 
                                             type="number"
@@ -2349,13 +2790,22 @@ export default function PayrollPreviewPage() {
                                             onChange={(e) => setInputExtras50(e.target.value)}
                                             className="h-10 w-full rounded-xl bg-white border-slate-200 text-xs focus:ring-red-500/20 focus:border-red-500"
                                         />
+                                        <span className="text-[9px] font-bold text-emerald-605 block text-right">
+                                            {inputExtras50 ? (parseFloat(inputExtras50) > 0 ? formatCurrency(selectedEmployeeItem.hourlyRate * 1.5 * parseFloat(inputExtras50)) : 'R$ 0,00') : 'R$ 0,00'}
+                                        </span>
                                     </div>
                                     <div className="space-y-1.5">
                                         <div className="flex justify-between items-center">
                                             <Label className="font-bold text-slate-750 text-[10px]">H. Extras 100%</Label>
-                                            <span className="text-[9px] font-bold text-emerald-605">
-                                                {inputExtras100 ? (parseFloat(inputExtras100) > 0 ? formatCurrency(selectedEmployeeItem.hourlyRate * 2.0 * parseFloat(inputExtras100)) : 'R$ 0,00') : 'R$ 0,00'}
-                                            </span>
+                                            <FieldCommentPopover
+                                                fieldKey="extras100"
+                                                fieldLabel="H. Extras 100%"
+                                                currentValue={parseFloat(inputExtras100) || 0}
+                                                note={fieldNotes["extras100"] || ""}
+                                                onNoteChange={(n) => setFieldNotes(prev => ({ ...prev, extras100: n }))}
+                                                currentMonth={selectedMonth}
+                                                currentYear={selectedYear}
+                                            />
                                         </div>
                                         <Input 
                                             type="number"
@@ -2366,13 +2816,22 @@ export default function PayrollPreviewPage() {
                                             onChange={(e) => setInputExtras100(e.target.value)}
                                             className="h-10 w-full rounded-xl bg-white border-slate-200 text-xs focus:ring-red-500/20 focus:border-red-500"
                                         />
+                                        <span className="text-[9px] font-bold text-emerald-605 block text-right">
+                                            {inputExtras100 ? (parseFloat(inputExtras100) > 0 ? formatCurrency(selectedEmployeeItem.hourlyRate * 2.0 * parseFloat(inputExtras100)) : 'R$ 0,00') : 'R$ 0,00'}
+                                        </span>
                                     </div>
                                     <div className="space-y-1.5">
                                         <div className="flex justify-between items-center">
                                             <Label className="font-bold text-slate-750 text-[10px]">H. Noturnas</Label>
-                                            <span className="text-[9px] font-bold text-emerald-605">
-                                                {inputNoturnas ? (parseFloat(inputNoturnas) > 0 ? formatCurrency(selectedEmployeeItem.hourlyRate * 0.2 * parseFloat(inputNoturnas)) : 'R$ 0,00') : 'R$ 0,00'}
-                                            </span>
+                                            <FieldCommentPopover
+                                                fieldKey="noturnas"
+                                                fieldLabel="H. Noturnas"
+                                                currentValue={parseFloat(inputNoturnas) || 0}
+                                                note={fieldNotes["noturnas"] || ""}
+                                                onNoteChange={(n) => setFieldNotes(prev => ({ ...prev, noturnas: n }))}
+                                                currentMonth={selectedMonth}
+                                                currentYear={selectedYear}
+                                            />
                                         </div>
                                         <Input 
                                             type="number"
@@ -2383,11 +2842,29 @@ export default function PayrollPreviewPage() {
                                             onChange={(e) => setInputNoturnas(e.target.value)}
                                             className="h-10 w-full rounded-xl bg-white border-slate-200 text-xs focus:ring-red-500/20 focus:border-red-500"
                                         />
+                                        <span className="text-[9px] font-bold text-emerald-605 block text-right">
+                                            {inputNoturnas ? (parseFloat(inputNoturnas) > 0 ? formatCurrency(selectedEmployeeItem.hourlyRate * 0.2 * parseFloat(inputNoturnas)) : 'R$ 0,00') : 'R$ 0,00'}
+                                        </span>
                                     </div>
                                 </div>
 
                                 <div className="space-y-1.5 border-t border-slate-100 pt-3">
-                                    <Label className="font-bold text-slate-750">Ajuda de Custo / Combustível (R$)</Label>
+                                    <div className="flex justify-between items-center">
+                                        <Label className="font-bold text-slate-750">Ajuda de Custo / Combustível (R$)</Label>
+                                        <FieldCommentPopover
+                                            fieldKey="ajudaCusto"
+                                            fieldLabel="Ajuda de Custo"
+                                            currentValue={parseFloat(inputAjudaCusto) || 0}
+                                            onValueChange={(val) => setInputAjudaCusto(val)}
+                                            note={fieldNotes["ajudaCusto"] || ""}
+                                            onNoteChange={(n) => setFieldNotes(prev => ({ ...prev, ajudaCusto: n }))}
+                                            allowInstallments={true}
+                                            installment={fieldInstallments["ajudaCusto"]}
+                                            onInstallmentChange={(inst) => updateFieldInstallment("ajudaCusto", inst)}
+                                            currentMonth={selectedMonth}
+                                            currentYear={selectedYear}
+                                        />
+                                    </div>
                                     <div className="relative">
                                         <span className="absolute left-3 top-2.5 text-slate-400 text-xs font-semibold">R$</span>
                                         <Input 
@@ -2400,11 +2877,32 @@ export default function PayrollPreviewPage() {
                                             className="pl-8 h-10 w-full rounded-xl bg-white border-slate-200 text-xs focus:ring-red-500/20 focus:border-red-500"
                                         />
                                     </div>
+                                    {fieldInstallments["ajudaCusto"] && (
+                                        <div className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-lg flex justify-between font-semibold">
+                                            <span>Parcelado: {fieldInstallments["ajudaCusto"].totalInstallments}x de {formatCurrency(fieldInstallments["ajudaCusto"].installmentValue)}</span>
+                                            <span className="text-[9px] text-amber-600">Total {formatCurrency(fieldInstallments["ajudaCusto"].totalValue || 0)}</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
                                     <div className="space-y-1.5">
-                                        <Label className="font-bold text-slate-750">Descontos Diversos (R$)</Label>
+                                        <div className="flex justify-between items-center">
+                                            <Label className="font-bold text-slate-750">Descontos Diversos (R$)</Label>
+                                            <FieldCommentPopover
+                                                fieldKey="diversos"
+                                                fieldLabel="Descontos Diversos"
+                                                currentValue={parseFloat(inputDiversos) || 0}
+                                                onValueChange={(val) => setInputDiversos(val)}
+                                                note={fieldNotes["diversos"] || ""}
+                                                onNoteChange={(n) => setFieldNotes(prev => ({ ...prev, diversos: n }))}
+                                                allowInstallments={true}
+                                                installment={fieldInstallments["diversos"]}
+                                                onInstallmentChange={(inst) => updateFieldInstallment("diversos", inst)}
+                                                currentMonth={selectedMonth}
+                                                currentYear={selectedYear}
+                                            />
+                                        </div>
                                         <div className="relative">
                                             <span className="absolute left-3 top-2.5 text-slate-400 text-xs font-semibold">R$</span>
                                             <Input 
@@ -2417,9 +2915,29 @@ export default function PayrollPreviewPage() {
                                                 className="pl-8 h-10 w-full rounded-xl bg-white border-slate-200 text-xs focus:ring-red-500/20 focus:border-red-500"
                                             />
                                         </div>
+                                        {fieldInstallments["diversos"] && (
+                                            <div className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-lg flex justify-between font-semibold">
+                                                <span>{fieldInstallments["diversos"].totalInstallments}x de {formatCurrency(fieldInstallments["diversos"].installmentValue)}</span>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="space-y-1.5">
-                                        <Label className="font-bold text-slate-750">Empréstimos (R$)</Label>
+                                        <div className="flex justify-between items-center">
+                                            <Label className="font-bold text-slate-750">Empréstimos (R$)</Label>
+                                            <FieldCommentPopover
+                                                fieldKey="emprestimos"
+                                                fieldLabel="Empréstimos"
+                                                currentValue={parseFloat(inputEmprestimos) || 0}
+                                                onValueChange={(val) => setInputEmprestimos(val)}
+                                                note={fieldNotes["emprestimos"] || ""}
+                                                onNoteChange={(n) => setFieldNotes(prev => ({ ...prev, emprestimos: n }))}
+                                                allowInstallments={true}
+                                                installment={fieldInstallments["emprestimos"]}
+                                                onInstallmentChange={(inst) => updateFieldInstallment("emprestimos", inst)}
+                                                currentMonth={selectedMonth}
+                                                currentYear={selectedYear}
+                                            />
+                                        </div>
                                         <div className="relative">
                                             <span className="absolute left-3 top-2.5 text-slate-400 text-xs font-semibold">R$</span>
                                             <Input 
@@ -2432,12 +2950,33 @@ export default function PayrollPreviewPage() {
                                                 className="pl-8 h-10 w-full rounded-xl bg-white border-slate-200 text-xs focus:ring-red-500/20 focus:border-red-500"
                                             />
                                         </div>
+                                        {fieldInstallments["emprestimos"] && (
+                                            <div className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-lg flex justify-between font-semibold">
+                                                <span>{fieldInstallments["emprestimos"].totalInstallments}x de {formatCurrency(fieldInstallments["emprestimos"].installmentValue)}</span>
+                                                <span className="text-[9px] text-amber-600">Total {formatCurrency(fieldInstallments["emprestimos"].totalValue || 0)}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1.5">
-                                        <Label className="font-bold text-slate-750">Convênios (R$)</Label>
+                                        <div className="flex justify-between items-center">
+                                            <Label className="font-bold text-slate-750">Convênios (R$)</Label>
+                                            <FieldCommentPopover
+                                                fieldKey="convenios"
+                                                fieldLabel="Convênios"
+                                                currentValue={parseFloat(inputConvenios) || 0}
+                                                onValueChange={(val) => setInputConvenios(val)}
+                                                note={fieldNotes["convenios"] || ""}
+                                                onNoteChange={(n) => setFieldNotes(prev => ({ ...prev, convenios: n }))}
+                                                allowInstallments={true}
+                                                installment={fieldInstallments["convenios"]}
+                                                onInstallmentChange={(inst) => updateFieldInstallment("convenios", inst)}
+                                                currentMonth={selectedMonth}
+                                                currentYear={selectedYear}
+                                            />
+                                        </div>
                                         <div className="relative">
                                             <span className="absolute left-3 top-2.5 text-slate-400 text-xs font-semibold">R$</span>
                                             <Input 
@@ -2450,9 +2989,29 @@ export default function PayrollPreviewPage() {
                                                 className="pl-8 h-10 w-full rounded-xl bg-white border-slate-200 text-xs focus:ring-red-500/20 focus:border-red-500"
                                             />
                                         </div>
+                                        {fieldInstallments["convenios"] && (
+                                            <div className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-lg flex justify-between font-semibold">
+                                                <span>{fieldInstallments["convenios"].totalInstallments}x de {formatCurrency(fieldInstallments["convenios"].installmentValue)}</span>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="space-y-1.5">
-                                        <Label className="font-bold text-slate-750">Sindicatos (R$)</Label>
+                                        <div className="flex justify-between items-center">
+                                            <Label className="font-bold text-slate-750">Sindicatos (R$)</Label>
+                                            <FieldCommentPopover
+                                                fieldKey="sindicato"
+                                                fieldLabel="Sindicatos"
+                                                currentValue={parseFloat(inputSindicato) || 0}
+                                                onValueChange={(val) => setInputSindicato(val)}
+                                                note={fieldNotes["sindicato"] || ""}
+                                                onNoteChange={(n) => setFieldNotes(prev => ({ ...prev, sindicato: n }))}
+                                                allowInstallments={true}
+                                                installment={fieldInstallments["sindicato"]}
+                                                onInstallmentChange={(inst) => updateFieldInstallment("sindicato", inst)}
+                                                currentMonth={selectedMonth}
+                                                currentYear={selectedYear}
+                                            />
+                                        </div>
                                         <div className="relative">
                                             <span className="absolute left-3 top-2.5 text-slate-400 text-xs font-semibold">R$</span>
                                             <Input 
@@ -2465,24 +3024,12 @@ export default function PayrollPreviewPage() {
                                                 className="pl-8 h-10 w-full rounded-xl bg-white border-slate-200 text-xs focus:ring-red-500/20 focus:border-red-500"
                                             />
                                         </div>
+                                        {fieldInstallments["sindicato"] && (
+                                            <div className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-lg flex justify-between font-semibold">
+                                                <span>{fieldInstallments["sindicato"].totalInstallments}x de {formatCurrency(fieldInstallments["sindicato"].installmentValue)}</span>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-
-                                <div className="space-y-1.5 border-t border-slate-100 pt-3">
-                                    <div className="flex items-center justify-between">
-                                        <Label className="font-bold text-slate-750 flex items-center gap-1.5">
-                                            <FileText className="w-3.5 h-3.5 text-slate-500" />
-                                            Observações / Justificativa dos Lançamentos
-                                        </Label>
-                                        <span className="text-[10px] text-slate-400 font-normal">Sai no Excel para conferência</span>
-                                    </div>
-                                    <Textarea 
-                                        placeholder="Anote o motivo de cada lançamento avulso (ex: R$ 150 ajuda combustível visita obra X; bônus cobertura dia Y; desconto adiantamento...)"
-                                        value={inputObservacoes}
-                                        onChange={(e) => setInputObservacoes(e.target.value)}
-                                        className="min-h-[85px] w-full rounded-xl bg-white border-slate-200 text-xs focus:ring-red-500/20 focus:border-red-500 resize-y leading-relaxed"
-                                        rows={3}
-                                    />
                                 </div>
                             </div>
                         </div>

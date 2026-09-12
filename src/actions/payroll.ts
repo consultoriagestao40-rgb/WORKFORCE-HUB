@@ -72,6 +72,7 @@ export interface PayrollPreviewItem {
     sindicato: number;
     hourlyRate: number;
     observacoes: string;
+    fieldNotes?: Record<string, string>;
     
     // Net
     totalDeductions: number;
@@ -330,7 +331,24 @@ export async function getPayrollPreview(year: number, month: number) {
         const customAjudaCusto = monthlyAdj.ajudaCusto !== undefined && monthlyAdj.ajudaCusto !== null 
             ? parseFloat(monthlyAdj.ajudaCusto) 
             : null;
-        const observacoes = monthlyAdj.observacoes || "";
+        const fieldNotes: Record<string, string> = monthlyAdj.fieldNotes || {};
+        let observacoes = monthlyAdj.observacoes || "";
+        if (!observacoes && Object.keys(fieldNotes).length > 0) {
+            const labels: Record<string, string> = {
+                emprestimos: "Empréstimos",
+                diversos: "Descontos Diversos",
+                ajudaCusto: "Ajuda de Custo",
+                convenios: "Convênios",
+                sindicato: "Sindicato",
+                extras50: "H. Extras 50%",
+                extras100: "H. Extras 100%",
+                noturnas: "Adic. Noturno"
+            };
+            observacoes = Object.entries(fieldNotes)
+                .filter(([_, note]) => !!note && typeof note === "string" && note.trim().length > 0)
+                .map(([k, n]) => `${labels[k] || k}: ${n.trim()}`)
+                .join(" | ");
+        }
 
         const hourlyRate = fullFixedSalary / (emp.workload || 220);
         const atrasosDeduction = Math.round((hourlyRate * atrasosHours) * 100) / 100;
@@ -491,6 +509,7 @@ export async function getPayrollPreview(year: number, month: number) {
             sindicato,
             hourlyRate: Math.round(hourlyRate * 100) / 100,
             observacoes,
+            fieldNotes,
             totalDeductions,
             netSalary,
             isAdmittedThisMonth,
@@ -556,6 +575,30 @@ function calculateIRRF(irrfBase: number): number {
     return irrf > 0 ? Math.round(irrf * 100) / 100 : 0;
 }
 
+export interface InstallmentPlan {
+    totalInstallments: number;
+    mode: 'divide' | 'repeat';
+    totalValue?: number;
+    installmentValue: number;
+}
+
+function formatCombinedNotes(fieldNotes: Record<string, string>): string {
+    const labels: Record<string, string> = {
+        emprestimos: "Empréstimos",
+        diversos: "Descontos Diversos",
+        ajudaCusto: "Ajuda de Custo",
+        convenios: "Convênios",
+        sindicato: "Sindicato",
+        extras50: "H. Extras 50%",
+        extras100: "H. Extras 100%",
+        noturnas: "Adic. Noturno"
+    };
+    return Object.entries(fieldNotes || {})
+        .filter(([_, n]) => !!n && typeof n === "string" && n.trim().length > 0)
+        .map(([k, n]) => `${labels[k] || k}: ${n.trim()}`)
+        .join(" | ");
+}
+
 export async function updateMonthlyDeductions(
     employeeId: string, 
     year: number, 
@@ -568,12 +611,28 @@ export async function updateMonthlyDeductions(
     convenios: number,
     sindicato: number,
     ajudaCusto: number,
-    observacoes: string = ""
+    observacoes: string = "",
+    fieldNotes: Record<string, string> = {},
+    installments: Record<string, InstallmentPlan> = {}
 ) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Não autorizado");
 
-    // 1. Save standard hours fields into EmployeeMonthlyCalculus
+    const activeNotes = { ...fieldNotes };
+
+    // Format current month notes with installment tag if installment is active
+    for (const [field, inst] of Object.entries(installments)) {
+        if (inst && inst.totalInstallments > 1) {
+            const baseNote = (activeNotes[field] || "").replace(/ \(Parcela \d+\/\d+\)/g, "").trim();
+            activeNotes[field] = baseNote 
+                ? `${baseNote} (Parcela 1/${inst.totalInstallments})` 
+                : `Parcela 1/${inst.totalInstallments}`;
+        }
+    }
+
+    const finalObservacoes = formatCombinedNotes(activeNotes) || observacoes?.trim() || "";
+
+    // 1. Save standard hours fields into EmployeeMonthlyCalculus for current month
     await prisma.employeeMonthlyCalculus.upsert({
         where: {
             employeeId_year_month: { employeeId, year, month }
@@ -597,17 +656,78 @@ export async function updateMonthlyDeductions(
         }
     });
 
-    // 2. Save convenios, sindicato, custom ajudaCusto and observacoes into Employee.extraFields.monthlyAdjustments
+    // 2. Save into Employee.extraFields.monthlyAdjustments
     const emp = await prisma.employee.findUnique({ where: { id: employeeId } });
     if (emp) {
         const extra = (emp.extraFields as any) || {};
-        const monthlyAdjustments = extra.monthlyAdjustments || {};
+        const monthlyAdjustments = { ...(extra.monthlyAdjustments || {}) };
+
         monthlyAdjustments[`${year}-${month}`] = {
+            ...(monthlyAdjustments[`${year}-${month}`] || {}),
             convenios,
             sindicato,
             ajudaCusto,
-            observacoes: observacoes?.trim() || ""
+            fieldNotes: activeNotes,
+            observacoes: finalObservacoes
         };
+
+        // 3. Process future installments if any
+        for (const [field, inst] of Object.entries(installments)) {
+            if (inst && inst.totalInstallments > 1) {
+                const total = inst.totalInstallments;
+                const monthlyVal = inst.installmentValue;
+                const baseNote = (fieldNotes[field] || "").replace(/ \(Parcela \d+\/\d+\)/g, "").trim();
+
+                for (let i = 1; i < total; i++) {
+                    let futureMonth = month + i;
+                    let futureYear = year;
+                    while (futureMonth > 12) {
+                        futureMonth -= 12;
+                        futureYear += 1;
+                    }
+                    const futureKey = `${futureYear}-${futureMonth}`;
+
+                    // Update EmployeeMonthlyCalculus for future month if field is emprestimos or diversos
+                    if (field === "emprestimos" || field === "diversos") {
+                        await prisma.employeeMonthlyCalculus.upsert({
+                            where: {
+                                employeeId_year_month: { employeeId, year: futureYear, month: futureMonth }
+                            },
+                            create: {
+                                employeeId,
+                                year: futureYear,
+                                month: futureMonth,
+                                emprestimos: field === "emprestimos" ? monthlyVal : 0,
+                                diversosDescontos: field === "diversos" ? monthlyVal : 0
+                            },
+                            update: {
+                                ...(field === "emprestimos" ? { emprestimos: monthlyVal } : {}),
+                                ...(field === "diversos" ? { diversosDescontos: monthlyVal } : {})
+                            }
+                        });
+                    }
+
+                    // Update monthlyAdjustments for future month
+                    if (!monthlyAdjustments[futureKey]) {
+                        monthlyAdjustments[futureKey] = {};
+                    }
+                    if (!monthlyAdjustments[futureKey].fieldNotes) {
+                        monthlyAdjustments[futureKey].fieldNotes = {};
+                    }
+
+                    if (field === "ajudaCusto") monthlyAdjustments[futureKey].ajudaCusto = monthlyVal;
+                    if (field === "convenios") monthlyAdjustments[futureKey].convenios = monthlyVal;
+                    if (field === "sindicato") monthlyAdjustments[futureKey].sindicato = monthlyVal;
+
+                    const noteText = baseNote 
+                        ? `${baseNote} (Parcela ${i + 1}/${total})` 
+                        : `Parcela ${i + 1}/${total}`;
+                    monthlyAdjustments[futureKey].fieldNotes[field] = noteText;
+                    monthlyAdjustments[futureKey].observacoes = formatCombinedNotes(monthlyAdjustments[futureKey].fieldNotes);
+                }
+            }
+        }
+
         await prisma.employee.update({
             where: { id: employeeId },
             data: {
@@ -619,6 +739,7 @@ export async function updateMonthlyDeductions(
         });
     }
 
+    revalidatePath("/admin/payroll-preview");
     return { success: true };
 }
 
