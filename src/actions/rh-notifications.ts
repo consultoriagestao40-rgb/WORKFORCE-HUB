@@ -39,11 +39,17 @@ export async function getRhNotificationConfig() {
                 notifyPostoMovement: true,
                 notifyPostoMovementChannels: "OPERATIONS,ADMIN",
                 notifyDailyRescisaoDeadline: true,
+                notifyDailyRescisaoChannels: "ADMIN",
                 notifyDailyTelegramDeadline: true,
+                notifyDailyTelegramChannels: "OPERATIONS,ADMIN",
                 notifyDailyProbationDeadline: true,
+                notifyDailyProbationChannels: "OPERATIONS,ADMIN",
                 notifyDailyVacationDeadline: true,
+                notifyDailyVacationChannels: "OPERATIONS,ADMIN",
                 notifyVacationEveStart: true,
+                notifyVacationEveStartChannels: "OPERATIONS,ADMIN",
                 notifyVacationEveReturn: true,
+                notifyVacationEveReturnChannels: "OPERATIONS,ADMIN",
                 notifyDirectSupervisor: true
             }
         });
@@ -73,11 +79,17 @@ export async function saveRhNotificationConfig(data: {
     notifyPostoMovement: boolean;
     notifyPostoMovementChannels: string;
     notifyDailyRescisaoDeadline: boolean;
+    notifyDailyRescisaoChannels: string;
     notifyDailyTelegramDeadline: boolean;
+    notifyDailyTelegramChannels: string;
     notifyDailyProbationDeadline: boolean;
+    notifyDailyProbationChannels: string;
     notifyDailyVacationDeadline: boolean;
+    notifyDailyVacationChannels: string;
     notifyVacationEveStart: boolean;
+    notifyVacationEveStartChannels: string;
     notifyVacationEveReturn: boolean;
+    notifyVacationEveReturnChannels: string;
     notifyDirectSupervisor: boolean;
 }) {
     const user = await getCurrentUser();

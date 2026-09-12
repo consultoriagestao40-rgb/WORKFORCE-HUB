@@ -157,19 +157,27 @@ export async function dispatchRhNotification(payload: DispatchNotificationPayloa
                 break;
             case 'FERIAS':
                 isEventActive = config.notifyVacationScheduled;
-                channels = config.notifyVacationScheduledChannels;
+                if (payload.metadata?.type === 'VACATION_EVE_START') {
+                    isEventActive = config.notifyVacationEveStart;
+                    channels = config.notifyVacationEveStartChannels || config.notifyVacationScheduledChannels;
+                } else if (payload.metadata?.type === 'VACATION_EVE_RETURN') {
+                    isEventActive = config.notifyVacationEveReturn;
+                    channels = config.notifyVacationEveReturnChannels || config.notifyVacationScheduledChannels;
+                } else {
+                    channels = config.notifyVacationScheduledChannels;
+                }
                 break;
             case 'PRAZO_RESCISAO':
                 isEventActive = config.notifyDailyRescisaoDeadline;
-                channels = "ADMIN";
+                channels = config.notifyDailyRescisaoChannels || "ADMIN";
                 break;
             case 'TELEGRAMA':
                 isEventActive = config.notifyDailyTelegramDeadline;
-                channels = "OPERATIONS,ADMIN";
+                channels = config.notifyDailyTelegramChannels || "OPERATIONS,ADMIN";
                 break;
             case 'EXPERIENCIA':
                 isEventActive = config.notifyDailyProbationDeadline;
-                channels = "OPERATIONS,ADMIN";
+                channels = config.notifyDailyProbationChannels || "OPERATIONS,ADMIN";
                 break;
             case 'TESTE':
                 isEventActive = true;
@@ -209,10 +217,11 @@ export async function dispatchRhNotification(payload: DispatchNotificationPayloa
         const extraGroupsList = (config.extraGroups as unknown as ExtraGroupItem[]) || [];
         for (const extraGrp of extraGroupsList) {
             if (extraGrp.active && extraGrp.jid) {
+                const isExplicitlySelected = channels.includes(extraGrp.id);
                 const matchesOperations = channels.includes("OPERATIONS") && (extraGrp.channel === 'OPERATIONS' || extraGrp.channel === 'ALL');
                 const matchesAdmin = channels.includes("ADMIN") && (extraGrp.channel === 'ADMIN' || extraGrp.channel === 'ALL');
                 
-                if (matchesOperations || matchesAdmin) {
+                if (isExplicitlySelected || matchesOperations || matchesAdmin) {
                     const alreadyIncluded = targetsToSend.some(t => t.targetId === extraGrp.jid);
                     if (!alreadyIncluded) {
                         targetsToSend.push({
@@ -225,15 +234,22 @@ export async function dispatchRhNotification(payload: DispatchNotificationPayloa
             }
         }
 
-        // 4. Números Individuais Extras
+        // 4. Números Individuais Extras (WhatsApp Privado)
         const extraPhonesList = (config.extraPhones as unknown as ExtraPhoneItem[]) || [];
         for (const extra of extraPhonesList) {
             if (extra.active && extra.phone) {
-                targetsToSend.push({
-                    targetId: extra.phone,
-                    targetName: extra.name || "Contato Individual",
-                    targetType: 'INDIVIDUAL'
-                });
+                const isExplicitlySelected = channels.includes(extra.id);
+                if (isExplicitlySelected) {
+                    const cleanPhone = extra.phone.replace(/\D/g, "");
+                    const alreadyIncluded = targetsToSend.some(t => t.targetId.replace(/\D/g, "") === cleanPhone);
+                    if (!alreadyIncluded) {
+                        targetsToSend.push({
+                            targetId: extra.phone,
+                            targetName: extra.name || "Contato Individual",
+                            targetType: 'INDIVIDUAL'
+                        });
+                    }
+                }
             }
         }
 

@@ -1235,11 +1235,22 @@ model RhNotificationConfig {
 
   // Prazos Diários (Robô Matinal das 08h00)
   notifyDailyRescisaoDeadline      Boolean  @default(true) // Vencimento do prazo de rescisão hoje (Art. 477)
+  notifyDailyRescisaoChannels      String   @default("ADMIN")
+
   notifyDailyTelegramDeadline      Boolean  @default(true) // Dia de enviar 1º ou 2º telegrama
+  notifyDailyTelegramChannels      String   @default("OPERATIONS,ADMIN")
+
   notifyDailyProbationDeadline     Boolean  @default(true) // Vencimento de contrato de experiência em breve
+  notifyDailyProbationChannels     String   @default("OPERATIONS,ADMIN")
+
   notifyDailyVacationDeadline      Boolean  @default(true) // Férias a vencer
+  notifyDailyVacationChannels      String   @default("OPERATIONS,ADMIN")
+
   notifyVacationEveStart           Boolean  @default(true) // 1 dia antes do início das férias
+  notifyVacationEveStartChannels   String   @default("OPERATIONS,ADMIN")
+
   notifyVacationEveReturn          Boolean  @default(true) // 1 dia antes do retorno das férias
+  notifyVacationEveReturnChannels  String   @default("OPERATIONS,ADMIN")
 
   // Regra inteligente: Notificar também o supervisor do contrato diretamente no privado dele
   notifyDirectSupervisor           Boolean  @default(true)

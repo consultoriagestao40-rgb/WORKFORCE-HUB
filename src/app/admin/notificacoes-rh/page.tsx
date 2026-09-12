@@ -33,6 +33,7 @@ import {
     getRhNotificationLogs 
 } from "@/actions/rh-notifications";
 import { ExtraPhoneItem, ExtraGroupItem } from "@/lib/rh-notifications";
+import { RhRecipientSelector } from "@/components/admin/RhRecipientSelector";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -76,11 +77,22 @@ export default function RhNotificationsPage() {
 
     // Prazos Diários
     const [notifyDailyRescisaoDeadline, setNotifyDailyRescisaoDeadline] = useState(true);
+    const [notifyDailyRescisaoChannels, setNotifyDailyRescisaoChannels] = useState("ADMIN");
+
     const [notifyDailyTelegramDeadline, setNotifyDailyTelegramDeadline] = useState(true);
+    const [notifyDailyTelegramChannels, setNotifyDailyTelegramChannels] = useState("OPERATIONS,ADMIN");
+
     const [notifyDailyProbationDeadline, setNotifyDailyProbationDeadline] = useState(true);
+    const [notifyDailyProbationChannels, setNotifyDailyProbationChannels] = useState("OPERATIONS,ADMIN");
+
     const [notifyDailyVacationDeadline, setNotifyDailyVacationDeadline] = useState(true);
+    const [notifyDailyVacationChannels, setNotifyDailyVacationChannels] = useState("OPERATIONS,ADMIN");
+
     const [notifyVacationEveStart, setNotifyVacationEveStart] = useState(true);
+    const [notifyVacationEveStartChannels, setNotifyVacationEveStartChannels] = useState("OPERATIONS,ADMIN");
+
     const [notifyVacationEveReturn, setNotifyVacationEveReturn] = useState(true);
+    const [notifyVacationEveReturnChannels, setNotifyVacationEveReturnChannels] = useState("OPERATIONS,ADMIN");
 
     // Supervisor
     const [notifyDirectSupervisor, setNotifyDirectSupervisor] = useState(true);
@@ -135,11 +147,22 @@ export default function RhNotificationsPage() {
                 setNotifyPostoMovementChannels(config.notifyPostoMovementChannels);
 
                 setNotifyDailyRescisaoDeadline(config.notifyDailyRescisaoDeadline);
+                setNotifyDailyRescisaoChannels((config as any).notifyDailyRescisaoChannels || "ADMIN");
+
                 setNotifyDailyTelegramDeadline(config.notifyDailyTelegramDeadline);
+                setNotifyDailyTelegramChannels((config as any).notifyDailyTelegramChannels || "OPERATIONS,ADMIN");
+
                 setNotifyDailyProbationDeadline(config.notifyDailyProbationDeadline);
+                setNotifyDailyProbationChannels((config as any).notifyDailyProbationChannels || "OPERATIONS,ADMIN");
+
                 setNotifyDailyVacationDeadline(config.notifyDailyVacationDeadline);
+                setNotifyDailyVacationChannels((config as any).notifyDailyVacationChannels || "OPERATIONS,ADMIN");
+
                 setNotifyVacationEveStart(config.notifyVacationEveStart ?? true);
+                setNotifyVacationEveStartChannels((config as any).notifyVacationEveStartChannels || "OPERATIONS,ADMIN");
+
                 setNotifyVacationEveReturn(config.notifyVacationEveReturn ?? true);
+                setNotifyVacationEveReturnChannels((config as any).notifyVacationEveReturnChannels || "OPERATIONS,ADMIN");
 
                 setNotifyDirectSupervisor(config.notifyDirectSupervisor);
             }
@@ -198,11 +221,17 @@ export default function RhNotificationsPage() {
                 notifyPostoMovement,
                 notifyPostoMovementChannels,
                 notifyDailyRescisaoDeadline,
+                notifyDailyRescisaoChannels,
                 notifyDailyTelegramDeadline,
+                notifyDailyTelegramChannels,
                 notifyDailyProbationDeadline,
+                notifyDailyProbationChannels,
                 notifyDailyVacationDeadline,
+                notifyDailyVacationChannels,
                 notifyVacationEveStart,
+                notifyVacationEveStartChannels,
                 notifyVacationEveReturn,
+                notifyVacationEveReturnChannels,
                 notifyDirectSupervisor
             });
             toast.success("Configurações de automação salvas com sucesso!");
@@ -868,15 +897,14 @@ export default function RhNotificationsPage() {
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <select
+                                    <RhRecipientSelector
                                         value={notifyOnboardingChannels}
-                                        onChange={(e) => setNotifyOnboardingChannels(e.target.value)}
-                                        className="text-[11px] font-semibold bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1 text-slate-700 cursor-pointer"
-                                    >
-                                        <option value="OPERATIONS,ADMIN">Operações + Administrativo</option>
-                                        <option value="OPERATIONS">Apenas Operações</option>
-                                        <option value="ADMIN">Apenas Administrativo</option>
-                                    </select>
+                                        onChange={setNotifyOnboardingChannels}
+                                        operationsGroupName={operationsGroupName}
+                                        adminGroupName={adminGroupName}
+                                        extraGroups={extraGroups}
+                                        extraPhones={extraPhones}
+                                    />
                                     <Switch checked={notifyOnboarding} onCheckedChange={setNotifyOnboarding} />
                                 </div>
                             </div>
@@ -893,15 +921,14 @@ export default function RhNotificationsPage() {
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <select
+                                    <RhRecipientSelector
                                         value={notifyAbandonmentChannels}
-                                        onChange={(e) => setNotifyAbandonmentChannels(e.target.value)}
-                                        className="text-[11px] font-semibold bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1 text-slate-700 cursor-pointer"
-                                    >
-                                        <option value="OPERATIONS,ADMIN">Operações + Administrativo</option>
-                                        <option value="OPERATIONS">Apenas Operações</option>
-                                        <option value="ADMIN">Apenas Administrativo</option>
-                                    </select>
+                                        onChange={setNotifyAbandonmentChannels}
+                                        operationsGroupName={operationsGroupName}
+                                        adminGroupName={adminGroupName}
+                                        extraGroups={extraGroups}
+                                        extraPhones={extraPhones}
+                                    />
                                     <Switch checked={notifyAbandonment} onCheckedChange={setNotifyAbandonment} />
                                 </div>
                             </div>
@@ -918,15 +945,14 @@ export default function RhNotificationsPage() {
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <select
+                                    <RhRecipientSelector
                                         value={notifyCandidateSelectedChannels}
-                                        onChange={(e) => setNotifyCandidateSelectedChannels(e.target.value)}
-                                        className="text-[11px] font-semibold bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1 text-slate-700 cursor-pointer"
-                                    >
-                                        <option value="OPERATIONS,ADMIN">Operações + Administrativo</option>
-                                        <option value="OPERATIONS">Apenas Operações</option>
-                                        <option value="ADMIN">Apenas Administrativo</option>
-                                    </select>
+                                        onChange={setNotifyCandidateSelectedChannels}
+                                        operationsGroupName={operationsGroupName}
+                                        adminGroupName={adminGroupName}
+                                        extraGroups={extraGroups}
+                                        extraPhones={extraPhones}
+                                    />
                                     <Switch checked={notifyCandidateSelected} onCheckedChange={setNotifyCandidateSelected} />
                                 </div>
                             </div>
@@ -943,20 +969,43 @@ export default function RhNotificationsPage() {
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <select
+                                    <RhRecipientSelector
                                         value={notifyDismissalRequestChannels}
-                                        onChange={(e) => setNotifyDismissalRequestChannels(e.target.value)}
-                                        className="text-[11px] font-semibold bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1 text-slate-700 cursor-pointer"
-                                    >
-                                        <option value="OPERATIONS,ADMIN">Operações + Administrativo</option>
-                                        <option value="OPERATIONS">Apenas Operações</option>
-                                        <option value="ADMIN">Apenas Administrativo</option>
-                                    </select>
+                                        onChange={setNotifyDismissalRequestChannels}
+                                        operationsGroupName={operationsGroupName}
+                                        adminGroupName={adminGroupName}
+                                        extraGroups={extraGroups}
+                                        extraPhones={extraPhones}
+                                    />
                                     <Switch checked={notifyDismissalRequest} onCheckedChange={setNotifyDismissalRequest} />
                                 </div>
                             </div>
 
-                            {/* 5. Mudança para Rotativo */}
+                            {/* 5. Programação de Férias Aprovada */}
+                            <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                                <div className="space-y-1 max-w-xl">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-bold text-xs text-slate-800">🏖️ Programação de Férias Aprovada</span>
+                                        <Badge variant="outline" className="text-[9px] text-cyan-700 bg-cyan-50 border-cyan-200">Escala Anual</Badge>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500">
+                                        Dispara imediatamente no momento em que uma nova programação de férias é homologada no sistema.
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <RhRecipientSelector
+                                        value={notifyVacationScheduledChannels}
+                                        onChange={setNotifyVacationScheduledChannels}
+                                        operationsGroupName={operationsGroupName}
+                                        adminGroupName={adminGroupName}
+                                        extraGroups={extraGroups}
+                                        extraPhones={extraPhones}
+                                    />
+                                    <Switch checked={notifyVacationScheduled} onCheckedChange={setNotifyVacationScheduled} />
+                                </div>
+                            </div>
+
+                            {/* 6. Mudança para Rotativo */}
                             <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                                 <div className="space-y-1 max-w-xl">
                                     <div className="flex items-center gap-2">
@@ -968,15 +1017,14 @@ export default function RhNotificationsPage() {
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <select
+                                    <RhRecipientSelector
                                         value={notifyPostoMovementChannels}
-                                        onChange={(e) => setNotifyPostoMovementChannels(e.target.value)}
-                                        className="text-[11px] font-semibold bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1 text-slate-700 cursor-pointer"
-                                    >
-                                        <option value="OPERATIONS,ADMIN">Operações + Administrativo</option>
-                                        <option value="OPERATIONS">Apenas Operações</option>
-                                        <option value="ADMIN">Apenas Administrativo</option>
-                                    </select>
+                                        onChange={setNotifyPostoMovementChannels}
+                                        operationsGroupName={operationsGroupName}
+                                        adminGroupName={adminGroupName}
+                                        extraGroups={extraGroups}
+                                        extraPhones={extraPhones}
+                                    />
                                     <Switch checked={notifyPostoMovement} onCheckedChange={setNotifyPostoMovement} />
                                 </div>
                             </div>
@@ -1000,69 +1048,129 @@ export default function RhNotificationsPage() {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
                             {/* Rescisão Vencendo Hoje */}
-                            <div className="p-3.5 bg-red-50/50 border border-red-200/80 rounded-2xl flex items-center justify-between">
-                                <div className="space-y-0.5">
+                            <div className="p-3.5 bg-red-50/50 border border-red-200/80 rounded-2xl flex items-center justify-between gap-2">
+                                <div className="space-y-0.5 max-w-[55%]">
                                     <span className="font-bold text-xs text-red-950 block">🚨 Vencimento de Rescisão HOJE (Art. 477)</span>
                                     <span className="text-[11px] text-red-800 block">
-                                        Alerta o Financeiro/DP sobre rescisões no 10º dia corrido para evitar multa de 1 salário.
+                                        Alerta sobre rescisões no 10º dia corrido para evitar multa de 1 salário.
                                     </span>
                                 </div>
-                                <Switch checked={notifyDailyRescisaoDeadline} onCheckedChange={setNotifyDailyRescisaoDeadline} />
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <RhRecipientSelector
+                                        value={notifyDailyRescisaoChannels}
+                                        onChange={setNotifyDailyRescisaoChannels}
+                                        operationsGroupName={operationsGroupName}
+                                        adminGroupName={adminGroupName}
+                                        extraGroups={extraGroups}
+                                        extraPhones={extraPhones}
+                                    />
+                                    <Switch checked={notifyDailyRescisaoDeadline} onCheckedChange={setNotifyDailyRescisaoDeadline} />
+                                </div>
                             </div>
 
                             {/* Telegramas de Abandono */}
-                            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
-                                <div className="space-y-0.5">
+                            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-2">
+                                <div className="space-y-0.5 max-w-[55%]">
                                     <span className="font-bold text-xs text-slate-900 block">📬 Dia de Enviar 1º ou 2º Telegrama</span>
                                     <span className="text-[11px] text-slate-600 block">
-                                        Avisa no 3º e 10º dia de ausência para envio imediato dos telegramas com AR.
+                                        Avisa no 3º e 10º dia de ausência para envio imediato com AR.
                                     </span>
                                 </div>
-                                <Switch checked={notifyDailyTelegramDeadline} onCheckedChange={setNotifyDailyTelegramDeadline} />
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <RhRecipientSelector
+                                        value={notifyDailyTelegramChannels}
+                                        onChange={setNotifyDailyTelegramChannels}
+                                        operationsGroupName={operationsGroupName}
+                                        adminGroupName={adminGroupName}
+                                        extraGroups={extraGroups}
+                                        extraPhones={extraPhones}
+                                    />
+                                    <Switch checked={notifyDailyTelegramDeadline} onCheckedChange={setNotifyDailyTelegramDeadline} />
+                                </div>
                             </div>
 
                             {/* Vencimento de Experiência */}
-                            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
-                                <div className="space-y-0.5">
+                            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-2">
+                                <div className="space-y-0.5 max-w-[55%]">
                                     <span className="font-bold text-xs text-slate-900 block">⏳ Contratos de Experiência (45 e 90 dias)</span>
                                     <span className="text-[11px] text-slate-600 block">
-                                        Avisa com 5 dias de antecedência para decisão de prorrogação ou efetivação.
+                                        Avisa com 5 dias de antecedência para decisão.
                                     </span>
                                 </div>
-                                <Switch checked={notifyDailyProbationDeadline} onCheckedChange={setNotifyDailyProbationDeadline} />
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <RhRecipientSelector
+                                        value={notifyDailyProbationChannels}
+                                        onChange={setNotifyDailyProbationChannels}
+                                        operationsGroupName={operationsGroupName}
+                                        adminGroupName={adminGroupName}
+                                        extraGroups={extraGroups}
+                                        extraPhones={extraPhones}
+                                    />
+                                    <Switch checked={notifyDailyProbationDeadline} onCheckedChange={setNotifyDailyProbationDeadline} />
+                                </div>
                             </div>
 
                             {/* Férias a Vencer */}
-                            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
-                                <div className="space-y-0.5">
-                                    <span className="font-bold text-xs text-slate-900 block">🏖️ Período Concessivo de Férias a Vencer</span>
+                            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-2">
+                                <div className="space-y-0.5 max-w-[55%]">
+                                    <span className="font-bold text-xs text-slate-900 block">🏖️ Período Concessivo a Vencer</span>
                                     <span className="text-[11px] text-slate-600 block">
-                                        Alerta antes do prazo limite para evitar pagamento de férias em dobro.
+                                        Alerta antes do prazo limite para evitar férias em dobro.
                                     </span>
                                 </div>
-                                <Switch checked={notifyDailyVacationDeadline} onCheckedChange={setNotifyDailyVacationDeadline} />
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <RhRecipientSelector
+                                        value={notifyDailyVacationChannels}
+                                        onChange={setNotifyDailyVacationChannels}
+                                        operationsGroupName={operationsGroupName}
+                                        adminGroupName={adminGroupName}
+                                        extraGroups={extraGroups}
+                                        extraPhones={extraPhones}
+                                    />
+                                    <Switch checked={notifyDailyVacationDeadline} onCheckedChange={setNotifyDailyVacationDeadline} />
+                                </div>
                             </div>
 
                             {/* 1 dia antes do início das férias */}
-                            <div className="p-3.5 bg-amber-50/60 border border-amber-200 rounded-2xl flex items-center justify-between">
-                                <div className="space-y-0.5">
+                            <div className="p-3.5 bg-amber-50/60 border border-amber-200 rounded-2xl flex items-center justify-between gap-2">
+                                <div className="space-y-0.5 max-w-[55%]">
                                     <span className="font-bold text-xs text-amber-950 block">🏖️ Férias: 1 dia antes do início</span>
                                     <span className="text-[11px] text-amber-800 block">
-                                        Avisa 1 dia antes do afastamento para confirmar escala de cobertura no posto.
+                                        Avisa 1 dia antes para confirmar escala de cobertura no posto.
                                     </span>
                                 </div>
-                                <Switch checked={notifyVacationEveStart} onCheckedChange={setNotifyVacationEveStart} />
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <RhRecipientSelector
+                                        value={notifyVacationEveStartChannels}
+                                        onChange={setNotifyVacationEveStartChannels}
+                                        operationsGroupName={operationsGroupName}
+                                        adminGroupName={adminGroupName}
+                                        extraGroups={extraGroups}
+                                        extraPhones={extraPhones}
+                                    />
+                                    <Switch checked={notifyVacationEveStart} onCheckedChange={setNotifyVacationEveStart} />
+                                </div>
                             </div>
 
                             {/* 1 dia antes do retorno das férias */}
-                            <div className="p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-2xl flex items-center justify-between">
-                                <div className="space-y-0.5">
+                            <div className="p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-2xl flex items-center justify-between gap-2">
+                                <div className="space-y-0.5 max-w-[55%]">
                                     <span className="font-bold text-xs text-emerald-950 block">🏖️ Férias: 1 dia antes do retorno</span>
                                     <span className="text-[11px] text-emerald-800 block">
-                                        Avisa no último dia de férias que o colaborador retorna amanhã para receber o titular.
+                                        Avisa no último dia de férias que o titular retorna amanhã.
                                     </span>
                                 </div>
-                                <Switch checked={notifyVacationEveReturn} onCheckedChange={setNotifyVacationEveReturn} />
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <RhRecipientSelector
+                                        value={notifyVacationEveReturnChannels}
+                                        onChange={setNotifyVacationEveReturnChannels}
+                                        operationsGroupName={operationsGroupName}
+                                        adminGroupName={adminGroupName}
+                                        extraGroups={extraGroups}
+                                        extraPhones={extraPhones}
+                                    />
+                                    <Switch checked={notifyVacationEveReturn} onCheckedChange={setNotifyVacationEveReturn} />
+                                </div>
                             </div>
                         </div>
                     </div>
