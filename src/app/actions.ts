@@ -3793,3 +3793,28 @@ export async function deleteDisciplinaryMeasure(id: string) {
     }
 }
 
+export async function updateDisciplinarySupervisor(measureId: string, supervisorId: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Unauthorized");
+
+        const supervisor = await prisma.user.findUnique({ where: { id: supervisorId } });
+        if (!supervisor) throw new Error("Supervisor não encontrado");
+
+        const updated = await prisma.disciplinaryMeasure.update({
+            where: { id: measureId },
+            data: { supervisorId },
+            include: {
+                supervisor: { select: { id: true, name: true } }
+            }
+        });
+
+        revalidatePath("/admin/disciplinary");
+        return { success: true, updated };
+    } catch (e: any) {
+        console.error("updateDisciplinarySupervisor error:", e);
+        return { success: false, error: e.message || "Erro ao alterar supervisor." };
+    }
+}
+
+

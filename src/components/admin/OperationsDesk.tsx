@@ -43,6 +43,7 @@ interface OperationsDeskProps {
     companies: Company[];
     clients: Client[];
     systemUsers: { id: string; name: string }[];
+    currentUser?: { id: string; name: string } | null;
 }
 
 interface AttendanceItem {
@@ -93,7 +94,7 @@ const WhatsAppIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-export function OperationsDesk({ companies, clients, systemUsers }: OperationsDeskProps) {
+export function OperationsDesk({ companies, clients, systemUsers, currentUser }: OperationsDeskProps) {
     const [date, setDate] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
     const [companyFilter, setCompanyFilter] = useState<string>("all");
     const [clientFilter, setClientFilter] = useState<string>("all");
@@ -141,7 +142,25 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
         setDisciplinaryCltArticle("Artigo 482, alínea e - Desídia (Faltas/Atrasos)");
         setDisciplinaryOccurrenceDate(date); // matches active table date
         setDisciplinaryDescription(`O colaborador faltou injustificadamente ao posto no dia ${format(new Date(date + "T12:00:00Z"), "dd/MM/yyyy")}.`);
-        setDisciplinarySupervisorId(systemUsers[0]?.id || "");
+
+        // Determinar o supervisor padrão de forma inteligente:
+        const clientObj = clients.find(c => c.name === item.clientName || c.id === item.clientId);
+        let defaultSupervisorId = "";
+
+        // 1. Se o usuário autenticado for um dos usuários do sistema (ex: Francis Gomes), priorizar ele
+        if (currentUser?.id && systemUsers.some(u => u.id === currentUser.id)) {
+            defaultSupervisorId = currentUser.id;
+        } 
+        // 2. Senão, se o cliente tiver um gestor cadastrado (accountManagerId), usar o gestor
+        else if (clientObj?.accountManagerId && systemUsers.some(u => u.id === clientObj.accountManagerId)) {
+            defaultSupervisorId = clientObj.accountManagerId;
+        } 
+        // 3. Fallback
+        else if (systemUsers.length > 0) {
+            defaultSupervisorId = systemUsers[0].id;
+        }
+
+        setDisciplinarySupervisorId(defaultSupervisorId);
         setGeneratedDisciplinaryLink("");
         setZapiStatus(null);
         setOpenDisciplinaryDialog(true);
@@ -2055,11 +2074,21 @@ export function OperationsDesk({ companies, clients, systemUsers }: OperationsDe
                                         className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         <option value="">Selecione um supervisor...</option>
-                                        {systemUsers.map((u) => (
-                                            <option key={u.id} value={u.id}>
-                                                {u.name}
-                                            </option>
-                                        ))}
+                                        {systemUsers.map((u) => {
+                                            const clientObj = clients.find(c => c.name === selectedItem?.clientName || c.id === selectedItem?.clientId);
+                                            const isClientManager = clientObj?.accountManagerId === u.id;
+                                            const isSelf = currentUser?.id === u.id;
+                                            let tag = "";
+                                            if (isClientManager && isSelf) tag = " (Você / Gestor do Contrato)";
+                                            else if (isSelf) tag = " (Você)";
+                                            else if (isClientManager) tag = " (Gestor do Contrato)";
+
+                                            return (
+                                                <option key={u.id} value={u.id}>
+                                                    {u.name}{tag}
+                                                </option>
+                                            );
+                                        })}
                                     </select>
                                 </div>
                             </div>

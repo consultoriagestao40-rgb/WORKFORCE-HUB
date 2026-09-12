@@ -11,7 +11,7 @@ import {
     AlertCircle, MessageSquare, Copy, Download, Trash2, ShieldAlert
 } from "lucide-react";
 import { toast } from "sonner";
-import { resendDisciplinaryWhatsApp, deleteDisciplinaryMeasure } from "@/app/actions";
+import { resendDisciplinaryWhatsApp, deleteDisciplinaryMeasure, updateDisciplinarySupervisor } from "@/app/actions";
 
 interface DisciplinaryDashboardProps {
     initialMeasures: any[];
@@ -202,7 +202,35 @@ export function DisciplinaryDashboard({ initialMeasures, supervisors }: Discipli
                                                 <div className="text-[10px] text-slate-400 font-semibold">{measure.employee.company?.name || "Sem Empresa"}</div>
                                             </TableCell>
                                             <TableCell className="text-xs font-semibold text-slate-700">
-                                                {measure.supervisor.name}
+                                                <select
+                                                    value={measure.supervisorId}
+                                                    onChange={async (e) => {
+                                                        const newSupervisorId = e.target.value;
+                                                        const toastId = toast.loading("Atualizando supervisor...");
+                                                        try {
+                                                            const res = await updateDisciplinarySupervisor(measure.id, newSupervisorId);
+                                                            if (res.success) {
+                                                                toast.success("Supervisor atualizado com sucesso!", { id: toastId });
+                                                                setMeasures(prev => prev.map(m => m.id === measure.id ? {
+                                                                    ...m,
+                                                                    supervisorId: newSupervisorId,
+                                                                    supervisor: supervisors.find(s => s.id === newSupervisorId) || m.supervisor
+                                                                } : m));
+                                                            } else {
+                                                                toast.error(res.error || "Erro ao alterar supervisor.", { id: toastId });
+                                                            }
+                                                        } catch {
+                                                            toast.error("Erro interno ao alterar supervisor.", { id: toastId });
+                                                        }
+                                                    }}
+                                                    className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-800 outline-none hover:border-slate-300 focus:border-indigo-500 cursor-pointer transition-all shadow-sm max-w-[210px]"
+                                                >
+                                                    {supervisors.map((s) => (
+                                                        <option key={s.id} value={s.id}>
+                                                            {s.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
                                             </TableCell>
                                             <TableCell>
                                                 <div className="font-bold text-slate-800 text-xs">
