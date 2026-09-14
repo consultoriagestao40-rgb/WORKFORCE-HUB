@@ -35,6 +35,18 @@ async function getClientDetails(id: string) {
                                     situation: true
                                 }
                             }
+                        },
+                        orderBy: { startDate: 'desc' }
+                    },
+                    originAssignments: {
+                        where: { endDate: null },
+                        include: {
+                            employee: {
+                                include: {
+                                    vacations: true,
+                                    situation: true
+                                }
+                            }
                         }
                     }
                 }

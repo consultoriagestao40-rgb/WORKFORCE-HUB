@@ -51,11 +51,60 @@ export function ClientVacantPostosDialog({ postos }: ClientVacantPostosDialogPro
             const diffTime = Math.abs(today.getTime() - vacantDateClean.getTime());
             const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
+            // Identificar se o posto está vago por férias do titular
+            const originVacationAssignment = (posto.originAssignments || []).find((oa: any) => {
+                const emp = oa.employee;
+                if (!emp) return false;
+                const isSituationVacation = emp.situation?.name === 'Férias';
+                const hasActiveVacation = emp.vacations?.some((v: any) =>
+                    new Date(v.startDate) <= today && new Date(v.endDate) >= today
+                );
+                return isSituationVacation || hasActiveVacation;
+            });
+
+            const lastEndedAssignment = endedAssignments.length > 0 ? [...endedAssignments].sort((a: any, b: any) =>
+                new Date(b.endDate).getTime() - new Date(a.endDate).getTime()
+            )[0] : null;
+            const lastEmployee = lastEndedAssignment?.employee;
+
+            let vacationEmployee: any = null;
+            let vacationInfo: { startDate: string; endDate: string; daysRemaining: number } | null = null;
+
+            if (originVacationAssignment?.employee) {
+                vacationEmployee = originVacationAssignment.employee;
+            } else if (lastEmployee) {
+                const isSituationVacation = lastEmployee.situation?.name === 'Férias';
+                const activeVacation = lastEmployee.vacations?.find((v: any) =>
+                    new Date(v.startDate) <= today && new Date(v.endDate) >= today
+                );
+                if (isSituationVacation || activeVacation) {
+                    vacationEmployee = lastEmployee;
+                }
+            }
+
+            if (vacationEmployee) {
+                const currentVac = vacationEmployee.vacations?.find((v: any) =>
+                    new Date(v.startDate) <= today && new Date(v.endDate) >= today
+                ) || vacationEmployee.vacations?.[0];
+
+                if (currentVac) {
+                    const endDateObj = new Date(currentVac.endDate);
+                    const remDays = Math.ceil((endDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                    vacationInfo = {
+                        startDate: new Date(currentVac.startDate).toLocaleDateString('pt-BR'),
+                        endDate: endDateObj.toLocaleDateString('pt-BR'),
+                        daysRemaining: remDays > 0 ? remDays : 0
+                    };
+                }
+            }
+
             return {
                 ...posto,
                 vacantSinceDate,
                 diffDays,
-                isNeverOccupied
+                isNeverOccupied,
+                vacationEmployee,
+                vacationInfo
             };
         });
     }, [vacantPostos]);
@@ -122,12 +171,27 @@ export function ClientVacantPostosDialog({ postos }: ClientVacantPostosDialogPro
                                         }
 
                                         return (
-                                            <TableRow key={posto.id} className="hover:bg-slate-50/50 transition-colors">
+                                            <TableRow key={posto.id} className={`hover:bg-slate-50/50 transition-colors ${posto.vacationEmployee ? "bg-amber-50/20" : ""}`}>
                                                 <TableCell className="font-medium text-slate-900">
                                                     <div className="flex items-center gap-2">
                                                         <Briefcase className="w-4 h-4 text-slate-400 shrink-0" />
                                                         <span>{posto.role?.name || "Cargo Indefinido"}</span>
                                                     </div>
+                                                    {posto.vacationEmployee && (
+                                                        <div className="mt-1 flex flex-col gap-0.5">
+                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1 w-fit">
+                                                                🏖️ Vago (Férias)
+                                                            </span>
+                                                            <span className="text-[11px] text-blue-600 font-semibold">
+                                                                {posto.vacationEmployee.name}
+                                                            </span>
+                                                            {posto.vacationInfo && (
+                                                                <span className="text-[10px] text-amber-800">
+                                                                    Retorno: {posto.vacationInfo.endDate} {posto.vacationInfo.daysRemaining > 0 ? `(${posto.vacationInfo.daysRemaining}d restantes)` : ''}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex flex-col gap-0.5">

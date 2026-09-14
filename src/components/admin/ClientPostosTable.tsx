@@ -127,9 +127,11 @@ export function ClientPostosTable({
                     today.setHours(0, 0, 0, 0);
 
                     let statusAlert = null;
+                    let vacationEmployee: any = null;
+                    let vacationInfo: { startDate: string; endDate: string; daysRemaining: number } | null = null;
 
                     if (activeEmployee) {
-                        // Verificar férias
+                        // Verificar férias do ocupante ativo
                         const activeVacation = activeEmployee.vacations?.find((v: any) =>
                             new Date(v.startDate) <= today && new Date(v.endDate) >= today
                         );
@@ -149,6 +151,53 @@ export function ClientPostosTable({
                                 </span>
                             );
                         }
+                    } else {
+                        // Posto vago: verificar se o titular original está em férias
+                        // 1. Procurar nas alocações do Rotativo vinculadas a este posto
+                        const originVacationAssignment = (posto.originAssignments || []).find((oa: any) => {
+                            const emp = oa.employee;
+                            if (!emp) return false;
+                            const isSituationVacation = emp.situation?.name === 'Férias';
+                            const hasActiveVacation = emp.vacations?.some((v: any) =>
+                                new Date(v.startDate) <= today && new Date(v.endDate) >= today
+                            );
+                            return isSituationVacation || hasActiveVacation;
+                        });
+
+                        // 2. Se não encontrou, verificar a última alocação encerrada deste posto
+                        const endedAssignments = (posto.assignments || [])
+                            .filter((a: any) => a.endDate)
+                            .sort((a: any, b: any) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
+                        const lastEndedAssignment = endedAssignments[0];
+                        const lastEmployee = lastEndedAssignment?.employee;
+
+                        if (originVacationAssignment?.employee) {
+                            vacationEmployee = originVacationAssignment.employee;
+                        } else if (lastEmployee) {
+                            const isSituationVacation = lastEmployee.situation?.name === 'Férias';
+                            const activeVacation = lastEmployee.vacations?.find((v: any) =>
+                                new Date(v.startDate) <= today && new Date(v.endDate) >= today
+                            );
+                            if (isSituationVacation || activeVacation) {
+                                vacationEmployee = lastEmployee;
+                            }
+                        }
+
+                        if (vacationEmployee) {
+                            const currentVac = vacationEmployee.vacations?.find((v: any) =>
+                                new Date(v.startDate) <= today && new Date(v.endDate) >= today
+                            ) || vacationEmployee.vacations?.[0];
+
+                            if (currentVac) {
+                                const endDateObj = new Date(currentVac.endDate);
+                                const diffDays = Math.ceil((endDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                                vacationInfo = {
+                                    startDate: new Date(currentVac.startDate).toLocaleDateString('pt-BR'),
+                                    endDate: endDateObj.toLocaleDateString('pt-BR'),
+                                    daysRemaining: diffDays > 0 ? diffDays : 0
+                                };
+                            }
+                        }
                     }
 
                     const isClosed = (posto as any).status === 'ENCERRADO';
@@ -164,7 +213,9 @@ export function ClientPostosTable({
                                         ? "bg-sky-50/35 border-l-4 border-l-sky-500 font-medium" 
                                         : statusAlert 
                                             ? "bg-red-50/30" 
-                                            : ""
+                                            : vacationEmployee
+                                                ? "bg-amber-50/30 border-l-4 border-l-amber-400"
+                                                : ""
                             }`}
                         >
                             <TableCell className="font-medium">
@@ -216,6 +267,35 @@ export function ClientPostosTable({
                                         </Link>
                                         <span className="text-[10px] text-slate-400 print:text-slate-500">Carga: {activeEmployee.workload}h</span>
                                         {statusAlert}
+                                    </div>
+                                ) : vacationEmployee ? (
+                                    <div className="flex flex-col gap-0.5">
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1 w-fit shadow-2xs">
+                                                🏖️ Vago (Férias)
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-col mt-0.5">
+                                            <Link 
+                                                href={`/admin/employees/${vacationEmployee.id}`} 
+                                                className="text-blue-600 hover:underline font-semibold text-xs print:text-slate-900 print:no-underline flex items-center gap-1"
+                                                title="Ver perfil do colaborador de férias"
+                                            >
+                                                {vacationEmployee.name}
+                                            </Link>
+                                            {vacationInfo ? (
+                                                <span className="text-[10px] text-amber-800 font-medium">
+                                                    Retorno: {vacationInfo.endDate} {vacationInfo.daysRemaining > 0 ? `(${vacationInfo.daysRemaining}d restantes)` : ''}
+                                                </span>
+                                            ) : (
+                                                <span className="text-[10px] text-amber-800 font-medium">
+                                                    Titular em Férias
+                                                </span>
+                                            )}
+                                            <span className="text-[10px] text-red-500 font-bold">
+                                                Necessita Cobertura
+                                            </span>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="flex flex-col">
