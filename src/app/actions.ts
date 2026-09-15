@@ -2461,52 +2461,45 @@ export async function deleteEmployeesBatch(ids: string[]) {
         await prisma.$transaction(async (tx) => {
             // Delete related records first (Cascade manually)
 
-            // 1. EmployeeAllowances and Vacations are already Cascade in schema, but good to be explicit or rely on schema.
-            // Schema says: 
-            // - EmployeeAllowance: onDelete: Cascade
-            // - Vacation: onDelete: Cascade
-            // So we can skip those if DB enforces it, but for safety in logic:
-
-            // 2. Clear Assignments
+            // 1. EmployeeAllowances and Vacations are already Cascade in schema, but good to be ex            // 2. Clear Assignments
             await tx.assignment.deleteMany({
                 where: { employeeId: { in: ids } }
             });
 
+            // 2.1 Clear Attendance references (preserve attendance records for posto, decouple employee)
+            await tx.attendance.updateMany({
+                where: { employeeId: { in: ids } },
+                data: { employeeId: null }
+            });
+            await tx.attendance.updateMany({
+                where: { coveredById: { in: ids } },
+                data: { coveredById: null }
+            });
+
             // 3. Clear Coverages (as Covering Employee)
-            // Coverages where this employee is the 'coveringEmployeeId'
-            // We might just set coveringEmployeeId to null if we want to keep the coverage record but show "Unknown"
-            // OR delete them. Usually coverage is historical data.
-            // Let's set to null to preserve financial record cost, or delete if strictly linked.
-            // Given "Need to delete completely", let's assume we want to wipe their trace OR preserve history but decouple.
-            // If we delete the employee, the coverage record pointing to them becomes invalid if foreign key constraint exists.
-            // Schema: coveringEmployee   Employee? @relation("CoveringEmployee", fields: [coveringEmployeeId], references: [id])
-            // It is optional (?) -> fields: [coveringEmployeeId], references: [id]. No onDelete specified, defaults to RESTRICT usually in Prisma unless optional?
-            // Since it is optional (String?), we can set it to null.
             await tx.coverage.updateMany({
                 where: { coveringEmployeeId: { in: ids } },
                 data: { coveringEmployeeId: null }
             });
 
             // 4. Logs
-            // Schema: employee   Employee? @relation(fields: [employeeId], references: [id])
-            // Optional.
             await tx.log.deleteMany({
                 where: { employeeId: { in: ids } }
             });
 
             // 5. Requests
-            // requesters or subjects
-            // If they are the subject (employeeId)
             await tx.request.deleteMany({
                 where: { employeeId: { in: ids } }
             });
-            // If they are the requester... (User model usually, but check schema: requesterId is String, requester User)
-            // Employee != User in this schema so far unless linked. 
-            // Wait, schema says requester is User. So Employee deletion doesn't affect requester field.
 
             // 6. Occurrences
-            // employeeId is optional
             await tx.occurrence.updateMany({
+                where: { employeeId: { in: ids } },
+                data: { employeeId: null }
+            });
+
+            // 7. Clear HrTickets
+            await tx.hrTicket.updateMany({
                 where: { employeeId: { in: ids } },
                 data: { employeeId: null }
             });
@@ -2599,12 +2592,6 @@ export async function deleteUser(id: string) {
     const userRole = await getCurrentUserRole();
     if (userRole !== 'ADMIN') throw new Error("Unauthorized");
 
-    // Hard delete or soft delete depending on preference. 
-    // User requested "maintenance", enabling/disabling is usually better. 
-    // But "delete" button usually implies deletion.
-    // Let's implement hard delete for now, or just disable.
-    // Given the prompt "manutenção", we already have isActive.
-    // Let's support delete if they really want to remove.
     await prisma.user.delete({ where: { id } });
     revalidatePath("/admin/users");
 }
@@ -2633,12 +2620,57 @@ export async function deleteEmployee(id: string) {
 
     try {
         await prisma.$transaction(async (tx) => {
+            // 1. Clear assignments
+            await tx.assignment.deleteMany({
+                where: { employeeId: id }
+            });
+
+            // 2. Clear Attendance references (preserve attendance records for posto, decouple employee)
+            await tx.attendance.updateMany({
+                where: { employeeId: id },
+                data: { employeeId: null }
+            });
+            await tx.attendance.updateMany({
+                where: { coveredById: id },
+                data: { coveredById: null }
+            });
+
+            // 3. Clear Coverages
+            await tx.coverage.updateMany({
+                where: { coveringEmployeeId: id },
+                data: { coveringEmployeeId: null }
+            });
+
+            // 4. Clear Logs
+            await tx.log.deleteMany({
+                where: { employeeId: id }
+            });
+
+            // 5. Clear Requests
+            await tx.request.deleteMany({
+                where: { employeeId: id }
+            });
+
+            // 6. Clear Occurrences
+            await tx.occurrence.updateMany({
+                where: { employeeId: id },
+                data: { employeeId: null }
+            });
+
+            // 7. Clear HrTickets
+            await tx.hrTicket.updateMany({
+                where: { employeeId: id },
+                data: { employeeId: null }
+            });
+
+            // 8. Delete employee
             await tx.employee.delete({ where: { id } });
             await cleanupVacantRotativoPostos(tx);
         });
         revalidatePath("/admin/employees");
         return { success: true };
     } catch (e: any) {
+        console.error("Error in deleteEmployee:", e);
         return { error: "Erro ao excluir: " + e.message };
     }
 }
