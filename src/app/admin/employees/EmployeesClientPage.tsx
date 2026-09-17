@@ -134,7 +134,10 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
 
     const handleExport = () => {
         const dataToExport = initialEmployees.map(emp => {
-            const activeAssignment = emp.assignments && emp.assignments.find((a: any) => !a.endDate);
+            const activeAssignment = emp.assignments && (
+                emp.assignments.find((a: any) => !a.endDate && a.posto?.client?.name !== 'ROTATIVO') ||
+                emp.assignments.find((a: any) => !a.endDate)
+            );
 
             return {
                 "Nome": emp.name,
@@ -346,7 +349,10 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                                 </TableHeader>
                                 <TableBody>
                                     {filteredEmployees.map((emp) => {
-                                        const activeAssignment = emp.assignments && emp.assignments.find((a: any) => !a.endDate);
+                                        const activeAssignment = emp.assignments && (
+                                            emp.assignments.find((a: any) => !a.endDate && a.posto?.client?.name !== 'ROTATIVO') ||
+                                            emp.assignments.find((a: any) => !a.endDate)
+                                        );
                                         const isSelected = selectedIds.includes(emp.id);
 
                                         return (

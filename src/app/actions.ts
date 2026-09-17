@@ -835,8 +835,8 @@ export async function assignEmployee(formData: FormData) {
 
         // 1. If currently assigned somewhere (including Rotativo), end it AND log it
         if (employeeActiveAssignment) {
-            await tx.assignment.update({
-                where: { id: employeeActiveAssignment.id },
+            await tx.assignment.updateMany({
+                where: { employeeId: employeeId, endDate: null },
                 data: { endDate: new Date() } // Ends immediately before new start
             });
 
@@ -865,6 +865,12 @@ export async function assignEmployee(formData: FormData) {
                 data: { extraFields: { ...extra, movimentacoes: movements } }
             });
         } else {
+            // Garantir encerramento de qualquer resíduo anterior
+            await tx.assignment.updateMany({
+                where: { employeeId: employeeId, endDate: null },
+                data: { endDate: new Date() }
+            });
+
             // Log movement from Rotativo
             const empObj = await tx.employee.findUnique({ where: { id: employeeId } });
             const extra = (empObj?.extraFields as any) || {};
@@ -881,8 +887,8 @@ export async function assignEmployee(formData: FormData) {
             });
         }
 
-        // 2. If the TARGET POSTO has someone, remove them (swap logic) and move them to Rotativo
-        if (targetPostoHasAssignment) {
+        // 2. If the TARGET POSTO has someone DIFFERENT, remove them (swap logic) and move them to Rotativo
+        if (targetPostoHasAssignment && targetPostoHasAssignment.employeeId !== employeeId) {
             await tx.assignment.update({
                 where: { id: targetPostoHasAssignment.id },
                 data: { endDate: new Date() }
