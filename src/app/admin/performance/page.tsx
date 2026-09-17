@@ -6,7 +6,10 @@ import { PerformanceDashboard } from "@/components/admin/PerformanceDashboard";
 
 export default async function PerformancePage() {
     const clients = await prisma.client.findMany({
-        where: { monitorInOperations: true },
+        where: { 
+            monitorInOperations: true,
+            isActive: true 
+        },
         orderBy: { name: "asc" },
         include: { company: true }
     });

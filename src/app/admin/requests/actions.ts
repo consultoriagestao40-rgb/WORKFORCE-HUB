@@ -1368,12 +1368,16 @@ export async function getConsolidatedPerformanceData(year: number, month: number
         const startOfMonth = new Date(year, month, 1);
         const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59);
 
-        // Fetch all clients
+        // Fetch all active clients under monitoring
         const clients = await prisma.client.findMany({
-            where: { monitorInOperations: true },
+            where: { 
+                monitorInOperations: true,
+                isActive: true 
+            },
             include: {
                 company: true,
                 postos: {
+                    where: { status: { not: 'ENCERRADO' } },
                     include: {
                         assignments: {
                             include: { employee: true }

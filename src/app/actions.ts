@@ -1380,7 +1380,7 @@ export async function updateClient(formData: FormData) {
         });
 
         if (!isActive) {
-            // Cancelar automaticamente todas as vagas em aberto ligadas aos postos deste cliente
+            // Cancelar automaticamente todas as vagas em aberto ligadas aos postos deste cliente e encerrar postos
             const postos = await tx.posto.findMany({ where: { clientId: id }, select: { id: true } });
             const postoIds = postos.map(p => p.id);
             if (postoIds.length > 0) {
@@ -1391,7 +1391,15 @@ export async function updateClient(formData: FormData) {
                     },
                     data: { status: "CLOSED" }
                 });
+                await tx.posto.updateMany({
+                    where: { clientId: id, status: { not: "ENCERRADO" } },
+                    data: { status: "ENCERRADO", endedAt: new Date(), closureReason: "Contrato Encerrado" }
+                });
             }
+            await tx.client.update({
+                where: { id },
+                data: { monitorInOperations: false }
+            });
         }
     });
 
@@ -1400,6 +1408,7 @@ export async function updateClient(formData: FormData) {
     revalidatePath("/mobile");
     revalidatePath("/admin/operations");
     revalidatePath("/admin/recruitment");
+    revalidatePath("/admin/performance");
 }
 
 export async function deleteClient(id: string) {
