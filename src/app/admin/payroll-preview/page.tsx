@@ -418,7 +418,15 @@ export default function PayrollPreviewPage() {
         setInputConvenios(item.convenios > 0 ? item.convenios.toString() : "");
         setInputSindicato(item.sindicato > 0 ? item.sindicato.toString() : "");
         setInputAjudaCusto(item.ajudaCusto > 0 ? item.ajudaCusto.toString() : "");
-        setFieldNotes(item.fieldNotes || {});
+        
+        const initialNotes = { ...(item.fieldNotes || {}) };
+        if (!initialNotes.geral && item.observacoes) {
+            const hasOtherNotes = Object.keys(initialNotes).length > 0;
+            if (!hasOtherNotes) {
+                initialNotes.geral = item.observacoes.replace(/^Nota Geral:\s*/i, '');
+            }
+        }
+        setFieldNotes(initialNotes);
         setFieldInstallments({});
         setEditDeductionsOpen(true);
     };
@@ -448,7 +456,7 @@ export default function PayrollPreviewPage() {
                 convenios,
                 sindicato,
                 ajudaCusto,
-                "",
+                fieldNotes["geral"] || "",
                 fieldNotes,
                 fieldInstallments
             );
@@ -1524,9 +1532,44 @@ export default function PayrollPreviewPage() {
                                                                 <div className="font-bold text-amber-900 border-b border-amber-100 pb-1.5 text-[11px] flex items-center gap-1.5">
                                                                     <FileText className="w-3.5 h-3.5 text-amber-600" /> Observações dos Lançamentos Avulsos
                                                                 </div>
-                                                                <p className="text-slate-700 whitespace-pre-wrap leading-relaxed text-[11px]">
-                                                                    {item.observacoes}
-                                                                </p>
+                                                                {item.fieldNotes?.geral && (
+                                                                    <div className="p-2 bg-amber-50/80 border border-amber-200/80 rounded-xl space-y-0.5">
+                                                                        <span className="font-bold text-[10px] text-amber-800 block">📌 Nota Geral:</span>
+                                                                        <p className="text-slate-700 whitespace-pre-wrap leading-relaxed text-[11px]">
+                                                                            {item.fieldNotes.geral}
+                                                                        </p>
+                                                                    </div>
+                                                                )}
+                                                                {item.fieldNotes && Object.entries(item.fieldNotes).filter(([k, v]) => k !== "geral" && !!v?.trim()).length > 0 && (
+                                                                    <div className="space-y-1 pt-1">
+                                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Por evento / provento:</span>
+                                                                        {Object.entries(item.fieldNotes)
+                                                                            .filter(([k, v]) => k !== "geral" && !!v?.trim())
+                                                                            .map(([k, val]) => {
+                                                                                const labelMap: Record<string, string> = {
+                                                                                    extras50: "H. Extras 50%",
+                                                                                    extras100: "H. Extras 100%",
+                                                                                    noturnas: "Adic. Noturno",
+                                                                                    ajudaCusto: "Ajuda de Custo",
+                                                                                    diversos: "Descontos Diversos",
+                                                                                    emprestimos: "Empréstimos",
+                                                                                    convenios: "Convênios",
+                                                                                    sindicato: "Sindicato"
+                                                                                };
+                                                                                return (
+                                                                                    <div key={k} className="p-1.5 bg-slate-50 border border-slate-100 rounded-lg text-[10px]">
+                                                                                        <span className="font-bold text-slate-700">{labelMap[k] || k}: </span>
+                                                                                        <span className="text-slate-600">{val}</span>
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                    </div>
+                                                                )}
+                                                                {(!item.fieldNotes || Object.keys(item.fieldNotes).length === 0) && (
+                                                                    <p className="text-slate-700 whitespace-pre-wrap leading-relaxed text-[11px]">
+                                                                        {item.observacoes}
+                                                                    </p>
+                                                                )}
                                                             </PopoverContent>
                                                         </Popover>
                                                     )}
@@ -2255,9 +2298,44 @@ export default function PayrollPreviewPage() {
                                                                                                         <div className="font-bold text-amber-900 border-b border-amber-100 pb-1.5 text-[11px] flex items-center gap-1.5">
                                                                                                             <FileText className="w-3.5 h-3.5 text-amber-600" /> Observações dos Lançamentos Avulsos
                                                                                                         </div>
-                                                                                                        <p className="text-slate-700 whitespace-pre-wrap leading-relaxed text-[11px]">
-                                                                                                            {sub.observacoes}
-                                                                                                        </p>
+                                                                                                        {sub.fieldNotes?.geral && (
+                                                                                                            <div className="p-2 bg-amber-50/80 border border-amber-200/80 rounded-xl space-y-0.5">
+                                                                                                                <span className="font-bold text-[10px] text-amber-800 block">📌 Nota Geral:</span>
+                                                                                                                <p className="text-slate-700 whitespace-pre-wrap leading-relaxed text-[11px]">
+                                                                                                                    {sub.fieldNotes.geral}
+                                                                                                                </p>
+                                                                                                            </div>
+                                                                                                        )}
+                                                                                                        {sub.fieldNotes && Object.entries(sub.fieldNotes).filter(([k, v]) => k !== "geral" && !!v?.trim()).length > 0 && (
+                                                                                                            <div className="space-y-1 pt-1">
+                                                                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Por evento / provento:</span>
+                                                                                                                {Object.entries(sub.fieldNotes)
+                                                                                                                    .filter(([k, v]) => k !== "geral" && !!v?.trim())
+                                                                                                                    .map(([k, val]) => {
+                                                                                                                        const labelMap: Record<string, string> = {
+                                                                                                                            extras50: "H. Extras 50%",
+                                                                                                                            extras100: "H. Extras 100%",
+                                                                                                                            noturnas: "Adic. Noturno",
+                                                                                                                            ajudaCusto: "Ajuda de Custo",
+                                                                                                                            diversos: "Descontos Diversos",
+                                                                                                                            emprestimos: "Empréstimos",
+                                                                                                                            convenios: "Convênios",
+                                                                                                                            sindicato: "Sindicato"
+                                                                                                                        };
+                                                                                                                        return (
+                                                                                                                            <div key={k} className="p-1.5 bg-slate-50 border border-slate-100 rounded-lg text-[10px]">
+                                                                                                                                <span className="font-bold text-slate-700">{labelMap[k] || k}: </span>
+                                                                                                                                <span className="text-slate-600">{val}</span>
+                                                                                                                            </div>
+                                                                                                                        );
+                                                                                                                    })}
+                                                                                                            </div>
+                                                                                                        )}
+                                                                                                        {(!sub.fieldNotes || Object.keys(sub.fieldNotes).length === 0) && (
+                                                                                                            <p className="text-slate-700 whitespace-pre-wrap leading-relaxed text-[11px]">
+                                                                                                                {sub.observacoes}
+                                                                                                            </p>
+                                                                                                        )}
                                                                                                     </PopoverContent>
                                                                                                 </Popover>
                                                                                             )}
@@ -3029,6 +3107,31 @@ export default function PayrollPreviewPage() {
                                                 <span>{fieldInstallments["sindicato"].totalInstallments}x de {formatCurrency(fieldInstallments["sindicato"].installmentValue)}</span>
                                             </div>
                                         )}
+                                    </div>
+                                </div>
+
+                                {/* Observação Geral / Nota Sem Valor Financeiro */}
+                                <div className="space-y-1.5 border-t border-slate-100 pt-3">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="font-bold text-slate-750 flex items-center gap-1.5 text-xs">
+                                            <FileText className="w-3.5 h-3.5 text-amber-600" />
+                                            Nota Geral / Observação da Folha
+                                        </Label>
+                                        <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200/60 px-2 py-0.5 rounded-full">
+                                            Sem valor financeiro
+                                        </span>
+                                    </div>
+                                    <Textarea 
+                                        placeholder="Adicione aqui qualquer observação ou anotação relevante sobre este colaborador (ex: atestados, acordos operacionais, avisos gerais, etc.). Não altera nenhum cálculo nem valor financeiro."
+                                        value={fieldNotes["geral"] || ""}
+                                        onChange={(e) => setFieldNotes(prev => ({ ...prev, geral: e.target.value }))}
+                                        rows={3}
+                                        maxLength={500}
+                                        className="w-full rounded-xl bg-white border-slate-200 text-xs focus:ring-red-500/20 focus:border-red-500 resize-none transition-all placeholder:text-slate-400 leading-relaxed"
+                                    />
+                                    <div className="flex items-center justify-between text-[10px] text-slate-400">
+                                        <span>Ficará visível na prévia da folha e nos relatórios.</span>
+                                        <span>{(fieldNotes["geral"] || "").length}/500</span>
                                     </div>
                                 </div>
                             </div>

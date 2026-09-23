@@ -335,6 +335,7 @@ export async function getPayrollPreview(year: number, month: number) {
         let observacoes = monthlyAdj.observacoes || "";
         if (!observacoes && Object.keys(fieldNotes).length > 0) {
             const labels: Record<string, string> = {
+                geral: "Nota Geral",
                 emprestimos: "Empréstimos",
                 diversos: "Descontos Diversos",
                 ajudaCusto: "Ajuda de Custo",
@@ -584,6 +585,7 @@ export interface InstallmentPlan {
 
 function formatCombinedNotes(fieldNotes: Record<string, string>): string {
     const labels: Record<string, string> = {
+        geral: "Nota Geral",
         emprestimos: "Empréstimos",
         diversos: "Descontos Diversos",
         ajudaCusto: "Ajuda de Custo",
@@ -620,6 +622,11 @@ export async function updateMonthlyDeductions(
 
     const activeNotes = { ...fieldNotes };
 
+    // Support standalone general note passed in observacoes or fieldNotes.geral
+    if (observacoes?.trim() && !activeNotes.geral) {
+        activeNotes.geral = observacoes.trim();
+    }
+
     // Format current month notes with installment tag if installment is active
     for (const [field, inst] of Object.entries(installments)) {
         if (inst && inst.totalInstallments > 1) {
@@ -630,7 +637,15 @@ export async function updateMonthlyDeductions(
         }
     }
 
-    const finalObservacoes = formatCombinedNotes(activeNotes) || observacoes?.trim() || "";
+    // Clean empty/whitespace-only notes
+    const cleanActiveNotes: Record<string, string> = {};
+    for (const [k, v] of Object.entries(activeNotes)) {
+        if (v && typeof v === "string" && v.trim().length > 0) {
+            cleanActiveNotes[k] = v.trim();
+        }
+    }
+
+    const finalObservacoes = formatCombinedNotes(cleanActiveNotes) || observacoes?.trim() || "";
 
     // 1. Save standard hours fields into EmployeeMonthlyCalculus for current month
     await prisma.employeeMonthlyCalculus.upsert({
@@ -667,7 +682,7 @@ export async function updateMonthlyDeductions(
             convenios,
             sindicato,
             ajudaCusto,
-            fieldNotes: activeNotes,
+            fieldNotes: cleanActiveNotes,
             observacoes: finalObservacoes
         };
 
