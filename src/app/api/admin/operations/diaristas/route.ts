@@ -8,7 +8,7 @@ export async function GET(request: Request) {
     let prismaReembolso: PrismaClient | null = null;
     try {
         const user = await getCurrentUser();
-        if (!user || (user.role !== "ADMIN" && user.role !== "GESTOR" && user.role !== "SUPERVISOR")) {
+        if (!user || user.role === "CLIENTE") {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 

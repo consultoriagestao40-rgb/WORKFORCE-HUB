@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { 
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from "@/components/ui/dialog";
@@ -395,22 +396,29 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
         fetchEmpresas();
     }, [fetchEmpresas]);
 
+    const matchEmpresaId = useCallback((companyName: string | undefined, list: Array<{ id: string; nome: string }>) => {
+        if (!list || list.length === 0) return "";
+        const norm = (companyName || "").toLowerCase();
+        const matched = list.find(e => {
+            const normE = (e.nome || "").toLowerCase();
+            if (norm.includes("tratamento") && normE.includes("tratamento")) return true;
+            if (norm.includes("spot") && normE.includes("spot")) return true;
+            if (norm.includes("clean tech") && (normE.includes("clean tech") || normE.includes("cleantech"))) return true;
+            if (norm.includes("facilities") && normE.includes("facilities")) return true;
+            if (normE.includes(norm) || norm.includes(normE)) return true;
+            return false;
+        });
+        if (matched) return matched.id;
+        const defaultFac = list.find(e => (e.nome || "").toLowerCase().includes("facilities"));
+        return defaultFac ? defaultFac.id : (list[0]?.id || "");
+    }, []);
+
     // Sincronizar auto-seleção da empresa do Reembolso Fácil quando as empresas carregarem ou o item mudar
     useEffect(() => {
         if (openDialog && selectedItem && !selectedEmpresaId && empresas.length > 0) {
-            const normCompany = (selectedItem.companyName || "").toLowerCase();
-            const matchedEmpresa = empresas.find(e => {
-                const normE = (e.nome || "").toLowerCase();
-                if (normCompany.includes("tratamento") && normE.includes("tratamento")) return true;
-                if (normCompany.includes("spot") && normE.includes("spot")) return true;
-                if (normCompany.includes("clean tech") && (normE.includes("clean tech") || normE.includes("cleantech"))) return true;
-                if (normCompany.includes("facilities") && normE.includes("facilities")) return true;
-                if (normE.includes(normCompany) || normCompany.includes(normE)) return true;
-                return false;
-            });
-            setSelectedEmpresaId(matchedEmpresa ? matchedEmpresa.id : (empresas[0]?.id || ""));
+            setSelectedEmpresaId(matchEmpresaId(selectedItem.companyName, empresas));
         }
-    }, [openDialog, selectedItem, selectedEmpresaId, empresas]);
+    }, [openDialog, selectedItem, selectedEmpresaId, empresas, matchEmpresaId]);
 
     const handleDateChange = (newDate: string) => {
         startTransition(() => {
@@ -567,17 +575,7 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
 
         // Auto-selecionar empresa correspondente no Reembolso Fácil
         if (empresas.length > 0) {
-            const normCompany = (item.companyName || "").toLowerCase();
-            const matchedEmpresa = empresas.find(e => {
-                const normE = (e.nome || "").toLowerCase();
-                if (normCompany.includes("tratamento") && normE.includes("tratamento")) return true;
-                if (normCompany.includes("spot") && normE.includes("spot")) return true;
-                if (normCompany.includes("clean tech") && (normE.includes("clean tech") || normE.includes("cleantech"))) return true;
-                if (normCompany.includes("facilities") && normE.includes("facilities")) return true;
-                if (normE.includes(normCompany) || normCompany.includes(normE)) return true;
-                return false;
-            });
-            setSelectedEmpresaId(matchedEmpresa ? matchedEmpresa.id : (empresas[0]?.id || ""));
+            setSelectedEmpresaId(matchEmpresaId(item.companyName, empresas));
         } else {
             setSelectedEmpresaId("");
         }
@@ -588,6 +586,28 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
     // Save Coverage
     const handleSaveCoverage = async () => {
         if (!selectedItem) return;
+
+        if (!notes || !notes.trim()) {
+            toast.error("A observação / justificativa é obrigatória para lançar a cobertura.");
+            return;
+        }
+
+        if (coverageType === "RESERVA_TECNICA") {
+            if (!selectedReservaId) {
+                toast.error("Por favor, selecione um funcionário da reserva técnica.");
+                return;
+            }
+        } else if (coverageType === "DIARISTA") {
+            if (!selectedDiaristaId) {
+                toast.error("Por favor, selecione uma diarista.");
+                return;
+            }
+            if (!selectedEmpresaId) {
+                toast.error("Por favor, selecione a Empresa Vinculada (Reembolso Fácil).");
+                return;
+            }
+        }
+
         setActionLoading(true);
 
         try {
@@ -597,22 +617,12 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
                 date,
                 employeeId: selectedItem.employee?.id,
                 coverageType,
-                notes
+                notes: notes.trim()
             };
 
             if (coverageType === "RESERVA_TECNICA") {
-                if (!selectedReservaId) {
-                    toast.error("Por favor, selecione um funcionário da reserva técnica.");
-                    setActionLoading(false);
-                    return;
-                }
                 payload.coveredById = selectedReservaId;
             } else if (coverageType === "DIARISTA") {
-                if (!selectedDiaristaId) {
-                    toast.error("Por favor, selecione uma diarista.");
-                    setActionLoading(false);
-                    return;
-                }
                 payload.diaristaCost = parseFloat(diaristaCost) || 0;
                 payload.diaristaId = selectedDiaristaId;
                 const foundDiarista = diaristas.find(d => d.id === selectedDiaristaId);
@@ -622,9 +632,7 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
                 if (selectedMotivoId) {
                     payload.motivoId = selectedMotivoId;
                 }
-                if (selectedEmpresaId) {
-                    payload.empresaId = selectedEmpresaId;
-                }
+                payload.empresaId = selectedEmpresaId;
             } else if (coverageType === "VAGO") {
                 payload.action = "COBERTURA";
                 payload.coverageType = "VAGO";
@@ -1752,7 +1760,10 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
                             <>
                                 <div className="flex flex-col gap-2">
                                     <div className="flex items-center justify-between">
-                                        <label className="text-xs font-black text-slate-700 uppercase">Empresa Vinculada (Reembolso Fácil)</label>
+                                        <label className="text-xs font-black text-slate-700 uppercase flex items-center gap-1">
+                                            <span>Empresa Vinculada (Reembolso Fácil)</span>
+                                            <span className="text-rose-600 font-bold">*</span>
+                                        </label>
                                         {selectedItem?.companyName && (
                                             <span className="text-[10px] text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded">
                                                 Posto: {selectedItem.companyName}
@@ -1765,15 +1776,15 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
                                         <select
                                             value={selectedEmpresaId}
                                             onChange={(e) => setSelectedEmpresaId(e.target.value)}
-                                            className="h-10 rounded-md border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer"
+                                            className={`h-10 rounded-md border text-xs font-semibold px-3 outline-none cursor-pointer ${!selectedEmpresaId ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-white'}`}
                                         >
-                                            <option value="">Selecione a Empresa...</option>
+                                            <option value="">Selecione a Empresa (Obrigatório)...</option>
                                             {empresas.map(e => (
                                                 <option key={e.id} value={e.id}>{e.nome}</option>
                                             ))}
                                         </select>
                                     ) : (
-                                        <span className="text-xs text-slate-400">Nenhuma empresa encontrada.</span>
+                                        <span className="text-xs text-rose-500 font-semibold">Nenhuma empresa encontrada no Reembolso Fácil.</span>
                                     )}
                                 </div>
                                 <div className="flex flex-col gap-2">
@@ -1832,13 +1843,19 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
                         )}
 
                         <div className="flex flex-col gap-2">
-                            <label className="text-xs font-black text-slate-700 uppercase">Observações / Justificativa</label>
-                            <Input
-                                type="text"
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-black text-slate-700 uppercase flex items-center gap-1">
+                                    <span>Observações / Justificativa</span>
+                                    <span className="text-rose-600 font-bold">*</span>
+                                </label>
+                                <span className="text-[10px] text-amber-600 font-semibold">Obrigatório • Enviado ao Reembolso Fácil</span>
+                            </div>
+                            <Textarea
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
-                                className="h-10 text-xs border-slate-200"
-                                placeholder="Motivo da falta, nome da diarista, etc..."
+                                rows={3}
+                                className={`text-xs resize-none ${!notes.trim() ? 'border-amber-300 focus-visible:ring-amber-400' : 'border-slate-200'}`}
+                                placeholder="Descreva obrigatoriamente o motivo da cobertura / justificativa (será sincronizado no Reembolso Fácil)..."
                             />
                         </div>
                     </div>
@@ -1850,8 +1867,8 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
                         <Button 
                             variant="default" 
                             onClick={handleSaveCoverage} 
-                            disabled={actionLoading}
-                            className="bg-primary hover:bg-primary/95 text-white text-xs h-10 px-5"
+                            disabled={actionLoading || !notes.trim() || (coverageType === "DIARISTA" && (!selectedDiaristaId || !selectedEmpresaId))}
+                            className="bg-primary hover:bg-primary/95 text-white text-xs h-10 px-5 disabled:opacity-50"
                         >
                             {actionLoading ? "Salvando..." : "Confirmar Cobertura"}
                         </Button>

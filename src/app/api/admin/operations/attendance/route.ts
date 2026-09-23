@@ -350,19 +350,24 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: "Tipo de cobertura é obrigatório" }, { status: 400 });
             }
 
+            const trimmedNotes = (typeof notes === "string") ? notes.trim() : "";
+            if (!trimmedNotes) {
+                return NextResponse.json({ error: "A observação / justificativa é obrigatória para lançar cobertura." }, { status: 400 });
+            }
+
             const reembolsoUrl = process.env.DATABASE_URL_REEMBOLSO || "postgresql://neondb_owner:npg_FAXvef5z2oLN@ep-lingering-poetry-ahaduz92-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require";
 
-            let finalNotes = notes;
+            let finalNotes = trimmedNotes;
             if (coverageType === "DIARISTA" && diaristaId) {
                 if (body.diaristaName) {
-                    finalNotes = `${body.diaristaName}${notes ? ' | ' + notes : ''}`;
+                    finalNotes = `${body.diaristaName} | ${trimmedNotes}`;
                 } else if (reembolsoUrl) {
                     try {
                         const tempPrisma = new PrismaClient({ datasources: { db: { url: reembolsoUrl } } });
                         try {
                             const dbDiaristas = await tempPrisma.$queryRawUnsafe('SELECT nome FROM "Diarista" WHERE id = $1 LIMIT 1', diaristaId) as any[];
                             if (dbDiaristas && dbDiaristas.length > 0) {
-                                finalNotes = `${dbDiaristas[0].nome}${notes ? ' | ' + notes : ''}`;
+                                finalNotes = `${dbDiaristas[0].nome} | ${trimmedNotes}`;
                             }
                         } finally {
                             await tempPrisma.$disconnect().catch(() => {});
@@ -447,7 +452,9 @@ export async function POST(request: Request) {
                             const companyName = localPosto.client.company?.name || "";
 
                             // 0. Mapear ou validar a Empresa no Reembolso Fácil
-                            let finalEmpresaId: string | null = empresaId || null;
+                            const DEFAULT_EMPRESA_ID = "02af2177-f8d2-44e0-a543-4e5d6e3f850f"; // 001 - JVS FACILITIES
+                            let finalEmpresaId: string = (empresaId && typeof empresaId === "string") ? empresaId.trim() : "";
+
                             try {
                                 const dbEmpresas = await prismaReembolso.$queryRawUnsafe(
                                     'SELECT id, nome FROM "Empresa" WHERE ativo = true'
@@ -455,7 +462,7 @@ export async function POST(request: Request) {
 
                                 if (finalEmpresaId && dbEmpresas && dbEmpresas.length > 0) {
                                     const exists = dbEmpresas.some(e => e.id === finalEmpresaId);
-                                    if (!exists) finalEmpresaId = null;
+                                    if (!exists) finalEmpresaId = "";
                                 }
 
                                 if (!finalEmpresaId && dbEmpresas && dbEmpresas.length > 0) {
@@ -474,11 +481,16 @@ export async function POST(request: Request) {
                                         finalEmpresaId = matched.id;
                                     } else {
                                         const defaultEmp = dbEmpresas.find(e => (e.nome || "").toLowerCase().includes("facilities")) || dbEmpresas[0];
-                                        finalEmpresaId = defaultEmp?.id || null;
+                                        finalEmpresaId = defaultEmp?.id || DEFAULT_EMPRESA_ID;
                                     }
                                 }
                             } catch (e: any) {
                                 console.error("Erro ao mapear empresa no Reembolso Fácil:", e.message);
+                            }
+
+                            // GARANTIA: Empresa nunca pode ser nula no Reembolso Fácil
+                            if (!finalEmpresaId) {
+                                finalEmpresaId = DEFAULT_EMPRESA_ID;
                             }
 
                             // 1. Buscar ou criar o Posto (Cliente) no Reembolso Fácil
@@ -581,7 +593,7 @@ export async function POST(request: Request) {
 
                             // 7. Inserir a Cobertura (Diária) no Reembolso Fácil
                             const newCoberturaId = crypto.randomUUID();
-                            const observacaoFinal = `${notes ? notes + ' | ' : ''}Lançado via Mesa de Operações do Workforce Hub por ${userName}`;
+                            const observacaoFinal = `${trimmedNotes} | Lançado via Mesa de Operações do Workforce Hub por ${userName}`;
 
                             await prismaReembolso.$executeRawUnsafe(
                                 `INSERT INTO "Cobertura" (
