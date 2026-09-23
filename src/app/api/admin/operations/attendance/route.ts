@@ -593,7 +593,7 @@ export async function POST(request: Request) {
 
                             // 7. Inserir a Cobertura (Diária) no Reembolso Fácil
                             const newCoberturaId = crypto.randomUUID();
-                            const observacaoFinal = `${trimmedNotes} | Lançado via Mesa de Operações do Workforce Hub por ${userName}`;
+                            const observacaoFinal = `JUSTIFICATIVA: ${trimmedNotes} | Solicitado via Mesa de Operações por ${userName}`;
 
                             await prismaReembolso.$executeRawUnsafe(
                                 `INSERT INTO "Cobertura" (

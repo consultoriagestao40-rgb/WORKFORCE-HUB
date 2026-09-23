@@ -40,6 +40,13 @@ interface Client {
     accountManagerId: string | null;
 }
 
+const DEFAULT_REEMBOLSO_EMPRESAS = [
+    { id: "02af2177-f8d2-44e0-a543-4e5d6e3f850f", nome: "001 - JVS FACILITIES" },
+    { id: "f7503c32-3f86-4d6b-abbf-f9de8dc0e44a", nome: "002 - JVS TRATAMENTOS" },
+    { id: "121ff504-ea0b-4784-880a-593e8822a7f6", nome: "003 - SPOT FACILITIES" },
+    { id: "35a79a89-ec54-4af2-94a8-b15bb8b0bec3", nome: "Clean Tech" },
+];
+
 interface OperationsDeskProps {
     companies: Company[];
     clients: Client[];
@@ -121,7 +128,7 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
     const [motivos, setMotivos] = useState<Array<{ id: string; descricao: string }>>([]);
     const [loadingMotivos, setLoadingMotivos] = useState<boolean>(false);
     const [selectedMotivoId, setSelectedMotivoId] = useState<string>("");
-    const [empresas, setEmpresas] = useState<Array<{ id: string; nome: string }>>([]);
+    const [empresas, setEmpresas] = useState<Array<{ id: string; nome: string }>>(DEFAULT_REEMBOLSO_EMPRESAS);
     const [loadingEmpresas, setLoadingEmpresas] = useState<boolean>(false);
     const [selectedEmpresaId, setSelectedEmpresaId] = useState<string>("");
     const [actionLoading, setActionLoading] = useState<boolean>(false);
@@ -398,7 +405,9 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
 
     const matchEmpresaId = useCallback((companyName: string | undefined, list: Array<{ id: string; nome: string }>) => {
         if (!list || list.length === 0) return "";
-        const norm = (companyName || "").toLowerCase();
+        const norm = (companyName || "").toLowerCase().trim();
+        if (!norm || norm === "-" || norm === "sem empresa") return "";
+
         const matched = list.find(e => {
             const normE = (e.nome || "").toLowerCase();
             if (norm.includes("tratamento") && normE.includes("tratamento")) return true;
@@ -408,15 +417,18 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
             if (normE.includes(norm) || norm.includes(normE)) return true;
             return false;
         });
-        if (matched) return matched.id;
-        const defaultFac = list.find(e => (e.nome || "").toLowerCase().includes("facilities"));
-        return defaultFac ? defaultFac.id : (list[0]?.id || "");
+
+        // Retorna o ID se casou automaticamente; se não casar, retorna vazio para forçar seleção na lista suspensa
+        return matched ? matched.id : "";
     }, []);
 
     // Sincronizar auto-seleção da empresa do Reembolso Fácil quando as empresas carregarem ou o item mudar
     useEffect(() => {
         if (openDialog && selectedItem && !selectedEmpresaId && empresas.length > 0) {
-            setSelectedEmpresaId(matchEmpresaId(selectedItem.companyName, empresas));
+            const autoId = matchEmpresaId(selectedItem.companyName, empresas);
+            if (autoId) {
+                setSelectedEmpresaId(autoId);
+            }
         }
     }, [openDialog, selectedItem, selectedEmpresaId, empresas, matchEmpresaId]);
 
@@ -1758,33 +1770,54 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
 
                         {coverageType === "DIARISTA" && (
                             <>
-                                <div className="flex flex-col gap-2">
+                                <div className={`flex flex-col gap-2 p-3.5 rounded-xl border transition-all ${!selectedEmpresaId ? 'bg-rose-50/40 border-rose-300' : 'bg-slate-50/80 border-slate-200'}`}>
                                     <div className="flex items-center justify-between">
-                                        <label className="text-xs font-black text-slate-700 uppercase flex items-center gap-1">
+                                        <label className="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
                                             <span>Empresa Vinculada (Reembolso Fácil)</span>
                                             <span className="text-rose-600 font-bold">*</span>
                                         </label>
-                                        {selectedItem?.companyName && (
-                                            <span className="text-[10px] text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded">
-                                                Posto: {selectedItem.companyName}
+                                        {selectedEmpresaId ? (
+                                            <span className="text-[10px] text-emerald-700 bg-emerald-100/70 border border-emerald-300/80 px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                                                ✓ Empresa Vinculada
+                                            </span>
+                                        ) : (
+                                            <span className="text-[10px] text-rose-700 bg-rose-100/80 border border-rose-300 px-2 py-0.5 rounded font-black animate-pulse">
+                                                ⚠️ Seleção Obrigatória
                                             </span>
                                         )}
                                     </div>
+
+                                    {selectedItem?.companyName && (
+                                        <div className="text-[11px] text-slate-600 font-medium">
+                                            Empresa do Posto: <strong className="text-slate-800 font-bold">{selectedItem.companyName}</strong>
+                                        </div>
+                                    )}
+
                                     {loadingEmpresas ? (
                                         <span className="text-xs text-slate-400 font-semibold animate-pulse">Carregando empresas...</span>
                                     ) : empresas.length > 0 ? (
                                         <select
                                             value={selectedEmpresaId}
                                             onChange={(e) => setSelectedEmpresaId(e.target.value)}
-                                            className={`h-10 rounded-md border text-xs font-semibold px-3 outline-none cursor-pointer ${!selectedEmpresaId ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-white'}`}
+                                            className={`h-10 rounded-md border text-xs font-bold px-3 outline-none cursor-pointer transition-all ${
+                                                !selectedEmpresaId 
+                                                    ? 'border-rose-400 bg-white text-rose-800 ring-2 ring-rose-200' 
+                                                    : 'border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-primary'
+                                            }`}
                                         >
-                                            <option value="">Selecione a Empresa (Obrigatório)...</option>
+                                            <option value="">-- Selecione a Empresa na Lista (Obrigatório) --</option>
                                             {empresas.map(e => (
                                                 <option key={e.id} value={e.id}>{e.nome}</option>
                                             ))}
                                         </select>
                                     ) : (
                                         <span className="text-xs text-rose-500 font-semibold">Nenhuma empresa encontrada no Reembolso Fácil.</span>
+                                    )}
+
+                                    {!selectedEmpresaId && (
+                                        <p className="text-[11px] text-rose-600 font-semibold">
+                                            * Não é possível avançar sem selecionar a empresa. Escolha uma opção na lista suspensa acima.
+                                        </p>
                                     )}
                                 </div>
                                 <div className="flex flex-col gap-2">
@@ -1842,21 +1875,32 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
                             </>
                         )}
 
-                        <div className="flex flex-col gap-2">
+                        <div className={`flex flex-col gap-2 p-3.5 rounded-xl border transition-all ${!notes.trim() ? 'bg-amber-50/30 border-amber-300' : 'bg-slate-50/80 border-slate-200'}`}>
                             <div className="flex items-center justify-between">
-                                <label className="text-xs font-black text-slate-700 uppercase flex items-center gap-1">
-                                    <span>Observações / Justificativa</span>
+                                <label className="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
+                                    <span>Justificativa da Cobertura</span>
                                     <span className="text-rose-600 font-bold">*</span>
                                 </label>
-                                <span className="text-[10px] text-amber-600 font-semibold">Obrigatório • Enviado ao Reembolso Fácil</span>
+                                <span className="text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded font-bold">
+                                    Visível para o Aprovador no Reembolso Fácil
+                                </span>
                             </div>
                             <Textarea
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
                                 rows={3}
-                                className={`text-xs resize-none ${!notes.trim() ? 'border-amber-300 focus-visible:ring-amber-400' : 'border-slate-200'}`}
-                                placeholder="Descreva obrigatoriamente o motivo da cobertura / justificativa (será sincronizado no Reembolso Fácil)..."
+                                className={`text-xs resize-none bg-white transition-all ${
+                                    !notes.trim() 
+                                        ? 'border-amber-400 placeholder:text-amber-700/60 ring-2 ring-amber-100' 
+                                        : 'border-slate-300 text-slate-800 focus-visible:ring-primary'
+                                }`}
+                                placeholder="Informe detalhadamente a justificativa para o aprovador da diária (ex: cobertura por falta sem atestado, serviço extra solicitado pelo cliente, etc)..."
                             />
+                            {!notes.trim() && (
+                                <p className="text-[11px] text-amber-700 font-semibold">
+                                    * Justificativa obrigatória para deliberação do aprovador da diária.
+                                </p>
+                            )}
                         </div>
                     </div>
 
@@ -1868,7 +1912,7 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
                             variant="default" 
                             onClick={handleSaveCoverage} 
                             disabled={actionLoading || !notes.trim() || (coverageType === "DIARISTA" && (!selectedDiaristaId || !selectedEmpresaId))}
-                            className="bg-primary hover:bg-primary/95 text-white text-xs h-10 px-5 disabled:opacity-50"
+                            className="bg-primary hover:bg-primary/95 text-white font-bold text-xs h-10 px-5 disabled:opacity-50 shadow-sm"
                         >
                             {actionLoading ? "Salvando..." : "Confirmar Cobertura"}
                         </Button>
