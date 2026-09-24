@@ -628,6 +628,10 @@ export async function moveCandidate(candidateId: string, newStageId: string, jus
             ) {
                 await syncCandidateToEmployeeAndPosto(cand.id).catch(e => console.warn("[moveCandidate] Auto-sync warning:", e));
             }
+
+            if (isAdmittedStage(newStage.name)) {
+                await sendAdmissionWhatsappNotification(cand.id).catch(e => console.warn("[moveCandidate] Admission notification warning:", e));
+            }
         }
 
         revalidatePath("/admin/recrutamento");
@@ -738,6 +742,10 @@ export async function moveCandidate(candidateId: string, newStageId: string, jus
         newStage.name === 'Posto'
     ) {
         await syncCandidateToEmployeeAndPosto(candidateId).catch(e => console.warn("[moveCandidate] Single auto-sync warning:", e));
+    }
+
+    if (isAdmittedStage(newStage.name)) {
+        await sendAdmissionWhatsappNotification(candidateId).catch(e => console.warn("[moveCandidate] Single admission notification warning:", e));
     }
 
     // --- NOTIFICATION: Candidate Movement ---
@@ -2247,6 +2255,92 @@ function sanitizeCpf(raw?: string): { formatted: string; digits: string } {
 }
 
 /**
+ * Verifica se uma etapa é a etapa de "Admitido" (evita falsos positivos com "Admissão (Onvio)").
+ */
+export function isAdmittedStage(stageName?: string | null): boolean {
+    if (!stageName) return false;
+    const lower = stageName.trim().toLowerCase();
+    return lower === 'admitido' || (lower.includes('admitid') && !lower.includes('onvio'));
+}
+
+/**
+ * Dispara notificação de WhatsApp informando que o colaborador foi admitido e alocado no posto.
+ * Essa notificação só deve ser enviada quando o card do candidato for movido para a etapa "Admitido".
+ */
+export async function sendAdmissionWhatsappNotification(candidateId: string, force = false) {
+    try {
+        const candidate = await prisma.recruitmentCandidate.findUnique({
+            where: { id: candidateId },
+            include: {
+                stage: true,
+                vacancy: {
+                    include: {
+                        posto: {
+                            include: {
+                                client: {
+                                    include: { accountManager: true }
+                                },
+                                role: true
+                            }
+                        },
+                        role: true,
+                        company: true
+                    }
+                }
+            }
+        });
+
+        if (!candidate) return;
+
+        const candExtra = (candidate.extraFields as Record<string, any>) || {};
+        
+        // Evita duplicidade se já tiver sido notificado, a menos que seja forçado
+        if (!force && candExtra.admissionNotified) {
+            console.log(`[sendAdmissionWhatsappNotification] Notificação já enviada anteriormente para ${candidate.name}. Ignorando.`);
+            return;
+        }
+
+        const name = candidate.name;
+        const targetPostoObj = candidate.vacancy?.posto;
+        const clientName = targetPostoObj?.client?.name || "Sem Posto Fixo";
+        const roleName = targetPostoObj?.role?.name || candidate.vacancy?.role?.name || "Auxiliar";
+        const supervisor = targetPostoObj?.client?.accountManager;
+        
+        const admissionDate = candExtra.admissionDate || candExtra.startDate || candidate.vacancy?.expectedStartDate;
+        const admDateFormatted = admissionDate ? new Date(admissionDate).toLocaleDateString("pt-BR") : "Imediato";
+
+        await dispatchRhNotification({
+            event: 'ADMISSAO',
+            title: `Nova Admissão: ${name}`,
+            message: `📢 *[RH - NOVA ADMISSÃO / ALOCAÇÃO]*\n\n` +
+                     `👤 *Colaborador:* ${name}\n` +
+                     `💼 *Cargo:* ${roleName}\n` +
+                     `📍 *Cliente/Contrato:* ${clientName}\n` +
+                     `📅 *Início das Atividades:* ${admDateFormatted}\n` +
+                     `✍️ *Admitido via:* Recrutamento & Seleção (ATS / Kit Admissão)`,
+            contractSupervisorPhone: supervisor?.phone,
+            contractSupervisorName: supervisor?.name
+        });
+
+        // Marca como notificado no extraFields
+        await prisma.recruitmentCandidate.update({
+            where: { id: candidateId },
+            data: {
+                extraFields: {
+                    ...candExtra,
+                    admissionNotified: true,
+                    admissionNotifiedAt: new Date().toISOString()
+                }
+            }
+        });
+
+        console.log(`[sendAdmissionWhatsappNotification] Notificação de admissão enviada com sucesso para ${name}!`);
+    } catch (notifErr) {
+        console.error("[sendAdmissionWhatsappNotification] Erro não-fatal ao enviar WhatsApp de admissão:", notifErr);
+    }
+}
+
+/**
  * Cria ou atualiza o Colaborador (Employee) na base oficial e realiza a alocação ativa no Posto de Trabalho.
  */
 export async function syncCandidateToEmployeeAndPosto(candidateId: string, overrides?: any) {
@@ -2615,27 +2709,9 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
         console.warn("Candidate extra update notice:", cErr);
     }
 
-    // Dispatch WhatsApp Notification for New Admission
-    try {
-        const clientName = targetPostoObj?.client?.name || "Sem Posto Fixo";
-        const roleName = targetPostoObj?.role?.name || "Auxiliar";
-        const supervisor = targetPostoObj?.client?.accountManager;
-        const admDateFormatted = admissionDate ? new Date(admissionDate).toLocaleDateString("pt-BR") : "Imediato";
-
-        await dispatchRhNotification({
-            event: 'ADMISSAO',
-            title: `Nova Admissão: ${name}`,
-            message: `📢 *[RH - NOVA ADMISSÃO / ALOCAÇÃO]*\n\n` +
-                     `👤 *Colaborador:* ${name}\n` +
-                     `💼 *Cargo:* ${roleName}\n` +
-                     `📍 *Cliente/Contrato:* ${clientName}\n` +
-                     `📅 *Início das Atividades:* ${admDateFormatted}\n` +
-                     `✍️ *Admitido via:* Recrutamento & Seleção (ATS / Kit Admissão)`,
-            contractSupervisorPhone: supervisor?.phone,
-            contractSupervisorName: supervisor?.name
-        });
-    } catch (notifErr) {
-        console.error("[syncCandidateToEmployeeAndPosto] Non-fatal notification error:", notifErr);
+    // Se o candidato já estiver na etapa de Admitido e ainda não tiver sido notificado, dispara
+    if (isAdmittedStage(candidate.stage?.name)) {
+        await sendAdmissionWhatsappNotification(candidateId).catch(e => console.warn("[syncCandidateToEmployeeAndPosto] Admission notification warning:", e));
     }
 
     return {
@@ -2796,6 +2872,10 @@ export async function moveCandidateToStageByName(candidateId: string, stageNameK
     ) {
         await syncCandidateToEmployeeAndPosto(candidateId).catch(e => console.warn("[moveCandidateToStageByName] Sync warning:", e));
     }
+
+    if (isAdmittedStage(targetStage.name)) {
+        await sendAdmissionWhatsappNotification(candidateId).catch(e => console.warn("[moveCandidateToStageByName] Admission notification warning:", e));
+    }
     
     revalidatePath('/admin/recrutamento');
     revalidatePath('/admin/employees');
@@ -2810,9 +2890,9 @@ export async function confirmOnvio(candidateId: string, customData?: any) {
     if (!candidate) throw new Error('Candidato não encontrado');
     
     // Find Cadastro de Benefícios stage (or fallback to Admitido)
-    let nextStage = await prisma.recruitmentStage.findFirst({ where: { name: { contains: 'Benefícios', mode: 'insensitive' } } });
+    let nextStage = await prisma.recruitmentStage.findFirst({ where: { name: { contains: 'Admitido', mode: 'insensitive' } } });
     if (!nextStage) {
-        nextStage = await prisma.recruitmentStage.findFirst({ where: { name: { contains: 'Admitido', mode: 'insensitive' } } });
+        nextStage = await prisma.recruitmentStage.findFirst({ where: { name: { contains: 'Benefícios', mode: 'insensitive' } } });
     }
 
     if (customData?.extraFields) {
@@ -2849,6 +2929,10 @@ export async function confirmOnvio(candidateId: string, customData?: any) {
 
     // Auto-create/sync Employee and Posto Assignment
     const syncRes = await syncCandidateToEmployeeAndPosto(candidateId, customData);
+
+    if (nextStage && isAdmittedStage(nextStage.name)) {
+        await sendAdmissionWhatsappNotification(candidateId).catch(e => console.warn("[confirmOnvio] Admission notification warning:", e));
+    }
     
     revalidatePath('/admin/recrutamento');
     revalidatePath('/admin/employees');
@@ -3100,6 +3184,10 @@ export async function advanceCandidateToStage(candidateId: string, stageNameKeyw
         targetStage.name.toLowerCase().includes('conclu')
     ) {
         await syncCandidateToEmployeeAndPosto(candidateId).catch(e => console.warn("[advanceCandidateToStage] Sync warning:", e));
+    }
+
+    if (isAdmittedStage(targetStage.name)) {
+        await sendAdmissionWhatsappNotification(candidateId).catch(e => console.warn("[advanceCandidateToStage] Admission notification warning:", e));
     }
 
     revalidatePath("/admin/recrutamento");
