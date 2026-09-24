@@ -13,12 +13,7 @@ import {
     DialogDescription,
     DialogFooter 
 } from "@/components/ui/dialog";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { 
     HeartPulse, 
@@ -655,8 +650,8 @@ export function AsoMonitorClient({ initialItems, stats }: AsoMonitorClientProps)
                                                     </Button>
 
                                                     {/* WhatsApp Trigger */}
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
                                                             <Button
                                                                 size="sm"
                                                                 variant="ghost"
@@ -670,33 +665,36 @@ export function AsoMonitorClient({ initialItems, stats }: AsoMonitorClientProps)
                                                                 )}
                                                                 WhatsApp
                                                             </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end" className="bg-white border-slate-200 shadow-xl rounded-xl p-1 w-56">
-                                                            <DropdownMenuItem
+                                                        </PopoverTrigger>
+                                                        <PopoverContent align="end" className="bg-white border-slate-200 shadow-xl rounded-xl p-1.5 w-60 flex flex-col gap-1 z-50">
+                                                            <button
+                                                                type="button"
                                                                 onClick={() => handleSendAlert(emp, "GROUPS")}
-                                                                className="text-xs font-semibold py-2 cursor-pointer rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                                                                className="text-xs font-semibold py-2 px-2.5 cursor-pointer rounded-lg text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center transition-colors text-left w-full"
                                                             >
-                                                                <MessageSquare className="w-3.5 h-3.5 mr-2 text-emerald-600" />
+                                                                <MessageSquare className="w-3.5 h-3.5 mr-2 text-emerald-600 shrink-0" />
                                                                 Enviar para Grupos RH/DP
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem
+                                                            </button>
+                                                            <button
+                                                                type="button"
                                                                 onClick={() => handleSendAlert(emp, "SUPERVISOR")}
                                                                 disabled={!emp.supervisorPhone}
-                                                                className="text-xs font-semibold py-2 cursor-pointer rounded-lg text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-40"
+                                                                className="text-xs font-semibold py-2 px-2.5 cursor-pointer rounded-lg text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center transition-colors text-left w-full disabled:opacity-40 disabled:cursor-not-allowed"
                                                             >
-                                                                <UserCheck className="w-3.5 h-3.5 mr-2 text-indigo-600" />
+                                                                <UserCheck className="w-3.5 h-3.5 mr-2 text-indigo-600 shrink-0" />
                                                                 Alerta ao Supervisor {emp.supervisorName ? `(${emp.supervisorName.split(" ")[0]})` : ""}
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem
+                                                            </button>
+                                                            <button
+                                                                type="button"
                                                                 onClick={() => handleSendAlert(emp, "EMPLOYEE")}
                                                                 disabled={!emp.phone}
-                                                                className="text-xs font-semibold py-2 cursor-pointer rounded-lg text-slate-700 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-40"
+                                                                className="text-xs font-semibold py-2 px-2.5 cursor-pointer rounded-lg text-slate-700 hover:bg-rose-50 hover:text-rose-700 flex items-center transition-colors text-left w-full disabled:opacity-40 disabled:cursor-not-allowed"
                                                             >
-                                                                <Phone className="w-3.5 h-3.5 mr-2 text-rose-600" />
+                                                                <Phone className="w-3.5 h-3.5 mr-2 text-rose-600 shrink-0" />
                                                                 Alerta Direto ao Colaborador
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
+                                                            </button>
+                                                        </PopoverContent>
+                                                    </Popover>
 
                                                     {/* Link to Employee Profile */}
                                                     <Link href={`/admin/employees?edit=${emp.id}`} target="_blank">
