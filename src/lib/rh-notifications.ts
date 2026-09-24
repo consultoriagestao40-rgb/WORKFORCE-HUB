@@ -14,6 +14,7 @@ export type RhNotificationEventType =
     | 'PRAZO_RESCISAO'
     | 'TELEGRAMA'
     | 'EXPERIENCIA'
+    | 'ASO'
     | 'TESTE';
 
 export interface ExtraPhoneItem {
@@ -178,6 +179,10 @@ export async function dispatchRhNotification(payload: DispatchNotificationPayloa
             case 'EXPERIENCIA':
                 isEventActive = config.notifyDailyProbationDeadline;
                 channels = config.notifyDailyProbationChannels || "OPERATIONS,ADMIN";
+                break;
+            case 'ASO':
+                isEventActive = (config as any).notifyDailyAsoDeadline !== false;
+                channels = (config as any).notifyDailyAsoChannels || "OPERATIONS,ADMIN";
                 break;
             case 'TESTE':
                 isEventActive = true;

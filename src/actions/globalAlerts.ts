@@ -9,8 +9,8 @@ export interface GlobalAlertItem {
     id: string;
     employeeId: string;
     employeeName: string;
-    type: 'BENEFIT' | 'EXPERIENCE' | 'DP_DISMISSAL';
-    category?: 'PAGAMENTO' | 'TELEGRAMA' | 'EXPERIENCIA' | 'ABANDONO';
+    type: 'BENEFIT' | 'EXPERIENCE' | 'DP_DISMISSAL' | 'ASO';
+    category?: 'PAGAMENTO' | 'TELEGRAMA' | 'EXPERIENCIA' | 'ABANDONO' | 'ASO';
     severity: 'CRITICAL' | 'WARNING';
     message: string;
     dueDate: string;
@@ -321,10 +321,70 @@ export async function getGlobalAlerts() {
         console.error("Error calculating dismissal alerts:", err);
     }
 
+    // 5. Fetch ASO (Saúde Ocupacional) alerts
+    let asoAlerts: GlobalAlertItem[] = [];
+    try {
+        const activeEmps = await prisma.employee.findMany({
+            where: {
+                status: { notIn: ['Desligado', 'Inativo'] }
+            },
+            select: {
+                id: true,
+                name: true,
+                extraFields: true
+            }
+        });
+
+        for (const emp of activeEmps) {
+            const extra = (emp.extraFields as any) || {};
+            const asoDueDateStr = extra.asoDueDate || extra.asoVencimento;
+            if (!asoDueDateStr) continue;
+
+            try {
+                const parts = asoDueDateStr.split("-").map(Number);
+                if (parts.length !== 3) continue;
+                const dueDate = new Date(parts[0], parts[1] - 1, parts[2]);
+                dueDate.setHours(0, 0, 0, 0);
+                const daysLeft = differenceInDays(dueDate, todayStart);
+
+                if (daysLeft < 0) {
+                    asoAlerts.push({
+                        id: `aso-crit-${emp.id}`,
+                        employeeId: emp.id,
+                        employeeName: emp.name,
+                        type: 'ASO',
+                        category: 'ASO',
+                        severity: 'CRITICAL',
+                        message: `ASO vencido em ${format(dueDate, 'dd/MM/yyyy')} (atrasado há ${Math.abs(daysLeft)} dias)!`,
+                        dueDate: format(dueDate, 'dd/MM/yyyy'),
+                        daysLeft
+                    });
+                } else if (daysLeft <= 30) {
+                    asoAlerts.push({
+                        id: `aso-warn-${emp.id}`,
+                        employeeId: emp.id,
+                        employeeName: emp.name,
+                        type: 'ASO',
+                        category: 'ASO',
+                        severity: 'WARNING',
+                        message: `ASO vence em ${format(dueDate, 'dd/MM/yyyy')} (${daysLeft} dias restantes).`,
+                        dueDate: format(dueDate, 'dd/MM/yyyy'),
+                        daysLeft
+                    });
+                }
+            } catch {
+                // ignore
+            }
+        }
+    } catch (asoErr) {
+        console.error("Error calculating ASO alerts:", asoErr);
+    }
+
     return {
         benefitsAlerts,
         experienceAlerts,
         dismissalAlerts,
+        asoAlerts,
         alertUserId,
         dismissalAlertUserId,
         probationAlertUserId,

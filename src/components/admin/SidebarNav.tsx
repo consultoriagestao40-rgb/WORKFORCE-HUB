@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Users, Building, ClipboardList, LayoutDashboard, History, Clock, Calendar, Building2, ShieldAlert, Briefcase, DollarSign, LogOut, Inbox, AlertCircle, BarChart, UserPlus, Landmark, CreditCard, Calculator, Scale, Shirt, Headphones, FileText, Scissors, BellRing } from "lucide-react";
+import { Users, Building, ClipboardList, LayoutDashboard, History, Clock, Calendar, Building2, ShieldAlert, Briefcase, DollarSign, LogOut, Inbox, AlertCircle, BarChart, UserPlus, Landmark, CreditCard, Calculator, Scale, Shirt, Headphones, FileText, Scissors, BellRing, HeartPulse } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -95,6 +95,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
                 <NavLink href="/admin/recrutamento" icon={UserPlus} label="Recrutamento" colorClass="text-pink-500" />
                 <NavLink href="/admin/probation-monitor" icon={Clock} label="Monitor de Experiência" colorClass="text-amber-500" />
                 <NavLink href="/admin/vacation-monitor" icon={Calendar} label="Monitor de Férias" colorClass="text-emerald-400" />
+                <NavLink href="/admin/aso-monitor" icon={HeartPulse} label="Monitor de ASO" colorClass="text-rose-400 font-bold" />
                 <NavLink href="/admin/dismissal-monitor" icon={ShieldAlert} label="Monitor de Desligamento" colorClass="text-rose-500" />
                 <NavLink href="/admin/financial-costs" icon={DollarSign} label="Gestão de Custos" colorClass="text-emerald-500" />
                 <NavLink href="/admin/payroll-preview" icon={Calculator} label="Prévia de Folha" colorClass="text-sky-400" />

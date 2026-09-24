@@ -337,6 +337,80 @@ export async function GET(request: Request) {
             }
         }
 
+        // 4. VENCIMENTO DE ASO (SAÚDE OCUPACIONAL)
+        const notifyAso = (config as any).notifyDailyAsoDeadline !== false;
+        if (notifyAso) {
+            const allActiveEmployees = await prisma.employee.findMany({
+                where: {
+                    status: { notIn: ['Desligado', 'Inativo'] }
+                },
+                include: {
+                    company: true,
+                    role: true,
+                    assignments: {
+                        where: { endDate: null },
+                        include: {
+                            posto: {
+                                include: {
+                                    client: {
+                                        include: { accountManager: true }
+                                    }
+                                }
+                            }
+                        },
+                        take: 1
+                    }
+                }
+            });
+
+            for (const emp of allActiveEmployees) {
+                const extra = (emp.extraFields as any) || {};
+                const asoDueDateStr = extra.asoDueDate || extra.asoVencimento;
+                if (!asoDueDateStr) continue;
+
+                try {
+                    const parts = asoDueDateStr.split("-").map(Number);
+                    if (parts.length !== 3) continue;
+                    const dueDate = startOfDay(new Date(parts[0], parts[1] - 1, parts[2]));
+                    const daysLeft = differenceInDays(dueDate, todayStart);
+
+                    // Alertas nos marcos: 30 dias antes, 15 dias antes, 7 dias antes, no dia (0 dias) ou vencido ontem/hoje (-1)
+                    if (daysLeft === 30 || daysLeft === 15 || daysLeft === 7 || daysLeft === 0 || daysLeft === -1) {
+                        const supervisor = emp.assignments[0]?.posto?.client?.accountManager;
+                        const supervisorPhone = supervisor?.phone || null;
+                        const supervisorName = supervisor?.name || null;
+                        const clientName = emp.assignments[0]?.posto?.client?.name || "Rotativo / Sem Posto";
+
+                        let statusDesc = "";
+                        if (daysLeft === 0) statusDesc = "⚠️ Vence HOJE!";
+                        else if (daysLeft < 0) statusDesc = `🔴 VENCIDO há ${Math.abs(daysLeft)} dia(s)!`;
+                        else statusDesc = `⏳ Vence em ${daysLeft} dias (${format(dueDate, "dd/MM/yyyy")})`;
+
+                        const msg = `🩺 *[RH - ALERTA DE VENCIMENTO DO ASO]*\n\n` +
+                                    `👤 *Colaborador:* ${emp.name}\n` +
+                                    `🏢 *Empresa:* ${emp.company?.name || "N/A"}\n` +
+                                    `📍 *Posto/Cliente:* ${clientName}\n` +
+                                    `💼 *Função:* ${emp.role?.name || "Geral"}\n` +
+                                    `⚠️ *Status:* ${statusDesc}\n` +
+                                    `📅 *Vencimento do ASO:* ${format(dueDate, "dd/MM/yyyy")}\n\n` +
+                                    `🎯 *Ação:* Agendar exame médico periódico de saúde ocupacional para emissão de novo ASO.`;
+
+                        await dispatchRhNotification({
+                            event: 'ASO',
+                            title: `ASO ${daysLeft <= 0 ? 'Vencido' : 'a Vencer'} - ${emp.name}`,
+                            message: msg,
+                            contractSupervisorPhone: supervisorPhone,
+                            contractSupervisorName: supervisorName,
+                            metadata: { employeeId: emp.id, asoDueDate: asoDueDateStr, daysLeft }
+                        });
+                        alertsSent++;
+                    }
+                } catch (asoErr) {
+                    console.error(`Erro ao processar alerta ASO para ${emp.name}:`, asoErr);
+                }
+            }
+        }
+
         return NextResponse.json({
             success: true,
             alertsSent,

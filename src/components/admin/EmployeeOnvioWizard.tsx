@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, ChevronRight, ChevronLeft, CheckCircle2, FileText, Download, UploadCloud, Pencil, X, Check, AlertTriangle, Info, ShieldAlert } from "lucide-react";
+import { Plus, Trash2, ChevronRight, ChevronLeft, CheckCircle2, FileText, Download, UploadCloud, Pencil, X, Check, AlertTriangle, Info, ShieldAlert, HeartPulse } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { addDepartment, addCostCenter, addUnion, addJobFunction } from "@/app/actions";
 import { toast } from "sonner";
 
@@ -49,6 +50,7 @@ const wizardTabs = [
     { step: 4, tab: "rg", label: "RG" },
     { step: 4, tab: "cnh", label: "CNH" },
     { step: 4, tab: "titulo", label: "Título & Reservista" },
+    { step: 4, tab: "aso", label: "ASO (Saúde Ocupacional)" },
     
     { step: 5, tab: "dependentes", label: "Dependentes" },
     
@@ -303,6 +305,45 @@ export function EmployeeOnvioWizard({
 
     const [reservistaNumero, setReservistaNumero] = useState("");
     const [reservistaCategoria, setReservistaCategoria] = useState("");
+
+    // ASO (Atestado de Saúde Ocupacional)
+    const [asoDate, setAsoDate] = useState("");
+    const [asoDueDate, setAsoDueDate] = useState("");
+    const [asoType, setAsoType] = useState("Admissional");
+    const [asoValidityMonths, setAsoValidityMonths] = useState("12");
+    const [asoClinic, setAsoClinic] = useState("");
+    const [asoDoctor, setAsoDoctor] = useState("");
+    const [asoDoctorCrm, setAsoDoctorCrm] = useState("");
+    const [asoDoctorCrmUf, setAsoDoctorCrmUf] = useState("PR");
+    const [asoApto, setAsoApto] = useState("Apto");
+    const [asoNotes, setAsoNotes] = useState("");
+
+    const handleAsoDateChange = (newDateStr: string, months = asoValidityMonths) => {
+        setAsoDate(newDateStr);
+        if (newDateStr) {
+            try {
+                const [year, month, day] = newDateStr.split("-").map(Number);
+                if (year && month && day) {
+                    const d = new Date(year, month - 1, day);
+                    const numMonths = parseInt(months) || 12;
+                    d.setMonth(d.getMonth() + numMonths);
+                    const projYear = d.getFullYear();
+                    const projMonth = String(d.getMonth() + 1).padStart(2, "0");
+                    const projDay = String(d.getDate()).padStart(2, "0");
+                    setAsoDueDate(`${projYear}-${projMonth}-${projDay}`);
+                }
+            } catch (err) {
+                console.error("Erro ao projetar data do ASO", err);
+            }
+        }
+    };
+
+    const handleAsoValidityChange = (months: string) => {
+        setAsoValidityMonths(months);
+        if (asoDate) {
+            handleAsoDateChange(asoDate, months);
+        }
+    };
 
     const [dependentes, setDependentes] = useState<any[]>([]);
     const [observacoes, setObservacoes] = useState("");
@@ -581,6 +622,18 @@ export function EmployeeOnvioWizard({
 
             setReservistaNumero(extra.reservistaNumero || "");
             setReservistaCategoria(extra.reservistaCategoria || "");
+
+            setAsoDate(safeFormatDate(extra.asoDate || extra.asoData));
+            setAsoDueDate(safeFormatDate(extra.asoDueDate || extra.asoVencimento));
+            setAsoType(extra.asoType || extra.asoTipo || "Admissional");
+            setAsoValidityMonths(extra.asoValidityMonths || "12");
+            setAsoClinic(extra.asoClinic || extra.asoClinica || "");
+            setAsoDoctor(extra.asoDoctor || extra.asoMedico || "");
+            setAsoDoctorCrm(extra.asoDoctorCrm || extra.asoCrm || "");
+            setAsoDoctorCrmUf(extra.asoDoctorCrmUf || "PR");
+            setAsoApto(extra.asoApto || extra.asoStatus || "Apto");
+            setAsoNotes(extra.asoNotes || extra.asoObservacoes || "");
+
             setChavePix(extra.chavePix || "");
             setFormaPagamento(extra.formaPagamento || "PIX");
             setTipoChavePix(extra.tipoChavePix || "");
@@ -692,6 +745,16 @@ export function EmployeeOnvioWizard({
                 tituloEleitorUf: isEstrangeiro ? "" : tituloEleitorUf,
                 reservistaNumero: isEstrangeiro ? "" : reservistaNumero,
                 reservistaCategoria: isEstrangeiro ? "" : reservistaCategoria,
+                asoDate,
+                asoDueDate,
+                asoType,
+                asoValidityMonths,
+                asoClinic,
+                asoDoctor,
+                asoDoctorCrm,
+                asoDoctorCrmUf,
+                asoApto,
+                asoNotes,
                 dependentes,
                 observacoes,
                 pixKey: chavePix || cpf,
@@ -717,7 +780,9 @@ export function EmployeeOnvioWizard({
         naturalidadeCidade, naturalidadeUf, rgNumero, rgOrgaoEmissor, rgDataEmissao, rgUf,
         rnmNumero, rnmOrgaoEmissor, rnmDataEmissao, rnmDataValidade, rnmUf,
         cnhNumero, cnhCategoria, cnhValidade, cnhUf, tituloEleitorNumero, tituloEleitorZona,
-        tituloEleitorSecao, tituloEleitorUf, reservistaNumero, reservistaCategoria, dependentes, observacoes
+        tituloEleitorSecao, tituloEleitorUf, reservistaNumero, reservistaCategoria, 
+        asoDate, asoDueDate, asoType, asoValidityMonths, asoClinic, asoDoctor, asoDoctorCrm, asoDoctorCrmUf, asoApto, asoNotes,
+        dependentes, observacoes
     ]);
 
     const activeTabObj = wizardTabs[currentTabIdx];
@@ -847,6 +912,16 @@ export function EmployeeOnvioWizard({
         tituloEleitorUf,
         reservistaNumero,
         reservistaCategoria,
+        asoDate,
+        asoDueDate,
+        asoType,
+        asoValidityMonths,
+        asoClinic,
+        asoDoctor,
+        asoDoctorCrm,
+        asoDoctorCrmUf,
+        asoApto,
+        asoNotes,
         chavePix,
         formaPagamento,
         tipoChavePix,
@@ -2834,6 +2909,151 @@ export function EmployeeOnvioWizard({
                                     </div>
                                 </div>
                             )
+                        )}
+
+                        {/* Tab: ASO (Saúde Ocupacional) */}
+                        {currentTab === "aso" && (
+                            <div className="space-y-5 animate-in fade-in duration-200">
+                                <div className="p-4 bg-sky-50 border border-sky-200/80 rounded-2xl text-sky-900 text-xs flex items-start gap-3 shadow-xs">
+                                    <HeartPulse className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
+                                    <div>
+                                        <span className="font-bold text-sky-950 block mb-0.5">Controle de Saúde Ocupacional (ASO)</span>
+                                        <span className="text-sky-800 leading-relaxed">
+                                            Informe a data de realização do ASO. A data de vencimento é <strong>projetada automaticamente para 12 meses</strong> (com possibilidade de ajuste manual ou alteração do período de validade).
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="asoDate" className="font-bold text-slate-700 text-xs">Data de Realização do ASO</Label>
+                                        <Input 
+                                            id="asoDate" 
+                                            type="date" 
+                                            value={asoDate} 
+                                            onChange={e => handleAsoDateChange(e.target.value)} 
+                                            className="focus:ring-sky-500/20 focus:border-sky-500"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="asoValidityMonths" className="font-bold text-slate-700 text-xs">Validade do Exame</Label>
+                                        <Select value={asoValidityMonths} onValueChange={handleAsoValidityChange}>
+                                            <SelectTrigger id="asoValidityMonths">
+                                                <SelectValue placeholder="Selecione" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="6">6 Meses (Semestral)</SelectItem>
+                                                <SelectItem value="12">12 Meses (1 Ano - Padrão)</SelectItem>
+                                                <SelectItem value="24">24 Meses (2 Anos)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <div className="flex justify-between items-center">
+                                            <Label htmlFor="asoDueDate" className="font-bold text-slate-700 text-xs">Data de Vencimento</Label>
+                                            <span className="text-[10px] font-semibold text-sky-700 bg-sky-100 px-1.5 py-0.5 rounded-md">
+                                                Projetado +12m
+                                            </span>
+                                        </div>
+                                        <Input 
+                                            id="asoDueDate" 
+                                            type="date" 
+                                            value={asoDueDate} 
+                                            onChange={e => setAsoDueDate(e.target.value)} 
+                                            className="focus:ring-sky-500/20 focus:border-sky-500 font-semibold"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="asoType" className="font-bold text-slate-700 text-xs">Tipo de Exame ASO</Label>
+                                        <Select value={asoType} onValueChange={setAsoType}>
+                                            <SelectTrigger id="asoType">
+                                                <SelectValue placeholder="Selecione o tipo" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="Admissional">Admissional</SelectItem>
+                                                <SelectItem value="Periódico">Periódico</SelectItem>
+                                                <SelectItem value="Retorno ao Trabalho">Retorno ao Trabalho</SelectItem>
+                                                <SelectItem value="Mudança de Riscos Ocupacionais">Mudança de Riscos Ocupacionais</SelectItem>
+                                                <SelectItem value="Demissional">Demissional</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="asoApto" className="font-bold text-slate-700 text-xs">Conclusão / Aptidão</Label>
+                                        <Select value={asoApto} onValueChange={setAsoApto}>
+                                            <SelectTrigger id="asoApto">
+                                                <SelectValue placeholder="Selecione" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="Apto">🟢 Apto para a Função</SelectItem>
+                                                <SelectItem value="Apto com Restrições">🟡 Apto com Restrições</SelectItem>
+                                                <SelectItem value="Inapto">🔴 Inapto</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="space-y-1.5 md:col-span-2">
+                                        <Label htmlFor="asoClinic" className="font-bold text-slate-700 text-xs">Clínica / Prestador de Saúde</Label>
+                                        <Input 
+                                            id="asoClinic" 
+                                            value={asoClinic} 
+                                            onChange={e => setAsoClinic(e.target.value)} 
+                                            placeholder="Ex: MedTrab, Ocupacional Curitiba..." 
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="asoDoctor" className="font-bold text-slate-700 text-xs">Médico Emitente / Coordenador</Label>
+                                        <Input 
+                                            id="asoDoctor" 
+                                            value={asoDoctor} 
+                                            onChange={e => setAsoDoctor(e.target.value)} 
+                                            placeholder="Dr(a). Nome" 
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="space-y-1.5 md:col-span-2">
+                                        <Label htmlFor="asoDoctorCrm" className="font-bold text-slate-700 text-xs">CRM do Médico</Label>
+                                        <Input 
+                                            id="asoDoctorCrm" 
+                                            value={asoDoctorCrm} 
+                                            onChange={e => setAsoDoctorCrm(e.target.value)} 
+                                            placeholder="Ex: 12345" 
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="asoDoctorCrmUf" className="font-bold text-slate-700 text-xs">UF CRM</Label>
+                                        <Input 
+                                            id="asoDoctorCrmUf" 
+                                            value={asoDoctorCrmUf} 
+                                            onChange={e => setAsoDoctorCrmUf(e.target.value)} 
+                                            placeholder="Ex: PR" 
+                                            maxLength={2}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="asoNotes" className="font-bold text-slate-700 text-xs">Observações do ASO</Label>
+                                    <Textarea 
+                                        id="asoNotes" 
+                                        value={asoNotes} 
+                                        onChange={e => setAsoNotes(e.target.value)} 
+                                        placeholder="Observações complementares, orientações médicas ou restrições ocupacionais..." 
+                                        rows={2}
+                                        className="text-xs resize-none"
+                                    />
+                                </div>
+                            </div>
                         )}
                     </>
                 )}

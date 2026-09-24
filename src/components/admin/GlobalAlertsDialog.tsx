@@ -24,7 +24,8 @@ import {
     Send, 
     ShieldAlert, 
     Settings,
-    Info
+    Info,
+    HeartPulse
 } from "lucide-react";
 import { getGlobalAlerts, updateAlertUserId, GlobalAlertItem } from "@/actions/globalAlerts";
 import { useRouter } from "next/navigation";
@@ -39,6 +40,7 @@ export function GlobalAlertsDialog({ user }: GlobalAlertsDialogProps) {
     const [benefitsAlerts, setBenefitsAlerts] = useState<GlobalAlertItem[]>([]);
     const [experienceAlerts, setExperienceAlerts] = useState<GlobalAlertItem[]>([]);
     const [dismissalAlerts, setDismissalAlerts] = useState<GlobalAlertItem[]>([]);
+    const [asoAlerts, setAsoAlerts] = useState<GlobalAlertItem[]>([]);
     
     const [alertUserId, setAlertUserId] = useState<string | null>(null);
     const [systemUsers, setSystemUsers] = useState<{ id: string; name: string; email: string | null }[]>([]);
@@ -56,6 +58,7 @@ export function GlobalAlertsDialog({ user }: GlobalAlertsDialogProps) {
                     benefitsAlerts: bAlerts, 
                     experienceAlerts: eAlerts, 
                     dismissalAlerts: dAlerts, 
+                    asoAlerts: aAlerts,
                     alertUserId: managerId,
                     dismissalAlertUserId: dismissalManagerId,
                     probationAlertUserId: probationManagerId,
@@ -70,14 +73,16 @@ export function GlobalAlertsDialog({ user }: GlobalAlertsDialogProps) {
                 const filteredBenefits = showBenefits ? bAlerts : [];
                 const filteredExperience = showExperience ? eAlerts : [];
                 const filteredDismissal = showDismissal ? dAlerts : [];
+                const filteredAso = aAlerts || [];
 
                 setBenefitsAlerts(filteredBenefits);
                 setExperienceAlerts(filteredExperience);
                 setDismissalAlerts(filteredDismissal);
+                setAsoAlerts(filteredAso);
                 setAlertUserId(managerId);
                 setSystemUsers(users);
 
-                const totalAlerts = filteredBenefits.length + filteredExperience.length + filteredDismissal.length;
+                const totalAlerts = filteredBenefits.length + filteredExperience.length + filteredDismissal.length + filteredAso.length;
 
                 if (totalAlerts > 0) {
                     setOpen(true);
@@ -92,7 +97,7 @@ export function GlobalAlertsDialog({ user }: GlobalAlertsDialogProps) {
         fetchAlerts();
     }, []);
 
-    const totalCount = benefitsAlerts.length + experienceAlerts.length + dismissalAlerts.length;
+    const totalCount = benefitsAlerts.length + experienceAlerts.length + dismissalAlerts.length + asoAlerts.length;
 
     if (totalCount === 0 || loading) {
         return null;
@@ -124,6 +129,8 @@ export function GlobalAlertsDialog({ user }: GlobalAlertsDialogProps) {
                 return <Calendar className="w-3.5 h-3.5 text-purple-500 inline mr-1" />;
             case 'ABANDONO':
                 return <ShieldAlert className="w-3.5 h-3.5 text-rose-500 inline mr-1" />;
+            case 'ASO':
+                return <HeartPulse className="w-3.5 h-3.5 text-rose-500 inline mr-1" />;
             default:
                 return <Info className="w-3.5 h-3.5 text-slate-500 inline mr-1" />;
         }
@@ -135,7 +142,7 @@ export function GlobalAlertsDialog({ user }: GlobalAlertsDialogProps) {
                 {/* Header */}
                 <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-amber-50/50">
                     <DialogTitle className="flex items-center gap-2 text-lg font-black text-amber-700">
-                        <AlertTriangle className="w-5 h-5 text-amber-600 animate-pulse" /> Prazos e Vencimentos Críticos de DP
+                        <AlertTriangle className="w-5 h-5 text-amber-600 animate-pulse" /> Prazos e Vencimentos Críticos de DP & Saúde
                     </DialogTitle>
                     <DialogDescription className="text-xs text-amber-850">
                         Prezado responsável, há prazos legais e vencimentos para o dia de hoje ou datas anteriores que necessitam de atenção.
@@ -161,7 +168,7 @@ export function GlobalAlertsDialog({ user }: GlobalAlertsDialogProps) {
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {benefitsAlerts.map(alert => (
-                                            <tr key={alert.id} className="hover:bg-slate-50/50 font-semibold text-slate-700">
+                                             <tr key={alert.id} className="hover:bg-slate-50/50 font-semibold text-slate-700">
                                                 <td className="py-3 px-3 font-bold text-slate-800">
                                                     {alert.employeeName}
                                                 </td>
@@ -265,6 +272,59 @@ export function GlobalAlertsDialog({ user }: GlobalAlertsDialogProps) {
                                                 </td>
                                             </tr>
                                         ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ASO Expiration Alerts Table */}
+                    {asoAlerts.length > 0 && (
+                        <div className="space-y-2">
+                            <h4 className="text-xs font-bold text-rose-700 flex items-center gap-1.5 uppercase tracking-wider">
+                                <HeartPulse className="w-4 h-4 text-rose-600" /> Atestados de Saúde Ocupacional (ASO) Críticos / Vencendo
+                            </h4>
+                            <div className="border border-slate-200/60 rounded-2xl overflow-hidden bg-white">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-slate-50 border-b border-slate-200">
+                                        <tr className="font-bold text-slate-500">
+                                            <th className="py-2.5 px-3">Colaborador</th>
+                                            <th className="py-2.5 px-3 text-center">Vencimento</th>
+                                            <th className="py-2.5 px-3 text-center">Status / Dias</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {asoAlerts.map(alert => {
+                                            const isOverdue = alert.daysLeft < 0;
+                                            return (
+                                                <tr key={alert.id} className="hover:bg-slate-50/50 font-semibold text-slate-700">
+                                                    <td className="py-3 px-3 font-bold text-slate-800">
+                                                        <HeartPulse className="w-3.5 h-3.5 text-rose-500 inline mr-1" />
+                                                        {alert.employeeName}
+                                                    </td>
+                                                    <td className="py-3 px-3 text-center">
+                                                        <span className={`px-2 py-0.5 rounded font-bold text-[10px] border ${
+                                                            isOverdue 
+                                                                ? 'bg-red-50 text-red-700 border-red-200' 
+                                                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                                                        }`}>
+                                                            {alert.dueDate}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-3 text-center">
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                                            isOverdue 
+                                                                ? 'bg-red-100 text-red-700' 
+                                                                : 'bg-amber-100 text-amber-700'
+                                                        }`}>
+                                                            {isOverdue 
+                                                                ? `${Math.abs(alert.daysLeft)}d vencido` 
+                                                                : `${alert.daysLeft}d restantes`}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>

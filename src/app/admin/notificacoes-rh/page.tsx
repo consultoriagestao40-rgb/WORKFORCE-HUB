@@ -94,6 +94,9 @@ export default function RhNotificationsPage() {
     const [notifyVacationEveReturn, setNotifyVacationEveReturn] = useState(true);
     const [notifyVacationEveReturnChannels, setNotifyVacationEveReturnChannels] = useState("OPERATIONS,ADMIN");
 
+    const [notifyDailyAsoDeadline, setNotifyDailyAsoDeadline] = useState(true);
+    const [notifyDailyAsoChannels, setNotifyDailyAsoChannels] = useState("OPERATIONS,ADMIN");
+
     // Supervisor
     const [notifyDirectSupervisor, setNotifyDirectSupervisor] = useState(true);
 
@@ -163,6 +166,9 @@ export default function RhNotificationsPage() {
 
                 setNotifyVacationEveReturn(config.notifyVacationEveReturn ?? true);
                 setNotifyVacationEveReturnChannels((config as any).notifyVacationEveReturnChannels || "OPERATIONS,ADMIN");
+
+                setNotifyDailyAsoDeadline((config as any).notifyDailyAsoDeadline ?? true);
+                setNotifyDailyAsoChannels((config as any).notifyDailyAsoChannels || "OPERATIONS,ADMIN");
 
                 setNotifyDirectSupervisor(config.notifyDirectSupervisor);
             }
@@ -236,6 +242,8 @@ export default function RhNotificationsPage() {
             notifyVacationEveStartChannels,
             notifyVacationEveReturn,
             notifyVacationEveReturnChannels,
+            notifyDailyAsoDeadline,
+            notifyDailyAsoChannels,
             notifyDirectSupervisor
         });
     };
@@ -1243,6 +1251,29 @@ export default function RhNotificationsPage() {
                                         extraPhones={extraPhones}
                                     />
                                     <Switch checked={notifyVacationEveReturn} onCheckedChange={setNotifyVacationEveReturn} />
+                                </div>
+                            </div>
+
+                            {/* Vencimento de ASO (Saúde Ocupacional) */}
+                            <div className="p-3.5 bg-sky-50/70 border border-sky-200 rounded-2xl flex items-center justify-between gap-2">
+                                <div className="space-y-0.5 max-w-[55%]">
+                                    <span className="font-bold text-xs text-sky-950 block">🩺 Vencimento de ASO (Saúde Ocupacional)</span>
+                                    <span className="text-[11px] text-sky-800 block">
+                                        Alerta aos 30d, 15d, 7d, no vencimento e vencidos para agendamento periódico.
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <RhRecipientSelector
+                                        value={notifyDailyAsoChannels}
+                                        onChange={setNotifyDailyAsoChannels}
+                                        operationsGroupJid={operationsGroupJid}
+                                        operationsGroupName={operationsGroupName}
+                                        adminGroupJid={adminGroupJid}
+                                        adminGroupName={adminGroupName}
+                                        extraGroups={extraGroups}
+                                        extraPhones={extraPhones}
+                                    />
+                                    <Switch checked={notifyDailyAsoDeadline} onCheckedChange={setNotifyDailyAsoDeadline} />
                                 </div>
                             </div>
                         </div>

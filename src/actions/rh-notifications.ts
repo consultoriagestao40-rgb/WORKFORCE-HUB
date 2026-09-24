@@ -50,12 +50,18 @@ export async function getRhNotificationConfig() {
                 notifyVacationEveStartChannels: "OPERATIONS,ADMIN",
                 notifyVacationEveReturn: true,
                 notifyVacationEveReturnChannels: "OPERATIONS,ADMIN",
-                notifyDirectSupervisor: true
-            }
+                notifyDirectSupervisor: true,
+                notifyDailyAsoDeadline: true,
+                notifyDailyAsoChannels: "OPERATIONS,ADMIN"
+            } as any
         });
     }
 
-    return config;
+    return {
+        ...config,
+        notifyDailyAsoDeadline: (config as any).notifyDailyAsoDeadline ?? true,
+        notifyDailyAsoChannels: (config as any).notifyDailyAsoChannels || "OPERATIONS,ADMIN"
+    };
 }
 
 export async function saveRhNotificationConfig(data: {
@@ -90,6 +96,8 @@ export async function saveRhNotificationConfig(data: {
     notifyVacationEveStartChannels: string;
     notifyVacationEveReturn: boolean;
     notifyVacationEveReturnChannels: string;
+    notifyDailyAsoDeadline?: boolean;
+    notifyDailyAsoChannels?: string;
     notifyDirectSupervisor: boolean;
 }) {
     const user = await getCurrentUser();
@@ -107,7 +115,7 @@ export async function saveRhNotificationConfig(data: {
                 ...data,
                 extraGroups: data.extraGroups as any,
                 extraPhones: data.extraPhones as any
-            }
+            } as any
         });
     } else {
         updated = await prisma.rhNotificationConfig.create({
@@ -115,7 +123,7 @@ export async function saveRhNotificationConfig(data: {
                 ...data,
                 extraGroups: data.extraGroups as any,
                 extraPhones: data.extraPhones as any
-            }
+            } as any
         });
     }
 
