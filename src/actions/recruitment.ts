@@ -2257,7 +2257,7 @@ function sanitizeCpf(raw?: string): { formatted: string; digits: string } {
 /**
  * Verifica se uma etapa é a etapa de "Admitido" (evita falsos positivos com "Admissão (Onvio)").
  */
-export function isAdmittedStage(stageName?: string | null): boolean {
+function isAdmittedStage(stageName?: string | null): boolean {
     if (!stageName) return false;
     const lower = stageName.trim().toLowerCase();
     return lower === 'admitido' || (lower.includes('admitid') && !lower.includes('onvio'));
