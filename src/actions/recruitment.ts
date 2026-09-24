@@ -2306,7 +2306,7 @@ export async function sendAdmissionWhatsappNotification(candidateId: string, for
         const roleName = targetPostoObj?.role?.name || candidate.vacancy?.role?.name || "Auxiliar";
         const supervisor = targetPostoObj?.client?.accountManager;
         
-        const admissionDate = candExtra.admissionDate || candExtra.startDate || candidate.vacancy?.expectedStartDate;
+        const admissionDate = candExtra.admissionDate || candExtra.startDate || candidate.vacancy?.plannedStartDate;
         const admDateFormatted = admissionDate ? new Date(admissionDate).toLocaleDateString("pt-BR") : "Imediato";
 
         await dispatchRhNotification({
