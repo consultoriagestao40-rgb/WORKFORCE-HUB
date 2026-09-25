@@ -539,8 +539,16 @@ export async function generateDismissalNoticePdfBytes(employeeId: string, custom
 
         drawText("==================================================================", marginX, cursorY, 9.5, false, 'center');
         cursorY -= 18;
-        drawText(`=== SR(a). ${context.colaboradorNome}`, marginX + 25, cursorY, 10, true);
-        cursorY -= 30;
+        drawText(`SR(a). ${context.colaboradorNome}`, marginX + 25, cursorY, 10, true);
+        cursorY -= 16;
+        drawText(`C.T.P.S.: ${context.ctpsNumero}   Série: ${context.ctpsSerie}`, marginX + 25, cursorY, 9.5);
+        cursorY -= 14;
+        drawText(`PIS: ${context.pisNumero}`, marginX + 25, cursorY, 9.5);
+        cursorY -= 14;
+        drawText(`CPF: ${context.cpf || "-"}`, marginX + 25, cursorY, 9.5);
+        cursorY -= 14;
+        drawText(`Data de Admissão: ${context.dataAdmissao}`, marginX + 25, cursorY, 9.5);
+        cursorY -= 25;
 
         cursorY = drawParagraph(
             `Pelo presente, o notificamos que a IMEDIATO da data da entrega deste, não mais serão utilizados os seus serviços pela nossa firma e por isso avisá-lo, nos Termos e para os efeitos do dispositivo no Art. 445, parágrafo único da CLT.`,
