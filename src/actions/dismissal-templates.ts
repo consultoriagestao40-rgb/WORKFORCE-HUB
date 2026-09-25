@@ -160,6 +160,74 @@ export async function deleteDismissalTemplate(id: string) {
 }
 
 /**
+ * Verifica se o colaborador tem os campos críticos para geração do aviso (CTPS, PIS)
+ * Retorna quais campos estão faltando para que a UI possa solicitar antes de gerar o PDF.
+ */
+export async function checkEmployeeDismissalFields(employeeId: string): Promise<{
+    ctpsNumero: string;
+    ctpsSerie: string;
+    pisNumero: string;
+    cpf: string;
+    missingFields: string[];
+}> {
+    const employee = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        select: { extraFields: true, cpf: true }
+    });
+    if (!employee) throw new Error("Colaborador não encontrado.");
+
+    const ef = (employee.extraFields as Record<string, any>) || {};
+
+    const ctpsNumero = ef.ctpsNumero || ef.ctpsNumber || ef.ctps || ef.numeroCtps || ef.ctps_numero || "";
+    const ctpsSerie = ef.ctpsSerie || ef.serie || ef.serieCtps || ef.ctps_serie || "";
+    const pisNumero = ef.pisNumero || ef.pis || ef.pisPasep || ef.pis_pasep || "";
+    const cpf = employee.cpf || "";
+
+    const missingFields: string[] = [];
+    if (!ctpsNumero) missingFields.push("ctpsNumero");
+    if (!ctpsSerie) missingFields.push("ctpsSerie");
+    if (!pisNumero) missingFields.push("pisNumero");
+
+    return { ctpsNumero, ctpsSerie, pisNumero, cpf, missingFields };
+}
+
+/**
+ * Salva campos críticos de identificação (CTPS, PIS) no extraFields do colaborador.
+ * Usa merge para não sobrescrever outros dados já existentes.
+ * Chamado sempre que o usuário preenche campos faltantes antes de gerar o aviso.
+ */
+export async function saveEmployeeDismissalFields(
+    employeeId: string,
+    fields: { ctpsNumero?: string; ctpsSerie?: string; pisNumero?: string }
+) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado");
+
+    const employee = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        select: { extraFields: true }
+    });
+    if (!employee) throw new Error("Colaborador não encontrado.");
+
+    const existing = (employee.extraFields as Record<string, any>) || {};
+
+    // Merge: só sobrescreve se o novo valor for não-vazio
+    const updated: Record<string, any> = { ...existing };
+    if (fields.ctpsNumero?.trim()) updated.ctpsNumero = fields.ctpsNumero.trim();
+    if (fields.ctpsSerie?.trim()) updated.ctpsSerie = fields.ctpsSerie.trim();
+    if (fields.pisNumero?.trim()) updated.pisNumero = fields.pisNumero.trim();
+
+    await prisma.employee.update({
+        where: { id: employeeId },
+        data: { extraFields: updated }
+    });
+
+    revalidatePath(`/admin/employees/${employeeId}`);
+    revalidatePath("/admin/dismissal-monitor");
+    return { success: true };
+}
+
+/**
  * Busca dados completos de colaborador, empresa, posto e processo de desligamento
  */
 export async function getDismissalNoticeContext(employeeId: string, customOverrides?: any) {
@@ -261,10 +329,10 @@ export async function getDismissalNoticeContext(employeeId: string, customOverri
     const dataInicioAviso = formatSafeDate(proc.startDate || new Date());
     const dataFimAviso = formatSafeDate(proc.endDate || proc.startDate || null);
 
-    // Determinar dados de CTPS e PIS com compatibilidade ampla de chaves
-    const ctpsNumero = extraFields.ctpsNumero || extraFields.ctpsNumber || extraFields.ctps || extraFields.numeroCtps || extraFields.ctps_numero || "-";
-    const ctpsSerie = extraFields.ctpsSerie || extraFields.serie || extraFields.serieCtps || extraFields.ctps_serie || "-";
-    const pisNumero = extraFields.pisNumero || extraFields.pis || extraFields.pisPasep || extraFields.pis_pasep || "-";
+    // Determinar dados de CTPS e PIS — customOverrides têm prioridade (para casos de preenchimento inline)
+    const ctpsNumero = customOverrides?.ctpsNumero || extraFields.ctpsNumero || extraFields.ctpsNumber || extraFields.ctps || extraFields.numeroCtps || extraFields.ctps_numero || "-";
+    const ctpsSerie = customOverrides?.ctpsSerie || extraFields.ctpsSerie || extraFields.serie || extraFields.serieCtps || extraFields.ctps_serie || "-";
+    const pisNumero = customOverrides?.pisNumero || extraFields.pisNumero || extraFields.pis || extraFields.pisPasep || extraFields.pis_pasep || "-";
 
     // Cálculo da quantidade de dias do aviso prévio proporcional (Lei 12.506/2011)
     let calculatedNoticeDays = 30;
