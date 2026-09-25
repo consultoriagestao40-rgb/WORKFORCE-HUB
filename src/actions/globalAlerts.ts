@@ -236,10 +236,10 @@ export async function getGlobalAlerts() {
 
             if (type === "Aviso Prévio" && endDate && !paymentDeadline) {
                 paymentDeadline = new Date(endDate);
-                paymentDeadline.setDate(paymentDeadline.getDate() + 10);
-            } else if ((type === "Processo de Rescisão" || type.includes("Aviso Indenizado") || type.includes("Dispensa de Aviso")) && endDate && !paymentDeadline) {
-                paymentDeadline = new Date(endDate);
-                paymentDeadline.setDate(paymentDeadline.getDate() + 10);
+                paymentDeadline.setDate(paymentDeadline.getDate() + 9);
+            } else if ((type === "Processo de Rescisão" || type.includes("Aviso Indenizado") || type.includes("Dispensa de Aviso")) && (endDate || startDate) && !paymentDeadline) {
+                paymentDeadline = new Date(endDate || startDate!);
+                paymentDeadline.setDate(paymentDeadline.getDate() + 9);
             }
 
             // Payment Deadline Alert

@@ -3370,7 +3370,8 @@ export async function initiateEmployeeDismissalProcess(data: {
                 if (dismissalProcess.endDate) {
                     const end = new Date(dismissalProcess.endDate);
                     const payLimit = new Date(end);
-                    payLimit.setDate(payLimit.getDate() + 10);
+                    // CLT Art. 477 § 6: 10 dias considerando o dia da rescisão como Dia 01 (+9 dias corridos)
+                    payLimit.setDate(payLimit.getDate() + 9);
                     dismissalProcess.paymentDeadline = payLimit;
 
                     const lastWork = new Date(end);
@@ -3384,12 +3385,15 @@ export async function initiateEmployeeDismissalProcess(data: {
                 data.dismissalSubType === 'PEDIDO_SEM_AVISO' ||
                 data.dismissalSubType.startsWith('TERMINO_EXP_')
             ) {
-                const start = new Date(dismissalProcess.startDate);
+                const termDate = dismissalProcess.startDate || dismissalProcess.endDate || new Date();
+                const start = new Date(termDate);
                 const payLimit = new Date(start);
-                payLimit.setDate(payLimit.getDate() + 10);
+                // CLT Art. 477 § 6: 10 dias considerando o dia do desligamento como Dia 01 (+9 dias corridos, ex: 22/09 -> 01/10)
+                payLimit.setDate(payLimit.getDate() + 9);
                 dismissalProcess.paymentDeadline = payLimit;
                 dismissalProcess.lastWorkingDay = start;
-                dismissalProcess.endDate = start;
+                dismissalProcess.startDate = start;
+                dismissalProcess.endDate = data.endDate ? new Date(data.endDate) : start;
             } else if (data.dismissalSubType === 'ABANDONO') {
                 const start = new Date(dismissalProcess.startDate);
                 const endLimit = new Date(start);

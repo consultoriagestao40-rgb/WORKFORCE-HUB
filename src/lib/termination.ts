@@ -14,7 +14,7 @@ export type DismissalReason =
     | "EXP_ANTECIPADO_EMPRESA"
     | "EXP_ANTECIPADO_EMPREGADO";
 
-export type NoticeType = "INDENIZADO" | "TRABALHADO" | "DESCONTADO" | "DISPENSADO";
+export type NoticeType = "INDENIZADO" | "TRABALHADO" | "DESCONTADO" | "DISPENSADO" | "ART_479_CLT" | "ART_480_CLT";
 
 export interface TerminationInput {
     admissionDate: Date | string;
@@ -31,6 +31,8 @@ export interface TerminationInput {
     dismissalReason: DismissalReason;
     noticeType: NoticeType;
     customNoticeDays?: number;
+    experienceRemainingDays?: number; // Dias restantes do contrato de experiência para cálculo do Art. 479/480 da CLT
+    experienceEndDate?: Date | string; // Data prevista para término do contrato de experiência
     afastamentoDays?: number; // Days of unpaid leave / INSS in reference period
     afastamentoStartDate?: Date | string;
     afastamentoEndDate?: Date | string;
@@ -59,6 +61,8 @@ export interface TerminationResult {
 
     // Dates & Projections
     projectedEndDate: Date;
+    experienceRemainingDays?: number;
+    indenizacaoArt479Amount?: number;
 
     // Items
     items: TerminationItem[];
@@ -181,7 +185,7 @@ export function calculateTermination(input: TerminationInput): TerminationResult
 
     // Projected End Date (including Notice Period if Indemnified)
     let projectedEndDate = new Date(dismissal);
-    if (input.noticeType === "INDENIZADO" && input.dismissalReason !== "COM_JUSTA_CAUSA") {
+    if (input.noticeType === "INDENIZADO" && input.dismissalReason !== "COM_JUSTA_CAUSA" && input.dismissalReason !== "EXP_ANTECIPADO_EMPRESA") {
         projectedEndDate = addDays(dismissal, noticeDaysCount);
     }
 
@@ -207,10 +211,58 @@ export function calculateTermination(input: TerminationInput): TerminationResult
     }
 
     // -------------------------------------------------------------
-    // B) AVISO PRÉVIO INDENIZADO OU DESCONTADO
+    // B) AVISO PRÉVIO INDENIZADO OU DESCONTADO / INDENIZAÇÃO ART. 479 / 480 CLT
     // -------------------------------------------------------------
     let avisoIndenizadoAmount = 0;
-    if (input.noticeType === "INDENIZADO" && (input.dismissalReason === "SEM_JUSTA_CAUSA" || input.dismissalReason === "EXP_ANTECIPADO_EMPRESA")) {
+    let indenizacaoArt479Amount = 0;
+    let effectiveRemainingDays = 0;
+
+    // Rescisão antecipada da experiência pela empresa (Art. 479 CLT)
+    if (input.dismissalReason === "EXP_ANTECIPADO_EMPRESA" || input.noticeType === "ART_479_CLT") {
+        if (input.noticeType !== "DISPENSADO") {
+            effectiveRemainingDays = input.experienceRemainingDays || 0;
+            if (!effectiveRemainingDays && input.experienceEndDate) {
+                const expEnd = new Date(input.experienceEndDate);
+                if (!isNaN(expEnd.getTime())) {
+                    effectiveRemainingDays = Math.max(0, differenceInDays(expEnd, dismissal));
+                }
+            }
+            if (effectiveRemainingDays <= 0 && input.customNoticeDays && input.customNoticeDays > 0) {
+                effectiveRemainingDays = input.customNoticeDays;
+            }
+
+            indenizacaoArt479Amount = (dailyRate * effectiveRemainingDays) * 0.5;
+            if (indenizacaoArt479Amount > 0) {
+                items.push({
+                    code: "015",
+                    description: "Indenização Art. 479 CLT (50% dos dias restantes)",
+                    type: "PROVENTO",
+                    amount: indenizacaoArt479Amount,
+                    reference: `${effectiveRemainingDays} dias restantes (50% = ${(effectiveRemainingDays * 0.5).toFixed(1)}d)`
+                });
+            }
+        }
+    } else if (input.dismissalReason === "EXP_ANTECIPADO_EMPREGADO" || input.noticeType === "ART_480_CLT") {
+        if (input.noticeType !== "DISPENSADO") {
+            effectiveRemainingDays = input.experienceRemainingDays || 0;
+            if (!effectiveRemainingDays && input.experienceEndDate) {
+                const expEnd = new Date(input.experienceEndDate);
+                if (!isNaN(expEnd.getTime())) {
+                    effectiveRemainingDays = Math.max(0, differenceInDays(expEnd, dismissal));
+                }
+            }
+            const descontoArt480 = (dailyRate * effectiveRemainingDays) * 0.5;
+            if (descontoArt480 > 0) {
+                items.push({
+                    code: "105",
+                    description: "Indenização Art. 480 CLT (Desconto dias restantes)",
+                    type: "DESCONTO",
+                    amount: descontoArt480,
+                    reference: `${effectiveRemainingDays} dias restantes (50%)`
+                });
+            }
+        }
+    } else if (input.noticeType === "INDENIZADO" && input.dismissalReason === "SEM_JUSTA_CAUSA") {
         avisoIndenizadoAmount = dailyRate * noticeDaysCount;
         items.push({
             code: "010",
@@ -551,6 +603,8 @@ export function calculateTermination(input: TerminationInput): TerminationResult
         salaryBaseForCalc,
         dailyRate,
         projectedEndDate,
+        experienceRemainingDays: effectiveRemainingDays,
+        indenizacaoArt479Amount,
         items,
         totalProventos,
         totalDescontos,

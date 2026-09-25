@@ -178,15 +178,18 @@ export function InitiateDismissalDialog({
                     processType = 'Processo de Rescisão';
                     dismissalSubType = 'DISPENSA_SEM_AVISO';
                     startDate = terminationDate;
+                    endDate = terminationDate;
                 }
             } else if (dismissalCategory === 'EXP_ANTECIPADO') {
                 processType = 'Processo de Rescisão';
                 dismissalSubType = 'TERMINO_EXP_ANTECIPADO_EMPRESA';
                 startDate = terminationDate;
+                endDate = terminationDate;
             } else {
                 processType = 'Processo de Rescisão';
                 dismissalSubType = 'TERMINO_EXP_PRAZO_EMPRESA';
                 startDate = terminationDate;
+                endDate = terminationDate;
             }
         } else if (initiative === 'COLABORADOR') {
             if (dismissalCategory === 'AVISO') {
@@ -199,15 +202,18 @@ export function InitiateDismissalDialog({
                     processType = 'Processo de Rescisão';
                     dismissalSubType = 'PEDIDO_SEM_AVISO';
                     startDate = terminationDate;
+                    endDate = terminationDate;
                 }
             } else if (dismissalCategory === 'EXP_ANTECIPADO') {
                 processType = 'Processo de Rescisão';
                 dismissalSubType = 'TERMINO_EXP_ANTECIPADO_COLABORADOR';
                 startDate = terminationDate;
+                endDate = terminationDate;
             } else {
                 processType = 'Processo de Rescisão';
                 dismissalSubType = 'TERMINO_EXP_PRAZO_COLABORADOR';
                 startDate = terminationDate;
+                endDate = terminationDate;
             }
         } else if (initiative === 'ABANDONO') {
             processType = 'Processo de abandono';

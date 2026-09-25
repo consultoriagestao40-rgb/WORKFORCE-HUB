@@ -66,9 +66,9 @@ export async function GET(request: Request) {
             let endDate = proc.endDate ? new Date(proc.endDate) : null;
             let paymentDeadline = proc.paymentDeadline ? new Date(proc.paymentDeadline) : null;
 
-            if (!paymentDeadline && endDate) {
-                const computedPay = new Date(endDate);
-                computedPay.setDate(computedPay.getDate() + 10);
+            if (!paymentDeadline && (endDate || startDate)) {
+                const computedPay = new Date(endDate || startDate!);
+                computedPay.setDate(computedPay.getDate() + 9);
                 paymentDeadline = computedPay;
             }
 

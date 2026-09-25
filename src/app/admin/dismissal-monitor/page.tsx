@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { DashboardFilters } from "@/components/admin/DashboardFilters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { format, differenceInDays, addDays } from "date-fns";
+import { format, differenceInDays, addDays, startOfDay } from "date-fns";
 import { AlertCircle, Calendar, Clock, ArrowLeft, ArrowUpRight, CheckCircle2, UserX, Send, ShieldAlert, DollarSign } from "lucide-react";
 import Link from "next/link";
 import { DismissalMonitorActions } from "@/components/admin/DismissalMonitorActions";
@@ -101,14 +101,11 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
         let statusBadge = "NO_PRAZO"; // NO_PRAZO, A_VENCER, ALERTA
         let daysElapsed = 0;
 
+        const todayStart = startOfDay(today);
+
         if (type === "Aviso Prévio" || type.includes("Aviso Trabalhado")) {
             if (startDate && endDate) {
                 dateLabel = `${format(startDate, 'dd/MM/yyyy')} a ${format(endDate, 'dd/MM/yyyy')}`;
-                daysCount = differenceInDays(endDate, today);
-                counterLabel = daysCount >= 0 ? "Restantes" : "Atrasados";
-                if (daysCount <= 5 && daysCount >= 0) statusBadge = "A_VENCER";
-                if (daysCount < 0) statusBadge = "ALERTA";
-
                 if (!lastWorkingDay) {
                     lastWorkingDay = new Date(endDate);
                     if (reductionType === 'SETE_DIAS') {
@@ -117,7 +114,28 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
                 }
                 if (!paymentDeadline) {
                     paymentDeadline = new Date(endDate);
-                    paymentDeadline.setDate(paymentDeadline.getDate() + 10);
+                    paymentDeadline.setDate(paymentDeadline.getDate() + 9);
+                }
+
+                const endStart = startOfDay(endDate);
+                const payStart = startOfDay(paymentDeadline);
+
+                // Se ainda está cumprindo aviso prévio
+                if (differenceInDays(endStart, todayStart) >= 0) {
+                    daysCount = differenceInDays(endStart, todayStart);
+                    counterLabel = daysCount === 1 ? "Dia Restante" : "Restantes";
+                    if (daysCount <= 5) statusBadge = "A_VENCER";
+                    else statusBadge = "NO_PRAZO";
+                } else {
+                    // Aviso prévio concluído -> monitora o prazo de pagamento da rescisão
+                    daysCount = differenceInDays(payStart, todayStart);
+                    if (daysCount >= 0) {
+                        counterLabel = daysCount === 0 ? "Vence Hoje" : (daysCount === 1 ? "Dia p/ Pgto" : "Restantes");
+                        statusBadge = daysCount <= 3 ? "A_VENCER" : "NO_PRAZO";
+                    } else {
+                        counterLabel = "Atrasados";
+                        statusBadge = "ALERTA";
+                    }
                 }
             }
         } else if (
@@ -127,23 +145,30 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
             type.includes("Aviso Indenizado") || 
             type.includes("Dispensa de Aviso")
         ) {
-            if (endDate) {
-                dateLabel = `Término: ${format(endDate, 'dd/MM/yyyy')}`;
-                daysCount = differenceInDays(endDate, today);
-                counterLabel = daysCount >= 0 ? "Restantes" : "Atrasados";
-                if (daysCount <= 5 && daysCount >= 0) statusBadge = "A_VENCER";
-                if (daysCount < 0) statusBadge = "ALERTA";
-
-                lastWorkingDay = endDate;
+            const termDate = endDate || startDate;
+            if (termDate) {
+                dateLabel = `Término: ${format(termDate, 'dd/MM/yyyy')}`;
+                lastWorkingDay = termDate;
                 if (!paymentDeadline) {
-                    paymentDeadline = new Date(endDate);
-                    paymentDeadline.setDate(paymentDeadline.getDate() + 10);
+                    paymentDeadline = new Date(termDate);
+                    paymentDeadline.setDate(paymentDeadline.getDate() + 9);
+                }
+
+                // Rescisão sem aviso ou experiência imediata: o prazo ativo crucial é o PRAZO DE PAGAMENTO
+                const payStart = startOfDay(paymentDeadline);
+                daysCount = differenceInDays(payStart, todayStart);
+                if (daysCount >= 0) {
+                    counterLabel = daysCount === 0 ? "Vence Hoje" : (daysCount === 1 ? "Dia p/ Pgto" : "Restantes");
+                    statusBadge = daysCount <= 3 ? "A_VENCER" : "NO_PRAZO";
+                } else {
+                    counterLabel = "Atrasados";
+                    statusBadge = "ALERTA";
                 }
             }
         } else if (type === "Processo de abandono") {
             if (startDate) {
                 dateLabel = `Iniciado em: ${format(startDate, 'dd/MM/yyyy')}`;
-                daysElapsed = differenceInDays(today, startDate);
+                daysElapsed = differenceInDays(todayStart, startOfDay(startDate));
                 daysCount = 30 - daysElapsed;
                 if (daysCount <= 0) {
                     daysCount = Math.abs(daysCount);
@@ -157,7 +182,7 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
             }
         } else if (type === "Término de Experiência") {
             const admissionDate = new Date(emp.admissionDate);
-            const daysSinceHiring = differenceInDays(today, admissionDate) + 1;
+            const daysSinceHiring = differenceInDays(todayStart, startOfDay(admissionDate)) + 1;
             
             let targetDate = addDays(admissionDate, 44); // 45 days
             if (daysSinceHiring > 45) {
@@ -167,7 +192,7 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
             startDate = admissionDate;
             endDate = targetDate;
             dateLabel = `Término: ${format(targetDate, 'dd/MM/yyyy')}`;
-            daysCount = differenceInDays(targetDate, today);
+            daysCount = differenceInDays(startOfDay(targetDate), todayStart);
             counterLabel = daysCount >= 0 ? "Restantes" : "Atrasados";
             if (daysCount <= 5 && daysCount >= 0) statusBadge = "A_VENCER";
             if (daysCount < 0) statusBadge = "ALERTA";
@@ -175,7 +200,7 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
             lastWorkingDay = targetDate;
             if (!paymentDeadline) {
                 paymentDeadline = new Date(targetDate);
-                paymentDeadline.setDate(paymentDeadline.getDate() + 10);
+                paymentDeadline.setDate(paymentDeadline.getDate() + 9);
             }
         }
 
@@ -318,6 +343,7 @@ export default async function DismissalMonitorPage({
 }) {
     const { companyId, search } = await searchParams;
     const today = new Date();
+    const todayStart = startOfDay(today);
 
     const companies = await prisma.company.findMany({
         select: { id: true, name: true },
@@ -511,9 +537,9 @@ export default async function DismissalMonitorPage({
                                         {emp.paymentDeadline ? (
                                             <div className="flex flex-col items-center">
                                                 <span className={`text-xs font-bold border px-2 py-0.5 rounded ${
-                                                    differenceInDays(emp.paymentDeadline, today) < 0 
+                                                    differenceInDays(startOfDay(emp.paymentDeadline), todayStart) < 0 
                                                         ? 'bg-red-50 text-red-700 border-red-200' 
-                                                        : differenceInDays(emp.paymentDeadline, today) <= 3
+                                                        : differenceInDays(startOfDay(emp.paymentDeadline), todayStart) <= 3
                                                             ? 'bg-amber-50 text-amber-700 border-amber-200'
                                                             : 'bg-slate-50 text-slate-600 border-slate-200'
                                                 }`}>
@@ -526,7 +552,10 @@ export default async function DismissalMonitorPage({
                                     </td>
                                     <td className="px-5 py-4 text-center">
                                         <div className="flex flex-col items-center">
-                                            <span className={`text-base font-black ${emp.statusBadge === 'ALERTA' ? 'text-red-600' : 'text-slate-800'}`}>
+                                            <span className={`text-base font-black ${
+                                                emp.statusBadge === 'ALERTA' ? 'text-red-600' : 
+                                                emp.statusBadge === 'A_VENCER' ? 'text-amber-600' : 'text-slate-800'
+                                            }`}>
                                                 {emp.daysCount}
                                             </span>
                                             <span className="text-[8px] text-slate-400 uppercase font-black tracking-wider leading-none">

@@ -222,12 +222,44 @@ export async function getDismissalNoticeContext(employeeId: string, customOverri
         templateKey = 'AVISO_TRABALHADO';
     }
 
+    // Helper para formatação segura de datas sem problemas de fuso horário
+    const formatSafeDate = (val: any): string => {
+        if (!val) return "-";
+        try {
+            if (typeof val === 'string') {
+                const dateOnly = val.split('T')[0];
+                const parts = dateOnly.split('-');
+                if (parts.length === 3 && parts[0].length === 4) {
+                    const [y, m, d] = parts;
+                    return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+                }
+            }
+            const d = new Date(val);
+            if (isNaN(d.getTime())) return "-";
+            return format(d, "dd/MM/yyyy");
+        } catch {
+            return "-";
+        }
+    };
+
     // Datas
-    const dataAdmissao = employee.admissionDate ? format(new Date(employee.admissionDate), "dd/MM/yyyy") : "-";
-    const dataInicioContrato = extraFields.experience1StartDate ? format(new Date(extraFields.experience1StartDate), "dd/MM/yyyy") : dataAdmissao;
-    const dataFimContrato = extraFields.experience2EndDate ? format(new Date(extraFields.experience2EndDate), "dd/MM/yyyy") : (extraFields.experience1EndDate ? format(new Date(extraFields.experience1EndDate), "dd/MM/yyyy") : "-");
-    const dataInicioAviso = proc.startDate ? format(new Date(proc.startDate), "dd/MM/yyyy") : format(new Date(), "dd/MM/yyyy");
-    const dataFimAviso = proc.endDate ? format(new Date(proc.endDate), "dd/MM/yyyy") : "-";
+    const dataAdmissao = formatSafeDate(employee.admissionDate);
+    const dataInicioContratoRaw = customOverrides?.dataInicioContrato || extraFields.experience1StartDate || employee.admissionDate;
+    const dataInicioContrato = formatSafeDate(dataInicioContratoRaw);
+    
+    // dataFimContrato: prioriza override manual, processo de desligamento (endDate, startDate, lastWorkingDay), campos de experiência ou cálculo dinâmico
+    const dataFimContratoRaw = 
+        customOverrides?.dataFimContrato || 
+        customOverrides?.endDate || 
+        proc.endDate || 
+        proc.startDate || 
+        proc.lastWorkingDay || 
+        extraFields.experience2EndDate || 
+        extraFields.experience1EndDate || 
+        null;
+    const dataFimContrato = formatSafeDate(dataFimContratoRaw);
+    const dataInicioAviso = formatSafeDate(proc.startDate || new Date());
+    const dataFimAviso = formatSafeDate(proc.endDate || proc.startDate || null);
 
     // Determinar dados de CTPS e PIS com compatibilidade ampla de chaves
     const ctpsNumero = extraFields.ctpsNumero || extraFields.ctpsNumber || extraFields.ctps || extraFields.numeroCtps || extraFields.ctps_numero || "-";

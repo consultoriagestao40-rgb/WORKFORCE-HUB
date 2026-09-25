@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calculator, Printer, FileText, Calendar, DollarSign, AlertCircle, ShieldAlert, ArrowRight, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { calculateTermination, DismissalReason, NoticeType, TerminationResult } from "@/lib/termination";
-import { format, differenceInDays } from "date-fns";
+import { format, differenceInDays, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface TerminationSimulatorProps {
@@ -35,6 +35,7 @@ interface TerminationSimulatorProps {
         role?: { name: string } | null;
         company?: { name: string } | null;
         vacationDaysRemaining?: number;
+        extraFields?: any;
     };
     triggerVariant?: "default" | "outline" | "compact";
 }
@@ -55,6 +56,49 @@ export function TerminationSimulatorDialog({ employee, triggerVariant = "default
     const [noticeType, setNoticeType] = useState<NoticeType>("INDENIZADO");
     const [customNoticeDays, setCustomNoticeDays] = useState<string>("");
     
+    // Custom remuneration base: initialized with employee's registered salary
+    const [customSalaryBase, setCustomSalaryBase] = useState<string>(() => 
+        employee.salary !== undefined && employee.salary !== null ? String(employee.salary) : ""
+    );
+
+    // Synchronize salary whenever employee prop changes or dialog is opened
+    useEffect(() => {
+        if (open && employee.salary !== undefined && employee.salary !== null) {
+            setCustomSalaryBase(String(employee.salary));
+        }
+    }, [open, employee.id, employee.salary]);
+
+    // Initial experience end date
+    const initialExperienceEndDate = useMemo(() => {
+        const extra = (employee as any).extraFields || {};
+        if (extra.experience2EndDate) return extra.experience2EndDate.split('T')[0];
+        if (extra.experience1EndDate) return extra.experience1EndDate.split('T')[0];
+        if (employee.admissionDate) {
+            const adm = new Date(employee.admissionDate);
+            if (!isNaN(adm.getTime())) {
+                const daysSoFar = differenceInDays(new Date(), adm);
+                const target = daysSoFar > 45 ? addDays(adm, 89) : addDays(adm, 44);
+                return target.toISOString().split('T')[0];
+            }
+        }
+        return "";
+    }, [employee]);
+
+    const [experienceEndDate, setExperienceEndDate] = useState<string>(initialExperienceEndDate);
+    const [experienceRemainingDays, setExperienceRemainingDays] = useState<string>("");
+
+    // Sync remaining days when experienceEndDate or dismissalDate changes
+    useEffect(() => {
+        if (experienceEndDate && dismissalDate) {
+            const exp = new Date(experienceEndDate + "T12:00:00Z");
+            const dis = new Date(dismissalDate + "T12:00:00Z");
+            if (!isNaN(exp.getTime()) && !isNaN(dis.getTime())) {
+                const diff = differenceInDays(exp, dis);
+                setExperienceRemainingDays(String(Math.max(0, diff)));
+            }
+        }
+    }, [experienceEndDate, dismissalDate]);
+
     // Afastamento INSS states
     const [hasAfastamento, setHasAfastamento] = useState(false);
     const [afastamentoStartDate, setAfastamentoStartDate] = useState("");
@@ -125,26 +169,42 @@ export function TerminationSimulatorDialog({ employee, triggerVariant = "default
         }
     };
 
-    // Custom remuneration base
-    const [customSalaryBase, setCustomSalaryBase] = useState<string>("");
+    // Handle dismissal reason change and auto-set correct notice/indemnity type
+    const handleDismissalReasonChange = (val: DismissalReason) => {
+        setDismissalReason(val);
+        if (val === "EXP_ANTECIPADO_EMPRESA") {
+            setNoticeType("ART_479_CLT");
+        } else if (val === "EXP_ANTECIPADO_EMPREGADO") {
+            setNoticeType("ART_480_CLT");
+        } else if (val === "EXP_FIM" || val === "COM_JUSTA_CAUSA") {
+            setNoticeType("DISPENSADO");
+        } else if (val === "PEDIDO_DEMISSAO") {
+            setNoticeType("DESCONTADO");
+        } else if (val === "SEM_JUSTA_CAUSA") {
+            setNoticeType("INDENIZADO");
+        }
+    };
+
+    const currentBaseSalary = customSalaryBase !== "" ? (parseFloat(customSalaryBase) || 0) : (employee.salary || 0);
 
     // Calculate in real time
     const result: TerminationResult = useMemo(() => {
-        const useCustomSalary = customSalaryBase && parseFloat(customSalaryBase) > 0;
         return calculateTermination({
             admissionDate: employee.admissionDate,
             dismissalDate,
-            baseSalary: useCustomSalary ? parseFloat(customSalaryBase) : (employee.salary || 0),
-            insalubridade: useCustomSalary ? 0 : (employee.insalubridade || 0),
-            periculosidade: useCustomSalary ? 0 : (employee.periculosidade || 0),
-            gratificacao: useCustomSalary ? 0 : (employee.gratificacao || 0),
-            otherAdditions: useCustomSalary ? 0 : (employee.outrosAdicionais || 0),
+            baseSalary: currentBaseSalary,
+            insalubridade: employee.insalubridade || 0,
+            periculosidade: employee.periculosidade || 0,
+            gratificacao: employee.gratificacao || 0,
+            otherAdditions: employee.outrosAdicionais || 0,
             workload: employee.workload || 220,
             dependentsCount: employee.dependentsCount || 0,
             vacationDaysRemaining: employee.vacationDaysRemaining || 0,
             dismissalReason,
             noticeType,
             customNoticeDays: customNoticeDays ? parseInt(customNoticeDays) : undefined,
+            experienceRemainingDays: experienceRemainingDays !== "" ? parseInt(experienceRemainingDays) : undefined,
+            experienceEndDate: experienceEndDate || undefined,
             afastamentoDays: computedAfastamentoDays,
             afastamentoStartDate: hasAfastamento && afastamentoStartDate ? afastamentoStartDate : undefined,
             afastamentoEndDate: hasAfastamento && afastamentoEndDate ? afastamentoEndDate : undefined,
@@ -159,7 +219,9 @@ export function TerminationSimulatorDialog({ employee, triggerVariant = "default
         dismissalReason,
         noticeType,
         customNoticeDays,
-        customSalaryBase,
+        currentBaseSalary,
+        experienceRemainingDays,
+        experienceEndDate,
         hasAfastamento,
         computedAfastamentoDays,
         afastamentoStartDate,
@@ -337,7 +399,7 @@ export function TerminationSimulatorDialog({ employee, triggerVariant = "default
                                 R$ {fmtR$(result.salaryBaseForCalc)}
                             </div>
                             <div className="text-[10px] text-slate-500 font-medium leading-tight">
-                                (Salário R$ {fmtR$(employee.salary || 0)}
+                                (Salário R$ {fmtR$(currentBaseSalary)}
                                 {employee.gratificacao ? ` + Grat. R$ ${fmtR$(employee.gratificacao)}` : ""}
                                 {employee.insalubridade ? ` + Insal. R$ ${fmtR$(employee.insalubridade)}` : ""}
                                 {employee.periculosidade ? ` + Peric. R$ ${fmtR$(employee.periculosidade)}` : ""})
@@ -356,7 +418,7 @@ export function TerminationSimulatorDialog({ employee, triggerVariant = "default
 
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
                             <div className="space-y-1.5">
-                                <Label htmlFor="customSalaryBase" className="text-xs font-bold text-slate-700">Remuneração Base (R$)</Label>
+                                <Label htmlFor="customSalaryBase" className="text-xs font-bold text-slate-700">Salário Base (R$)</Label>
                                 <Input
                                     id="customSalaryBase"
                                     type="number"
@@ -364,7 +426,7 @@ export function TerminationSimulatorDialog({ employee, triggerVariant = "default
                                     value={customSalaryBase}
                                     onChange={(e) => setCustomSalaryBase(e.target.value)}
                                     className="h-9 text-xs w-full border-slate-300 font-bold text-slate-800"
-                                    placeholder={`${result.salaryBaseForCalc.toFixed(2)}`}
+                                    placeholder={employee.salary ? `${employee.salary.toFixed(2)}` : "0.00"}
                                 />
                             </div>
 
@@ -397,20 +459,93 @@ export function TerminationSimulatorDialog({ employee, triggerVariant = "default
                             </div>
 
                             <div className="space-y-1.5 min-w-0">
-                                <Label htmlFor="noticeType" className="text-xs font-bold text-slate-700">Aviso Prévio</Label>
+                                <Label htmlFor="noticeType" className="text-xs font-bold text-slate-700">Aviso Prévio / Indenização</Label>
                                 <Select value={noticeType} onValueChange={(val) => setNoticeType(val as NoticeType)}>
                                     <SelectTrigger className="h-9 text-xs w-full border-slate-300">
                                         <SelectValue placeholder="Tipo de aviso" />
                                     </SelectTrigger>
                                     <SelectContent className="max-w-[420px]">
-                                        <SelectItem value="INDENIZADO">💰 Indenizado pelo Empregador</SelectItem>
-                                        <SelectItem value="TRABALHADO">💼 Trabalhado pelo Empregado</SelectItem>
-                                        <SelectItem value="DESCONTADO">🔻 Descontado no Pedido</SelectItem>
-                                        <SelectItem value="DISPENSADO">⚪ Dispensado / Não aplicável</SelectItem>
+                                        {dismissalReason === "EXP_ANTECIPADO_EMPRESA" ? (
+                                            <>
+                                                <SelectItem value="ART_479_CLT">⚡ Indenização Art. 479 CLT (50% dias restantes)</SelectItem>
+                                                <SelectItem value="DISPENSADO">⚪ Dispensado / Sem Indenização</SelectItem>
+                                                <SelectItem value="INDENIZADO">💰 Aviso Prévio Indenizado (Art. 481 CLT)</SelectItem>
+                                            </>
+                                        ) : dismissalReason === "EXP_ANTECIPADO_EMPREGADO" ? (
+                                            <>
+                                                <SelectItem value="ART_480_CLT">🔻 Desconto Art. 480 CLT (Até 50% dias restantes)</SelectItem>
+                                                <SelectItem value="DISPENSADO">⚪ Dispensado do Desconto</SelectItem>
+                                            </>
+                                        ) : dismissalReason === "PEDIDO_DEMISSAO" ? (
+                                            <>
+                                                <SelectItem value="TRABALHADO">💼 Trabalhado pelo Empregado</SelectItem>
+                                                <SelectItem value="DESCONTADO">🔻 Descontado no Pedido</SelectItem>
+                                                <SelectItem value="DISPENSADO">⚪ Dispensado pelo Empregador</SelectItem>
+                                            </>
+                                        ) : dismissalReason === "EXP_FIM" || dismissalReason === "COM_JUSTA_CAUSA" ? (
+                                            <>
+                                                <SelectItem value="DISPENSADO">⚪ Dispensado / Não aplicável</SelectItem>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <SelectItem value="INDENIZADO">💰 Indenizado pelo Empregador</SelectItem>
+                                                <SelectItem value="TRABALHADO">💼 Trabalhado pelo Empregado</SelectItem>
+                                                <SelectItem value="DISPENSADO">⚪ Dispensado / Não aplicável</SelectItem>
+                                            </>
+                                        )}
                                     </SelectContent>
                                 </Select>
                             </div>
                         </div>
+
+                        {/* Banner & Inputs de Contrato de Experiência (Art. 479 / 480 CLT) */}
+                        {(dismissalReason === "EXP_ANTECIPADO_EMPRESA" || dismissalReason === "EXP_ANTECIPADO_EMPREGADO") && (
+                            <div className="bg-amber-50/90 border border-amber-200/90 p-4 rounded-xl space-y-3">
+                                <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
+                                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                                    <span>
+                                        {dismissalReason === "EXP_ANTECIPADO_EMPRESA" 
+                                            ? "Término Antecipado de Experiência pela Empresa — Art. 479 da CLT"
+                                            : "Rescisão Antecipada de Experiência pelo Colaborador — Art. 480 da CLT"}
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-amber-800 leading-relaxed">
+                                    {dismissalReason === "EXP_ANTECIPADO_EMPRESA" 
+                                        ? "Nos contratos por prazo determinado (experiência) rescindidos antes do prazo pela empresa sem justa causa, não há aviso prévio comum da Lei 12.506/2011. A empresa indeniza 50% dos salários a que o empregado teria direito até o término do contrato."
+                                        : "Quando o empregado rescinde o contrato de experiência antes do prazo estipulado, deve indenizar a empresa pelos prejuízos causados, limitada a 50% dos salários dos dias restantes (Art. 480 da CLT)."}
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
+                                    <div className="space-y-1">
+                                        <Label className="text-[11px] font-bold text-slate-700">Término Previsto da Experiência</Label>
+                                        <Input
+                                            type="date"
+                                            value={experienceEndDate}
+                                            onChange={(e) => setExperienceEndDate(e.target.value)}
+                                            className="h-8 text-xs bg-white border-amber-300 font-medium"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-[11px] font-bold text-slate-700">Dias Restantes de Contrato</Label>
+                                        <Input
+                                            type="number"
+                                            min="0"
+                                            value={experienceRemainingDays}
+                                            onChange={(e) => setExperienceRemainingDays(e.target.value)}
+                                            className="h-8 text-xs bg-white border-amber-300 font-bold"
+                                            placeholder="Ex: 15"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-[11px] font-bold text-slate-700">
+                                            {dismissalReason === "EXP_ANTECIPADO_EMPRESA" ? "Indenização Art. 479 (50%)" : "Desconto Art. 480 (50%)"}
+                                        </Label>
+                                        <div className="h-8 px-3 rounded-md bg-amber-100/90 border border-amber-300 flex items-center font-black text-amber-950 text-xs">
+                                            R$ {fmtR$(result.indenizacaoArt479Amount || 0)}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Bloco de Afastamento INSS / Licença Médica (Multi-Período Unificado) */}
                         <div className="bg-slate-50/90 p-4 rounded-xl border border-slate-200 space-y-3">
