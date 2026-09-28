@@ -71,9 +71,13 @@ async function getFinancialCostsData() {
 }
 
 export default async function FinancialCostsPage() {
-    const [data, userRole] = await Promise.all([
+    const [data, userRole, companies] = await Promise.all([
         getFinancialCostsData(),
-        getCurrentUserRole()
+        getCurrentUserRole(),
+        prisma.company.findMany({
+            select: { id: true, name: true },
+            orderBy: { name: 'asc' }
+        })
     ]);
 
     if (userRole === "SUPERVISOR") {
@@ -85,6 +89,7 @@ export default async function FinancialCostsPage() {
             employees={data.activeEmployees}
             averageStayMonths={data.averageStayMonths}
             userRole={userRole || ""}
+            companies={companies}
         />
     );
 }

@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, DollarSign, Users, AlertTriangle, TrendingUp, TrendingDown, Info, Search, ShieldAlert, Award, ExternalLink, ChevronUp, ChevronDown, Download } from "lucide-react";
+import { Calendar, DollarSign, Users, AlertTriangle, TrendingUp, TrendingDown, Info, Search, ShieldAlert, Award, ExternalLink, ChevronUp, ChevronDown, Download, Building2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -46,6 +46,7 @@ interface FinancialCostsClientProps {
     employees: Employee[];
     averageStayMonths: number;
     userRole: string;
+    companies?: { id: string; name: string }[];
 }
 
 // Funções de Cálculo Auxiliares (Padrão CLT Brasil)
@@ -103,10 +104,12 @@ const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 
 export function FinancialCostsClient({
     employees,
     averageStayMonths,
-    userRole
+    userRole,
+    companies
 }: FinancialCostsClientProps) {
     const [activeTab, setActiveTab] = useState("ferias");
     const [searchTerm, setSearchTerm] = useState("");
+    const [selectedCompany, setSelectedCompany] = useState<string>("ALL");
     const [selectedContract, setSelectedContract] = useState<string>("ALL");
     const [viewMode, setViewMode] = useState<"colaborador" | "contrato" | "empresa">("colaborador");
     const [sortField, setSortField] = useState<string>("name");
@@ -121,21 +124,57 @@ export function FinancialCostsClient({
         }
     };
     
+    // Opções de Empresa disponíveis para filtro
+    const companyOptions = useMemo(() => {
+        const companiesSet = new Set<string>();
+        (companies || []).forEach(c => {
+            if (c.name && c.name.trim()) companiesSet.add(c.name.trim());
+        });
+        employees.forEach(emp => {
+            const compName = emp.company?.name;
+            if (compName && compName.trim()) {
+                companiesSet.add(compName.trim());
+            }
+        });
+        const hasSemEmpresa = employees.some(emp => !emp.company || !emp.company.name);
+        const options = Array.from(companiesSet).sort((a, b) => a.localeCompare(b));
+        if (hasSemEmpresa) {
+            options.push("Sem Empresa");
+        }
+        return options;
+    }, [companies, employees]);
+
+    // Opções de Contrato / Cliente (filtradas pela empresa selecionada se aplicável)
     const contractOptions = useMemo(() => {
         const contracts = new Set<string>();
         employees.forEach(emp => {
+            if (selectedCompany !== "ALL" && (emp.company?.name || "Sem Empresa") !== selectedCompany) {
+                return;
+            }
             const clientName = emp.assignments?.[0]?.posto?.client?.name;
             if (clientName) {
                 contracts.add(clientName);
             }
         });
-        const hasReserva = employees.some(emp => !emp.assignments || emp.assignments.length === 0 || !emp.assignments[0]?.posto?.client);
+        const hasReserva = employees.some(emp => {
+            if (selectedCompany !== "ALL" && (emp.company?.name || "Sem Empresa") !== selectedCompany) {
+                return false;
+            }
+            return !emp.assignments || emp.assignments.length === 0 || !emp.assignments[0]?.posto?.client;
+        });
         const options = Array.from(contracts).sort();
         if (hasReserva) {
             options.push("Reserva Técnica");
         }
         return options;
-    }, [employees]);
+    }, [employees, selectedCompany]);
+
+    // Reseta contrato selecionado caso deixe de existir nas opções após troca de empresa
+    useEffect(() => {
+        if (selectedContract !== "ALL" && !contractOptions.includes(selectedContract)) {
+            setSelectedContract("ALL");
+        }
+    }, [selectedCompany, contractOptions, selectedContract]);
     const [taxRate, setTaxRate] = useState<number>(27.8);
     const [taxRateInput, setTaxRateInput] = useState<string>("27.8");
 
@@ -319,9 +358,12 @@ export function FinancialCostsClient({
                 companyName
             };
         }).filter(item => {
-            const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                item.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                item.companyName.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesContract = selectedContract === "ALL" || item.contractName === selectedContract;
-            return matchesSearch && matchesContract;
+            const matchesCompany = selectedCompany === "ALL" || item.companyName === selectedCompany;
+            return matchesSearch && matchesContract && matchesCompany;
         }).sort((a, b) => {
             let valA = a[sortField as keyof typeof a];
             let valB = b[sortField as keyof typeof b];
@@ -345,7 +387,7 @@ export function FinancialCostsClient({
                 ? (valA as number) - (valB as number)
                 : (valB as number) - (valA as number);
         });
-    }, [employees, taxRate, today, searchTerm, selectedContract, sortField, sortDirection]);
+    }, [employees, taxRate, today, searchTerm, selectedContract, selectedCompany, sortField, sortDirection]);
 
     const feriasTotals = useMemo(() => {
         return feriasData.reduce(
@@ -422,9 +464,12 @@ export function FinancialCostsClient({
                 salary: emp.salary
             };
         }).filter(item => {
-            const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                item.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                item.companyName.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesContract = selectedContract === "ALL" || item.contractName === selectedContract;
-            return matchesSearch && matchesContract;
+            const matchesCompany = selectedCompany === "ALL" || item.companyName === selectedCompany;
+            return matchesSearch && matchesContract && matchesCompany;
         }).sort((a, b) => {
             let valA = a[sortField as keyof typeof a];
             let valB = b[sortField as keyof typeof b];
@@ -448,7 +493,7 @@ export function FinancialCostsClient({
                 ? (valA as number) - (valB as number)
                 : (valB as number) - (valA as number);
         });
-    }, [employees, firstDayOfCurrentYear, today, currentYear, averageStayMonths, searchTerm, selectedContract, sortField, sortDirection]);
+    }, [employees, firstDayOfCurrentYear, today, currentYear, averageStayMonths, searchTerm, selectedContract, selectedCompany, sortField, sortDirection]);
 
     const decimoTerceiroTotals = useMemo(() => {
         return decimoTerceiroData.reduce(
@@ -570,9 +615,12 @@ export function FinancialCostsClient({
                 type: emp.type
             };
         }).filter(item => {
-            const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.role.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                item.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                item.companyName.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesContract = selectedContract === "ALL" || item.contractName === selectedContract;
-            return matchesSearch && matchesContract;
+            const matchesCompany = selectedCompany === "ALL" || item.companyName === selectedCompany;
+            return matchesSearch && matchesContract && matchesCompany;
         }).sort((a, b) => {
             let valA = a[sortField as keyof typeof a];
             let valB = b[sortField as keyof typeof b];
@@ -596,7 +644,7 @@ export function FinancialCostsClient({
                 ? (valA as number) - (valB as number)
                 : (valB as number) - (valA as number);
         });
-    }, [employees, searchTerm, selectedContract, sortField, sortDirection]);
+    }, [employees, searchTerm, selectedContract, selectedCompany, sortField, sortDirection]);
 
     const folhaTotals = useMemo(() => {
         return folhaData.reduce(
@@ -850,9 +898,10 @@ export function FinancialCostsClient({
                     <p className="text-sm text-slate-500 font-medium">Provisionamento de passivos trabalhistas dos colaboradores ativos</p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Visualização */}
                     <Select value={viewMode} onValueChange={(val) => setViewMode(val as any)}>
-                        <SelectTrigger className="w-[180px] h-10 text-xs font-semibold bg-white border-slate-200 text-slate-700">
+                        <SelectTrigger className="w-[170px] h-10 text-xs font-semibold bg-white border-slate-200 text-slate-700">
                             <SelectValue placeholder="Visualização" />
                         </SelectTrigger>
                         <SelectContent>
@@ -862,8 +911,25 @@ export function FinancialCostsClient({
                         </SelectContent>
                     </Select>
 
+                    {/* Filtro por Empresa */}
+                    <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+                        <SelectTrigger className="w-[190px] h-10 text-xs font-semibold bg-white border-slate-200 text-slate-700">
+                            <div className="flex items-center gap-1.5 truncate">
+                                <Building2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                                <SelectValue placeholder="Todas as Empresas" />
+                            </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL">Todas as Empresas</SelectItem>
+                            {companyOptions.map(name => (
+                                <SelectItem key={name} value={name}>{name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    {/* Filtro por Contrato */}
                     <Select value={selectedContract} onValueChange={setSelectedContract}>
-                        <SelectTrigger className="w-[200px] h-10 text-xs font-semibold bg-white border-slate-200 text-slate-700">
+                        <SelectTrigger className="w-[190px] h-10 text-xs font-semibold bg-white border-slate-200 text-slate-700">
                             <SelectValue placeholder="Filtrar por Contrato" />
                         </SelectTrigger>
                         <SelectContent>
@@ -874,15 +940,34 @@ export function FinancialCostsClient({
                         </SelectContent>
                     </Select>
 
+                    {/* Busca */}
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <Input
                             placeholder="Buscar colaborador..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-9 w-[240px] h-10 text-xs"
+                            className="pl-9 w-[200px] h-10 text-xs"
                         />
                     </div>
+
+                    {/* Botão Limpar Filtros se algum estiver ativo */}
+                    {(selectedCompany !== "ALL" || selectedContract !== "ALL" || searchTerm) && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                                setSelectedCompany("ALL");
+                                setSelectedContract("ALL");
+                                setSearchTerm("");
+                            }}
+                            className="h-10 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 gap-1 font-semibold"
+                            title="Limpar filtros"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                            Limpar
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -961,7 +1046,7 @@ export function FinancialCostsClient({
                             </CardHeader>
                             <CardContent>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic">
-                                    Média por colaborador: {(feriasTotals.totalDays / (employees.length || 1)).toFixed(1)} dias
+                                    Média por colaborador: {(feriasTotals.totalDays / (feriasData.length || 1)).toFixed(1)} dias
                                 </p>
                             </CardContent>
                         </Card>
@@ -985,7 +1070,15 @@ export function FinancialCostsClient({
                             <CardHeader className="pb-2">
                                 <CardDescription className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tempo Médio de Casa (TMP)</CardDescription>
                                 <CardTitle className="text-3xl font-black text-slate-900 flex items-center justify-between">
-                                    <span>{averageStayMonths.toFixed(1)} meses</span>
+                                    <span>{(() => {
+                                        if (feriasData.length === 0) return "0.0";
+                                        const totalStay = feriasData.reduce((acc, item) => {
+                                            const diffTime = Math.abs(today.getTime() - item.admissionDate.getTime());
+                                            const diffMonths = diffTime / (1000 * 60 * 60 * 24 * 30.4375);
+                                            return acc + diffMonths;
+                                        }, 0);
+                                        return (totalStay / feriasData.length).toFixed(1);
+                                    })()} meses</span>
                                     <TrendingUp className="w-6 h-6 text-emerald-500" />
                                 </CardTitle>
                             </CardHeader>
@@ -1198,7 +1291,14 @@ export function FinancialCostsClient({
                                                             <span className="font-bold text-slate-900 group-hover:text-primary transition-colors">{item.name}</span>
                                                             <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-primary transition-colors shrink-0" />
                                                         </Link>
-                                                        <span className="text-[10px] text-slate-400">{item.role}</span>
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <span className="text-[10px] text-slate-400">{item.role}</span>
+                                                            {item.companyName && item.companyName !== "Sem Empresa" && (
+                                                                <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                                                    {item.companyName}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-slate-600 text-xs">
@@ -1556,7 +1656,14 @@ export function FinancialCostsClient({
                                                                 <span className="font-bold text-slate-900 group-hover:text-primary transition-colors">{item.name}</span>
                                                                 <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-primary transition-colors shrink-0" />
                                                             </Link>
-                                                            <span className="text-[10px] text-slate-400">{item.role}</span>
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <span className="text-[10px] text-slate-400">{item.role}</span>
+                                                                {item.companyName && item.companyName !== "Sem Empresa" && (
+                                                                    <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                                                        {item.companyName}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="text-slate-600 text-xs">
@@ -1946,7 +2053,14 @@ export function FinancialCostsClient({
                                                              <span className="font-bold text-slate-900 group-hover:text-primary transition-colors">{item.name}</span>
                                                              <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-primary transition-colors shrink-0" />
                                                          </Link>
-                                                        <span className="text-[10px] text-slate-400">{item.role}</span>
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <span className="text-[10px] text-slate-400">{item.role}</span>
+                                                            {item.companyName && item.companyName !== "Sem Empresa" && (
+                                                                <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                                                    {item.companyName}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs text-slate-700">
