@@ -226,6 +226,7 @@ export function EmployeeOnvioWizard({
     const [nomeSocial, setNomeSocial] = useState("");
     const [matricula, setMatrícula] = useState("");
     const [funcao, setFuncao] = useState("");
+    const [afastadoDesde, setAfastadoDesde] = useState("");
     
     // Dynamic Dropdown Lists
     const [localDepartments, setLocalDepartments] = useState<{ id: string; name: string }[]>(departments);
@@ -554,6 +555,7 @@ export function EmployeeOnvioWizard({
             setVinculoEmpregaticio(resolvedVinculo);
             setExperienciaDias1(extra.experienciaDias1 || "45");
             setExperienciaDias2(extra.experienciaDias2 || "45");
+            setAfastadoDesde(extra.afastadoDesde ? String(extra.afastadoDesde).split("T")[0] : "");
 
             const activePosto = postos.find(p => p.id === currentPostoId) || postos.find(p => p.id === initialData?.postoId);
 
@@ -867,6 +869,7 @@ export function EmployeeOnvioWizard({
 
     // Pack extra fields to JSON
     const extraFieldsData = {
+        afastadoDesde: afastadoDesde || undefined,
         nomeSocial,
         matricula,
         funcao,
@@ -1607,6 +1610,28 @@ export function EmployeeOnvioWizard({
                                                 </SelectContent>
                                             </Select>
                                         </div>
+                                        {(() => {
+                                            const currentSitName = situations.find(s => s.id === situationId)?.name?.toLowerCase() || "";
+                                            const isAfastado = currentSitName.includes("inss") || currentSitName.includes("afastad") || !!afastadoDesde;
+                                            if (!isAfastado) return null;
+                                            return (
+                                                <div className="space-y-1.5 col-span-1 md:col-span-2 p-3 bg-amber-50/80 border border-amber-200 rounded-lg">
+                                                    <Label htmlFor="afastadoDesdeInput" className="text-amber-900 font-semibold text-xs flex items-center gap-1.5">
+                                                        <span>📅 Data de Início do Afastamento (INSS)</span>
+                                                    </Label>
+                                                    <Input
+                                                        id="afastadoDesdeInput"
+                                                        type="date"
+                                                        value={afastadoDesde}
+                                                        onChange={e => setAfastadoDesde(e.target.value)}
+                                                        className="bg-white border-amber-300 focus-visible:ring-amber-500 h-9 text-xs"
+                                                    />
+                                                    <p className="text-[11px] text-amber-800 leading-tight">
+                                                        Na competência do afastamento, o colaborador receberá salário proporcional aos dias trabalhados até esta data. A partir da próxima competência, a folha será zerada automaticamente.
+                                                    </p>
+                                                </div>
+                                            );
+                                        })()}
                                         <div className="space-y-1">
                                             <Label htmlFor="experienciaDias1" className="text-slate-700 font-medium">Dias do 1º Período</Label>
                                             <Input id="experienciaDias1" type="number" value={experienciaDias1} onChange={e => setExperienciaDias1(e.target.value)} placeholder="Ex: 45" />
@@ -3230,6 +3255,7 @@ export function EmployeeOnvioWizard({
             <input type="hidden" name="phone" value={phone || ""} />
             <input type="hidden" name="email" value={email || ""} />
             <input type="hidden" name="postoId" value={currentPostoId || ""} />
+            <input type="hidden" name="afastadoDesde" value={afastadoDesde || ""} />
         </div>
     );
 }

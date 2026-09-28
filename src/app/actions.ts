@@ -1767,20 +1767,37 @@ export async function updateEmployee(formData: FormData) {
         }
 
         const oldExtra = (oldEmployee?.extraFields as Record<string, any>) || {};
-        const mergedExtra = extraFields ? { ...oldExtra, ...extraFields } : (Object.keys(oldExtra).length > 0 ? oldExtra : undefined);
+        let mergedExtra: Record<string, any> = extraFields ? { ...oldExtra, ...extraFields } : { ...oldExtra };
 
-        // Derive consistent status from situation
+        const rawAfastadoDesde = formData.get("afastadoDesde") as string | null;
+        if (rawAfastadoDesde) {
+            mergedExtra.afastadoDesde = rawAfastadoDesde;
+        }
+
+        // Derive consistent status from situation & manage afastadoDesde
         let effectiveStatus = status;
         if (situationId) {
             const sit = await prisma.situation.findUnique({ where: { id: situationId } });
             if (sit) {
                 const isDismissed = sit.name.toLowerCase().includes("desligado") || sit.name.toLowerCase().includes("demitido");
                 effectiveStatus = isDismissed ? "Desligado" : "Ativo";
+
+                const isAfastadoInss = sit.name.toLowerCase().includes("inss") || sit.name.toLowerCase().includes("afastad");
+                if (isAfastadoInss && !mergedExtra.afastadoDesde) {
+                    // Se passou para afastado e não tem data definida, marca a data de hoje
+                    mergedExtra.afastadoDesde = new Date().toISOString().split("T")[0];
+                } else if (!isAfastadoInss && oldEmployee.situation?.name && 
+                    (oldEmployee.situation.name.toLowerCase().includes("inss") || oldEmployee.situation.name.toLowerCase().includes("afastad"))) {
+                    // Retorno de afastamento para situação normal
+                    delete mergedExtra.afastadoDesde;
+                }
             }
         }
         if (!effectiveStatus) {
             effectiveStatus = oldEmployee.status;
         }
+
+        const finalExtraFields = Object.keys(mergedExtra).length > 0 ? mergedExtra : undefined;
 
         const result = await prisma.$transaction(async (tx) => {
             const updated = await tx.employee.update({
@@ -1827,7 +1844,7 @@ export async function updateEmployee(formData: FormData) {
                     email: (formData.get("email") as string) || null,
                     dismissalReason: (formData.get("dismissalReason") as string) || null,
                     dismissalNotes: (formData.get("dismissalNotes") as string) || null,
-                    extraFields: mergedExtra
+                    extraFields: finalExtraFields
                 },
                 include: { role: true, situation: true }
             });

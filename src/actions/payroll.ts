@@ -200,8 +200,148 @@ export async function getPayrollPreview(year: number, month: number) {
         const admissionDayVal = admissionDateObj.getUTCDate();
         const isAdmittedThisMonth = (admissionYear === year && admissionMonth === month);
 
+        // ── Afastado INSS ─────────────────────────────────────────────────────
+        // Regras:
+        //  1. Se o afastamento começou ANTES desta competência → salário = R$ 0,00
+        //  2. Se o afastamento começou DENTRO desta competência → salário proporcional
+        //     aos dias trabalhados antes do afastamento (ex: afastou dia 10/set →
+        //     recebe 1 a 9/set de forma proporcional).
+        //  A data de início é lida de extraFields.afastadoDesde (gravada quando a
+        //  situação é alterada para INSS).
+        const situationNameRaw = emp.situation?.name || "Ativo";
+        const isAfastadoInss =
+            situationNameRaw.toLowerCase().includes("inss") ||
+            situationNameRaw.toLowerCase().includes("afastad");
+
+        if (isAfastadoInss) {
+            const efInss = (emp.extraFields as any) || {};
+            const afastadoDesdeStr: string | null = efInss.afastadoDesde || null;
+
+            // Robust parsing of afastamento date (avoids timezone day-shift)
+            let afastadoAno = 0;
+            let afastadoMes = 0;
+            let afastadoDay = 0;
+
+            if (afastadoDesdeStr) {
+                const isoMatch = afastadoDesdeStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (isoMatch) {
+                    afastadoAno = parseInt(isoMatch[1], 10);
+                    afastadoMes = parseInt(isoMatch[2], 10);
+                    afastadoDay = parseInt(isoMatch[3], 10);
+                } else {
+                    const brMatch = afastadoDesdeStr.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+                    if (brMatch) {
+                        afastadoDay = parseInt(brMatch[1], 10);
+                        afastadoMes = parseInt(brMatch[2], 10);
+                        afastadoAno = parseInt(brMatch[3], 10);
+                    } else {
+                        const d = new Date(afastadoDesdeStr);
+                        if (!isNaN(d.getTime())) {
+                            afastadoAno = d.getUTCFullYear();
+                            afastadoMes = d.getUTCMonth() + 1;
+                            afastadoDay = d.getUTCDate();
+                        }
+                    }
+                }
+            }
+
+            // Determinar se houve dias trabalhados nesta competência antes do afastamento
+            // Exemplo: se afastou no dia 10 de setembro, trabalhou de 1 a 9 de setembro (afastadoDay > 1)
+            const afastouNestaCompetencia =
+                afastadoAno === year && afastadoMes === month && afastadoDay > 1;
+
+            if (!afastouNestaCompetencia) {
+                // Afastamento pré-existente (competência seguinte em diante) ou sem data registrada → zero total
+                const dataFmt = (afastadoDay > 0 && afastadoMes > 0 && afastadoAno > 0)
+                    ? `${String(afastadoDay).padStart(2, '0')}/${String(afastadoMes).padStart(2, '0')}/${afastadoAno}`
+                    : null;
+                return {
+                    employeeId: emp.id,
+                    employeeName: emp.name,
+                    employeeCpf: emp.cpf,
+                    companyName,
+                    clientName,
+                    postoName,
+                    baseSalary: 0,
+                    insalubridade: 0,
+                    periculosidade: 0,
+                    gratificacao: 0,
+                    outrosAdicionais: 0,
+                    totalGrossSalary: 0,
+                    faltasCount: 0,
+                    atestadosCount: 0,
+                    occurrencesList: [],
+                    faltaDeduction: 0,
+                    dsrDeductionsCount: 0,
+                    dsrDeduction: 0,
+                    vtBaseValue: 0,
+                    vtNetValue: 0,
+                    vtPayrollDiscount: 0,
+                    vtDiscountPercentage: 6.0,
+                    vaBaseValue: 0,
+                    vaDeductionValue: 0,
+                    vaNetValue: 0,
+                    vaPayrollDiscount: 0,
+                    vaDiscountPercentage: 20.0,
+                    inssDeduction: 0,
+                    irrfDeduction: 0,
+                    ajudaCusto: 0,
+                    adicionalViagem: 0,
+                    dependentsCount: emp.dependentsCount || 0,
+                    salarioFamilia: 0,
+                    absenteismoAward: 0,
+                    atrasosHours: 0,
+                    atrasosDeduction: 0,
+                    extras50Hours: 0,
+                    horasExtras50Value: 0,
+                    extras100Hours: 0,
+                    horasExtras100Value: 0,
+                    adicionalNoturnoHours: 0,
+                    adicionalNoturnoValue: 0,
+                    diversosDescontos: 0,
+                    emprestimos: 0,
+                    convenios: 0,
+                    sindicato: 0,
+                    hourlyRate: 0,
+                    observacoes: dataFmt
+                        ? `Afastado(a) INSS desde ${dataFmt} — ${situationNameRaw}`
+                        : `Afastado(a) INSS — ${situationNameRaw}`,
+                    fieldNotes: {},
+                    totalDeductions: 0,
+                    netSalary: 0,
+                    isAdmittedThisMonth,
+                    admissionDate: new Date(emp.admissionDate).toLocaleDateString('pt-BR'),
+                    daysWorked: 0,
+                    totalDaysInMonth,
+                    originalSalary: emp.salary,
+                    situationName: situationNameRaw,
+                    situationColor: emp.situation?.color || '#ef4444',
+                    vacationDays: 0,
+                    vacationDatesStr: "-"
+                };
+            }
+
+            // Afastou neste mês → continua o cálculo proporcional com daysWorked = afastadoDay - 1
+            // Injetamos um override sintético com lastWorkingDay = dia anterior ao afastamento (usando UTC exato)
+            const efInssOverride = {
+                ...efInss,
+                afastadoDesde: afastadoDesdeStr,
+                afastadoAno,
+                afastadoMes,
+                afastadoDay,
+                dismissalProcess: {
+                    ...efInss.dismissalProcess,
+                    lastWorkingDay: new Date(Date.UTC(afastadoAno, afastadoMes - 1, afastadoDay - 1)).toISOString()
+                }
+            };
+            (emp as any)._afastadoInssOverrideExtraFields = efInssOverride;
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         // Check if employee has a dismissal process with lastWorkingDay (e.g. Processo de abandono)
-        const extraFields = (emp.extraFields as any) || {};
+        // Note: if this employee was flagged as afastado INSS this month, we use the override
+        // extraFields injected by the INSS block above (lastWorkingDay = day before afastamento).
+        const extraFields = (emp as any)._afastadoInssOverrideExtraFields || (emp.extraFields as any) || {};
         const dismissalProc = extraFields.dismissalProcess;
         const lastWorkingDayStr = dismissalProc?.lastWorkingDay;
         const lastWorkingDayObj = lastWorkingDayStr ? new Date(lastWorkingDayStr) : null;
@@ -349,6 +489,21 @@ export async function getPayrollPreview(year: number, month: number) {
                 .filter(([_, note]) => !!note && typeof note === "string" && note.trim().length > 0)
                 .map(([k, n]) => `${labels[k] || k}: ${n.trim()}`)
                 .join(" | ");
+        }
+
+        // Se o funcionário afastou INSS este mês, acrescenta nota na observação
+        if ((emp as any)._afastadoInssOverrideExtraFields) {
+            const inssOverride = (emp as any)._afastadoInssOverrideExtraFields;
+            const aDay = inssOverride?.afastadoDay;
+            const aMes = inssOverride?.afastadoMes;
+            const aAno = inssOverride?.afastadoAno;
+            const dataFmt = (aDay && aMes && aAno)
+                ? `${String(aDay).padStart(2, '0')}/${String(aMes).padStart(2, '0')}/${aAno}`
+                : null;
+            const afastadoNota = dataFmt
+                ? `Afastado(a) INSS em ${dataFmt} — salário proporcional`
+                : `Afastado(a) INSS neste mês — salário proporcional`;
+            observacoes = observacoes ? `${observacoes} | ${afastadoNota}` : afastadoNota;
         }
 
         const hourlyRate = fullFixedSalary / (emp.workload || 220);
