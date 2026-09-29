@@ -18,14 +18,15 @@ import {
     Edit3,
     X,
     FileSpreadsheet,
-    Stethoscope
+    Stethoscope,
+    MessageSquare,
+    Check
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -125,7 +126,7 @@ export function AtestadosClient({
 }: AtestadosClientProps) {
     const [atestados, setAtestados] = useState<MedicalCertificateItem[]>(initialAtestados);
     const [stats, setStats] = useState(initialStats);
-    const [activeTab, setActiveTab] = useState("pendentes");
+    const [activeTab, setActiveTab] = useState<"pendentes" | "lancados" | "rejeitados">("pendentes");
     const [search, setSearch] = useState("");
     const [selectedCompany, setSelectedCompany] = useState("ALL");
     const [isPending, startTransition] = useTransition();
@@ -381,29 +382,33 @@ export function AtestadosClient({
     return (
         <div className="space-y-6">
             {/* Header & Ação Rápida */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/60 p-6 rounded-3xl border border-white/5 backdrop-blur-xl">
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 pb-2 border-b border-slate-200">
                 <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/30 flex items-center gap-1.5 px-3 py-1 font-semibold text-xs">
-                            <Sparkles className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
+                    <div className="flex items-center gap-2 mb-1.5">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/80">
+                            <Sparkles className="w-3.5 h-3.5 text-sky-500" />
                             Captura IA + Secullum Ponto Web
-                        </Badge>
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                            <MessageSquare className="w-3 h-3 text-emerald-600" />
+                            Grupo WhatsApp RH Conectado
+                        </span>
                     </div>
-                    <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight flex items-center gap-3">
-                        <FileText className="w-8 h-8 text-sky-400" />
+                    <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">
+                        <FileText className="w-8 h-8 text-sky-600" />
                         Gestão de Atestados Médicos
                     </h1>
-                    <p className="text-sm text-slate-400 mt-1">
-                        Atestados recebidos via WhatsApp e cadastros manuais são lidos por IA, validados pelo gestor e sincronizados no Secullum.
+                    <p className="text-sm text-slate-500 font-medium mt-1">
+                        Atestados recebidos via WhatsApp (Grupo RH) e manuais validados por IA e integrados automaticamente ao Secullum.
                     </p>
                 </div>
 
                 <div className="flex items-center gap-3">
                     <Button
                         onClick={() => setUploadModalOpen(true)}
-                        className="bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white font-bold shadow-lg shadow-sky-500/20 rounded-2xl px-5 h-12 flex items-center gap-2.5 transition-all duration-300 hover:scale-[1.02]"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm rounded-xl px-4 h-10 flex items-center gap-2 transition-all duration-200 hover:shadow-md"
                     >
-                        <Sparkles className="w-4 h-4 text-sky-200" />
+                        <Sparkles className="w-4 h-4 text-indigo-200" />
                         <span>Novo Atestado (IA)</span>
                     </Button>
                 </div>
@@ -411,178 +416,207 @@ export function AtestadosClient({
 
             {/* Cards de Métricas */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card
+                {/* Pendentes */}
+                <div
                     onClick={() => setActiveTab("pendentes")}
-                    className={`cursor-pointer transition-all duration-300 rounded-3xl border ${
+                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${
                         activeTab === "pendentes"
-                            ? "bg-amber-500/10 border-amber-500/40 shadow-lg shadow-amber-500/10"
-                            : "bg-slate-900/40 border-white/5 hover:bg-slate-900/70"
+                            ? "border-amber-400 ring-2 ring-amber-100 bg-amber-50/20"
+                            : "border-slate-200 hover:border-slate-300"
                     }`}
                 >
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-amber-800">
                             Pendentes de Validação
-                        </CardTitle>
-                        <div className="p-2.5 bg-amber-500/10 rounded-2xl text-amber-400">
+                        </span>
+                        <div className="p-2.5 bg-amber-100 text-amber-700 rounded-xl">
                             <Clock className="w-5 h-5" />
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-3xl font-black text-white">{stats.pendentes}</div>
-                        <p className="text-xs text-amber-400/80 mt-1 font-medium">Aguardando conferência do gestor</p>
-                    </CardContent>
-                </Card>
+                    </div>
+                    <div className="mt-3">
+                        <div className="text-3xl font-black text-slate-900">{stats.pendentes}</div>
+                        <p className="text-xs text-amber-700 font-medium mt-1">Aguardando conferência do gestor</p>
+                    </div>
+                </div>
 
-                <Card
+                {/* Lançados */}
+                <div
                     onClick={() => setActiveTab("lancados")}
-                    className={`cursor-pointer transition-all duration-300 rounded-3xl border ${
+                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${
                         activeTab === "lancados"
-                            ? "bg-emerald-500/10 border-emerald-500/40 shadow-lg shadow-emerald-500/10"
-                            : "bg-slate-900/40 border-white/5 hover:bg-slate-900/70"
+                            ? "border-emerald-400 ring-2 ring-emerald-100 bg-emerald-50/20"
+                            : "border-slate-200 hover:border-slate-300"
                     }`}
                 >
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
                             Lançados no Secullum
-                        </CardTitle>
-                        <div className="p-2.5 bg-emerald-500/10 rounded-2xl text-emerald-400">
+                        </span>
+                        <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
                             <CheckCircle2 className="w-5 h-5" />
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-3xl font-black text-white">{stats.lancados}</div>
-                        <p className="text-xs text-emerald-400/80 mt-1 font-medium">Abonados e integrados com sucesso</p>
-                    </CardContent>
-                </Card>
+                    </div>
+                    <div className="mt-3">
+                        <div className="text-3xl font-black text-slate-900">{stats.lancados}</div>
+                        <p className="text-xs text-emerald-700 font-medium mt-1">Abonados e integrados com sucesso</p>
+                    </div>
+                </div>
 
-                <Card
+                {/* Rejeitados */}
+                <div
                     onClick={() => setActiveTab("rejeitados")}
-                    className={`cursor-pointer transition-all duration-300 rounded-3xl border ${
+                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${
                         activeTab === "rejeitados"
-                            ? "bg-rose-500/10 border-rose-500/40 shadow-lg shadow-rose-500/10"
-                            : "bg-slate-900/40 border-white/5 hover:bg-slate-900/70"
+                            ? "border-rose-400 ring-2 ring-rose-100 bg-rose-50/20"
+                            : "border-slate-200 hover:border-slate-300"
                     }`}
                 >
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-xs font-bold uppercase tracking-wider text-rose-400">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-rose-800">
                             Rejeitados / Inválidos
-                        </CardTitle>
-                        <div className="p-2.5 bg-rose-500/10 rounded-2xl text-rose-400">
+                        </span>
+                        <div className="p-2.5 bg-rose-100 text-rose-700 rounded-xl">
                             <XCircle className="w-5 h-5" />
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-3xl font-black text-white">{stats.rejeitados}</div>
-                        <p className="text-xs text-rose-400/80 mt-1 font-medium">Recusados pela supervisão</p>
-                    </CardContent>
-                </Card>
+                    </div>
+                    <div className="mt-3">
+                        <div className="text-3xl font-black text-slate-900">{stats.rejeitados}</div>
+                        <p className="text-xs text-rose-700 font-medium mt-1">Recusados pela supervisão</p>
+                    </div>
+                </div>
 
-                <Card className="rounded-3xl border border-white/5 bg-slate-900/40">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-xs font-bold uppercase tracking-wider text-sky-400">
+                {/* Total */}
+                <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
                             Total Registrados
-                        </CardTitle>
-                        <div className="p-2.5 bg-sky-500/10 rounded-2xl text-sky-400">
+                        </span>
+                        <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
                             <FileSpreadsheet className="w-5 h-5" />
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-3xl font-black text-white">{stats.total}</div>
-                        <p className="text-xs text-slate-400 mt-1 font-medium">Histórico acumulado de atestados</p>
-                    </CardContent>
-                </Card>
+                    </div>
+                    <div className="mt-3">
+                        <div className="text-3xl font-black text-slate-900">{stats.total}</div>
+                        <p className="text-xs text-slate-500 font-medium mt-1">Histórico acumulado de atestados</p>
+                    </div>
+                </div>
             </div>
 
             {/* Painel Principal com Abas e Filtros */}
-            <div className="bg-slate-900/60 rounded-3xl border border-white/5 backdrop-blur-xl p-6 space-y-6">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-4">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                     {/* Abas */}
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full lg:w-auto">
-                        <TabsList className="bg-slate-950/60 p-1 rounded-2xl border border-white/5 h-12 flex gap-1">
-                            <TabsTrigger
-                                value="pendentes"
-                                className="rounded-xl px-4 font-bold text-xs data-[state=active]:bg-amber-500 data-[state=active]:text-slate-950 transition-all flex items-center gap-2"
-                            >
-                                <Clock className="w-3.5 h-3.5" />
-                                <span>Pendentes de Validação</span>
-                                <Badge className="bg-amber-950 text-amber-200 text-[10px] ml-1 px-1.5 py-0 h-4">
-                                    {stats.pendentes}
-                                </Badge>
-                            </TabsTrigger>
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80 w-fit">
+                        <button
+                            onClick={() => setActiveTab("pendentes")}
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                activeTab === "pendentes"
+                                    ? "bg-white text-slate-900 shadow-sm"
+                                    : "text-slate-600 hover:text-slate-900"
+                            }`}
+                        >
+                            <Clock className="w-3.5 h-3.5 text-amber-500" />
+                            <span>Pendentes de Validação</span>
+                            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-100 text-amber-800">
+                                {stats.pendentes}
+                            </span>
+                        </button>
 
-                            <TabsTrigger
-                                value="lancados"
-                                className="rounded-xl px-4 font-bold text-xs data-[state=active]:bg-emerald-500 data-[state=active]:text-slate-950 transition-all flex items-center gap-2"
-                            >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Lançados no Secullum</span>
-                                <Badge className="bg-emerald-950 text-emerald-200 text-[10px] ml-1 px-1.5 py-0 h-4">
-                                    {stats.lancados}
-                                </Badge>
-                            </TabsTrigger>
+                        <button
+                            onClick={() => setActiveTab("lancados")}
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                activeTab === "lancados"
+                                    ? "bg-white text-slate-900 shadow-sm"
+                                    : "text-slate-600 hover:text-slate-900"
+                            }`}
+                        >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                            <span>Lançados no Secullum</span>
+                            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">
+                                {stats.lancados}
+                            </span>
+                        </button>
 
-                            <TabsTrigger
-                                value="rejeitados"
-                                className="rounded-xl px-4 font-bold text-xs data-[state=active]:bg-rose-500 data-[state=active]:text-white transition-all flex items-center gap-2"
-                            >
-                                <XCircle className="w-3.5 h-3.5" />
-                                <span>Rejeitados</span>
-                            </TabsTrigger>
-                        </TabsList>
-                    </Tabs>
+                        <button
+                            onClick={() => setActiveTab("rejeitados")}
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                activeTab === "rejeitados"
+                                    ? "bg-white text-slate-900 shadow-sm"
+                                    : "text-slate-600 hover:text-slate-900"
+                            }`}
+                        >
+                            <XCircle className="w-3.5 h-3.5 text-rose-500" />
+                            <span>Rejeitados</span>
+                        </button>
+                    </div>
 
                     {/* Filtros: Busca e Empresa */}
-                    <div className="flex flex-col sm:flex-row items-center gap-3">
-                        <div className="relative w-full sm:w-64">
-                            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="relative">
+                            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <Input
                                 placeholder="Buscar colaborador, CPF, CID..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="pl-10 bg-slate-950/60 border-white/10 rounded-2xl h-11 text-xs text-white placeholder:text-slate-500"
+                                className="pl-9 bg-white border-slate-200 text-slate-800 text-xs h-10 w-[240px] rounded-xl focus:border-indigo-500"
                             />
                         </div>
 
-                        <div className="w-full sm:w-56">
-                            <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-                                <SelectTrigger className="bg-slate-950/60 border-white/10 rounded-2xl h-11 text-xs text-white">
-                                    <Building2 className="w-4 h-4 text-slate-400 mr-2" />
-                                    <SelectValue placeholder="Todas Empresas" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-slate-900 border-white/10 text-white">
-                                    <SelectItem value="ALL">Todas as Empresas</SelectItem>
-                                    {companies.map((c) => (
-                                        <SelectItem key={c.id} value={c.id}>
-                                            {c.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                        <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+                            <SelectTrigger className="h-10 text-xs font-semibold bg-white border-slate-200 text-slate-700 rounded-xl w-[200px]">
+                                <div className="flex items-center gap-1.5 truncate">
+                                    <Building2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                                    <SelectValue placeholder="Todas as Empresas" />
+                                </div>
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border-slate-200 text-slate-800">
+                                <SelectItem value="ALL">Todas as Empresas</SelectItem>
+                                {companies.map((c) => (
+                                    <SelectItem key={c.id} value={c.id}>
+                                        {c.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        {(selectedCompany !== "ALL" || search) && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                    setSelectedCompany("ALL");
+                                    setSearch("");
+                                }}
+                                className="h-10 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 gap-1 font-semibold rounded-xl"
+                            >
+                                <X className="w-3.5 h-3.5" />
+                                Limpar
+                            </Button>
+                        )}
                     </div>
                 </div>
 
                 {/* Tabela de Resultados */}
-                <div className="rounded-2xl border border-white/5 overflow-hidden bg-slate-950/40">
+                <div className="rounded-xl border border-slate-200 overflow-hidden">
                     <Table>
-                        <TableHeader className="bg-slate-900/80">
-                            <TableRow className="border-white/5 hover:bg-transparent">
-                                <TableHead className="w-20 text-[11px] font-black uppercase text-slate-400">Doc</TableHead>
-                                <TableHead className="text-[11px] font-black uppercase text-slate-400">Colaborador (Secullum)</TableHead>
-                                <TableHead className="text-[11px] font-black uppercase text-slate-400">Período / Dias</TableHead>
-                                <TableHead className="text-[11px] font-black uppercase text-slate-400">Diagnóstico / Médico</TableHead>
-                                <TableHead className="text-[11px] font-black uppercase text-slate-400">Origem / Status</TableHead>
-                                <TableHead className="text-right text-[11px] font-black uppercase text-slate-400">Ações</TableHead>
+                        <TableHeader className="bg-slate-50/80 border-b border-slate-200">
+                            <TableRow className="hover:bg-transparent">
+                                <TableHead className="w-20 text-[11px] font-bold uppercase tracking-wider text-slate-600">Doc</TableHead>
+                                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Colaborador (Secullum)</TableHead>
+                                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Período / Dias</TableHead>
+                                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Diagnóstico / Médico</TableHead>
+                                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Origem / Status</TableHead>
+                                <TableHead className="text-right text-[11px] font-bold uppercase tracking-wider text-slate-600">Ações</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {filteredAtestados.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-12 text-slate-500">
-                                        <FileText className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                                        <p className="font-semibold text-sm">Nenhum atestado encontrado nesta visualização.</p>
-                                        <p className="text-xs text-slate-600 mt-1">
-                                            Atestados enviados no grupo de WhatsApp ou inseridos manualmente aparecerão aqui.
+                                    <TableCell colSpan={6} className="text-center py-16 text-slate-500">
+                                        <FileText className="w-12 h-12 mx-auto mb-2 text-slate-300" />
+                                        <p className="font-bold text-slate-700 text-sm">Nenhum atestado encontrado nesta visualização.</p>
+                                        <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                                            Atestados enviados no grupo de WhatsApp ou adicionados manualmente aparecerão aqui automaticamente.
                                         </p>
                                     </TableCell>
                                 </TableRow>
@@ -596,31 +630,31 @@ export function AtestadosClient({
                                     return (
                                         <TableRow
                                             key={item.id}
-                                            className="border-white/5 hover:bg-white/[0.02] transition-colors"
+                                            className="hover:bg-slate-50/70 border-b border-slate-100 transition-colors"
                                         >
                                             {/* Preview Foto */}
                                             <TableCell>
                                                 {item.documentUrl ? (
                                                     <div
                                                         onClick={() => setPreviewDoc(item)}
-                                                        className="w-12 h-14 rounded-xl overflow-hidden bg-slate-900 border border-white/10 cursor-pointer relative group flex items-center justify-center"
+                                                        className="w-12 h-14 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 cursor-pointer relative group flex items-center justify-center shadow-xs"
                                                     >
                                                         {item.documentUrl.startsWith("data:") || item.documentUrl.startsWith("http") ? (
                                                             // eslint-disable-next-line @next/next/no-img-element
                                                             <img
                                                                 src={item.documentUrl}
                                                                 alt="Atestado"
-                                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                                                             />
                                                         ) : (
-                                                            <FileText className="w-6 h-6 text-sky-400" />
+                                                            <FileText className="w-6 h-6 text-slate-400" />
                                                         )}
-                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                        <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                             <Eye className="w-4 h-4 text-white" />
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <div className="w-12 h-14 rounded-xl bg-slate-900/80 border border-white/5 flex items-center justify-center text-slate-600">
+                                                    <div className="w-12 h-14 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
                                                         <FileText className="w-5 h-5" />
                                                     </div>
                                                 )}
@@ -630,17 +664,17 @@ export function AtestadosClient({
                                             <TableCell>
                                                 <div className="space-y-1">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="font-bold text-white text-sm">
+                                                        <span className="font-bold text-slate-900 text-sm">
                                                             {item.employee?.name || item.employeeName || item.extractedName}
                                                         </span>
                                                     </div>
 
-                                                    <div className="flex items-center gap-2 text-xs text-slate-400">
-                                                        <span className="font-mono bg-slate-900 px-2 py-0.5 rounded border border-white/5">
+                                                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                        <span className="font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200/80 font-medium">
                                                             CPF: {cpf || "Sem CPF"}
                                                         </span>
                                                         {item.employee?.company?.name && (
-                                                            <span className="text-slate-500 truncate max-w-[150px]">
+                                                            <span className="text-slate-500 truncate max-w-[160px]">
                                                                 • {item.employee.company.name}
                                                             </span>
                                                         )}
@@ -655,10 +689,10 @@ export function AtestadosClient({
                                                                         onValueChange={(val) => handleSelectEmployee(item.id, val)}
                                                                         defaultValue={item.employeeId || undefined}
                                                                     >
-                                                                        <SelectTrigger className="w-56 h-8 text-xs bg-slate-900 border-sky-500/50 text-white rounded-lg">
-                                                                            <SelectValue placeholder="Selecione o colaborador correto..." />
+                                                                        <SelectTrigger className="w-64 h-8 text-xs bg-white border-indigo-400 text-slate-800 rounded-lg">
+                                                                            <SelectValue placeholder="Selecione o colaborador..." />
                                                                         </SelectTrigger>
-                                                                        <SelectContent className="bg-slate-900 border-white/10 text-white max-h-60">
+                                                                        <SelectContent className="bg-white border-slate-200 text-slate-800 max-h-60">
                                                                             {employees.map((emp) => (
                                                                                 <SelectItem key={emp.id} value={emp.id} className="text-xs">
                                                                                     {emp.name} ({emp.cpf})
@@ -670,7 +704,7 @@ export function AtestadosClient({
                                                                         size="sm"
                                                                         variant="ghost"
                                                                         onClick={() => setChangingEmployeeAtestadoId(null)}
-                                                                        className="h-8 px-2 text-slate-400 hover:text-white"
+                                                                        className="h-8 px-2 text-slate-500 hover:text-slate-800"
                                                                     >
                                                                         <X className="w-3.5 h-3.5" />
                                                                     </Button>
@@ -678,10 +712,10 @@ export function AtestadosClient({
                                                             ) : (
                                                                 <button
                                                                     onClick={() => setChangingEmployeeAtestadoId(item.id)}
-                                                                    className="text-[11px] text-sky-400 hover:text-sky-300 font-semibold flex items-center gap-1 hover:underline"
+                                                                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 hover:underline"
                                                                 >
                                                                     <UserCheck className="w-3 h-3" />
-                                                                    Trocar colaborador
+                                                                    Trocar colaborador vinculado
                                                                 </button>
                                                             )}
                                                         </div>
@@ -692,26 +726,20 @@ export function AtestadosClient({
                                             {/* Período / Dias */}
                                             <TableCell>
                                                 <div className="space-y-1">
-                                                    <div className="text-sm font-semibold text-white flex items-center gap-1.5">
+                                                    <div className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
                                                         <Calendar className="w-3.5 h-3.5 text-slate-400" />
                                                         <span>{formatDataExibicao(item.startDate)}</span>
                                                         {item.daysCount > 1 && (
                                                             <>
-                                                                <span className="text-slate-500">até</span>
+                                                                <span className="text-slate-400">até</span>
                                                                 <span>{formatDataExibicao(item.endDate)}</span>
                                                             </>
                                                         )}
                                                     </div>
                                                     <div>
-                                                        <Badge
-                                                            className={`text-[10px] font-bold ${
-                                                                item.daysCount > 1
-                                                                    ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
-                                                                    : "bg-blue-500/20 text-blue-300 border-blue-500/30"
-                                                            }`}
-                                                        >
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80">
                                                             {item.daysCount} {item.daysCount === 1 ? "dia" : "dias de afastamento"}
-                                                        </Badge>
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </TableCell>
@@ -721,17 +749,17 @@ export function AtestadosClient({
                                                 <div className="space-y-1 text-xs">
                                                     <div className="flex items-center gap-2">
                                                         {item.cid ? (
-                                                            <span className="font-bold text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                                            <span className="font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
                                                                 CID: {item.cid}
                                                             </span>
                                                         ) : (
-                                                            <span className="text-slate-500">CID não informado</span>
+                                                            <span className="text-slate-400 italic">CID não informado</span>
                                                         )}
-                                                        <span className="text-slate-300">{item.justificativa}</span>
+                                                        <span className="text-slate-600 font-medium">{item.justificativa}</span>
                                                     </div>
                                                     {(item.doctorName || item.doctorCrm) && (
-                                                        <div className="text-slate-400 flex items-center gap-1">
-                                                            <Stethoscope className="w-3 h-3 text-slate-500" />
+                                                        <div className="text-slate-500 flex items-center gap-1">
+                                                            <Stethoscope className="w-3 h-3 text-slate-400" />
                                                             <span>
                                                                 {item.doctorName || "Dr(a)"} {item.doctorCrm && `(${item.doctorCrm})`}
                                                             </span>
@@ -745,39 +773,39 @@ export function AtestadosClient({
                                                 <div className="space-y-1">
                                                     {isItemLancado ? (
                                                         <div className="space-y-0.5">
-                                                            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-[11px] font-bold flex items-center gap-1 w-fit">
-                                                                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                                <Check className="w-3 h-3 text-emerald-600" />
                                                                 Lançado no Secullum
-                                                            </Badge>
+                                                            </span>
                                                             {item.validatedByName && (
-                                                                <p className="text-[10px] text-slate-400">
+                                                                <p className="text-[10px] text-slate-500">
                                                                     Por: {item.validatedByName}
                                                                 </p>
                                                             )}
                                                             {item.secullumLancadoEm && (
-                                                                <p className="text-[10px] text-slate-500">
+                                                                <p className="text-[10px] text-slate-400">
                                                                     Em: {formatDataExibicao(item.secullumLancadoEm)}
                                                                 </p>
                                                             )}
                                                         </div>
                                                     ) : item.status === "REJEITADO" ? (
                                                         <div>
-                                                            <Badge className="bg-rose-500/20 text-rose-300 border-rose-500/40 text-[11px] font-bold">
+                                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
                                                                 Rejeitado
-                                                            </Badge>
+                                                            </span>
                                                             {item.rejectionReason && (
-                                                                <p className="text-[10px] text-rose-400/80 truncate max-w-[150px] mt-0.5">
+                                                                <p className="text-[10px] text-rose-600 truncate max-w-[160px] mt-0.5 font-medium">
                                                                     {item.rejectionReason}
                                                                 </p>
                                                             )}
                                                         </div>
                                                     ) : (
                                                         <div>
-                                                            <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-[11px] font-bold flex items-center gap-1 w-fit">
-                                                                <Clock className="w-3 h-3 text-amber-400" />
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                                <Clock className="w-3 h-3 text-amber-600" />
                                                                 Pendente Validação
-                                                            </Badge>
-                                                            <span className="text-[10px] text-slate-500 block mt-0.5">
+                                                            </span>
+                                                            <span className="text-[10px] text-slate-500 block mt-0.5 font-medium">
                                                                 {item.source === "WHATSAPP" ? "📱 WhatsApp" : "💻 Upload Manual"}
                                                             </span>
                                                         </div>
@@ -794,7 +822,7 @@ export function AtestadosClient({
                                                                 size="sm"
                                                                 disabled={isPending || !hasValidEmployee}
                                                                 onClick={() => handleLancarSecullum(item)}
-                                                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-9 px-3 rounded-xl shadow-md shadow-emerald-950 flex items-center gap-1.5 transition-all duration-200 hover:scale-[1.02]"
+                                                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 px-3 rounded-lg shadow-sm flex items-center gap-1.5 transition-all duration-200 hover:scale-[1.02]"
                                                             >
                                                                 <Send className="w-3.5 h-3.5" />
                                                                 <span>Lançar no Secullum</span>
@@ -802,7 +830,7 @@ export function AtestadosClient({
 
                                                             <Button
                                                                 size="sm"
-                                                                variant="ghost"
+                                                                variant="outline"
                                                                 onClick={() => {
                                                                     setEditModal({
                                                                         open: true,
@@ -820,7 +848,7 @@ export function AtestadosClient({
                                                                         notes: item.notes || ""
                                                                     });
                                                                 }}
-                                                                className="h-9 w-9 p-0 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl"
+                                                                className="h-9 w-9 p-0 text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-100 rounded-lg"
                                                                 title="Editar dados do atestado"
                                                             >
                                                                 <Edit3 className="w-4 h-4" />
@@ -828,7 +856,7 @@ export function AtestadosClient({
 
                                                             <Button
                                                                 size="sm"
-                                                                variant="ghost"
+                                                                variant="outline"
                                                                 onClick={() =>
                                                                     setRejectionModal({
                                                                         open: true,
@@ -836,7 +864,7 @@ export function AtestadosClient({
                                                                         reason: ""
                                                                     })
                                                                 }
-                                                                className="h-9 w-9 p-0 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl"
+                                                                className="h-9 w-9 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 rounded-lg"
                                                                 title="Rejeitar atestado"
                                                             >
                                                                 <XCircle className="w-4 h-4" />
@@ -849,9 +877,9 @@ export function AtestadosClient({
                                                             size="sm"
                                                             variant="outline"
                                                             onClick={() => setPreviewDoc(item)}
-                                                            className="border-white/10 text-slate-300 hover:text-white h-8 text-xs rounded-xl flex items-center gap-1"
+                                                            className="border-slate-200 text-slate-700 hover:bg-slate-50 h-9 text-xs rounded-lg flex items-center gap-1 font-semibold"
                                                         >
-                                                            <Eye className="w-3.5 h-3.5" />
+                                                            <Eye className="w-3.5 h-3.5 text-slate-500" />
                                                             <span>Ver Detalhes</span>
                                                         </Button>
                                                     )}
@@ -868,13 +896,13 @@ export function AtestadosClient({
 
             {/* Modal de Visualização Ampliada da Foto / Documento */}
             <Dialog open={Boolean(previewDoc)} onOpenChange={(open) => !open && setPreviewDoc(null)}>
-                <DialogContent className="max-w-3xl bg-slate-950 border-white/10 text-white rounded-3xl p-6">
+                <DialogContent className="max-w-3xl bg-white border border-slate-200 text-slate-900 rounded-2xl p-6 shadow-2xl">
                     <DialogHeader>
-                        <DialogTitle className="text-xl font-black text-white flex items-center gap-2">
-                            <FileText className="w-5 h-5 text-sky-400" />
+                        <DialogTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-indigo-600" />
                             Documento do Atestado Médico
                         </DialogTitle>
-                        <DialogDescription className="text-xs text-slate-400">
+                        <DialogDescription className="text-xs text-slate-500">
                             Colaborador: {previewDoc?.employee?.name || previewDoc?.employeeName || previewDoc?.extractedName} • CPF:{" "}
                             {previewDoc?.cpf || previewDoc?.employee?.cpf || "-"}
                         </DialogDescription>
@@ -882,57 +910,57 @@ export function AtestadosClient({
 
                     <div className="mt-4 flex flex-col md:flex-row gap-6">
                         {/* Imagem */}
-                        <div className="flex-1 bg-slate-900 rounded-2xl border border-white/10 p-2 flex items-center justify-center max-h-[500px] overflow-auto">
+                        <div className="flex-1 bg-slate-50 rounded-xl border border-slate-200 p-2 flex items-center justify-center max-h-[500px] overflow-auto">
                             {previewDoc?.documentUrl ? (
                                 previewDoc.documentUrl.startsWith("data:") || previewDoc.documentUrl.startsWith("http") ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img
                                         src={previewDoc.documentUrl}
                                         alt="Atestado Completo"
-                                        className="max-h-[460px] object-contain rounded-xl"
+                                        className="max-h-[460px] object-contain rounded-lg shadow-sm"
                                     />
                                 ) : (
-                                    <iframe src={previewDoc.documentUrl} className="w-full h-[400px] rounded-xl" />
+                                    <iframe src={previewDoc.documentUrl} className="w-full h-[400px] rounded-lg" />
                                 )
                             ) : (
-                                <div className="text-center py-12 text-slate-500">
-                                    <FileText className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                                    <p>Nenhuma imagem arquivada para este atestado.</p>
+                                <div className="text-center py-16 text-slate-400">
+                                    <FileText className="w-12 h-12 mx-auto mb-2 opacity-40" />
+                                    <p className="text-sm font-medium">Nenhuma imagem arquivada para este atestado.</p>
                                 </div>
                             )}
                         </div>
 
                         {/* Detalhes Extraídos */}
                         <div className="w-full md:w-72 space-y-4 text-xs">
-                            <div className="bg-slate-900/60 p-4 rounded-2xl border border-white/5 space-y-3">
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                                 <div>
-                                    <span className="text-[10px] text-slate-500 uppercase font-black block">Período</span>
-                                    <p className="text-white font-bold text-sm">
+                                    <span className="text-[10px] text-slate-500 uppercase font-bold block">Período</span>
+                                    <p className="text-slate-900 font-bold text-sm">
                                         {formatDataExibicao(previewDoc?.startDate)} até {formatDataExibicao(previewDoc?.endDate)}
                                     </p>
-                                    <span className="text-sky-400 font-semibold">{previewDoc?.daysCount} dias abonados</span>
+                                    <span className="text-indigo-600 font-semibold">{previewDoc?.daysCount} dias abonados</span>
                                 </div>
 
                                 <div>
-                                    <span className="text-[10px] text-slate-500 uppercase font-black block">CID</span>
-                                    <p className="text-white font-bold">{previewDoc?.cid || "Não informado"}</p>
+                                    <span className="text-[10px] text-slate-500 uppercase font-bold block">CID</span>
+                                    <p className="text-slate-900 font-bold">{previewDoc?.cid || "Não informado"}</p>
                                 </div>
 
                                 <div>
-                                    <span className="text-[10px] text-slate-500 uppercase font-black block">Médico / CRM</span>
-                                    <p className="text-white font-bold">{previewDoc?.doctorName || "-"}</p>
-                                    <p className="text-slate-400">{previewDoc?.doctorCrm || ""}</p>
+                                    <span className="text-[10px] text-slate-500 uppercase font-bold block">Médico / CRM</span>
+                                    <p className="text-slate-900 font-bold">{previewDoc?.doctorName || "-"}</p>
+                                    <p className="text-slate-500">{previewDoc?.doctorCrm || ""}</p>
                                 </div>
 
                                 <div>
-                                    <span className="text-[10px] text-slate-500 uppercase font-black block">Status Secullum</span>
-                                    <p className="text-emerald-400 font-semibold">{previewDoc?.secullumStatus || "Pendente de Envio"}</p>
+                                    <span className="text-[10px] text-slate-500 uppercase font-bold block">Status Secullum</span>
+                                    <p className="text-emerald-600 font-bold">{previewDoc?.secullumStatus || "Pendente de Envio"}</p>
                                 </div>
                             </div>
 
                             {previewDoc?.status === "PENDENTE" && (
                                 <Button
-                                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl h-11 flex items-center justify-center gap-2"
+                                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-11 flex items-center justify-center gap-2 shadow-sm"
                                     onClick={() => {
                                         if (previewDoc) handleLancarSecullum(previewDoc);
                                         setPreviewDoc(null);
@@ -949,24 +977,24 @@ export function AtestadosClient({
 
             {/* Modal de Rejeição */}
             <Dialog open={rejectionModal.open} onOpenChange={(open) => !open && setRejectionModal({ open: false, id: "", reason: "" })}>
-                <DialogContent className="max-w-md bg-slate-950 border-white/10 text-white rounded-3xl p-6">
+                <DialogContent className="max-w-md bg-white border border-slate-200 text-slate-900 rounded-2xl p-6 shadow-2xl">
                     <DialogHeader>
-                        <DialogTitle className="text-lg font-black text-rose-400 flex items-center gap-2">
-                            <XCircle className="w-5 h-5 text-rose-500" />
+                        <DialogTitle className="text-lg font-bold text-rose-700 flex items-center gap-2">
+                            <XCircle className="w-5 h-5 text-rose-600" />
                             Rejeitar Atestado Médico
                         </DialogTitle>
-                        <DialogDescription className="text-xs text-slate-400">
+                        <DialogDescription className="text-xs text-slate-500">
                             Informe o motivo pelo qual este atestado não será aceito ou lançado no sistema de ponto.
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-3 my-4">
-                        <Label className="text-xs text-slate-300">Motivo da Recusa:</Label>
+                        <Label className="text-xs font-semibold text-slate-700">Motivo da Recusa:</Label>
                         <Textarea
                             placeholder="Ex: Documento ilegível, sem assinatura médica, data divergente ou rasura..."
                             value={rejectionModal.reason}
                             onChange={(e) => setRejectionModal({ ...rejectionModal, reason: e.target.value })}
-                            className="bg-slate-900 border-white/10 rounded-2xl text-xs text-white min-h-[100px]"
+                            className="bg-white border-slate-200 rounded-xl text-xs text-slate-900 min-h-[100px] focus:border-rose-400"
                         />
                     </div>
 
@@ -974,13 +1002,13 @@ export function AtestadosClient({
                         <Button
                             variant="ghost"
                             onClick={() => setRejectionModal({ open: false, id: "", reason: "" })}
-                            className="text-slate-400 hover:text-white rounded-xl"
+                            className="text-slate-600 hover:text-slate-900 rounded-xl"
                         >
                             Cancelar
                         </Button>
                         <Button
                             onClick={handleConfirmRejection}
-                            className="bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl px-5"
+                            className="bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl px-5"
                         >
                             Confirmar Rejeição
                         </Button>
@@ -990,28 +1018,28 @@ export function AtestadosClient({
 
             {/* Modal de Edição Antes do Lançamento */}
             <Dialog open={editModal.open} onOpenChange={(open) => !open && setEditModal({ ...editModal, open: false })}>
-                <DialogContent className="max-w-lg bg-slate-950 border-white/10 text-white rounded-3xl p-6">
+                <DialogContent className="max-w-lg bg-white border border-slate-200 text-slate-900 rounded-2xl p-6 shadow-2xl">
                     <DialogHeader>
-                        <DialogTitle className="text-lg font-black text-white flex items-center gap-2">
-                            <Edit3 className="w-5 h-5 text-sky-400" />
+                        <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            <Edit3 className="w-5 h-5 text-indigo-600" />
                             Editar Dados do Atestado
                         </DialogTitle>
-                        <DialogDescription className="text-xs text-slate-400">
+                        <DialogDescription className="text-xs text-slate-500">
                             Ajuste qualquer dado antes de validar e lançar no Secullum.
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4 my-4 text-xs">
                         <div className="space-y-1.5">
-                            <Label className="text-slate-300">Colaborador Vinculado:</Label>
+                            <Label className="text-slate-700 font-semibold">Colaborador Vinculado:</Label>
                             <Select
                                 value={editModal.employeeId}
                                 onValueChange={(val) => setEditModal({ ...editModal, employeeId: val })}
                             >
-                                <SelectTrigger className="bg-slate-900 border-white/10 text-white rounded-xl h-10">
+                                <SelectTrigger className="bg-white border-slate-200 text-slate-800 rounded-xl h-10">
                                     <SelectValue placeholder="Selecione o colaborador..." />
                                 </SelectTrigger>
-                                <SelectContent className="bg-slate-900 border-white/10 text-white max-h-56">
+                                <SelectContent className="bg-white border-slate-200 text-slate-800 max-h-56">
                                     {employees.map((emp) => (
                                         <SelectItem key={emp.id} value={emp.id}>
                                             {emp.name} (CPF: {emp.cpf})
@@ -1023,63 +1051,63 @@ export function AtestadosClient({
 
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
-                                <Label className="text-slate-300">Data de Início:</Label>
+                                <Label className="text-slate-700 font-semibold">Data de Início:</Label>
                                 <Input
                                     type="date"
                                     value={editModal.startDate}
                                     onChange={(e) => setEditModal({ ...editModal, startDate: e.target.value })}
-                                    className="bg-slate-900 border-white/10 text-white rounded-xl h-10"
+                                    className="bg-white border-slate-200 text-slate-800 rounded-xl h-10"
                                 />
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-slate-300">Data de Término:</Label>
+                                <Label className="text-slate-700 font-semibold">Data de Término:</Label>
                                 <Input
                                     type="date"
                                     value={editModal.endDate}
                                     onChange={(e) => setEditModal({ ...editModal, endDate: e.target.value })}
-                                    className="bg-slate-900 border-white/10 text-white rounded-xl h-10"
+                                    className="bg-white border-slate-200 text-slate-800 rounded-xl h-10"
                                 />
                             </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
-                                <Label className="text-slate-300">Dias de Afastamento:</Label>
+                                <Label className="text-slate-700 font-semibold">Dias de Afastamento:</Label>
                                 <Input
                                     type="number"
                                     min="1"
                                     value={editModal.daysCount}
                                     onChange={(e) => setEditModal({ ...editModal, daysCount: Number(e.target.value) || 1 })}
-                                    className="bg-slate-900 border-white/10 text-white rounded-xl h-10"
+                                    className="bg-white border-slate-200 text-slate-800 rounded-xl h-10"
                                 />
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-slate-300">CID (Código de Doença):</Label>
+                                <Label className="text-slate-700 font-semibold">CID (Código de Doença):</Label>
                                 <Input
                                     placeholder="Ex: M54.5"
                                     value={editModal.cid}
                                     onChange={(e) => setEditModal({ ...editModal, cid: e.target.value })}
-                                    className="bg-slate-900 border-white/10 text-white rounded-xl h-10"
+                                    className="bg-white border-slate-200 text-slate-800 rounded-xl h-10"
                                 />
                             </div>
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label className="text-slate-300">Justificativa no Secullum:</Label>
+                            <Label className="text-slate-700 font-semibold">Justificativa no Secullum:</Label>
                             <Input
                                 value={editModal.justificativa}
                                 onChange={(e) => setEditModal({ ...editModal, justificativa: e.target.value })}
-                                className="bg-slate-900 border-white/10 text-white rounded-xl h-10"
+                                className="bg-white border-slate-200 text-slate-800 rounded-xl h-10"
                             />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label className="text-slate-300">Observações adicionais:</Label>
+                            <Label className="text-slate-700 font-semibold">Observações adicionais:</Label>
                             <Input
                                 placeholder="Notas internas ou observações"
                                 value={editModal.notes}
                                 onChange={(e) => setEditModal({ ...editModal, notes: e.target.value })}
-                                className="bg-slate-900 border-white/10 text-white rounded-xl h-10"
+                                className="bg-white border-slate-200 text-slate-800 rounded-xl h-10"
                             />
                         </div>
                     </div>
@@ -1088,13 +1116,13 @@ export function AtestadosClient({
                         <Button
                             variant="ghost"
                             onClick={() => setEditModal({ ...editModal, open: false })}
-                            className="text-slate-400 hover:text-white rounded-xl"
+                            className="text-slate-600 hover:text-slate-900 rounded-xl"
                         >
                             Cancelar
                         </Button>
                         <Button
                             onClick={handleSaveEdit}
-                            className="bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl px-5"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl px-5"
                         >
                             Salvar Alterações
                         </Button>
@@ -1104,19 +1132,19 @@ export function AtestadosClient({
 
             {/* Modal de Upload Manual com Leitura por IA */}
             <Dialog open={uploadModalOpen} onOpenChange={setUploadModalOpen}>
-                <DialogContent className="max-w-md bg-slate-950 border-white/10 text-white rounded-3xl p-6">
+                <DialogContent className="max-w-md bg-white border border-slate-200 text-slate-900 rounded-2xl p-6 shadow-2xl">
                     <DialogHeader>
-                        <DialogTitle className="text-lg font-black text-white flex items-center gap-2">
-                            <Sparkles className="w-5 h-5 text-sky-400" />
+                        <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            <Sparkles className="w-5 h-5 text-indigo-600" />
                             Novo Atestado com IA
                         </DialogTitle>
-                        <DialogDescription className="text-xs text-slate-400">
+                        <DialogDescription className="text-xs text-slate-500">
                             Faça upload da foto do atestado. O Gemini Vision extrairá o nome, datas, CID e cruzará com a base de colaboradores automaticamente.
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="my-4">
-                        <label className="border-2 border-dashed border-sky-500/30 hover:border-sky-500/60 rounded-3xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 bg-sky-500/5 hover:bg-sky-500/10 group">
+                        <label className="border-2 border-dashed border-indigo-200 hover:border-indigo-400 rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 bg-indigo-50/30 hover:bg-indigo-50/60 group">
                             <input
                                 type="file"
                                 accept="image/*,application/pdf"
@@ -1126,18 +1154,18 @@ export function AtestadosClient({
                             />
                             {uploadingFile ? (
                                 <div className="space-y-3">
-                                    <RefreshCw className="w-10 h-10 text-sky-400 animate-spin mx-auto" />
-                                    <p className="text-sm font-bold text-white">Analisando atestado com IA...</p>
-                                    <p className="text-xs text-slate-400">Identificando paciente, datas e CRM</p>
+                                    <RefreshCw className="w-10 h-10 text-indigo-600 animate-spin mx-auto" />
+                                    <p className="text-sm font-bold text-slate-800">Analisando atestado com IA...</p>
+                                    <p className="text-xs text-slate-500">Identificando paciente, datas e CRM</p>
                                 </div>
                             ) : (
                                 <div className="space-y-3">
-                                    <div className="p-4 bg-sky-500/10 rounded-2xl w-fit mx-auto text-sky-400 group-hover:scale-110 transition-transform">
+                                    <div className="p-4 bg-indigo-100/70 rounded-2xl w-fit mx-auto text-indigo-600 group-hover:scale-105 transition-transform">
                                         <UploadCloud className="w-8 h-8" />
                                     </div>
                                     <div>
-                                        <p className="text-sm font-bold text-white">Clique para selecionar ou arraste aqui</p>
-                                        <p className="text-xs text-slate-400 mt-1">Formatos suportados: JPG, PNG, WEBP</p>
+                                        <p className="text-sm font-bold text-slate-800">Clique para selecionar ou arraste aqui</p>
+                                        <p className="text-xs text-slate-500 mt-1">Formatos suportados: JPG, PNG, WEBP, PDF</p>
                                     </div>
                                 </div>
                             )}
@@ -1149,7 +1177,7 @@ export function AtestadosClient({
                             variant="ghost"
                             onClick={() => setUploadModalOpen(false)}
                             disabled={uploadingFile}
-                            className="text-slate-400 hover:text-white rounded-xl w-full"
+                            className="text-slate-600 hover:text-slate-900 rounded-xl w-full"
                         >
                             Fechar
                         </Button>

@@ -97,6 +97,39 @@ export async function POST(req: Request) {
             return NextResponse.json({ status: "ignored_no_phone" });
         }
 
+        // Tratar mensagens recebidas em Grupos (ex: "RH - ATESTADO & FALTA")
+        const isGroup = Boolean(
+            body.isGroup === true ||
+            body.isGroup === "true" ||
+            body.chatId?.includes("@g.us") ||
+            body.remoteJid?.includes("@g.us") ||
+            body.phone?.includes("-group") ||
+            body.phone?.includes("@g.us")
+        );
+
+        if (isGroup) {
+            const { messageType, content, mediaUrl } = parseMessageBody(body);
+            if (!isFromMe && mediaUrl && (messageType === "IMAGE" || messageType === "DOCUMENT")) {
+                const participantRaw = body.participantPhone || body.participant || body.author || body.senderPhone || "";
+                const participantPhone = participantRaw ? participantRaw.toString().replace(/\D/g, "").replace(/@.+$/, "") : undefined;
+                const participantName = body.senderName || body.pushName || "Colaborador";
+                const groupName = body.groupName || body.chatName || "RH - ATESTADO & FALTA";
+
+                processWhatsAppMedicalCertificate({
+                    mediaUrl,
+                    caption: content,
+                    senderPhone: participantPhone,
+                    senderName: participantName,
+                    isGroup: true,
+                    groupName
+                }).catch((err) => console.error("[Z-API] Falha ao processar atestado do grupo WhatsApp:", err));
+
+                return NextResponse.json({ status: "group_certificate_captured" });
+            }
+
+            return NextResponse.json({ status: "group_message_ignored" });
+        }
+
         let cleanPhone = rawPhone.toString().replace(/\D/g, "").replace(/@.+$/, "");
         // Resolver LID para Telefone Real
         cleanPhone = await resolveLidToPhone(cleanPhone);

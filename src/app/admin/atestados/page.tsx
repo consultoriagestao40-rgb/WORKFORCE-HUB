@@ -22,13 +22,11 @@ export default async function AtestadosPage() {
     ]);
 
     return (
-        <div className="p-6 max-w-7xl mx-auto">
-            <AtestadosClient
-                initialAtestados={atestados as any}
-                stats={stats}
-                employees={employees as any}
-                companies={companies}
-            />
-        </div>
+        <AtestadosClient
+            initialAtestados={atestados as any}
+            stats={stats}
+            employees={employees as any}
+            companies={companies}
+        />
     );
 }

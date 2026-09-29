@@ -301,7 +301,17 @@ export async function matchEmployee(params: {
  */
 export async function fetchMediaAsBase64(mediaUrl: string): Promise<{ base64: string; mimeType: string } | null> {
     try {
-        const res = await fetch(mediaUrl, { cache: "no-store" });
+        if (mediaUrl.startsWith("data:")) {
+            const mimeType = mediaUrl.split(";")[0].replace("data:", "") || "image/jpeg";
+            return { base64: mediaUrl, mimeType };
+        }
+
+        const headers: Record<string, string> = {};
+        if (mediaUrl.includes("z-api") || mediaUrl.includes("zaap")) {
+            headers["Client-Token"] = ZAPI_CLIENT_TOKEN;
+        }
+
+        const res = await fetch(mediaUrl, { headers, cache: "no-store" });
         if (!res.ok) return null;
 
         const contentType = res.headers.get("content-type") || "image/jpeg";
