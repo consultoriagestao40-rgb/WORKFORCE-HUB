@@ -246,8 +246,12 @@ export async function lancarAtestadoNoSecullum(params: {
     const endDateStr = params.endDate || (atestado.endDate ? atestado.endDate.toISOString().split("T")[0] : startDateStr);
     const days = params.days ?? atestado.daysCount ?? 1;
     const cid = params.cid !== undefined ? params.cid : atestado.cid;
-    const justNome = params.justificativaNome || atestado.justificativa || "Atestado Médico";
     const notes = params.notes !== undefined ? params.notes : atestado.notes;
+    const justNome = (params.justificativaNome && params.justificativaNome.length <= 7)
+        ? params.justificativaNome
+        : (atestado.justificativa && atestado.justificativa.length <= 7)
+            ? atestado.justificativa
+            : "AT. MED";
 
     if (!startDateStr || !endDateStr) {
         return { success: false, message: "Datas de início e término são obrigatórias." };
@@ -544,7 +548,7 @@ export async function salvarAtestadoManual(data: {
             endDate: new Date(data.endDate + "T12:00:00Z"),
             daysCount: data.days || 1,
             cid: data.cid || null,
-            justificativa: data.justificativa || "Atestado Médico",
+            justificativa: (data.justificativa && data.justificativa.length <= 7) ? data.justificativa : "AT. MED",
             doctorName: data.doctorName || null,
             doctorCrm: data.doctorCrm || null,
             notes: data.notes || null,

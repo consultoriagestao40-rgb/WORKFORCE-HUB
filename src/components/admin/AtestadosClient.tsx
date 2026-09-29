@@ -340,7 +340,7 @@ export function AtestadosClient({
                     endDate: atestado.endDate ? new Date(atestado.endDate).toISOString().split("T")[0] : undefined,
                     days: atestado.daysCount,
                     cid: atestado.cid || undefined,
-                    justificativaNome: atestado.justificativa,
+                    justificativaNome: (atestado.justificativa && atestado.justificativa.length <= 7) ? atestado.justificativa : "AT. MED",
                     notes: atestado.notes || undefined
                 });
 

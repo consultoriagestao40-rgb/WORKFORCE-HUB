@@ -308,10 +308,21 @@ export class SecullumApiClient {
         const headers = await this.getHeaders();
 
         const cleanDate = params.data.includes("T") ? params.data.split("T")[0] : params.data;
+
+        // Secullum restringe rigorosamente o campo Justificativa a no máximo 7 caracteres (Ex: "AT. MED")
+        let justCodigo = (params.justificativa || "AT. MED").trim();
+        if (
+            justCodigo.toUpperCase().includes("ATESTADO") ||
+            justCodigo.toUpperCase().includes("MED") ||
+            justCodigo.length > 7
+        ) {
+            justCodigo = "AT. MED";
+        }
+
         const payload: Record<string, any> = {
             Data: `${cleanDate}T00:00:00`,
-            Justificativa: params.justificativa,
-            Observacoes: params.observacoes || "WorkForce Hub - Lançamento Automático",
+            Justificativa: justCodigo,
+            Observacoes: params.observacoes || "atestado no grupo",
             Abonar: params.abonar !== false,
             Grupo: 1
         };
@@ -449,8 +460,13 @@ export class SecullumApiClient {
         observacoes?: string;
     }): Promise<{ success: boolean; message: string; details?: any }> {
         const cleanCpf = params.cpf.replace(/\D/g, "");
-        const justNome = params.justificativaNome || "Atestado Médico";
-        const obs = `Atestado Médico CID: ${params.cid || "N/I"} - ${params.observacoes || ""}`.trim();
+        const rawJust = params.justificativaNome || "AT. MED";
+        const justNome = (
+            rawJust.toUpperCase().includes("ATESTADO") ||
+            rawJust.toUpperCase().includes("MED") ||
+            rawJust.length > 7
+        ) ? "AT. MED" : rawJust.trim();
+        const obs = params.observacoes || (params.cid ? `Atestado Médico CID: ${params.cid} (atestado no grupo)` : "atestado no grupo");
 
         if (params.dias <= 1 || params.dataInicioStr === params.dataFimStr) {
             // Lançamento pontual de 1 dia
