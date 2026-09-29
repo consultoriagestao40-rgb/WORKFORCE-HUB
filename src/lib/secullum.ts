@@ -483,7 +483,46 @@ export class SecullumApiClient {
             return res;
         }
 
-        // Múltiplos dias: Tenta registrar via Afastamentos no Secullum
+        // Se o atestado for maior que 15 dias: aplica a regra CLT / INSS automaticamente no Secullum
+        // - Dias 1 a 15: cadastrado como "AT. MED" (responsabilidade da empresa)
+        // - Dias 16 em diante: cadastrado como "AFASTAM" (afastamento previdenciário INSS)
+        if (params.dias > 15) {
+            const start = new Date(params.dataInicioStr + "T12:00:00Z");
+            const fimEmpresa = new Date(start);
+            fimEmpresa.setDate(fimEmpresa.getDate() + 14); // 15 dias corridos (ex: 27/09 a 11/10)
+            const fimEmpresaStr = fimEmpresa.toISOString().split("T")[0];
+
+            const inicioInss = new Date(fimEmpresa);
+            inicioInss.setDate(inicioInss.getDate() + 1); // Dia 16 (ex: 12/10)
+            const inicioInssStr = inicioInss.toISOString().split("T")[0];
+
+            // 1. Cadastra os primeiros 15 dias da empresa como AT. MED
+            const resEmpresa = await this.lancarAfastamento({
+                cpf: cleanCpf,
+                inicio: params.dataInicioStr,
+                fim: fimEmpresaStr,
+                motivo: `${obs} (15 dias empresa)`,
+                justificativaNome: "AT. MED"
+            });
+
+            // 2. Cadastra os dias restantes como AFASTAM (INSS)
+            const resInss = await this.lancarAfastamento({
+                cpf: cleanCpf,
+                inicio: inicioInssStr,
+                fim: params.dataFimStr,
+                motivo: "AFASTAMENTO INSS",
+                justificativaNome: "AFASTAM"
+            });
+
+            if (resEmpresa.success || resInss.success) {
+                return {
+                    success: true,
+                    message: `Lançado no Secullum com sucesso: 15 dias como AT. MED (${params.dataInicioStr} a ${fimEmpresaStr}) e os ${params.dias - 15} dias restantes como AFASTAM / INSS (${inicioInssStr} a ${params.dataFimStr}).`
+                };
+            }
+        }
+
+        // Atestados de até 15 dias: Registra diretamente via Afastamentos no Secullum
         const resAfastamento = await this.lancarAfastamento({
             cpf: cleanCpf,
             inicio: params.dataInicioStr,
