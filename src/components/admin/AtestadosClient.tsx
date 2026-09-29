@@ -24,7 +24,8 @@ import {
     Trash2,
     RotateCcw,
     AlertTriangle,
-    CheckCheck
+    CheckCheck,
+    Download
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
@@ -228,6 +229,86 @@ export function AtestadosClient({
                 toast.error(`Erro ao atualizar: ${err.message}`, { id: toastId });
             }
         });
+    };
+
+    // Ação: Baixar Anexo / Comprovante do Atestado
+    const handleDownloadAtestado = async (item: MedicalCertificateItem) => {
+        if (!item.documentUrl) {
+            toast.error("Este atestado não possui imagem ou anexo disponível para download.");
+            return;
+        }
+
+        try {
+            const rawName = item.employee?.name || item.employeeName || item.extractedName || "Colaborador";
+            const cleanName = rawName
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-zA-Z0-9]/g, "_")
+                .replace(/_+/g, "_")
+                .trim();
+
+            let dateStr = "data";
+            if (item.startDate) {
+                try {
+                    dateStr = format(parseISO(new Date(item.startDate).toISOString()), "dd-MM-yyyy");
+                } catch {
+                    dateStr = "data";
+                }
+            }
+
+            // Detect extension
+            let ext = "jpg";
+            const lowerUrl = item.documentUrl.toLowerCase();
+            if (lowerUrl.startsWith("data:application/pdf") || lowerUrl.includes(".pdf")) {
+                ext = "pdf";
+            } else if (lowerUrl.startsWith("data:image/png") || lowerUrl.includes(".png")) {
+                ext = "png";
+            } else if (lowerUrl.startsWith("data:image/webp") || lowerUrl.includes(".webp")) {
+                ext = "webp";
+            } else if (lowerUrl.startsWith("data:image/jpeg") || lowerUrl.includes(".jpeg") || lowerUrl.includes(".jpg")) {
+                ext = "jpg";
+            }
+
+            const fileName = `Atestado_${cleanName}_${dateStr}.${ext}`;
+
+            if (item.documentUrl.startsWith("http://") || item.documentUrl.startsWith("https://")) {
+                const toastId = toast.loading("Preparando download do atestado...");
+                try {
+                    const response = await fetch(item.documentUrl);
+                    const blob = await response.blob();
+                    const blobUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = blobUrl;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(blobUrl);
+                    toast.success(`Download de ${fileName} concluído!`, { id: toastId });
+                } catch {
+                    // Fallback to direct navigation / new tab download
+                    const a = document.createElement("a");
+                    a.href = item.documentUrl;
+                    a.target = "_blank";
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    toast.success("Abrindo anexo em nova aba para download.", { id: toastId });
+                }
+            } else {
+                // Base64 Data URL
+                const a = document.createElement("a");
+                a.href = item.documentUrl;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                toast.success(`Download de ${fileName} concluído!`);
+            }
+        } catch (err: any) {
+            toast.error("Erro ao baixar documento: " + (err.message || "Erro desconhecido"));
+        }
     };
 
     // Ação: Lançar no Secullum
@@ -979,6 +1060,17 @@ export function AtestadosClient({
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
+                                                                disabled={!item.documentUrl}
+                                                                onClick={() => handleDownloadAtestado(item)}
+                                                                className="h-9 w-9 p-0 text-slate-600 hover:text-indigo-600 border-slate-200 hover:bg-indigo-50 rounded-lg"
+                                                                title={item.documentUrl ? "Baixar anexo do atestado" : "Sem anexo disponível"}
+                                                            >
+                                                                <Download className="w-4 h-4" />
+                                                            </Button>
+
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
                                                                 onClick={() => {
                                                                     setEditModal({
                                                                         open: true,
@@ -1026,7 +1118,7 @@ export function AtestadosClient({
                                                                         open: true,
                                                                         id: item.id,
                                                                         name: item.employee?.name || item.employeeName || item.extractedName || "Atestado"
-                                                                    })
+                                                                      })
                                                                 }
                                                                 className="h-9 w-9 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border-slate-200 rounded-lg"
                                                                 title="Excluir atestado"
@@ -1046,6 +1138,18 @@ export function AtestadosClient({
                                                             >
                                                                 <Eye className="w-3.5 h-3.5 text-slate-500" />
                                                                 <span>Ver Detalhes</span>
+                                                            </Button>
+
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                disabled={!item.documentUrl}
+                                                                onClick={() => handleDownloadAtestado(item)}
+                                                                className="border-slate-200 text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 h-9 px-2.5 text-xs rounded-lg flex items-center gap-1.5 font-semibold transition-colors"
+                                                                title={item.documentUrl ? "Baixar anexo do atestado" : "Sem anexo disponível"}
+                                                            >
+                                                                <Download className="w-3.5 h-3.5 text-indigo-600" />
+                                                                <span>Baixar Anexo</span>
                                                             </Button>
 
                                                             <Button
@@ -1077,6 +1181,18 @@ export function AtestadosClient({
                                                             >
                                                                 <Eye className="w-3.5 h-3.5 text-slate-500" />
                                                                 <span>Ver</span>
+                                                            </Button>
+
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                disabled={!item.documentUrl}
+                                                                onClick={() => handleDownloadAtestado(item)}
+                                                                className="border-slate-200 text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 h-9 px-2.5 text-xs rounded-lg flex items-center gap-1.5 font-semibold transition-colors"
+                                                                title={item.documentUrl ? "Baixar anexo do atestado" : "Sem anexo disponível"}
+                                                            >
+                                                                <Download className="w-3.5 h-3.5 text-indigo-600" />
+                                                                <span>Baixar Anexo</span>
                                                             </Button>
 
                                                             <Button
@@ -1123,14 +1239,30 @@ export function AtestadosClient({
             <Dialog open={Boolean(previewDoc)} onOpenChange={(open) => !open && setPreviewDoc(null)}>
                 <DialogContent className="max-w-3xl bg-white border border-slate-200 text-slate-900 rounded-2xl p-6 shadow-2xl">
                     <DialogHeader>
-                        <DialogTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                            <FileText className="w-5 h-5 text-indigo-600" />
-                            Documento do Atestado Médico
-                        </DialogTitle>
-                        <DialogDescription className="text-xs text-slate-500">
-                            Colaborador: {previewDoc?.employee?.name || previewDoc?.employeeName || previewDoc?.extractedName} • CPF:{" "}
-                            {previewDoc?.cpf || previewDoc?.employee?.cpf || "-"}
-                        </DialogDescription>
+                        <div className="flex items-center justify-between pr-6">
+                            <div>
+                                <DialogTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                                    <FileText className="w-5 h-5 text-indigo-600" />
+                                    Documento do Atestado Médico
+                                </DialogTitle>
+                                <DialogDescription className="text-xs text-slate-500 mt-1">
+                                    Colaborador: {previewDoc?.employee?.name || previewDoc?.employeeName || previewDoc?.extractedName} • CPF:{" "}
+                                    {previewDoc?.cpf || previewDoc?.employee?.cpf || "-"}
+                                </DialogDescription>
+                            </div>
+                            {previewDoc?.documentUrl && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => previewDoc && handleDownloadAtestado(previewDoc)}
+                                    className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold h-9 px-3 rounded-xl flex items-center gap-1.5 shadow-xs"
+                                    title="Baixar anexo do atestado"
+                                >
+                                    <Download className="w-4 h-4 text-indigo-600" />
+                                    <span>Baixar Anexo</span>
+                                </Button>
+                            )}
+                        </div>
                     </DialogHeader>
 
                     <div className="mt-4 flex flex-col md:flex-row gap-6">
@@ -1182,6 +1314,17 @@ export function AtestadosClient({
                                     <p className="text-emerald-600 font-bold">{previewDoc?.secullumStatus || "Pendente de Envio"}</p>
                                 </div>
                             </div>
+
+                            {previewDoc?.documentUrl && (
+                                <Button
+                                    variant="outline"
+                                    onClick={() => previewDoc && handleDownloadAtestado(previewDoc)}
+                                    className="w-full border-slate-300 hover:bg-slate-100 text-slate-700 font-bold rounded-xl h-11 flex items-center justify-center gap-2 shadow-xs transition-colors"
+                                >
+                                    <Download className="w-4 h-4 text-indigo-600" />
+                                    Baixar Anexo Original
+                                </Button>
+                            )}
 
                             {previewDoc?.status === "PENDENTE" && (
                                 <Button
