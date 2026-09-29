@@ -953,10 +953,18 @@ export function AtestadosClient({
                                                             </>
                                                         )}
                                                     </div>
-                                                    <div>
+                                                    <div className="flex flex-col gap-1 items-start">
                                                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80">
                                                             {item.daysCount} {item.daysCount === 1 ? "dia" : "dias de afastamento"}
                                                         </span>
+                                                        {item.daysCount > 15 && (
+                                                            <span 
+                                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 shadow-xs" 
+                                                                title={`Atestado superior a 15 dias: 15 dias a cargo da empresa e ${item.daysCount - 15} dias pelo INSS.`}
+                                                            >
+                                                                🏥 Encaminhar INSS ({item.daysCount - 15}d)
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </TableCell>
@@ -1049,12 +1057,21 @@ export function AtestadosClient({
                                                                 size="sm"
                                                                 variant="outline"
                                                                 disabled={isPending}
-                                                                onClick={() => handleMarcarComoLancado(item.id, "Atestado validado e marcado como já abonado no Secullum pelo gestor.")}
-                                                                className="h-9 px-2.5 text-xs text-indigo-700 hover:text-indigo-800 hover:bg-indigo-50 border-indigo-200 rounded-lg flex items-center gap-1 font-semibold transition-colors"
-                                                                title="Marcar como já abonado no Secullum manualmente (sem reenviar à API)"
+                                                                onClick={() => handleMarcarComoLancado(
+                                                                    item.id,
+                                                                    item.daysCount > 15
+                                                                        ? `Atestado de ${item.daysCount} dias: 15 dias empresa e ${item.daysCount - 15} dias encaminhados ao INSS.`
+                                                                        : "Atestado validado e marcado como já abonado no Secullum pelo gestor."
+                                                                )}
+                                                                className={`h-9 px-2.5 text-xs rounded-lg flex items-center gap-1 font-semibold transition-colors ${
+                                                                    item.daysCount > 15
+                                                                        ? "text-purple-700 hover:text-purple-800 hover:bg-purple-50 border-purple-300"
+                                                                        : "text-indigo-700 hover:text-indigo-800 hover:bg-indigo-50 border-indigo-200"
+                                                                }`}
+                                                                title={item.daysCount > 15 ? "Registrar como Afastamento INSS (>15 dias)" : "Marcar como já abonado no Secullum manualmente"}
                                                             >
-                                                                <CheckCheck className="w-3.5 h-3.5 text-indigo-600" />
-                                                                <span>Já Lançado</span>
+                                                                <CheckCheck className="w-3.5 h-3.5" />
+                                                                <span>{item.daysCount > 15 ? "Afastamento INSS" : "Já Lançado"}</span>
                                                             </Button>
 
                                                             <Button
@@ -1315,6 +1332,18 @@ export function AtestadosClient({
                                 </div>
                             </div>
 
+                            {previewDoc?.daysCount && previewDoc.daysCount > 15 && (
+                                <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-xl space-y-1.5 text-slate-800">
+                                    <div className="flex items-center gap-1.5 text-amber-800 font-bold text-xs">
+                                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                                        <span>Regra CLT / Encaminhar INSS</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                                        Este atestado supera 15 dias (<strong>{previewDoc.daysCount} dias</strong>). Os primeiros 15 dias são pagos pela empresa e os <strong>{previewDoc.daysCount - 15} dias restantes</strong> devem ser encaminhados como <strong>Afastamento Previdenciário (INSS)</strong>.
+                                    </p>
+                                </div>
+                            )}
+
                             {previewDoc?.documentUrl && (
                                 <Button
                                     variant="outline"
@@ -1327,16 +1356,47 @@ export function AtestadosClient({
                             )}
 
                             {previewDoc?.status === "PENDENTE" && (
-                                <Button
-                                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-11 flex items-center justify-center gap-2 shadow-sm"
-                                    onClick={() => {
-                                        if (previewDoc) handleLancarSecullum(previewDoc);
-                                        setPreviewDoc(null);
-                                    }}
-                                >
-                                    <Send className="w-4 h-4" />
-                                    Lançar no Secullum Agora
-                                </Button>
+                                <div className="space-y-2">
+                                    {previewDoc.daysCount && previewDoc.daysCount > 15 ? (
+                                        <>
+                                            <Button
+                                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl h-11 flex items-center justify-center gap-2 shadow-sm text-xs"
+                                                onClick={() => {
+                                                    handleMarcarComoLancado(
+                                                        previewDoc.id,
+                                                        `Atestado de ${previewDoc.daysCount} dias: 15 dias empresa e ${previewDoc.daysCount - 15} dias encaminhados ao INSS.`
+                                                    );
+                                                    setPreviewDoc(null);
+                                                }}
+                                            >
+                                                <CheckCheck className="w-4 h-4" />
+                                                Registrar Afastamento INSS
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                className="w-full border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-bold rounded-xl h-10 flex items-center justify-center gap-2 text-xs"
+                                                onClick={() => {
+                                                    if (previewDoc) handleLancarSecullum(previewDoc);
+                                                    setPreviewDoc(null);
+                                                }}
+                                            >
+                                                <Send className="w-3.5 h-3.5" />
+                                                Tentar Lançar no Secullum
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <Button
+                                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-11 flex items-center justify-center gap-2 shadow-sm"
+                                            onClick={() => {
+                                                if (previewDoc) handleLancarSecullum(previewDoc);
+                                                setPreviewDoc(null);
+                                            }}
+                                        >
+                                            <Send className="w-4 h-4" />
+                                            Lançar no Secullum Agora
+                                        </Button>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>

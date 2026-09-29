@@ -387,7 +387,8 @@ export class SecullumApiClient {
             Motivo: params.motivo || "Atestado Médico",
             motivo: params.motivo || "Atestado Médico",
             JustificativaNome: justName,
-            justificativaNome: justName
+            justificativaNome: justName,
+            Grupo: 1
         };
 
         if (cleanCpf) {
@@ -436,7 +437,7 @@ export class SecullumApiClient {
     /**
      * Envia um atestado médico para o Secullum:
      * - Se for 1 dia: aplica diretamente a justificativa no Cartão de Ponto.
-     * - Se for múltiplos dias: cadastra o Afastamento e também preenche as justificativas do período.
+     * - Se for múltiplos dias: tenta registrar Afastamento ou justifica dia a dia respeitando o limite legal de 15 dias da CLT.
      */
     async lancarAtestadoMedico(params: {
         cpf: string;
@@ -461,12 +462,12 @@ export class SecullumApiClient {
                 abonar: true
             });
             if (!res.success && res.message.includes("Não é permitido fazer alterações de ponto e cálculos para esse usuário")) {
-                res.message = "O usuário da integração no Secullum (cristiano@...) não possui permissão para alterar ponto/cálculos no Secullum Ponto Web. Habilite a permissão no Secullum (Configurações > Usuários > Permitir alterações no Cartão Ponto), ou clique em 'Já Lançado' se já inseriu o atestado diretamente no Secullum.";
+                res.message = "O Secullum recusou o cálculo para esta data. Verifique se o período do cartão de ponto do colaborador está aberto ou se já foi fechado para cálculos.";
             }
             return res;
         }
 
-        // Múltiplos dias: Lança no Afastamentos
+        // Múltiplos dias: Tenta registrar via Afastamentos no Secullum
         const resAfastamento = await this.lancarAfastamento({
             cpf: cleanCpf,
             inicio: params.dataInicioStr,
@@ -475,19 +476,19 @@ export class SecullumApiClient {
             justificativaNome: justNome
         });
 
-        // Se afastamento funcionou, retorna sucesso
         if (resAfastamento.success) {
             return resAfastamento;
         }
 
-        // Se a empresa não tiver módulo de afastamento liberado no banco, tenta justificar dia a dia
-        console.warn("[Secullum] Afastamento falhou, tentando lançar dia a dia:", resAfastamento.message);
+        // Se afastamento direto não foi aceito, lança justificativa dia a dia no cartão ponto
+        // NOTA CLT: Pela legislação trabalhista, a empresa só abona até 15 dias corridos; o excedente é INSS.
+        const maxDiasEmpresa = Math.min(params.dias, 15);
         const start = new Date(params.dataInicioStr + "T12:00:00Z");
-        const end = new Date(params.dataFimStr + "T12:00:00Z");
         let current = new Date(start);
         let countOk = 0;
+        let lastError = "";
 
-        while (current <= end) {
+        for (let i = 0; i < maxDiasEmpresa; i++) {
             const curStr = current.toISOString().split("T")[0];
             const pRes = await this.lancarJustificativaPonto({
                 cpf: cleanCpf,
@@ -496,20 +497,30 @@ export class SecullumApiClient {
                 observacoes: obs,
                 abonar: true
             });
-            if (pRes.success) countOk++;
+            if (pRes.success) {
+                countOk++;
+            } else {
+                lastError = pRes.message;
+            }
             current.setDate(current.getDate() + 1);
         }
 
         if (countOk > 0) {
+            if (params.dias > 15) {
+                return {
+                    success: true,
+                    message: `Lançados os primeiros ${countOk} dias da empresa no cartão ponto. Os ${params.dias - 15} dias restantes devem ser encaminhados ao INSS (Afastamento Previdenciário).`
+                };
+            }
             return {
                 success: true,
                 message: `Lançado dia a dia no cartão ponto (${countOk} dias justificados).`
             };
         }
 
-        let errMsg = resAfastamento.message;
+        let errMsg = lastError || resAfastamento.message;
         if (errMsg.includes("Não é permitido fazer alterações de ponto e cálculos para esse usuário")) {
-            errMsg = "O usuário da integração no Secullum (cristiano@...) não possui permissão para alterar ponto/cálculos no Secullum Ponto Web. Verifique a permissão do usuário no Secullum (Configurações > Usuários > Permitir alterações no Cartão Ponto), ou clique no botão 'Já Lançado' se o atestado já foi abonado diretamente no Secullum.";
+            errMsg = `O Secullum recusou o cálculo para este colaborador/período. Como o atestado possui ${params.dias} dias, períodos além do fechamento do ponto ou acima de 15 dias exigem encaminhamento previdenciário. Utilize o botão 'Afastamento INSS' para registrar a conformidade.`;
         }
 
         return {
