@@ -304,6 +304,40 @@ export async function rejeitarAtestado(id: string, rejectionReason: string) {
 }
 
 /**
+ * Restaura um atestado rejeitado de volta para PENDENTE
+ */
+export async function restaurarAtestado(id: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado.");
+
+    await prisma.medicalCertificate.update({
+        where: { id },
+        data: {
+            status: "PENDENTE",
+            rejectionReason: null
+        }
+    });
+
+    revalidatePath("/admin/atestados");
+    return { success: true };
+}
+
+/**
+ * Exclui permanentemente um atestado médico do sistema
+ */
+export async function excluirAtestado(id: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado.");
+
+    await prisma.medicalCertificate.delete({
+        where: { id }
+    });
+
+    revalidatePath("/admin/atestados");
+    return { success: true };
+}
+
+/**
  * Upload manual com processamento automático de IA (Gemini Vision)
  */
 export async function processarUploadAtestado(params: {

@@ -20,7 +20,9 @@ import {
     FileSpreadsheet,
     Stethoscope,
     MessageSquare,
-    Check
+    Check,
+    Trash2,
+    RotateCcw
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
@@ -59,6 +61,8 @@ import { Textarea } from "@/components/ui/textarea";
 import {
     lancarAtestadoNoSecullum,
     rejeitarAtestado,
+    restaurarAtestado,
+    excluirAtestado,
     processarUploadAtestado
 } from "@/actions/atestados";
 
@@ -137,6 +141,11 @@ export function AtestadosClient({
         open: false,
         id: "",
         reason: ""
+    });
+    const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: string; name: string }>({
+        open: false,
+        id: "",
+        name: ""
     });
     const [editModal, setEditModal] = useState<{
         open: boolean;
@@ -244,6 +253,54 @@ export function AtestadosClient({
                 setRejectionModal({ open: false, id: "", reason: "" });
             } catch (err: any) {
                 toast.error(`Erro ao rejeitar: ${err.message}`);
+            }
+        });
+    };
+
+    // Ação: Excluir Atestado Definitivamente
+    const handleConfirmDelete = async () => {
+        if (!deleteModal.id) return;
+
+        startTransition(async () => {
+            try {
+                const target = atestados.find(a => a.id === deleteModal.id);
+                await excluirAtestado(deleteModal.id);
+                toast.success("Atestado excluído com sucesso.");
+                setAtestados((prev) => prev.filter((item) => item.id !== deleteModal.id));
+                if (target) {
+                    setStats((prev) => ({
+                        ...prev,
+                        total: Math.max(0, prev.total - 1),
+                        pendentes: target.status === "PENDENTE" ? Math.max(0, prev.pendentes - 1) : prev.pendentes,
+                        lancados: target.status === "LANCADO" ? Math.max(0, prev.lancados - 1) : prev.lancados,
+                        rejeitados: target.status === "REJEITADO" ? Math.max(0, prev.rejeitados - 1) : prev.rejeitados
+                    }));
+                }
+                setDeleteModal({ open: false, id: "", name: "" });
+            } catch (err: any) {
+                toast.error(`Erro ao excluir atestado: ${err.message}`);
+            }
+        });
+    };
+
+    // Ação: Restaurar Atestado Rejeitado para Pendente
+    const handleRestoreAtestado = async (id: string) => {
+        startTransition(async () => {
+            try {
+                await restaurarAtestado(id);
+                toast.success("Atestado restaurado para Pendentes de Validação.");
+                setAtestados((prev) =>
+                    prev.map((item) =>
+                        item.id === id ? { ...item, status: "PENDENTE", rejectionReason: null } : item
+                    )
+                );
+                setStats((prev) => ({
+                    ...prev,
+                    rejeitados: Math.max(0, prev.rejeitados - 1),
+                    pendentes: prev.pendentes + 1
+                }));
+            } catch (err: any) {
+                toast.error(`Erro ao restaurar atestado: ${err.message}`);
             }
         });
     };
@@ -815,7 +872,7 @@ export function AtestadosClient({
 
                                             {/* Ações */}
                                             <TableCell className="text-right">
-                                                <div className="flex items-center justify-end gap-2">
+                                                <div className="flex items-center justify-end gap-1.5">
                                                     {isItemPending && (
                                                         <>
                                                             <Button
@@ -869,19 +926,96 @@ export function AtestadosClient({
                                                             >
                                                                 <XCircle className="w-4 h-4" />
                                                             </Button>
+
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() =>
+                                                                    setDeleteModal({
+                                                                        open: true,
+                                                                        id: item.id,
+                                                                        name: item.employee?.name || item.employeeName || item.extractedName || "Atestado"
+                                                                    })
+                                                                }
+                                                                className="h-9 w-9 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border-slate-200 rounded-lg"
+                                                                title="Excluir atestado"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </Button>
                                                         </>
                                                     )}
 
                                                     {isItemLancado && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => setPreviewDoc(item)}
-                                                            className="border-slate-200 text-slate-700 hover:bg-slate-50 h-9 text-xs rounded-lg flex items-center gap-1 font-semibold"
-                                                        >
-                                                            <Eye className="w-3.5 h-3.5 text-slate-500" />
-                                                            <span>Ver Detalhes</span>
-                                                        </Button>
+                                                        <>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => setPreviewDoc(item)}
+                                                                className="border-slate-200 text-slate-700 hover:bg-slate-50 h-9 text-xs rounded-lg flex items-center gap-1 font-semibold"
+                                                            >
+                                                                <Eye className="w-3.5 h-3.5 text-slate-500" />
+                                                                <span>Ver Detalhes</span>
+                                                            </Button>
+
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() =>
+                                                                    setDeleteModal({
+                                                                        open: true,
+                                                                        id: item.id,
+                                                                        name: item.employee?.name || item.employeeName || item.extractedName || "Atestado"
+                                                                    })
+                                                                }
+                                                                className="h-9 w-9 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border-slate-200 rounded-lg"
+                                                                title="Excluir atestado"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </Button>
+                                                        </>
+                                                    )}
+
+                                                    {item.status === "REJEITADO" && (
+                                                        <>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => setPreviewDoc(item)}
+                                                                className="border-slate-200 text-slate-700 hover:bg-slate-50 h-9 text-xs rounded-lg flex items-center gap-1 font-semibold"
+                                                                title="Ver atestado"
+                                                            >
+                                                                <Eye className="w-3.5 h-3.5 text-slate-500" />
+                                                                <span>Ver</span>
+                                                            </Button>
+
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => handleRestoreAtestado(item.id)}
+                                                                className="border-amber-200 text-amber-700 hover:bg-amber-50 h-9 text-xs rounded-lg flex items-center gap-1 font-semibold"
+                                                                title="Restaurar de volta para Pendentes"
+                                                            >
+                                                                <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                                                                <span>Restaurar</span>
+                                                            </Button>
+
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() =>
+                                                                    setDeleteModal({
+                                                                        open: true,
+                                                                        id: item.id,
+                                                                        name: item.employee?.name || item.employeeName || item.extractedName || "Atestado"
+                                                                    })
+                                                                }
+                                                                className="h-9 px-2.5 text-xs text-rose-600 hover:text-white hover:bg-rose-600 border-rose-200 rounded-lg font-semibold flex items-center gap-1 transition-colors"
+                                                                title="Excluir definitivamente"
+                                                            >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                                <span>Excluir</span>
+                                                            </Button>
+                                                        </>
                                                     )}
                                                 </div>
                                             </TableCell>
@@ -1180,6 +1314,40 @@ export function AtestadosClient({
                             className="text-slate-600 hover:text-slate-900 rounded-xl w-full"
                         >
                             Fechar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Confirmação de Exclusão */}
+            <Dialog open={deleteModal.open} onOpenChange={(open) => !open && setDeleteModal({ open: false, id: "", name: "" })}>
+                <DialogContent className="max-w-md bg-white border border-slate-200 text-slate-900 rounded-2xl p-6 shadow-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold text-rose-700 flex items-center gap-2">
+                            <Trash2 className="w-5 h-5 text-rose-600" />
+                            Excluir Atestado
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-slate-500">
+                            Tem certeza que deseja excluir o atestado de <strong className="text-slate-800">{deleteModal.name}</strong>? Esta ação não pode ser desfeita e removerá o registro do sistema.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <DialogFooter className="flex gap-2 mt-4">
+                        <Button
+                            variant="ghost"
+                            onClick={() => setDeleteModal({ open: false, id: "", name: "" })}
+                            disabled={isPending}
+                            className="text-slate-600 hover:text-slate-900 rounded-xl"
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={handleConfirmDelete}
+                            disabled={isPending}
+                            className="bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl px-5 flex items-center gap-1.5"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            {isPending ? "Excluindo..." : "Sim, Excluir"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
