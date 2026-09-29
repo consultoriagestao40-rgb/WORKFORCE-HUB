@@ -442,6 +442,36 @@ export async function processarUploadAtestado(params: {
         const startDate = extracted.startDate ? new Date(extracted.startDate + "T12:00:00Z") : new Date();
         const endDate = extracted.endDate ? new Date(extracted.endDate + "T12:00:00Z") : startDate;
 
+        // Proteção contra duplo clique / envio manual duplicado nos últimos 5 minutos
+        const candidateCpf = matched?.cpf || extracted.cpf;
+        const candidateEmpId = matched?.id;
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+        const existingRecent = await prisma.medicalCertificate.findFirst({
+            where: {
+                createdAt: { gte: fiveMinutesAgo },
+                OR: [
+                    ...(candidateEmpId ? [{ employeeId: candidateEmpId }] : []),
+                    ...(candidateCpf ? [{ cpf: candidateCpf }] : []),
+                    ...(extracted.patientName ? [{ extractedName: { equals: extracted.patientName.trim(), mode: "insensitive" as const } }] : [])
+                ],
+                startDate: {
+                    gte: new Date(startDate.getTime() - 24 * 60 * 60 * 1000),
+                    lte: new Date(startDate.getTime() + 24 * 60 * 60 * 1000)
+                }
+            }
+        });
+
+        if (existingRecent) {
+            return {
+                success: true,
+                atestado: existingRecent,
+                matchedEmployee: matched,
+                extracted,
+                isDuplicateIgnored: true
+            };
+        }
+
         // 3. Cria o registro PENDENTE no banco
         const created = await prisma.medicalCertificate.create({
             data: {

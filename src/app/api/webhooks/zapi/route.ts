@@ -65,6 +65,21 @@ async function resolveLidToPhone(phoneOrLid: string): Promise<string> {
     return lidCache.get(clean) || clean;
 }
 
+const recentZapiMessages = new Map<string, number>();
+
+function isDuplicateZapiMessage(id?: string | null): boolean {
+    if (!id) return false;
+    const now = Date.now();
+    for (const [key, time] of recentZapiMessages.entries()) {
+        if (now - time > 10 * 60 * 1000) recentZapiMessages.delete(key);
+    }
+    if (recentZapiMessages.has(id)) {
+        return true;
+    }
+    recentZapiMessages.set(id, now);
+    return false;
+}
+
 /**
  * WEBHOOK Z-API — Central de Atendimento RH + Recrutamento
  * Recebe todas as mensagens (enviadas e recebidas)
@@ -117,7 +132,19 @@ export async function POST(req: Request) {
                 return NextResponse.json({ status: "ignored_non_atestado_group" });
             }
 
-            const { messageType, content, mediaUrl } = parseMessageBody(body);
+            // Ignorar mensagens de envio próprio em grupos para evitar duplicar com o evento de recebimento do grupo
+            if (isFromMe && (eventType === "on-message-send" || eventType === "MessageSent")) {
+                return NextResponse.json({ status: "ignored_sent_group_echo" });
+            }
+
+            const { messageType, content, mediaUrl, msgId } = parseMessageBody(body);
+
+            // Deduplicação pelo ID único da mensagem do WhatsApp
+            if (msgId && isDuplicateZapiMessage(msgId)) {
+                console.log(`[Z-API] Mensagem de grupo duplicada ignorada: ${msgId}`);
+                return NextResponse.json({ status: "duplicate_group_message_ignored" });
+            }
+
             if (mediaUrl && (messageType === "IMAGE" || messageType === "DOCUMENT")) {
                 const participantRaw = body.participantPhone || body.participant || body.author || body.senderPhone || body.phone || "";
                 const participantPhone = participantRaw ? participantRaw.toString().replace(/\D/g, "").replace(/@.+$/, "") : undefined;
@@ -131,7 +158,8 @@ export async function POST(req: Request) {
                         senderPhone: participantPhone,
                         senderName: participantName,
                         isGroup: true,
-                        groupName
+                        groupName,
+                        messageId: msgId || undefined
                     });
                 } catch (err) {
                     console.error("[Z-API] Falha ao processar atestado do grupo WhatsApp:", err);

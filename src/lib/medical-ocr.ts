@@ -362,6 +362,8 @@ export async function fetchMediaAsBase64(mediaUrl: string): Promise<{ base64: st
     }
 }
 
+const ocrProcessingLocks = new Set<string>();
+
 /**
  * Processa uma mídia recebida via WhatsApp (Z-API) para detectar atestado médico
  */
@@ -372,8 +374,27 @@ export async function processWhatsAppMedicalCertificate(params: {
     senderName?: string;
     isGroup?: boolean;
     groupName?: string;
+    messageId?: string;
 }) {
+    const lockKey = params.messageId || params.mediaUrl;
+    if (ocrProcessingLocks.has(lockKey)) {
+        console.log(`[MedicalOCR] Requisição em processamento concorrente descartada para: ${lockKey}`);
+        return null;
+    }
+    ocrProcessingLocks.add(lockKey);
+
     try {
+        // Se houver messageId, checar se já foi registrado
+        if (params.messageId) {
+            const existingMsg = await prisma.medicalCertificate.findFirst({
+                where: { whatsappMessageId: params.messageId }
+            });
+            if (existingMsg) {
+                console.log(`[MedicalOCR] Mensagem ${params.messageId} já cadastrada como atestado (ID: ${existingMsg.id}).`);
+                return existingMsg;
+            }
+        }
+
         // Baixar mídia
         const downloaded = await fetchMediaAsBase64(params.mediaUrl);
         if (!downloaded) return null;
@@ -406,6 +427,32 @@ export async function processWhatsAppMedicalCertificate(params: {
         const endDate = extracted.endDate ? new Date(extracted.endDate + "T12:00:00Z") : startDate;
         const employeeName = matched?.name || cleanPatientName || "Não identificado";
 
+        // PROTEÇÃO CONTRA DUPLICIDADE:
+        // Se já foi criado um atestado para o mesmo colaborador / CPF com datas coincidentes nos últimos 15 minutos, descarta duplicata.
+        const candidateCpf = matched?.cpf || extracted.cpf;
+        const candidateEmployeeId = matched?.id;
+        const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+
+        const duplicateCheck = await prisma.medicalCertificate.findFirst({
+            where: {
+                createdAt: { gte: fifteenMinutesAgo },
+                OR: [
+                    ...(candidateEmployeeId ? [{ employeeId: candidateEmployeeId }] : []),
+                    ...(candidateCpf ? [{ cpf: candidateCpf }] : []),
+                    ...(cleanPatientName ? [{ extractedName: { equals: cleanPatientName, mode: "insensitive" as const } }] : [])
+                ],
+                startDate: {
+                    gte: new Date(startDate.getTime() - 24 * 60 * 60 * 1000),
+                    lte: new Date(startDate.getTime() + 24 * 60 * 60 * 1000)
+                }
+            }
+        });
+
+        if (duplicateCheck) {
+            console.log(`[MedicalOCR] Ignorando atestado duplicado recém-criado (ID: ${duplicateCheck.id}) para ${employeeName}.`);
+            return duplicateCheck;
+        }
+
         // Salvar como PENDENTE no banco
         const created = await prisma.medicalCertificate.create({
             data: {
@@ -423,6 +470,7 @@ export async function processWhatsAppMedicalCertificate(params: {
                 status: "PENDENTE",
                 source: "WHATSAPP",
                 whatsappPhone: params.senderPhone || null,
+                whatsappMessageId: params.messageId || null,
                 notes: `Atestado recebido via WhatsApp no grupo ${params.groupName || ""}.`.trim()
             }
         });
@@ -443,5 +491,7 @@ export async function processWhatsAppMedicalCertificate(params: {
     } catch (err) {
         console.error("[MedicalOCR] Falha no processamento de atestado WhatsApp:", err);
         return null;
+    } finally {
+        ocrProcessingLocks.delete(lockKey);
     }
 }

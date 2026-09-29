@@ -312,7 +312,8 @@ export class SecullumApiClient {
             Data: `${cleanDate}T00:00:00`,
             Justificativa: params.justificativa,
             Observacoes: params.observacoes || "WorkForce Hub - Lançamento Automático",
-            Abonar: params.abonar !== false
+            Abonar: params.abonar !== false,
+            Grupo: 1
         };
 
         if (params.cpf) {
@@ -459,6 +460,9 @@ export class SecullumApiClient {
                 observacoes: obs,
                 abonar: true
             });
+            if (!res.success && res.message.includes("Não é permitido fazer alterações de ponto e cálculos para esse usuário")) {
+                res.message = "O usuário da integração no Secullum (cristiano@...) não possui permissão para alterar ponto/cálculos no Secullum Ponto Web. Habilite a permissão no Secullum (Configurações > Usuários > Permitir alterações no Cartão Ponto), ou clique em 'Já Lançado' se já inseriu o atestado diretamente no Secullum.";
+            }
             return res;
         }
 
@@ -503,9 +507,14 @@ export class SecullumApiClient {
             };
         }
 
+        let errMsg = resAfastamento.message;
+        if (errMsg.includes("Não é permitido fazer alterações de ponto e cálculos para esse usuário")) {
+            errMsg = "O usuário da integração no Secullum (cristiano@...) não possui permissão para alterar ponto/cálculos no Secullum Ponto Web. Verifique a permissão do usuário no Secullum (Configurações > Usuários > Permitir alterações no Cartão Ponto), ou clique no botão 'Já Lançado' se o atestado já foi abonado diretamente no Secullum.";
+        }
+
         return {
             success: false,
-            message: `Falha ao lançar no Secullum: ${resAfastamento.message}`
+            message: `Falha ao lançar no Secullum: ${errMsg}`
         };
     }
 }
