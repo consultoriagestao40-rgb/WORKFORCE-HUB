@@ -53,6 +53,7 @@ async function notifyManagerAboutAtestado(params: {
 }
 
 export interface ExtractedMedicalData {
+    isAtestado: boolean;
     patientName: string | null;
     cpf: string | null;
     startDate: string | null; // YYYY-MM-DD
@@ -134,28 +135,33 @@ export async function extractMedicalCertificateData(
         pureBase64 = parts[1];
     }
 
-    const prompt = `Você é um perito em análise e digitação de atestados médicos e odontológicos de funcionários.
-Analise a imagem deste atestado com extrema atenção aos detalhes e extraia exatamente os seguintes dados em formato JSON estrito:
+    const prompt = `Você é um perito em análise e validação de documentos de Medicina do Trabalho e Recursos Humanos.
+Sua PRIMEIRA e mais crítica tarefa é verificar se esta imagem é DE FATO um ATESTADO MÉDICO, DECLARAÇÃO DE COMPARECIMENTO MÉDICO/ODONTOLÓGICO OU DOCUMENTO HOSPITALAR.
+
+REGRAS DE CLASSIFICAÇÃO:
+- Se a imagem for: selfie, foto de pessoa, print de conversa do WhatsApp, print de celular, print de aplicativo de banco, foto de objeto, crachá, ou qualquer coisa que NÃO seja um documento médico:
+  -> Retorne OBRIGATORIAMENTE isAtestado: false, patientName: null, cpf: null, cid: null, doctorName: null, doctorCrm: null, days: 0, confidence: 0.
+
+- Se e somente se a imagem contiver um ATESTADO MÉDICO ou DECLARAÇÃO HOSPITALAR/MÉDICA real, retorne isAtestado: true e extraia com exatidão:
 
 {
-  "patientName": "Nome completo do paciente/funcionário (como consta no documento)",
+  "isAtestado": true ou false,
+  "patientName": "Nome completo do paciente/funcionário (como consta no documento impresso/escrito)",
   "cpf": "CPF do paciente caso conste no atestado (apenas números ou null se não houver)",
   "startDate": "Data de início do afastamento ou atendimento no formato YYYY-MM-DD",
   "endDate": "Data de término do afastamento no formato YYYY-MM-DD (se não houver mas houver número de dias, calcule: startDate + dias - 1)",
   "days": "Quantidade de dias de afastamento/repouso recomendados (número inteiro, mínimo 1. Se for comparecimento de algumas horas coloque 1)",
   "cid": "Código do CID mencionado (ex: J00, M54.5, Z76.2 ou null se não constar)",
   "doctorName": "Nome do médico ou cirurgião dentista emissor",
-  "doctorCrm": "CRM ou CRO com UF (ex: CRM-SP 123456 ou null)",
+  "doctorCrm": "CRM ou CRO com UF (ex: CRM-PR 123456 ou null)",
   "institution": "Nome do hospital, posto de saúde, UPA ou clínica",
-  "observations": "Qualquer observação relevante sobre o repouso ou motivo",
+  "observations": "Observações do atestado",
   "confidence": 0.95
 }
 
 Observações importantes:
 - Retorne EXCLUSIVAMENTE o bloco JSON válido sem blocos markdown adicionais como \`\`\`json.
-- Datas devem estar estritamente no padrão ISO YYYY-MM-DD.
-- Se o atestado for de 1 dia apenas no dia 15/09/2026, startDate="2026-09-15", endDate="2026-09-15" e days=1.
-- Se for de 3 dias iniciando em 10/09/2026, startDate="2026-09-10", endDate="2026-09-12" e days=3.`;
+- Datas devem estar estritamente no padrão ISO YYYY-MM-DD.`;
 
     const candidateModels = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro"];
     let lastError = "";
@@ -207,7 +213,8 @@ Observações importantes:
                 const parsed = JSON.parse(cleaned);
 
                 return {
-                    patientName: parsed.patientName || null,
+                    isAtestado: parsed.isAtestado === true,
+                    patientName: parsed.isAtestado === false ? null : (parsed.patientName || null),
                     cpf: parsed.cpf ? String(parsed.cpf).replace(/\D/g, "") : null,
                     startDate: parsed.startDate || null,
                     endDate: parsed.endDate || parsed.startDate || null,
@@ -228,11 +235,12 @@ Observações importantes:
 
     console.error("[MedicalOCR] Falha em todos os modelos Gemini:", lastError);
     return {
+        isAtestado: false,
         patientName: null,
         cpf: null,
         startDate: null,
         endDate: null,
-        days: 1,
+        days: 0,
         cid: null,
         doctorName: null,
         doctorCrm: null,
@@ -373,71 +381,36 @@ export async function processWhatsAppMedicalCertificate(params: {
         // Analisar com IA Gemini
         const extracted = await extractMedicalCertificateData(downloaded.base64, downloaded.mimeType);
 
-        // Se for enviado no grupo de atestados, sempre aceita para avaliação do gestor
-        const isLikelyCertificate =
-            Boolean(params.isGroup) ||
-            extracted.confidence >= 0.4 ||
-            Boolean(extracted.cid) ||
-            Boolean(extracted.doctorName) ||
-            Boolean(extracted.doctorCrm) ||
-            Boolean(extracted.patientName);
-
-        if (!isLikelyCertificate) {
-            console.log("[MedicalOCR] A imagem recebida no chat privado não parece ser um atestado médico.");
+        // REJEIÇÃO RÍGIDA: A imagem DEVE ser comprovadamente um atestado médico real!
+        if (extracted.isAtestado === false) {
+            console.log("[MedicalOCR] Documento descartado: A imagem NÃO é um atestado médico (pode ser print, foto de pessoa, etc).");
             return null;
         }
 
-        // Tentar cruzar colaborador
+        // Deve conter ao menos UM sinal médico explícito (CID ou CRM ou Nome de médico comprovado)
+        const hasMedicalSignal = Boolean(extracted.cid) || Boolean(extracted.doctorCrm) || (Boolean(extracted.doctorName) && Boolean(extracted.patientName));
+        if (!hasMedicalSignal) {
+            console.log("[MedicalOCR] Documento descartado: Não possui dados médicos válidos (sem CID, sem CRM).");
+            return null;
+        }
+
+        const cleanPatientName = extracted.patientName ? extracted.patientName.trim() : null;
+
+        // Tentar cruzar colaborador pelo nome do paciente ou CPF do atestado
         let matched = await matchEmployee({
-            name: extracted.patientName,
+            name: cleanPatientName,
             cpf: extracted.cpf
         });
 
-        // Se não achou, tenta pelo texto da legenda (ex: supervisor digitou o nome do colaborador)
-        if (!matched && params.caption && params.caption.length >= 4) {
-            matched = await matchEmployee({
-                name: params.caption.trim()
-            });
-        }
-
-        // Se não achou pelo nome ou CPF, tenta achar pelo telefone do remetente
-        if (!matched && params.senderPhone) {
-            const cleanPhone = params.senderPhone.replace(/\D/g, "");
-            const shortPhone = cleanPhone.slice(-9);
-
-            const empByPhone = await prisma.employee.findFirst({
-                where: {
-                    phone: { contains: shortPhone }
-                },
-                include: {
-                    company: true,
-                    role: true
-                }
-            });
-
-            if (empByPhone) {
-                matched = {
-                    id: empByPhone.id,
-                    name: empByPhone.name,
-                    cpf: empByPhone.cpf,
-                    role: empByPhone.role?.name || null,
-                    companyId: empByPhone.companyId,
-                    companyName: empByPhone.company?.name,
-                    similarity: 0.9
-                };
-            }
-        }
-
         const startDate = extracted.startDate ? new Date(extracted.startDate + "T12:00:00Z") : new Date();
         const endDate = extracted.endDate ? new Date(extracted.endDate + "T12:00:00Z") : startDate;
-
-        const employeeName = matched?.name || extracted.patientName || (params.caption && params.caption.length >= 4 ? params.caption.trim() : null) || params.senderName || "Não identificado";
+        const employeeName = matched?.name || cleanPatientName || "Não identificado";
 
         // Salvar como PENDENTE no banco
         const created = await prisma.medicalCertificate.create({
             data: {
                 employeeId: matched?.id || null,
-                extractedName: extracted.patientName || (params.caption && params.caption.length >= 4 ? params.caption.trim() : null) || params.senderName || "Não identificado",
+                extractedName: cleanPatientName || "Paciente não identificado",
                 employeeName,
                 cpf: matched?.cpf || extracted.cpf || null,
                 startDate,
@@ -450,7 +423,7 @@ export async function processWhatsAppMedicalCertificate(params: {
                 status: "PENDENTE",
                 source: "WHATSAPP",
                 whatsappPhone: params.senderPhone || null,
-                notes: `Recebido via WhatsApp ${params.isGroup ? `no grupo ${params.groupName || ""}` : "chat direto"} (${params.senderPhone || ""}). ${params.caption ? `Legenda: ${params.caption}` : ""}`.trim()
+                notes: `Atestado recebido via WhatsApp no grupo ${params.groupName || ""}.`.trim()
             }
         });
 

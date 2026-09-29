@@ -398,9 +398,13 @@ export async function excluirAtestado(id: string) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Não autorizado.");
 
-    await prisma.medicalCertificate.delete({
-        where: { id }
-    });
+    try {
+        await prisma.medicalCertificate.deleteMany({
+            where: { id }
+        });
+    } catch (err: any) {
+        console.warn(`[MedicalCertificate] Aviso ao excluir registro ${id}:`, err.message);
+    }
 
     revalidatePath("/admin/atestados");
     return { success: true };
@@ -421,6 +425,13 @@ export async function processarUploadAtestado(params: {
         const mime = params.mimeType || "image/jpeg";
         // 1. Extrai dados com IA
         const extracted = await extractMedicalCertificateData(params.fileBase64, mime);
+
+        if (extracted.isAtestado === false) {
+            return {
+                success: false,
+                error: "O documento enviado não foi reconhecido como um atestado médico válido. Por favor, envie uma foto legível de um atestado ou declaração médica."
+            };
+        }
 
         // 2. Tenta cruzar com funcionário
         const matched = await matchEmployee({

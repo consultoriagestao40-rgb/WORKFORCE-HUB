@@ -108,6 +108,15 @@ export async function POST(req: Request) {
         );
 
         if (isGroup) {
+            // VERIFICAÇÃO RIGOROSA: Apenas captura se for estritamente o grupo de ATESTADOS & FALTAS
+            const rawGroupName = (body.groupName || body.chatName || "").toString().toUpperCase();
+            const isAtestadoGroup = rawGroupName.includes("ATESTADO") || rawGroupName.includes("FALTA");
+
+            if (!isAtestadoGroup) {
+                // Outros grupos (Operações, escalas, chats de equipe) NUNCA são capturados como atestados!
+                return NextResponse.json({ status: "ignored_non_atestado_group" });
+            }
+
             const { messageType, content, mediaUrl } = parseMessageBody(body);
             if (mediaUrl && (messageType === "IMAGE" || messageType === "DOCUMENT")) {
                 const participantRaw = body.participantPhone || body.participant || body.author || body.senderPhone || body.phone || "";
@@ -353,24 +362,7 @@ async function processHrAttendanceMessage(cleanPhone: string, phoneSearch: strin
         }
     });
 
-    // Se a mensagem contiver imagem ou documento recebido de terceiro, dispara detecção de Atestado Médico em background
-    if (!isFromMe && mediaUrl && (messageType === "IMAGE" || messageType === "DOCUMENT")) {
-        const isGroup = Boolean(body.isGroup || body.chatId?.includes("@g.us") || body.remoteJid?.includes("@g.us"));
-        const groupName = body.groupName || body.chatName;
 
-        try {
-            await processWhatsAppMedicalCertificate({
-                mediaUrl,
-                caption: content,
-                senderPhone: cleanPhone,
-                senderName: contactName,
-                isGroup,
-                groupName
-            });
-        } catch (err) {
-            console.error("[Z-API] Falha ao processar atestado médico:", err);
-        }
-    }
 
     console.log(`[Z-API HR Webhook] ✅ Mensagem salva no ticket ${ticket.id} | ${contactName}: ${content.slice(0, 50)}`);
     return NextResponse.json({ status: "hr_ticket_success", ticketId: ticket.id });
