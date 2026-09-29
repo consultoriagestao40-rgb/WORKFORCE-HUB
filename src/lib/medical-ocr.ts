@@ -373,13 +373,17 @@ export async function processWhatsAppMedicalCertificate(params: {
         // Analisar com IA Gemini
         const extracted = await extractMedicalCertificateData(downloaded.base64, downloaded.mimeType);
 
-        // Validar se é realmente um atestado
+        // Se for enviado no grupo de atestados, sempre aceita para avaliação do gestor
         const isLikelyCertificate =
-            extracted.confidence >= 0.5 &&
-            (Boolean(extracted.cid) || Boolean(extracted.doctorName) || Boolean(extracted.doctorCrm) || (Boolean(extracted.patientName) && Boolean(extracted.startDate)));
+            Boolean(params.isGroup) ||
+            extracted.confidence >= 0.4 ||
+            Boolean(extracted.cid) ||
+            Boolean(extracted.doctorName) ||
+            Boolean(extracted.doctorCrm) ||
+            Boolean(extracted.patientName);
 
         if (!isLikelyCertificate) {
-            console.log("[MedicalOCR] A imagem recebida não parece ser um atestado médico.");
+            console.log("[MedicalOCR] A imagem recebida no chat privado não parece ser um atestado médico.");
             return null;
         }
 
@@ -442,7 +446,7 @@ export async function processWhatsAppMedicalCertificate(params: {
                 cid: extracted.cid,
                 doctorName: extracted.doctorName,
                 doctorCrm: extracted.doctorCrm,
-                documentUrl: params.mediaUrl,
+                documentUrl: downloaded.base64 || params.mediaUrl,
                 status: "PENDENTE",
                 source: "WHATSAPP",
                 whatsappPhone: params.senderPhone || null,

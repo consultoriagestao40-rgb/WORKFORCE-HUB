@@ -115,14 +115,18 @@ export async function POST(req: Request) {
                 const participantName = body.senderName || body.pushName || (isFromMe ? "Gestor / RH" : "Colaborador");
                 const groupName = body.groupName || body.chatName || "RH - ATESTADO & FALTA";
 
-                processWhatsAppMedicalCertificate({
-                    mediaUrl,
-                    caption: content,
-                    senderPhone: participantPhone,
-                    senderName: participantName,
-                    isGroup: true,
-                    groupName
-                }).catch((err) => console.error("[Z-API] Falha ao processar atestado do grupo WhatsApp:", err));
+                try {
+                    await processWhatsAppMedicalCertificate({
+                        mediaUrl,
+                        caption: content,
+                        senderPhone: participantPhone,
+                        senderName: participantName,
+                        isGroup: true,
+                        groupName
+                    });
+                } catch (err) {
+                    console.error("[Z-API] Falha ao processar atestado do grupo WhatsApp:", err);
+                }
 
                 return NextResponse.json({ status: "group_certificate_captured" });
             }
@@ -354,14 +358,18 @@ async function processHrAttendanceMessage(cleanPhone: string, phoneSearch: strin
         const isGroup = Boolean(body.isGroup || body.chatId?.includes("@g.us") || body.remoteJid?.includes("@g.us"));
         const groupName = body.groupName || body.chatName;
 
-        processWhatsAppMedicalCertificate({
-            mediaUrl,
-            caption: content,
-            senderPhone: cleanPhone,
-            senderName: contactName,
-            isGroup,
-            groupName
-        }).catch((err) => console.error("[Z-API] Falha ao processar atestado médico:", err));
+        try {
+            await processWhatsAppMedicalCertificate({
+                mediaUrl,
+                caption: content,
+                senderPhone: cleanPhone,
+                senderName: contactName,
+                isGroup,
+                groupName
+            });
+        } catch (err) {
+            console.error("[Z-API] Falha ao processar atestado médico:", err);
+        }
     }
 
     console.log(`[Z-API HR Webhook] ✅ Mensagem salva no ticket ${ticket.id} | ${contactName}: ${content.slice(0, 50)}`);
