@@ -1,4 +1,3 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { prisma } from "@/lib/db";
 
 const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3F1993DFB59E83474F059E648AE68DF9";
@@ -126,9 +125,6 @@ export async function extractMedicalCertificateData(
         throw new Error("GEMINI_API_KEY não configurada no ambiente.");
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
     let pureBase64 = base64OrDataUrl;
     let detectedMime = mimeType;
 
@@ -161,55 +157,89 @@ Observações importantes:
 - Se o atestado for de 1 dia apenas no dia 15/09/2026, startDate="2026-09-15", endDate="2026-09-15" e days=1.
 - Se for de 3 dias iniciando em 10/09/2026, startDate="2026-09-10", endDate="2026-09-12" e days=3.`;
 
-    try {
-        const result = await model.generateContent([
-            prompt,
-            {
-                inlineData: {
-                    data: pureBase64,
-                    mimeType: detectedMime
+    const candidateModels = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro"];
+    let lastError = "";
+
+    for (const model of candidateModels) {
+        for (const version of ["v1beta", "v1"]) {
+            try {
+                const url = `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${apiKey}`;
+                const res = await fetch(url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [
+                            {
+                                parts: [
+                                    { text: prompt },
+                                    {
+                                        inline_data: {
+                                            mime_type: detectedMime,
+                                            data: pureBase64
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    })
+                });
+
+                if (!res.ok) {
+                    const errBody = await res.text();
+                    lastError = `${res.status} (${version}/${model}): ${errBody.slice(0, 150)}`;
+                    continue;
                 }
+
+                const json = await res.json();
+                const candidate = json.candidates?.[0];
+                const rawText = candidate?.content?.parts?.[0]?.text;
+
+                if (!rawText) {
+                    lastError = "Resposta vazia da IA";
+                    continue;
+                }
+
+                const cleaned = rawText
+                    .replace(/```json/gi, "")
+                    .replace(/```/g, "")
+                    .trim();
+
+                const parsed = JSON.parse(cleaned);
+
+                return {
+                    patientName: parsed.patientName || null,
+                    cpf: parsed.cpf ? String(parsed.cpf).replace(/\D/g, "") : null,
+                    startDate: parsed.startDate || null,
+                    endDate: parsed.endDate || parsed.startDate || null,
+                    days: Number(parsed.days) || 1,
+                    cid: parsed.cid || null,
+                    doctorName: parsed.doctorName || null,
+                    doctorCrm: parsed.doctorCrm || null,
+                    institution: parsed.institution || null,
+                    observations: parsed.observations || null,
+                    confidence: Number(parsed.confidence) || 0.85,
+                    rawText
+                };
+            } catch (err: any) {
+                lastError = err.message || String(err);
             }
-        ]);
-
-        const responseText = result.response.text();
-        const cleaned = responseText
-            .replace(/```json/gi, "")
-            .replace(/```/g, "")
-            .trim();
-
-        const parsed = JSON.parse(cleaned);
-
-        return {
-            patientName: parsed.patientName || null,
-            cpf: parsed.cpf ? parsed.cpf.replace(/\D/g, "") : null,
-            startDate: parsed.startDate || null,
-            endDate: parsed.endDate || parsed.startDate || null,
-            days: Number(parsed.days) || 1,
-            cid: parsed.cid || null,
-            doctorName: parsed.doctorName || null,
-            doctorCrm: parsed.doctorCrm || null,
-            institution: parsed.institution || null,
-            observations: parsed.observations || null,
-            confidence: Number(parsed.confidence) || 0.8,
-            rawText: responseText
-        };
-    } catch (error: any) {
-        console.error("[MedicalOCR] Erro ao extrair dados do atestado:", error);
-        return {
-            patientName: null,
-            cpf: null,
-            startDate: null,
-            endDate: null,
-            days: 1,
-            cid: null,
-            doctorName: null,
-            doctorCrm: null,
-            institution: null,
-            observations: `Erro na extração de IA: ${error.message || error}`,
-            confidence: 0
-        };
+        }
     }
+
+    console.error("[MedicalOCR] Falha em todos os modelos Gemini:", lastError);
+    return {
+        patientName: null,
+        cpf: null,
+        startDate: null,
+        endDate: null,
+        days: 1,
+        cid: null,
+        doctorName: null,
+        doctorCrm: null,
+        institution: null,
+        observations: `Erro na extração de IA: ${lastError}`,
+        confidence: 0
+    };
 }
 
 /**
@@ -359,6 +389,13 @@ export async function processWhatsAppMedicalCertificate(params: {
             cpf: extracted.cpf
         });
 
+        // Se não achou, tenta pelo texto da legenda (ex: supervisor digitou o nome do colaborador)
+        if (!matched && params.caption && params.caption.length >= 4) {
+            matched = await matchEmployee({
+                name: params.caption.trim()
+            });
+        }
+
         // Se não achou pelo nome ou CPF, tenta achar pelo telefone do remetente
         if (!matched && params.senderPhone) {
             const cleanPhone = params.senderPhone.replace(/\D/g, "");
@@ -390,12 +427,14 @@ export async function processWhatsAppMedicalCertificate(params: {
         const startDate = extracted.startDate ? new Date(extracted.startDate + "T12:00:00Z") : new Date();
         const endDate = extracted.endDate ? new Date(extracted.endDate + "T12:00:00Z") : startDate;
 
+        const employeeName = matched?.name || extracted.patientName || (params.caption && params.caption.length >= 4 ? params.caption.trim() : null) || params.senderName || "Não identificado";
+
         // Salvar como PENDENTE no banco
         const created = await prisma.medicalCertificate.create({
             data: {
                 employeeId: matched?.id || null,
-                extractedName: extracted.patientName || params.senderName || "Não identificado",
-                employeeName: matched?.name || extracted.patientName || params.senderName || "Não identificado",
+                extractedName: extracted.patientName || (params.caption && params.caption.length >= 4 ? params.caption.trim() : null) || params.senderName || "Não identificado",
+                employeeName,
                 cpf: matched?.cpf || extracted.cpf || null,
                 startDate,
                 endDate,

@@ -109,10 +109,10 @@ export async function POST(req: Request) {
 
         if (isGroup) {
             const { messageType, content, mediaUrl } = parseMessageBody(body);
-            if (!isFromMe && mediaUrl && (messageType === "IMAGE" || messageType === "DOCUMENT")) {
-                const participantRaw = body.participantPhone || body.participant || body.author || body.senderPhone || "";
+            if (mediaUrl && (messageType === "IMAGE" || messageType === "DOCUMENT")) {
+                const participantRaw = body.participantPhone || body.participant || body.author || body.senderPhone || body.phone || "";
                 const participantPhone = participantRaw ? participantRaw.toString().replace(/\D/g, "").replace(/@.+$/, "") : undefined;
-                const participantName = body.senderName || body.pushName || "Colaborador";
+                const participantName = body.senderName || body.pushName || (isFromMe ? "Gestor / RH" : "Colaborador");
                 const groupName = body.groupName || body.chatName || "RH - ATESTADO & FALTA";
 
                 processWhatsAppMedicalCertificate({
@@ -413,18 +413,18 @@ function parseMessageBody(body: any) {
     }
 
     // 3. Mídias
-    if (body.image || body.message?.imageMessage) {
+    if (body.image || body.message?.imageMessage || body.imageUrl || body.photo) {
         messageType = "IMAGE";
         const img = body.image || body.message?.imageMessage;
-        mediaUrl = img.imageUrl || img.url || img.base64 || (typeof img === "string" ? img : undefined);
-        content = img.caption || content || "📷 Imagem";
-    } else if (body.document || body.message?.documentMessage) {
+        mediaUrl = img?.imageUrl || img?.url || img?.base64 || body.imageUrl || body.photo || body.mediaUrl || (typeof img === "string" ? img : undefined);
+        content = img?.caption || body.caption || content || "📷 Imagem";
+    } else if (body.document || body.message?.documentMessage || body.documentUrl) {
         messageType = "DOCUMENT";
         const doc = body.document || body.message?.documentMessage;
-        mediaUrl = doc.documentUrl || doc.url;
-        mediaFileName = doc.fileName || doc.name || doc.title || "documento";
-        mediaMimeType = doc.mimeType || doc.mimetype || "application/pdf";
-        content = doc.caption || content || `📎 ${mediaFileName}`;
+        mediaUrl = doc?.documentUrl || doc?.url || body.documentUrl || body.mediaUrl;
+        mediaFileName = doc?.fileName || doc?.name || doc?.title || body.fileName || "documento";
+        mediaMimeType = doc?.mimeType || doc?.mimetype || body.mimeType || "application/pdf";
+        content = doc?.caption || body.caption || content || `📎 ${mediaFileName}`;
     } else if (body.audio || body.ptt || body.type === "audio" || body.type === "ptt" || body.message?.audioMessage) {
         messageType = "AUDIO";
         const aud = body.audio || body.ptt || body.message?.audioMessage;
