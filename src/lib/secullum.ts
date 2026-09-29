@@ -367,21 +367,40 @@ export class SecullumApiClient {
         const url = `${this.baseUrl}/IntegracaoExterna/FuncionariosAfastamentos`;
         const headers = await this.getHeaders();
 
+        const todayStr = new Date().toISOString().split("T")[0];
         const cleanInicio = params.inicio.includes("T") ? params.inicio.split("T")[0] : params.inicio;
         const cleanFim = params.fim.includes("T") ? params.fim.split("T")[0] : params.fim;
+        const cleanCpf = params.cpf ? params.cpf.replace(/\D/g, "") : undefined;
+
+        const justName = (params.justificativaNome === "Atestado Médico" || !params.justificativaNome) 
+            ? "AT. MED" 
+            : params.justificativaNome;
 
         const payload: Record<string, any> = {
             Inicio: `${cleanInicio}T00:00:00`,
+            inicio: `${cleanInicio}T00:00:00`,
             Fim: `${cleanFim}T23:59:59`,
+            fim: `${cleanFim}T23:59:59`,
+            DataInclusao: `${todayStr}T00:00:00`,
+            dataInclusao: `${todayStr}T00:00:00`,
             Motivo: params.motivo || "Atestado Médico",
-            JustificativaNome: params.justificativaNome || "Atestado Médico"
+            motivo: params.motivo || "Atestado Médico",
+            JustificativaNome: justName,
+            justificativaNome: justName
         };
 
-        if (params.cpf) {
-            payload.Cpf = params.cpf.replace(/\D/g, "");
+        if (cleanCpf) {
+            payload.Cpf = cleanCpf;
+            payload.cpf = cleanCpf;
         }
-        if (params.numeroPis) payload.NumeroPis = params.numeroPis;
-        if (params.numeroFolha) payload.NumeroFolha = params.numeroFolha;
+        if (params.numeroPis) {
+            payload.NumeroPis = params.numeroPis;
+            payload.numeroPis = params.numeroPis;
+        }
+        if (params.numeroFolha) {
+            payload.NumeroFolha = params.numeroFolha;
+            payload.numeroFolha = params.numeroFolha;
+        }
 
         try {
             const res = await fetch(url, {

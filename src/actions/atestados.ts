@@ -89,7 +89,46 @@ export async function getAtestados(filters?: {
         }
     });
 
-    return atestados;
+    // Identificar duplicidades (mesmo colaborador / CPF com datas coincidentes ou sobrepostas)
+    const atestadosComDuplicidade = atestados.map((item) => {
+        const itemCpf = (item.cpf || item.employee?.cpf || "").replace(/\D/g, "");
+        const itemStart = new Date(item.startDate).getTime();
+        const itemEnd = new Date(item.endDate).getTime();
+
+        const conflict = atestados.find((other) => {
+            if (other.id === item.id) return false;
+            const otherCpf = (other.cpf || other.employee?.cpf || "").replace(/\D/g, "");
+            
+            const isSameEmployee = 
+                (item.employeeId && other.employeeId && item.employeeId === other.employeeId) ||
+                (itemCpf && otherCpf && itemCpf.length === 11 && itemCpf === otherCpf);
+
+            if (!isSameEmployee) return false;
+
+            const otherStart = new Date(other.startDate).getTime();
+            const otherEnd = new Date(other.endDate).getTime();
+
+            // Intervalos sobrepostos: startA <= endB && endA >= startB
+            return itemStart <= otherEnd && itemEnd >= otherStart;
+        });
+
+        const duplicateInfo = conflict ? {
+            isDuplicate: true,
+            conflictWithId: conflict.id,
+            conflictWithName: conflict.employee?.name || conflict.employeeName || conflict.extractedName,
+            conflictWithStatus: conflict.status,
+            conflictStartDate: conflict.startDate,
+            conflictEndDate: conflict.endDate,
+            conflictDays: conflict.daysCount
+        } : null;
+
+        return {
+            ...item,
+            duplicateInfo
+        };
+    });
+
+    return atestadosComDuplicidade;
 }
 
 /**
@@ -228,21 +267,28 @@ export async function lancarAtestadoNoSecullum(params: {
         });
 
         if (!secullumRes.success) {
-            // Registra a tentativa com falha
+            const isAlreadyInSecullum = 
+                secullumRes.message?.includes("existem marcações de ponto dentro do período selecionado") ||
+                secullumRes.message?.includes("já constam marcações");
+
+            // Registra a tentativa
             await prisma.medicalCertificate.update({
                 where: { id: atestado.id },
                 data: {
                     employeeId: employee.id,
                     employeeName: employee.name,
                     cpf: employee.cpf,
-                    secullumStatus: "ERRO",
+                    secullumStatus: isAlreadyInSecullum ? "AVISO" : "ERRO",
                     secullumResponse: secullumRes.message
                 }
             });
 
             return {
                 success: false,
-                message: `Falha ao lançar no Secullum: ${secullumRes.message}`
+                isAlreadyInSecullum,
+                message: isAlreadyInSecullum
+                    ? "No Secullum já constam marcações de ponto ou abono registrado para este colaborador neste período."
+                    : `Falha ao lançar no Secullum: ${secullumRes.message}`
             };
         }
 
@@ -315,6 +361,29 @@ export async function restaurarAtestado(id: string) {
         data: {
             status: "PENDENTE",
             rejectionReason: null
+        }
+    });
+
+    revalidatePath("/admin/atestados");
+    return { success: true };
+}
+
+/**
+ * Marca o atestado como LANCADO no sistema (caso já tenha sido lançado ou abonado diretamente no Secullum)
+ */
+export async function marcarAtestadoComoLancado(id: string, observacao?: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado.");
+
+    await prisma.medicalCertificate.update({
+        where: { id },
+        data: {
+            status: "LANCADO",
+            secullumStatus: "SUCESSO",
+            secullumResponse: observacao || "Atestado validado e marcado como já abonado no Secullum pelo gestor.",
+            secullumLancadoEm: new Date(),
+            validatedById: user.id,
+            validatedByName: user.name || "Administrador"
         }
     });
 
@@ -442,21 +511,6 @@ export async function salvarAtestadoManual(data: {
             status: "PENDENTE",
             source: "MANUAL"
         }
-    });
-
-    revalidatePath("/admin/atestados");
-    return { success: true };
-}
-
-/**
- * Exclui um atestado pendente ou rejeitado
- */
-export async function excluirAtestado(id: string) {
-    const user = await getCurrentUser();
-    if (!user) throw new Error("Não autorizado.");
-
-    await prisma.medicalCertificate.delete({
-        where: { id }
     });
 
     revalidatePath("/admin/atestados");

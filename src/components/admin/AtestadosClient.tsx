@@ -22,7 +22,9 @@ import {
     MessageSquare,
     Check,
     Trash2,
-    RotateCcw
+    RotateCcw,
+    AlertTriangle,
+    CheckCheck
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
@@ -63,6 +65,7 @@ import {
     rejeitarAtestado,
     restaurarAtestado,
     excluirAtestado,
+    marcarAtestadoComoLancado,
     processarUploadAtestado
 } from "@/actions/atestados";
 
@@ -113,6 +116,15 @@ export interface MedicalCertificateItem {
         company?: { id: string; name: string } | null;
     } | null;
     validatedBy?: { id: string; name: string; email: string } | null;
+    duplicateInfo?: {
+        isDuplicate: boolean;
+        conflictWithId: string;
+        conflictWithName: string;
+        conflictWithStatus: string;
+        conflictStartDate: Date | string;
+        conflictEndDate: Date | string;
+        conflictDays: number;
+    } | null;
 }
 
 interface AtestadosClientProps {
@@ -147,6 +159,14 @@ export function AtestadosClient({
         id: "",
         name: ""
     });
+    const [duplicateModal, setDuplicateModal] = useState<{
+        open: boolean;
+        atestado: MedicalCertificateItem | null;
+        reason?: string;
+    }>({
+        open: false,
+        atestado: null
+    });
     const [editModal, setEditModal] = useState<{
         open: boolean;
         atestado: MedicalCertificateItem | null;
@@ -176,11 +196,55 @@ export function AtestadosClient({
     // Troca Rápida de Colaborador (Inline)
     const [changingEmployeeAtestadoId, setChangingEmployeeAtestadoId] = useState<string | null>(null);
 
+    // Ação: Marcar como Já Lançado Manualmente
+    const handleMarcarComoLancado = async (atestadoId: string, observacao?: string) => {
+        const toastId = toast.loading("Marcando atestado como já lançado...");
+        startTransition(async () => {
+            try {
+                const res = await marcarAtestadoComoLancado(atestadoId, observacao);
+                if (res.success) {
+                    toast.success("Atestado marcado como Lançado com sucesso!", { id: toastId });
+                    setAtestados((prev) =>
+                        prev.map((item) =>
+                            item.id === atestadoId
+                                ? {
+                                      ...item,
+                                      status: "LANCADO",
+                                      secullumStatus: "SUCESSO",
+                                      secullumResponse: observacao || "Marcado manualmente como já abonado no Secullum pelo gestor.",
+                                      secullumLancadoEm: new Date()
+                                  }
+                                : item
+                        )
+                    );
+                    setStats((prev) => ({
+                        ...prev,
+                        pendentes: Math.max(0, prev.pendentes - 1),
+                        lancados: prev.lancados + 1
+                    }));
+                    setDuplicateModal({ open: false, atestado: null });
+                }
+            } catch (err: any) {
+                toast.error(`Erro ao atualizar: ${err.message}`, { id: toastId });
+            }
+        });
+    };
+
     // Ação: Lançar no Secullum
-    const handleLancarSecullum = async (atestado: MedicalCertificateItem) => {
+    const handleLancarSecullum = async (atestado: MedicalCertificateItem, force?: boolean) => {
         const cpf = atestado.cpf || atestado.employee?.cpf;
         if (!atestado.employeeId && !cpf) {
             toast.error("Por favor, vincule um colaborador antes de lançar no Secullum.");
+            return;
+        }
+
+        // Se houver alerta de duplicidade no sistema e não for forçado, abre o modal de aviso preventivo
+        if (atestado.duplicateInfo && !force) {
+            setDuplicateModal({
+                open: true,
+                atestado,
+                reason: `Atenção: Já existe outro atestado registrado para ${atestado.employee?.name || atestado.employeeName || atestado.extractedName} nas mesmas datas (${atestado.duplicateInfo.conflictWithStatus === 'LANCADO' ? 'Já lançado no Secullum' : 'Registrado'}).`
+            });
             return;
         }
 
@@ -218,6 +282,13 @@ export function AtestadosClient({
                         pendentes: Math.max(0, prev.pendentes - 1),
                         lancados: prev.lancados + 1
                     }));
+                } else if (res.isAlreadyInSecullum) {
+                    toast.dismiss(toastId);
+                    setDuplicateModal({
+                        open: true,
+                        atestado,
+                        reason: res.message
+                    });
                 } else {
                     toast.error(res.message, { id: toastId, duration: 6000 });
                 }
@@ -737,6 +808,14 @@ export function AtestadosClient({
                                                         )}
                                                     </div>
 
+                                                    {/* Alerta de Lançamento Duplicado */}
+                                                    {item.duplicateInfo && (
+                                                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-bold mt-1 shadow-xs animate-in fade-in">
+                                                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                                            <span>⚠️ Atenção: Já existe atestado ({item.duplicateInfo.conflictWithStatus === 'LANCADO' ? 'Lançado no Secullum' : 'Registrado'}) para este período!</span>
+                                                        </div>
+                                                    )}
+
                                                     {/* Botão de Trocar Colaborador (Caso a IA tenha errado) */}
                                                     {isItemPending && (
                                                         <div className="pt-1">
@@ -883,6 +962,18 @@ export function AtestadosClient({
                                                             >
                                                                 <Send className="w-3.5 h-3.5" />
                                                                 <span>Lançar no Secullum</span>
+                                                            </Button>
+
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                disabled={isPending}
+                                                                onClick={() => handleMarcarComoLancado(item.id, "Atestado validado e marcado como já abonado no Secullum pelo gestor.")}
+                                                                className="h-9 px-2.5 text-xs text-indigo-700 hover:text-indigo-800 hover:bg-indigo-50 border-indigo-200 rounded-lg flex items-center gap-1 font-semibold transition-colors"
+                                                                title="Marcar como já abonado no Secullum manualmente (sem reenviar à API)"
+                                                            >
+                                                                <CheckCheck className="w-3.5 h-3.5 text-indigo-600" />
+                                                                <span>Já Lançado</span>
                                                             </Button>
 
                                                             <Button
@@ -1349,6 +1440,64 @@ export function AtestadosClient({
                             <Trash2 className="w-4 h-4" />
                             {isPending ? "Excluindo..." : "Sim, Excluir"}
                         </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Alerta de Lançamento Duplicado */}
+            <Dialog open={duplicateModal.open} onOpenChange={(open) => !open && setDuplicateModal({ open: false, atestado: null })}>
+                <DialogContent className="max-w-md bg-white border border-amber-200 text-slate-900 rounded-2xl p-6 shadow-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold text-amber-800 flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5 text-amber-600" />
+                            Alerta de Lançamento Duplicado
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-slate-600 mt-2">
+                            {duplicateModal.reason || (
+                                <>
+                                    Detectamos que já existe outro atestado registrado para <strong>{duplicateModal.atestado?.employee?.name || duplicateModal.atestado?.employeeName}</strong> com datas coincidentes neste período.
+                                </>
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3 my-3 text-xs text-amber-900 space-y-1.5">
+                        <p className="font-bold">Como você deseja prosseguir?</p>
+                        <p className="text-[11px] text-amber-800 leading-relaxed">
+                            Se este atestado já foi lançado manualmente no Secullum pelo RH (ou se já consta como <strong>AT. MED</strong> no cartão de ponto), você pode apenas clicar em <strong>Marcar como Lançado</strong> para atualizar o status no sistema.
+                        </p>
+                    </div>
+
+                    <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-2">
+                        <Button
+                            variant="ghost"
+                            onClick={() => setDuplicateModal({ open: false, atestado: null })}
+                            className="text-slate-600 hover:text-slate-900 rounded-xl"
+                        >
+                            Cancelar
+                        </Button>
+                        {duplicateModal.atestado && (
+                            <>
+                                <Button
+                                    onClick={() => handleMarcarComoLancado(duplicateModal.atestado!.id, "Atestado validado e marcado como já abonado no Secullum.")}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-4 flex items-center gap-1.5 text-xs shadow-xs"
+                                >
+                                    <CheckCheck className="w-4 h-4" />
+                                    Marcar como Lançado
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                        const att = duplicateModal.atestado!;
+                                        setDuplicateModal({ open: false, atestado: null });
+                                        handleLancarSecullum(att, true);
+                                    }}
+                                    className="border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl px-3 text-xs"
+                                >
+                                    Tentar Enviar Mesmo Assim
+                                </Button>
+                            </>
+                        )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
