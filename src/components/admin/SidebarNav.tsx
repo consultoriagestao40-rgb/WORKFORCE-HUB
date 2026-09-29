@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Users, Building, ClipboardList, LayoutDashboard, History, Clock, Calendar, Building2, ShieldAlert, Briefcase, DollarSign, LogOut, Inbox, AlertCircle, BarChart, UserPlus, Landmark, CreditCard, Calculator, Scale, Shirt, Headphones, FileText, Scissors, BellRing, HeartPulse } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -16,19 +17,49 @@ interface SidebarNavProps {
 
 export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
     const role = user?.role;
-    const isAssistRH = role === "ASSIST_RH";
     const isSupervisor = role === "SUPERVISOR";
+    const [atestadosPendentes, setAtestadosPendentes] = useState(0);
+
+    // Busca o número de atestados pendentes de validação
+    useEffect(() => {
+        if (isSupervisor) return;
+        const fetchCount = async () => {
+            try {
+                const res = await fetch("/api/admin/atestados/count", { cache: "no-store" });
+                if (res.ok) {
+                    const data = await res.json();
+                    setAtestadosPendentes(data.count || 0);
+                }
+            } catch {
+                // silencioso
+            }
+        };
+        fetchCount();
+        // Atualiza a cada 60 segundos
+        const interval = setInterval(fetchCount, 60000);
+        return () => clearInterval(interval);
+    }, [isSupervisor]);
 
     if (isSupervisor) return null;
 
-    const NavLink = ({ href, icon: Icon, label, colorClass = "" }: { href?: string; icon: any; label: string; colorClass?: string }) => {
+    const NavLink = ({ href, icon: Icon, label, colorClass = "", badge }: { href?: string; icon: any; label: string; colorClass?: string; badge?: number }) => {
         const content = (
             <div className={cn(
                 "flex items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/10 rounded-2xl transition-all duration-300 group cursor-pointer",
                 isCollapsed && "justify-center px-2"
             )}>
-                <Icon className={cn("w-5 h-5 group-hover:scale-110 transition-transform", colorClass)} />
-                {!isCollapsed && <span className="animate-in fade-in duration-300">{label}</span>}
+                <Icon className={cn("w-5 h-5 group-hover:scale-110 transition-transform flex-shrink-0", colorClass)} />
+                {!isCollapsed && <span className="animate-in fade-in duration-300 flex-1">{label}</span>}
+                {badge && badge > 0 && !isCollapsed && (
+                    <span className="ml-auto bg-amber-500 text-slate-950 text-[10px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 animate-pulse">
+                        {badge > 99 ? "99+" : badge}
+                    </span>
+                )}
+                {badge && badge > 0 && isCollapsed && (
+                    <span className="absolute top-1 right-1 bg-amber-500 text-slate-950 text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">
+                        {badge > 9 ? "9+" : badge}
+                    </span>
+                )}
             </div>
         );
 
@@ -37,10 +68,12 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
                 <TooltipProvider delayDuration={0}>
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            {href ? <Link href={href}>{content}</Link> : content}
+                            <div className="relative">
+                                {href ? <Link href={href}>{content}</Link> : content}
+                            </div>
                         </TooltipTrigger>
                         <TooltipContent side="right" className="bg-slate-900 text-white border-slate-800">
-                            {label}
+                            {label} {badge && badge > 0 ? `(${badge} pendente${badge > 1 ? "s" : ""})` : ""}
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
@@ -86,6 +119,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
 
                 <NavLink href="/admin/operations" icon={Clock} label="Mesa de Operações" colorClass="text-indigo-400" />
                 <NavLink href="/admin/atendimento" icon={Headphones} label="Atendimento RH" colorClass="text-emerald-400 font-bold" />
+                <NavLink href="/admin/atestados" icon={FileText} label="Gestão de Atestados" colorClass="text-sky-400 font-bold" badge={atestadosPendentes} />
                 <NavLink href="/admin/disciplinary" icon={Scale} label="Gestão de Medidas" colorClass="text-rose-500" />
                 <NavLink href="/admin/epi" icon={Shirt} label="EPIs & Uniformes" colorClass="text-amber-400" />
                 <NavLink href="/admin/requests" icon={Inbox} label="Central de Solicitações" colorClass="text-orange-400" />

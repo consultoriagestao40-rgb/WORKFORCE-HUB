@@ -48,6 +48,7 @@ model User {
   hrTicketTransfersFrom      HrTicketTransfer[]    @relation("HrTicketTransferFrom")
   hrTicketTransfersTo        HrTicketTransfer[]    @relation("HrTicketTransferTo")
   hrScheduledMessages        HrScheduledMessage[]  @relation("HrScheduledMessageCreator")
+  validatedCertificates      MedicalCertificate[]  @relation("AtestadoValidator")
 }
 
 model Log {
@@ -270,6 +271,7 @@ model Employee {
   extraFields            Json?
   epiDeliveries          EpiDelivery[]
   hrTickets              HrTicket[]
+  medicalCertificates    MedicalCertificate[]
 }
 
 model BenefitsConfig {
@@ -1279,4 +1281,43 @@ model RhNotificationLog {
 
   @@index([event, createdAt])
   @@index([status])
+}
+
+// Lançamento e Validação de Atestados Médicos (Secullum + WhatsApp)
+model MedicalCertificate {
+  id                 String    @id @default(uuid())
+  employeeId         String?
+  extractedName      String    // Nome lido pelo OCR/IA
+  employeeName       String?   // Nome do colaborador confirmado
+  cpf                String?   // CPF do colaborador
+  startDate          DateTime  // Início do atestado
+  endDate            DateTime  // Fim do atestado
+  daysCount          Int       @default(1)
+  cid                String?   // CID extraído (ex: J06, M54)
+  doctorName         String?   // Nome do médico
+  doctorCrm          String?   // CRM do médico
+  documentUrl        String    // URL da foto / documento
+  justificativa      String    @default("Atestado Médico")
+  motivo             String?   // Motivo ou descrição
+  status             String    @default("PENDENTE") // 'PENDENTE' | 'LANCADO' | 'REJEITADO'
+  source             String    @default("WHATSAPP") // 'WHATSAPP' | 'MANUAL'
+  rejectionReason    String?   // Motivo da rejeição se houver
+  secullumStatus     String?   // 'SUCESSO' | 'ERRO'
+  secullumResponse   String?   // Retorno da API da Secullum
+  secullumLancadoEm  DateTime? // Data de envio ao Secullum
+  validatedById      String?   // Usuário que validou
+  validatedByName    String?   // Nome do usuário que validou
+  whatsappPhone      String?   // Telefone remetente no WhatsApp
+  whatsappMessageId  String?   // ID da mensagem
+  notes              String?   // Observações
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  employee           Employee? @relation(fields: [employeeId], references: [id])
+  validatedBy        User?     @relation("AtestadoValidator", fields: [validatedById], references: [id])
+
+  @@index([status])
+  @@index([employeeId])
+  @@index([startDate, endDate])
+  @@index([createdAt])
 }

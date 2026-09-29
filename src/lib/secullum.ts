@@ -263,4 +263,231 @@ export class SecullumApiClient {
 
         return null;
     }
+
+    /**
+     * Busca lista de justificativas cadastradas no Secullum
+     */
+    async getJustificativas(): Promise<any[]> {
+        const url = `${this.baseUrl}/IntegracaoExterna/Justificativas`;
+        const headers = await this.getHeaders();
+
+        try {
+            const res = await fetch(url, {
+                method: "GET",
+                headers,
+                cache: "no-store"
+            });
+
+            if (!res.ok) {
+                console.warn(`[Secullum] Erro ao buscar justificativas (${res.status}): ${await res.text()}`);
+                return [];
+            }
+
+            const data = await res.json();
+            return Array.isArray(data) ? data : [];
+        } catch (error) {
+            console.error("[Secullum] Falha ao consultar justificativas:", error);
+            return [];
+        }
+    }
+
+    /**
+     * Lança uma justificativa de abono diretamente no Cartão de Ponto para um dia específico
+     * Endpoint: POST /IntegracaoExterna/CartaoPonto/Justificativa
+     */
+    async lancarJustificativaPonto(params: {
+        cpf?: string;
+        numeroPis?: string;
+        numeroFolha?: string;
+        data: string; // YYYY-MM-DD ou ISO
+        justificativa: string;
+        observacoes?: string;
+        abonar?: boolean;
+    }): Promise<{ success: boolean; message: string; raw?: any }> {
+        const url = `${this.baseUrl}/IntegracaoExterna/CartaoPonto/Justificativa`;
+        const headers = await this.getHeaders();
+
+        const cleanDate = params.data.includes("T") ? params.data.split("T")[0] : params.data;
+        const payload: Record<string, any> = {
+            Data: `${cleanDate}T00:00:00`,
+            Justificativa: params.justificativa,
+            Observacoes: params.observacoes || "WorkForce Hub - Lançamento Automático",
+            Abonar: params.abonar !== false
+        };
+
+        if (params.cpf) {
+            payload.Cpf = params.cpf.replace(/\D/g, "");
+        }
+        if (params.numeroPis) payload.NumeroPis = params.numeroPis;
+        if (params.numeroFolha) payload.NumeroFolha = params.numeroFolha;
+
+        try {
+            const res = await fetch(url, {
+                method: "POST",
+                headers,
+                body: JSON.stringify(payload),
+                cache: "no-store"
+            });
+
+            if (!res.ok) {
+                const errText = await res.text();
+                return {
+                    success: false,
+                    message: `Secullum CartaoPonto retornou erro (${res.status}): ${errText}`
+                };
+            }
+
+            const data = await res.json().catch(() => null);
+            return {
+                success: true,
+                message: "Justificativa lançada no cartão de ponto com sucesso!",
+                raw: data
+            };
+        } catch (error: any) {
+            return {
+                success: false,
+                message: `Erro na conexão com Secullum: ${error.message || error}`
+            };
+        }
+    }
+
+    /**
+     * Cadastra um período de afastamento do funcionário no Secullum
+     * Endpoint: POST /IntegracaoExterna/FuncionariosAfastamentos
+     */
+    async lancarAfastamento(params: {
+        cpf?: string;
+        numeroPis?: string;
+        numeroFolha?: string;
+        inicio: string; // YYYY-MM-DD ou ISO
+        fim: string;    // YYYY-MM-DD ou ISO
+        motivo?: string;
+        justificativaNome?: string;
+    }): Promise<{ success: boolean; message: string; raw?: any }> {
+        const url = `${this.baseUrl}/IntegracaoExterna/FuncionariosAfastamentos`;
+        const headers = await this.getHeaders();
+
+        const cleanInicio = params.inicio.includes("T") ? params.inicio.split("T")[0] : params.inicio;
+        const cleanFim = params.fim.includes("T") ? params.fim.split("T")[0] : params.fim;
+
+        const payload: Record<string, any> = {
+            Inicio: `${cleanInicio}T00:00:00`,
+            Fim: `${cleanFim}T23:59:59`,
+            Motivo: params.motivo || "Atestado Médico",
+            JustificativaNome: params.justificativaNome || "Atestado Médico"
+        };
+
+        if (params.cpf) {
+            payload.Cpf = params.cpf.replace(/\D/g, "");
+        }
+        if (params.numeroPis) payload.NumeroPis = params.numeroPis;
+        if (params.numeroFolha) payload.NumeroFolha = params.numeroFolha;
+
+        try {
+            const res = await fetch(url, {
+                method: "POST",
+                headers,
+                body: JSON.stringify(payload),
+                cache: "no-store"
+            });
+
+            if (!res.ok) {
+                const errText = await res.text();
+                return {
+                    success: false,
+                    message: `Secullum Afastamentos retornou erro (${res.status}): ${errText}`
+                };
+            }
+
+            const data = await res.json().catch(() => null);
+            return {
+                success: true,
+                message: "Afastamento registrado no Secullum com sucesso!",
+                raw: data
+            };
+        } catch (error: any) {
+            return {
+                success: false,
+                message: `Erro na conexão com Secullum: ${error.message || error}`
+            };
+        }
+    }
+
+    /**
+     * Envia um atestado médico para o Secullum:
+     * - Se for 1 dia: aplica diretamente a justificativa no Cartão de Ponto.
+     * - Se for múltiplos dias: cadastra o Afastamento e também preenche as justificativas do período.
+     */
+    async lancarAtestadoMedico(params: {
+        cpf: string;
+        dataInicioStr: string; // YYYY-MM-DD
+        dataFimStr: string;    // YYYY-MM-DD
+        dias: number;
+        justificativaNome?: string;
+        cid?: string;
+        observacoes?: string;
+    }): Promise<{ success: boolean; message: string; details?: any }> {
+        const cleanCpf = params.cpf.replace(/\D/g, "");
+        const justNome = params.justificativaNome || "Atestado Médico";
+        const obs = `Atestado Médico CID: ${params.cid || "N/I"} - ${params.observacoes || ""}`.trim();
+
+        if (params.dias <= 1 || params.dataInicioStr === params.dataFimStr) {
+            // Lançamento pontual de 1 dia
+            const res = await this.lancarJustificativaPonto({
+                cpf: cleanCpf,
+                data: params.dataInicioStr,
+                justificativa: justNome,
+                observacoes: obs,
+                abonar: true
+            });
+            return res;
+        }
+
+        // Múltiplos dias: Lança no Afastamentos
+        const resAfastamento = await this.lancarAfastamento({
+            cpf: cleanCpf,
+            inicio: params.dataInicioStr,
+            fim: params.dataFimStr,
+            motivo: obs,
+            justificativaNome: justNome
+        });
+
+        // Se afastamento funcionou, retorna sucesso
+        if (resAfastamento.success) {
+            return resAfastamento;
+        }
+
+        // Se a empresa não tiver módulo de afastamento liberado no banco, tenta justificar dia a dia
+        console.warn("[Secullum] Afastamento falhou, tentando lançar dia a dia:", resAfastamento.message);
+        const start = new Date(params.dataInicioStr + "T12:00:00Z");
+        const end = new Date(params.dataFimStr + "T12:00:00Z");
+        let current = new Date(start);
+        let countOk = 0;
+
+        while (current <= end) {
+            const curStr = current.toISOString().split("T")[0];
+            const pRes = await this.lancarJustificativaPonto({
+                cpf: cleanCpf,
+                data: curStr,
+                justificativa: justNome,
+                observacoes: obs,
+                abonar: true
+            });
+            if (pRes.success) countOk++;
+            current.setDate(current.getDate() + 1);
+        }
+
+        if (countOk > 0) {
+            return {
+                success: true,
+                message: `Lançado dia a dia no cartão ponto (${countOk} dias justificados).`
+            };
+        }
+
+        return {
+            success: false,
+            message: `Falha ao lançar no Secullum: ${resAfastamento.message}`
+        };
+    }
 }
+

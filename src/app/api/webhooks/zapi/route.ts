@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { processWhatsAppMedicalCertificate } from "@/lib/medical-ocr";
 
 const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3F1993DFB59E83474F059E648AE68DF9";
 const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "81087A6B5C1CAB8AAAC801C4";
@@ -314,6 +315,21 @@ async function processHrAttendanceMessage(cleanPhone: string, phoneSearch: strin
             zapiMessageId: msgId
         }
     });
+
+    // Se a mensagem contiver imagem ou documento recebido de terceiro, dispara detecção de Atestado Médico em background
+    if (!isFromMe && mediaUrl && (messageType === "IMAGE" || messageType === "DOCUMENT")) {
+        const isGroup = Boolean(body.isGroup || body.chatId?.includes("@g.us") || body.remoteJid?.includes("@g.us"));
+        const groupName = body.groupName || body.chatName;
+
+        processWhatsAppMedicalCertificate({
+            mediaUrl,
+            caption: content,
+            senderPhone: cleanPhone,
+            senderName: contactName,
+            isGroup,
+            groupName
+        }).catch((err) => console.error("[Z-API] Falha ao processar atestado médico:", err));
+    }
 
     console.log(`[Z-API HR Webhook] ✅ Mensagem salva no ticket ${ticket.id} | ${contactName}: ${content.slice(0, 50)}`);
     return NextResponse.json({ status: "hr_ticket_success", ticketId: ticket.id });
