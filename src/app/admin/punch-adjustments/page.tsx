@@ -8,7 +8,7 @@ export default async function PunchAdjustmentsPage() {
     // 1. Buscar apenas as solicitações onde o gestor clicou em SIM e definiu o motivo
     const adjustments = await prisma.attendancePunchAdjustment.findMany({
         where: {
-            status: { in: ["PENDING_AUDIT", "APPROVED_SYNCED", "DISCARDED_OFFLINE_FOUND", "REJECTED"] }
+            status: { in: ["PENDING_AUDIT", "APPROVED_SYNCED", "DISCARDED_OFFLINE_FOUND", "CONFIRMED_ABSENCE", "REJECTED"] }
         },
         include: {
             employee: { select: { id: true, name: true, cpf: true } },

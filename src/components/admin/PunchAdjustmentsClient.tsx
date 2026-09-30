@@ -381,16 +381,15 @@ export default function PunchAdjustmentsClient({
             </div>
 
             {/* Cards de Métricas (Exato Padrão Atestados) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
 
                 {/* Pendente RH (Pronto) */}
                 <div
                     onClick={() => setActiveTab("PENDING_AUDIT")}
-                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${
-                        activeTab === "PENDING_AUDIT"
+                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${activeTab === "PENDING_AUDIT"
                             ? "border-sky-400 ring-2 ring-sky-100 bg-sky-50/20"
                             : "border-slate-200 hover:border-slate-300"
-                    }`}
+                        }`}
                 >
                     <div className="flex items-center justify-between">
                         <span className="text-xs font-bold uppercase tracking-wider text-sky-800">
@@ -409,11 +408,10 @@ export default function PunchAdjustmentsClient({
                 {/* Gravados no Secullum */}
                 <div
                     onClick={() => setActiveTab("APPROVED_SYNCED")}
-                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${
-                        activeTab === "APPROVED_SYNCED"
+                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${activeTab === "APPROVED_SYNCED"
                             ? "border-emerald-400 ring-2 ring-emerald-100 bg-emerald-50/20"
                             : "border-slate-200 hover:border-slate-300"
-                    }`}
+                        }`}
                 >
                     <div className="flex items-center justify-between">
                         <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
@@ -432,11 +430,10 @@ export default function PunchAdjustmentsClient({
                 {/* Batida Offline Detectada */}
                 <div
                     onClick={() => setActiveTab("DISCARDED_OFFLINE_FOUND")}
-                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${
-                        activeTab === "DISCARDED_OFFLINE_FOUND"
+                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${activeTab === "DISCARDED_OFFLINE_FOUND"
                             ? "border-purple-400 ring-2 ring-purple-100 bg-purple-50/20"
                             : "border-slate-200 hover:border-slate-300"
-                    }`}
+                        }`}
                 >
                     <div className="flex items-center justify-between">
                         <span className="text-xs font-bold uppercase tracking-wider text-purple-800">
@@ -452,14 +449,35 @@ export default function PunchAdjustmentsClient({
                     </div>
                 </div>
 
+                {/* Falta Confirmada pelo Gestor */}
+                <div
+                    onClick={() => setActiveTab("CONFIRMED_ABSENCE")}
+                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${activeTab === "CONFIRMED_ABSENCE"
+                            ? "border-rose-400 ring-2 ring-rose-100 bg-rose-50/20"
+                            : "border-slate-200 hover:border-slate-300"
+                        }`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-rose-800">
+                            Falta Confirmada
+                        </span>
+                        <div className="p-2.5 bg-rose-100 text-rose-700 rounded-xl">
+                            <XCircle className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        <div className="text-3xl font-black text-slate-900">{stats.absence}</div>
+                        <p className="text-xs text-rose-700 font-medium mt-1">Falta confirmada pelo gestor</p>
+                    </div>
+                </div>
+
                 {/* Total */}
                 <div
                     onClick={() => setActiveTab("ALL")}
-                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${
-                        activeTab === "ALL"
+                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${activeTab === "ALL"
                             ? "border-indigo-400 ring-2 ring-indigo-100 bg-indigo-50/20"
                             : "border-slate-200 hover:border-slate-300"
-                    }`}
+                        }`}
                 >
                     <div className="flex items-center justify-between">
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -483,11 +501,10 @@ export default function PunchAdjustmentsClient({
                     <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80 w-fit">
                         <button
                             onClick={() => setActiveTab("ALL")}
-                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                activeTab === "ALL"
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === "ALL"
                                     ? "bg-white text-slate-900 shadow-sm"
                                     : "text-slate-600 hover:text-slate-900"
-                            }`}
+                                }`}
                         >
                             <span>Todas</span>
                             <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-slate-200 text-slate-800">
@@ -498,11 +515,10 @@ export default function PunchAdjustmentsClient({
 
                         <button
                             onClick={() => setActiveTab("PENDING_AUDIT")}
-                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                activeTab === "PENDING_AUDIT"
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === "PENDING_AUDIT"
                                     ? "bg-white text-slate-900 shadow-sm"
                                     : "text-slate-600 hover:text-slate-900"
-                            }`}
+                                }`}
                         >
                             <Zap className="w-3.5 h-3.5 text-sky-500" />
                             <span>Pendente RH</span>
@@ -513,11 +529,10 @@ export default function PunchAdjustmentsClient({
 
                         <button
                             onClick={() => setActiveTab("APPROVED_SYNCED")}
-                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                activeTab === "APPROVED_SYNCED"
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === "APPROVED_SYNCED"
                                     ? "bg-white text-slate-900 shadow-sm"
                                     : "text-slate-600 hover:text-slate-900"
-                            }`}
+                                }`}
                         >
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                             <span>Lançados Secullum</span>
@@ -528,16 +543,29 @@ export default function PunchAdjustmentsClient({
 
                         <button
                             onClick={() => setActiveTab("DISCARDED_OFFLINE_FOUND")}
-                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                activeTab === "DISCARDED_OFFLINE_FOUND"
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === "DISCARDED_OFFLINE_FOUND"
                                     ? "bg-white text-slate-900 shadow-sm"
                                     : "text-slate-600 hover:text-slate-900"
-                            }`}
+                                }`}
                         >
                             <RefreshCw className="w-3.5 h-3.5 text-purple-500" />
                             <span>Batida Offline</span>
                             <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-purple-100 text-purple-800">
                                 {stats.offlineFound}
+                            </span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTab("CONFIRMED_ABSENCE")}
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === "CONFIRMED_ABSENCE"
+                                    ? "bg-white text-slate-900 shadow-sm"
+                                    : "text-slate-600 hover:text-slate-900"
+                                }`}
+                        >
+                            <XCircle className="w-3.5 h-3.5 text-rose-500" />
+                            <span>Falta Confirmada pelo Gestor</span>
+                            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-100 text-rose-800">
+                                {stats.absence}
                             </span>
                         </button>
                     </div>
