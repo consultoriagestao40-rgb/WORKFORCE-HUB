@@ -35,7 +35,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Combobox } from "@/components/ui/combobox";
 import { toast } from "sonner";
-import { getPayrollPreview, PayrollPreviewItem, updateMonthlyDeductions, InstallmentPlan } from "@/actions/payroll";
+import { getPayrollPreview, PayrollPreviewItem, updateMonthlyDeductions, InstallmentPlan, togglePayrollInclusion } from "@/actions/payroll";
 import { syncSecullumOccurrences, syncSingleEmployeeSecullumOccurrences } from "@/actions/secullum";
 import * as XLSX from "xlsx";
 import Link from "next/link";
@@ -431,6 +431,34 @@ export default function PayrollPreviewPage() {
         }
     };
 
+    const handleToggleExclusion = async (item: PayrollPreviewItem) => {
+        const nextExcluded = !item.excludedFromPayroll;
+        try {
+            const res = await togglePayrollInclusion(item.employeeId, selectedYear, selectedMonth, nextExcluded);
+            if (res.success) {
+                toast.success(
+                    nextExcluded
+                        ? `${item.employeeName} removido(a) da folha (verbas pagas na Rescisão/TRCT).`
+                        : `${item.employeeName} reincluído(a) na folha de pagamento.`
+                );
+                setItems(prev => prev.map(it => it.employeeId === item.employeeId ? {
+                    ...it,
+                    excludedFromPayroll: nextExcluded,
+                    netSalary: nextExcluded ? 0 : it.netSalary,
+                    totalGrossSalary: nextExcluded ? 0 : it.totalGrossSalary,
+                    totalDeductions: nextExcluded ? 0 : it.totalDeductions,
+                    baseSalary: nextExcluded ? 0 : it.baseSalary,
+                    observacoes: nextExcluded 
+                        ? (it.observacoes ? `${it.observacoes} | Removido da folha mensal — verbas quitadas na Rescisão (TRCT)` : 'Removido da folha mensal — verbas quitadas na Rescisão (TRCT)')
+                        : it.observacoes.replace(/\s*\|\s*Removido da folha mensal — verbas quitadas na Rescisão \(TRCT\)/g, '').replace(/^Removido da folha mensal — verbas quitadas na Rescisão \(TRCT\)$/g, '')
+                } : it));
+                loadData();
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Erro ao alterar inclusão do colaborador na folha.");
+        }
+    };
+
     const handleOpenEditDeductions = (item: PayrollPreviewItem) => {
         setSelectedEmployeeItem(item);
         setInputDiversos(item.diversosDescontos > 0 ? item.diversosDescontos.toString() : "");
@@ -805,11 +833,12 @@ export default function PayrollPreviewPage() {
         return acc;
     }, {} as Record<string, any>);
 
-    // Total metrics card values
-    const totalActiveCount = filteredItems.length;
-    const totalGrossSum = filteredItems.reduce((sum, item) => sum + item.totalGrossSalary, 0);
-    const totalDeductionsSum = filteredItems.reduce((sum, item) => sum + item.totalDeductions, 0);
-    const totalNetSum = filteredItems.reduce((sum, item) => sum + item.netSalary, 0);
+    // Total metrics card values (excluindo os que foram retirados da folha mensal por rescisão)
+    const activePayrollItems = filteredItems.filter(item => !item.excludedFromPayroll);
+    const totalActiveCount = activePayrollItems.length;
+    const totalGrossSum = activePayrollItems.reduce((sum, item) => sum + item.totalGrossSalary, 0);
+    const totalDeductionsSum = activePayrollItems.reduce((sum, item) => sum + item.totalDeductions, 0);
+    const totalNetSum = activePayrollItems.reduce((sum, item) => sum + item.netSalary, 0);
 
     const toggleGroup = (groupName: string) => {
         setExpandedGroups(prev => 
@@ -1532,6 +1561,20 @@ export default function PayrollPreviewPage() {
                                                         >
                                                             {item.situationName}
                                                         </span>
+                                                    )}
+                                                    {item.isDismissalProcess && (
+                                                        <button 
+                                                            onClick={() => handleToggleExclusion(item)}
+                                                            className={cn(
+                                                                "text-[9px] font-black uppercase px-2 py-0.5 rounded-md transition-all cursor-pointer border flex items-center gap-1 shadow-2xs",
+                                                                item.excludedFromPayroll
+                                                                    ? "bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200"
+                                                                    : "bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100"
+                                                            )}
+                                                            title={item.excludedFromPayroll ? "Colaborador excluído da folha mensal (pago via Rescisão/TRCT). Clique para reincluir." : "Clique para tirar este colaborador da folha mensal (verbas pagas diretamente na Rescisão/TRCT)"}
+                                                        >
+                                                            {item.excludedFromPayroll ? "🚫 Pago na Rescisão (Excluído)" : "⚠️ Tirar da Folha (Pago TRCT)"}
+                                                        </button>
                                                     )}
                                                     <button 
                                                         onClick={() => handleSyncSingleEmployee(item)}
@@ -2899,9 +2942,42 @@ export default function PayrollPreviewPage() {
                                 </div>
                                 <div className="flex justify-between text-slate-500 font-medium border-t border-slate-200/60 pt-1 mt-1">
                                     <span>Competência:</span>
-                                    <span className="font-bold text-slate-700">{selectedMonth}/{selectedYear}</span>
+                                    <span className="font-bold text-slate-750">{selectedMonth}/{selectedYear}</span>
                                 </div>
                             </div>
+
+                            {/* Dismissal Process Banner & Toggle */}
+                            {selectedEmployeeItem.isDismissalProcess && (
+                                <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
+                                    <div className="space-y-0.5">
+                                        <div className="flex items-center gap-1.5 font-bold text-amber-950 text-xs">
+                                            <span>⚠️ Processo de Rescisão</span>
+                                            {selectedEmployeeItem.excludedFromPayroll && (
+                                                <span className="text-[9px] bg-red-100 text-red-700 px-1.5 py-0.2 rounded font-black uppercase">Excluído da Folha</span>
+                                            )}
+                                        </div>
+                                        <p className="text-[11px] text-amber-900 leading-tight">
+                                            {selectedEmployeeItem.lastWorkingDay && `Último dia trab.: ${new Date(selectedEmployeeItem.lastWorkingDay).toLocaleDateString('pt-BR')}`}
+                                            {selectedEmployeeItem.paymentDeadline && ` • Prazo TRCT: ${new Date(selectedEmployeeItem.paymentDeadline).toLocaleDateString('pt-BR')}`}
+                                        </p>
+                                        <p className="text-[10px] text-amber-750 italic leading-tight">
+                                            Se as verbas forem pagas no TRCT até dia 05 (antes do 5º dia útil), você pode tirar este colaborador da folha mensal.
+                                        </p>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={selectedEmployeeItem.excludedFromPayroll ? "outline" : "destructive"}
+                                        className="text-xs shrink-0 cursor-pointer h-8 font-bold"
+                                        onClick={async () => {
+                                            await handleToggleExclusion(selectedEmployeeItem);
+                                            setSelectedEmployeeItem(prev => prev ? { ...prev, excludedFromPayroll: !prev.excludedFromPayroll } : null);
+                                        }}
+                                    >
+                                        {selectedEmployeeItem.excludedFromPayroll ? "Reincluir na Folha" : "Tirar da Folha"}
+                                    </Button>
+                                </div>
+                            )}
 
                             {/* Inputs */}
                             <div className="space-y-3.5">

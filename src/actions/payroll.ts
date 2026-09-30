@@ -92,6 +92,12 @@ export interface PayrollPreviewItem {
     // Vacations detail
     vacationDays: number;
     vacationDatesStr: string;
+
+    // Dismissal / Payroll Exclusion detail
+    isDismissalProcess?: boolean;
+    lastWorkingDay?: string | null;
+    paymentDeadline?: string | null;
+    excludedFromPayroll?: boolean;
 }
 
 function getUniqueWeeksCount(dates: Date[]): number {
@@ -670,6 +676,36 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
         const totalDeductions = Math.round((faltaDeduction + dsrDeduction + atrasosDeduction + vtPayrollDiscount + vaPayrollDiscount + inssDeduction + irrfDeduction + diversosDescontos + emprestimos + convenios + sindicato) * 100) / 100;
         const netSalary = Math.max(0, Math.round((totalGrossSalary - totalDeductions) * 100) / 100);
 
+        const isDismissalProcess = Boolean(
+            dismissalProc?.lastWorkingDay || 
+            emp.dismissalReason || 
+            emp.status === "DISMISSED" ||
+            (emp.situation?.name && emp.situation.name.toLowerCase().includes("rescis"))
+        );
+        const excludedFromPayroll = Boolean(monthlyAdj.excludedFromPayroll);
+
+        let finalBaseSalary = baseSalary;
+        let finalInsalubridade = insalubridade;
+        let finalPericulosidade = periculosidade;
+        let finalGratificacao = gratificacao;
+        let finalOutrosAdicionais = outrosAdicionais;
+        let finalTotalGrossSalary = totalGrossSalary;
+        let finalTotalDeductions = totalDeductions;
+        let finalNetSalary = netSalary;
+
+        if (excludedFromPayroll) {
+            finalBaseSalary = 0;
+            finalInsalubridade = 0;
+            finalPericulosidade = 0;
+            finalGratificacao = 0;
+            finalOutrosAdicionais = 0;
+            finalTotalGrossSalary = 0;
+            finalTotalDeductions = 0;
+            finalNetSalary = 0;
+            const resNota = "Removido da folha mensal — verbas quitadas na Rescisão (TRCT)";
+            observacoes = observacoes ? `${observacoes} | ${resNota}` : resNota;
+        }
+
         return {
             employeeId: emp.id,
             employeeName: emp.name,
@@ -677,12 +713,12 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             companyName,
             clientName,
             postoName,
-            baseSalary,
-            insalubridade,
-            periculosidade,
-            gratificacao,
-            outrosAdicionais,
-            totalGrossSalary,
+            baseSalary: finalBaseSalary,
+            insalubridade: finalInsalubridade,
+            periculosidade: finalPericulosidade,
+            gratificacao: finalGratificacao,
+            outrosAdicionais: finalOutrosAdicionais,
+            totalGrossSalary: finalTotalGrossSalary,
             faltasCount,
             atestadosCount,
             occurrencesList,
@@ -720,8 +756,8 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             hourlyRate: Math.round(hourlyRate * 100) / 100,
             observacoes,
             fieldNotes,
-            totalDeductions,
-            netSalary,
+            totalDeductions: finalTotalDeductions,
+            netSalary: finalNetSalary,
             isAdmittedThisMonth,
             admissionDate: new Date(emp.admissionDate).toLocaleDateString('pt-BR'),
             daysWorked,
@@ -730,7 +766,11 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             situationName: emp.situation?.name || "Ativo",
             situationColor: emp.situation?.color || undefined,
             vacationDays: vacationDaysInMonth,
-            vacationDatesStr
+            vacationDatesStr,
+            isDismissalProcess,
+            lastWorkingDay: lastWorkingDayStr || null,
+            paymentDeadline: dismissalProc?.paymentDeadline || null,
+            excludedFromPayroll
         };
     });
 
@@ -1068,5 +1108,44 @@ export async function importPayrollSecullumCalculations(
 
     revalidatePath("/admin/payroll-preview");
     return { success: true, updatedCount, totalProcessed: rows.length };
+}
+
+export async function togglePayrollInclusion(
+    employeeId: string,
+    year: number,
+    month: number,
+    excluded: boolean
+) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado.");
+
+    const emp = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        select: { id: true, extraFields: true }
+    });
+    if (!emp) throw new Error("Colaborador não encontrado.");
+
+    const extraFields = (emp.extraFields as any) || {};
+    const monthlyAdjustments = extraFields.monthlyAdjustments || {};
+    const key = `${year}-${month}`;
+    const currentAdj = monthlyAdjustments[key] || {};
+
+    monthlyAdjustments[key] = {
+        ...currentAdj,
+        excludedFromPayroll: excluded
+    };
+
+    await prisma.employee.update({
+        where: { id: employeeId },
+        data: {
+            extraFields: {
+                ...extraFields,
+                monthlyAdjustments
+            }
+        }
+    });
+
+    revalidatePath("/admin/payroll-preview");
+    return { success: true, excluded };
 }
 

@@ -143,11 +143,31 @@ export async function syncSecullumOccurrences(year: number, month: number, compa
         const client = new SecullumApiClient(config.secullumApiToken, bankId, apiUrl);
 
         // A. Fetch Secullum employees to build a map: NumeroFolha -> CPF
-        const secullumEmployees = await client.getFuncionarios();
+        const rawSecullumEmployees = await client.getFuncionarios();
+        // Priorizar colaboradores ativos (!Demissao e !Invisivel)
+        const secullumEmployees = [...rawSecullumEmployees].sort((a, b) => {
+            const aActive = !a.Demissao && !a.Invisivel ? 1 : 0;
+            const bActive = !b.Demissao && !b.Invisivel ? 1 : 0;
+            return bActive - aActive;
+        });
+
+        // Identificar CPFs que possuem cadastro ativo no Secullum
+        const activeCpfsInSecullum = new Set<string>();
+        secullumEmployees.forEach(emp => {
+            if (!emp.Demissao && !emp.Invisivel && emp.Cpf) {
+                activeCpfsInSecullum.add(cleanCpfStr(emp.Cpf));
+            }
+        });
+
         const folhaToCpfMap = new Map<string, string>();
         secullumEmployees.forEach(emp => {
             if (emp.NumeroFolha && emp.Cpf) {
-                folhaToCpfMap.set(emp.NumeroFolha.trim(), cleanCpfStr(emp.Cpf));
+                const cleanCpf = cleanCpfStr(emp.Cpf);
+                // Se for cadastro inativo/demitido/invisível mas já existe cadastro ativo com este CPF, ignora a folha antiga
+                if ((emp.Demissao || emp.Invisivel) && activeCpfsInSecullum.has(cleanCpf)) {
+                    return;
+                }
+                folhaToCpfMap.set(emp.NumeroFolha.trim(), cleanCpf);
             }
         });
 
@@ -265,9 +285,6 @@ export async function syncSecullumOccurrences(year: number, month: number, compa
         // D. Fetch daily Batidas (to detect single-day Faltas & Atestados)
         const batidas = await client.getBatidas(startDateStr, endDateStr);
         for (const b of batidas) {
-            const rawObs = (b.Observacoes || "").toLowerCase();
-            const rawEntrada = (b.Entrada1 || "").toLowerCase();
-            
             const folha = b.Funcionario?.NumeroFolha?.trim();
             if (!folha) continue;
 
@@ -646,18 +663,27 @@ export async function syncSingleEmployeeSecullumOccurrences(employeeId: string, 
     try {
         const client = new SecullumApiClient(config.secullumApiToken, bankId, apiUrl);
 
-        // 1. Obter colaboradores do Secullum para localizar por CPF ou Nome
-        const secullumEmployees = await client.getFuncionarios();
+        // 1. Obter colaboradores do Secullum para localizar por CPF ou Nome (priorizando ativos)
+        const rawSecullumEmployees = await client.getFuncionarios();
+        const secullumEmployees = [...rawSecullumEmployees].sort((a, b) => {
+            const aActive = !a.Demissao && !a.Invisivel ? 1 : 0;
+            const bActive = !b.Demissao && !b.Invisivel ? 1 : 0;
+            return bActive - aActive;
+        });
         const cleanTargetCpf = cleanCpfStr(emp.cpf);
 
-        let secEmp = secullumEmployees.find(se => se.Cpf && cleanCpfStr(se.Cpf) === cleanTargetCpf);
+        let secEmp = secullumEmployees.find(se => se.Cpf && cleanCpfStr(se.Cpf) === cleanTargetCpf && !se.Demissao && !se.Invisivel)
+            || secullumEmployees.find(se => se.Cpf && cleanCpfStr(se.Cpf) === cleanTargetCpf);
+
         if (!secEmp && emp.name) {
-            const matchedId = matchEmployeeByName(emp.name, secullumEmployees.map(se => ({ 
+            const activeSecEmps = secullumEmployees.filter(se => !se.Demissao && !se.Invisivel);
+            const pool = activeSecEmps.length > 0 ? activeSecEmps : secullumEmployees;
+            const matchedId = matchEmployeeByName(emp.name, pool.map(se => ({ 
                 id: se.Id?.toString() || se.NumeroFolha || se.Nome, 
                 name: se.Nome 
             })));
             if (matchedId) {
-                secEmp = secullumEmployees.find(se => (se.Id?.toString() || se.NumeroFolha || se.Nome) === matchedId);
+                secEmp = pool.find(se => (se.Id?.toString() || se.NumeroFolha || se.Nome) === matchedId);
             }
         }
 

@@ -19,6 +19,9 @@ export interface SecullumFuncionario {
     NumeroFolha?: string;
     Cpf?: string;
     NumeroPis?: string;
+    Demissao?: string | null;
+    Invisivel?: boolean | null;
+    DataAlteracao?: string | null;
 }
 
 export interface SecullumBatida {
