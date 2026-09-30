@@ -132,7 +132,10 @@ export default function PunchAdjustmentsClient({
     const [isSyncingJusts, setIsSyncingJusts] = useState(false);
 
     // Modal de Teste
-    const defaultGroup = whatsappGroups.find(g => g.name.toLowerCase().includes("ajuste") || g.name.toLowerCase().includes("operaç"))?.phone || "";
+    const defaultGroup = whatsappGroups.find(g => g.name.toLowerCase().includes("ajuste"))?.phone
+        || whatsappGroups.find(g => g.name.toLowerCase().includes("mesa de operaç"))?.phone
+        || whatsappGroups.find(g => g.name.toLowerCase().includes("operaç"))?.phone
+        || "";
     const [isTestModalOpen, setIsTestModalOpen] = useState(false);
     const [testEmpId, setTestEmpId] = useState("");
     const [testPunchType, setTestPunchType] = useState<"ENTRADA_1" | "SAIDA_1">("ENTRADA_1");

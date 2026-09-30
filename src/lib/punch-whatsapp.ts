@@ -235,17 +235,19 @@ export async function sendPunchAdjustmentWhatsAppAlert(
             ? `\n👉 Atenção ${mentionTag} (Gestor do Contrato):`
             : `\n👉 Líderes da operação:`;
 
-        const instructionText = `\n_Clique em um dos botões abaixo para definir a tratativa:_`;
+        const instructionText = `\n_Toque no botão abaixo para definir a tratativa:_`;
 
         const fullMessage = `${headerAlert}\n\n${colabInfo}${managerCallout}${instructionText}`;
 
-        // Dispara com BOTÕES CLICÁVEIS NATIVOS
-        const sendRes = await sendZapiButtonList({
+        // Dispara com MENU INTERATIVO CLICÁVEL (Garantido em grupos)
+        const sendRes = await sendZapiOptionList({
             target: targetGroup,
             message: fullMessage,
-            buttons: [
-                { id: `#${adj.code}_ajustar`, label: "✅ Ajustar Ponto" },
-                { id: `#${adj.code}_falta`, label: "❌ Confirmar Falta" }
+            title: "Tratativa de Ponto",
+            buttonLabel: "Definir Tratativa 👇",
+            options: [
+                { id: `#${adj.code}_ajustar`, title: "✅ Ajustar Ponto", description: "Escolher motivo no Secullum" },
+                { id: `#${adj.code}_falta`, title: "❌ Confirmar Falta", description: "Registrar ausência injustificada" }
             ]
         });
 
