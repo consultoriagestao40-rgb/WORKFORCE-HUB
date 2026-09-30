@@ -5,11 +5,19 @@ const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3F1993DFB59E83474F059E
 const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "81087A6B5C1CAB8AAAC801C4";
 const ZAPI_CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN || "F5c1b8f27f6b049c98c4e779d00f67552S";
 
-// Grupo padrão da Mesa de Operações (ou substituído pelo grupo de teste)
 export const DEFAULT_OPERATIONS_GROUP = "120363425022319430";
 
+function normalizePhone(target: string): string {
+    let finalPhone = target.trim();
+    if (!finalPhone.includes("@") && !finalPhone.includes("-group")) {
+        const clean = finalPhone.replace(/\D/g, "");
+        finalPhone = clean.startsWith("55") ? clean : `55${clean}`;
+    }
+    return finalPhone;
+}
+
 /**
- * Envia uma mensagem para o WhatsApp com suporte opcional a @Menção de participantes
+ * Envia uma mensagem para o WhatsApp com suporte a @Menção de participantes
  */
 export async function sendZapiWithMentions(params: {
     target: string;
@@ -18,12 +26,7 @@ export async function sendZapiWithMentions(params: {
 }): Promise<{ success: boolean; zapiId?: string; error?: string }> {
     try {
         if (!params.target) return { success: false, error: "Destinatário vazio" };
-
-        let finalPhone = params.target.trim();
-        if (!finalPhone.includes("@") && !finalPhone.includes("-group")) {
-            const clean = finalPhone.replace(/\D/g, "");
-            finalPhone = clean.startsWith("55") ? clean : `55${clean}`;
-        }
+        const finalPhone = normalizePhone(params.target);
 
         const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-text`;
         const payload: Record<string, any> = {
@@ -32,7 +35,6 @@ export async function sendZapiWithMentions(params: {
         };
 
         if (params.mentionedPhones && params.mentionedPhones.length > 0) {
-            // Z-API espera telefones limpos com código de país (ex: 5511999998888)
             payload.mentionedPhones = params.mentionedPhones.map(p => {
                 const clean = p.replace(/\D/g, "");
                 return clean.startsWith("55") ? clean : `55${clean}`;
@@ -63,7 +65,111 @@ export async function sendZapiWithMentions(params: {
 }
 
 /**
- * Formata e dispara o alerta de inconsistência no grupo do WhatsApp com a @menção do gestor
+ * Envia mensagem com BOTÕES CLICÁVEIS (send-button-list)
+ */
+export async function sendZapiButtonList(params: {
+    target: string;
+    message: string;
+    buttons: Array<{ id: string; label: string }>;
+}): Promise<{ success: boolean; zapiId?: string; error?: string }> {
+    try {
+        if (!params.target) return { success: false, error: "Destinatário vazio" };
+        const finalPhone = normalizePhone(params.target);
+
+        const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-button-list`;
+        const payload = {
+            phone: finalPhone,
+            message: params.message,
+            buttonList: {
+                buttons: params.buttons
+            }
+        };
+
+        const res = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Client-Token": ZAPI_CLIENT_TOKEN
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            const errorText = await res.text();
+            console.warn(`[Z-API send-button-list Warning] Fallback text:`, errorText);
+            // Fallback para mensagem de texto caso botões não sejam aceitos
+            return sendZapiWithMentions({
+                target: params.target,
+                message: `${params.message}\n\n👉 Responda:\n${params.buttons.map(b => `• *${b.label}* (digite: ${b.id})`).join("\n")}`
+            });
+        }
+
+        const data = await res.json();
+        return { success: true, zapiId: data.messageId || data.id || data.zaapId };
+    } catch (err: any) {
+        console.error("[sendZapiButtonList] Erro:", err);
+        return { success: false, error: err.message };
+    }
+}
+
+/**
+ * Envia MENU DE LISTA INTERATIVA CLICÁVEL (send-option-list)
+ */
+export async function sendZapiOptionList(params: {
+    target: string;
+    message: string;
+    title: string;
+    buttonLabel: string;
+    options: Array<{ id: string; title: string; description?: string }>;
+}): Promise<{ success: boolean; zapiId?: string; error?: string }> {
+    try {
+        if (!params.target) return { success: false, error: "Destinatário vazio" };
+        const finalPhone = normalizePhone(params.target);
+
+        const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-option-list`;
+        const payload = {
+            phone: finalPhone,
+            message: params.message,
+            optionList: {
+                title: params.title.slice(0, 50),
+                buttonLabel: params.buttonLabel.slice(0, 20),
+                options: params.options.slice(0, 10).map(opt => ({
+                    id: opt.id,
+                    title: opt.title.slice(0, 100),
+                    description: (opt.description || "").slice(0, 100)
+                }))
+            }
+        };
+
+        const res = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Client-Token": ZAPI_CLIENT_TOKEN
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            const errorText = await res.text();
+            console.warn(`[Z-API send-option-list Warning] Fallback text:`, errorText);
+            return sendZapiWithMentions({
+                target: params.target,
+                message: `${params.message}\n\n${params.options.map((o, idx) => `${idx + 1} - ${o.title}`).join("\n")}`
+            });
+        }
+
+        const data = await res.json();
+        return { success: true, zapiId: data.messageId || data.id || data.zaapId };
+    } catch (err: any) {
+        console.error("[sendZapiOptionList] Erro:", err);
+        return { success: false, error: err.message };
+    }
+}
+
+/**
+ * ETAPA 1: Dispara o alerta inicial no WhatsApp com 2 BOTÕES CLICÁVEIS:
+ * [✅ Ajustar Ponto] | [❌ Confirmar Falta]
  */
 export async function sendPunchAdjustmentWhatsAppAlert(
     adjustmentId: string,
@@ -85,7 +191,7 @@ export async function sendPunchAdjustmentWhatsAppAlert(
 
         const targetGroup = targetGroupOverride || adj.whatsappGroupId || DEFAULT_OPERATIONS_GROUP;
 
-        // 1. Identificar o gestor da conta e preparar menção
+        // Identificar o gestor da conta e preparar menção
         const manager = adj.client?.accountManager;
         let mentionTag = "";
         let mentionedPhones: string[] = [];
@@ -97,18 +203,6 @@ export async function sendPunchAdjustmentWhatsAppAlert(
             mentionTag = `@${fullPhone}`;
         }
 
-        // 2. Buscar lista de justificativas ativas
-        const justifications = await prisma.secullumJustification.findMany({
-            where: { isActive: true },
-            orderBy: { descricao: "asc" }
-        });
-
-        // Montar menu numerado das justificativas
-        const justListText = justifications.length > 0
-            ? justifications.map((j, idx) => `  *${idx + 1}* - ${j.descricao}`).join("\n")
-            : "  *1* - SEM REGISTRO DE PONTO (Esquecimento)\n  *2* - PROBLEMA TÉCNICO NO RELÓGIO";
-
-        // Formatar tipo da batida
         const tipoMap: Record<string, string> = {
             "ENTRADA_1": "Entrada 1",
             "SAIDA_1": "Saída Almoço",
@@ -118,22 +212,26 @@ export async function sendPunchAdjustmentWhatsAppAlert(
         const tipoText = tipoMap[adj.punchType] || adj.punchType;
         const dataFormatada = adj.date.toLocaleDateString("pt-BR");
 
-        // 3. Montar texto da mensagem
+        // Texto limpo e direto (sem a lista de 24 motivos poluindo a tela)
         const headerAlert = `🚨 *INCONSISTÊNCIA DE PONTO — #${adj.code}*`;
         const colabInfo = `👤 *Colaborador:* ${adj.employee.name}\n🏢 *Contrato:* ${adj.client?.name || "Geral"}\n📍 *Posto:* ${adj.posto?.role?.name || "Não informado"}\n📅 *Data:* ${dataFormatada} | *Marcação:* ${tipoText}\n⏰ *Horário Previsto:* ${adj.expectedTime}`;
 
         const managerCallout = mentionTag
-            ? `\n👉 Atenção ${mentionTag} (Gestor do Contrato): favor definir a tratativa:`
-            : `\n👉 Líderes da operação, favor definir a tratativa:`;
+            ? `\n👉 Atenção ${mentionTag} (Gestor do Contrato):`
+            : `\n👉 Líderes da operação:`;
 
-        const actionInstructions = `\n📋 *Motivos disponíveis no Secullum:*\n${justListText}\n\n━━━━━━━━━━━━━━━━━━━━\n👉 *Para ajustar horário padrão (${adj.expectedTime}):*\nResponda: *#${adj.code} [número]* (ex: *#${adj.code} 1*)\n\n👉 *Se o colaborador faltou:*\nResponda: *#${adj.code} falta*`;
+        const instructionText = `\n_Clique em um dos botões abaixo para definir a tratativa:_`;
 
-        const fullMessage = `${headerAlert}\n\n${colabInfo}${managerCallout}\n${actionInstructions}`;
+        const fullMessage = `${headerAlert}\n\n${colabInfo}${managerCallout}${instructionText}`;
 
-        const sendRes = await sendZapiWithMentions({
+        // Dispara com BOTÕES CLICÁVEIS
+        const sendRes = await sendZapiButtonList({
             target: targetGroup,
             message: fullMessage,
-            mentionedPhones
+            buttons: [
+                { id: `#${adj.code}_ajustar`, label: "✅ Ajustar Ponto" },
+                { id: `#${adj.code}_falta`, label: "❌ Confirmar Falta" }
+            ]
         });
 
         if (sendRes.success) {
@@ -155,11 +253,50 @@ export async function sendPunchAdjustmentWhatsAppAlert(
 }
 
 /**
- * Analisa uma mensagem de WhatsApp recebida para verificar se é uma resposta a um alerta de ajuste
- * Formatos suportados:
- * - `#AJ1042 1` (Ajustar com motivo índice 1)
- * - `#AJ1042 21` (Ajustar com código oficial)
- * - `#AJ1042 falta` (Marcar falta confirmada)
+ * ETAPA 2: Dispara o MENU CLICÁVEL de Motivos do Secullum
+ * (Acionado quando o gestor clica no botão "✅ Ajustar Ponto")
+ */
+export async function sendReasonsOptionList(params: {
+    code: string;
+    groupPhone: string;
+    employeeName: string;
+    expectedTime: string;
+}) {
+    const rawJusts = await prisma.secullumJustification.findMany({
+        where: { isActive: true },
+        orderBy: { descricao: "asc" }
+    });
+
+    // Ordenar para garantir os motivos operacionais mais usados no topo (máximo 10 no menu WhatsApp)
+    const priorityKeywords = ["REGISTRO", "ESQUECIMENTO", "RELÓGIO", "REP", "TROCA", "DECLAR", "INTEGR", "VIAGEM", "FOLGA", "ABONO"];
+    const sortedJusts = [...rawJusts].sort((a, b) => {
+        const aDesc = a.descricao.toUpperCase();
+        const bDesc = b.descricao.toUpperCase();
+        const aPri = priorityKeywords.findIndex(k => aDesc.includes(k));
+        const bPri = priorityKeywords.findIndex(k => bDesc.includes(k));
+        if (aPri !== -1 && bPri === -1) return -1;
+        if (bPri !== -1 && aPri === -1) return 1;
+        if (aPri !== -1 && bPri !== -1) return aPri - bPri;
+        return aDesc.localeCompare(bDesc);
+    });
+
+    const topOptions = sortedJusts.slice(0, 10).map(j => ({
+        id: `#${params.code}_MOT_${j.id}`,
+        title: j.descricao.slice(0, 24),
+        description: `Motivo Secullum (${j.codigo || "Oficial"})`
+    }));
+
+    return sendZapiOptionList({
+        target: params.groupPhone,
+        message: `📋 *Ajuste #${params.code} — Horário: ${params.expectedTime}*\n_Colaborador: ${params.employeeName}_\n\nToque no botão abaixo para escolher o motivo oficial do ponto:`,
+        title: "Motivos de Ponto Secullum",
+        buttonLabel: "Escolher Motivo 👇",
+        options: topOptions
+    });
+}
+
+/**
+ * PARSER DO WEBHOOK: Processa cliques nos Botões e seleções no Menu de Opções
  */
 export async function tryParsePunchAdjustmentReply(params: {
     messageText: string;
@@ -168,21 +305,30 @@ export async function tryParsePunchAdjustmentReply(params: {
     groupPhone?: string;
 }): Promise<{ handled: boolean; replyText?: string }> {
     const text = (params.messageText || "").trim();
-    if (!text.includes("#AJ") && !text.includes("#aj")) {
+
+    // 1. Verificar se a mensagem contém referência ao código #AJ...
+    const codeMatch = text.match(/#(AJ\d+(?:_\d+)?)/i);
+    if (!codeMatch) {
         return { handled: false };
     }
 
-    // Regex para capturar: #AJ1042 [comando/número]
-    const match = text.match(/#(AJ\d+(?:_\d+)?)\s*(.*)/i);
-    if (!match) {
+    const code = codeMatch[1].toUpperCase();
+
+    // Buscar o registro no banco
+    const adjustment = await prisma.attendancePunchAdjustment.findUnique({
+        where: { code },
+        include: {
+            employee: true,
+            client: { include: { accountManager: true } }
+        }
+    });
+
+    if (!adjustment) {
         return { handled: false };
     }
 
-    const code = match[1].toUpperCase();
-    const rawArg = match[2].trim().toLowerCase();
-
-    // 1. Caso de Falta
-    if (rawArg === "falta" || rawArg === "ausente" || rawArg === "faltou") {
+    // A. CLIQUE NO BOTÃO: "Confirmar Falta" (#AJ1001_falta ou texto "Confirmar Falta")
+    if (text.includes("_falta") || text.toLowerCase().includes("confirmar falta") || text.toLowerCase().includes("falta")) {
         const res = await processManagerWhatsAppResponse({
             code,
             senderPhone: params.senderPhone,
@@ -190,78 +336,73 @@ export async function tryParsePunchAdjustmentReply(params: {
             action: "FALTA"
         });
 
-        if (!res.success) {
-            return {
-                handled: true,
-                replyText: `❌ Não foi possível registrar a falta para #${code}: ${res.message}`
-            };
-        }
+        const cleanSender = params.senderPhone.replace(/\D/g, "");
+        const mentionTag = `@${cleanSender.startsWith("55") ? cleanSender : `55${cleanSender}`}`;
 
-        const empName = res.adjustment?.employeeId ? "o colaborador" : "o registro";
         return {
             handled: true,
-            replyText: `✅ *Falta confirmada para #${code}!* Registrado por ${params.senderName || "Líder"}.`
+            replyText: `❌ *Falta confirmada para #${code}!* (${adjustment.employee.name})\nRegistrado por: ${mentionTag}. O RH foi notificado.`
         };
     }
 
-    // 2. Caso de Ajuste com Motivo
-    // Se digitou número (ex: 1, 2, 3), mapear para o índice das justificativas
-    let selectedReasonName: string | undefined;
-    let selectedReasonCode: string | undefined;
-
-    const numIndex = parseInt(rawArg, 10);
-    if (!isNaN(numIndex) && numIndex > 0) {
-        const justs = await prisma.secullumJustification.findMany({
-            where: { isActive: true },
-            orderBy: { descricao: "asc" }
-        });
-        if (numIndex <= justs.length) {
-            const targetJust = justs[numIndex - 1];
-            selectedReasonName = targetJust.descricao;
-            selectedReasonCode = targetJust.codigo || targetJust.descricao;
+    // B. CLIQUE NO BOTÃO: "Ajustar Ponto" (#AJ1001_ajustar ou texto "Ajustar Ponto")
+    // Dispara a ETAPA 2: Menu Interativo de Motivos Clicável!
+    if (text.includes("_ajustar") || text.toLowerCase().includes("ajustar ponto") || text.toLowerCase().endsWith("ajustar")) {
+        if (params.groupPhone) {
+            await sendReasonsOptionList({
+                code,
+                groupPhone: params.groupPhone,
+                employeeName: adjustment.employee.name,
+                expectedTime: adjustment.expectedTime
+            });
         }
-    } else if (rawArg) {
-        // Digitou parte do nome (ex: #AJ1042 esquecimento)
-        const just = await prisma.secullumJustification.findFirst({
-            where: {
-                OR: [
-                    { descricao: { contains: rawArg, mode: "insensitive" } },
-                    { codigo: { contains: rawArg, mode: "insensitive" } }
-                ]
+        return {
+            handled: true,
+            replyText: undefined // A própria sendReasonsOptionList já enviou o menu interativo
+        };
+    }
+
+    // C. CLIQUE NO MENU DE MOTIVOS: (#AJ1001_MOT_uuid ou seleção de um motivo)
+    if (text.includes("_MOT_")) {
+        const motIdMatch = text.match(/_MOT_([a-zA-Z0-9_-]+)/);
+        const justificationId = motIdMatch ? motIdMatch[1] : undefined;
+
+        let selectedReasonName = "SEM REGISTRO DE PONTO";
+        let selectedReasonCode = "S/ REG.";
+
+        if (justificationId) {
+            const just = await prisma.secullumJustification.findUnique({
+                where: { id: justificationId }
+            });
+            if (just) {
+                selectedReasonName = just.descricao;
+                selectedReasonCode = just.codigo || just.descricao;
             }
-        });
-        if (just) {
-            selectedReasonName = just.descricao;
-            selectedReasonCode = just.codigo || just.descricao;
         }
-    }
 
-    const res = await processManagerWhatsAppResponse({
-        code,
-        senderPhone: params.senderPhone,
-        senderName: params.senderName,
-        action: "AJUSTAR",
-        reasonIdOrCode: selectedReasonCode || selectedReasonName || "S/ REG."
-    });
+        const res = await processManagerWhatsAppResponse({
+            code,
+            senderPhone: params.senderPhone,
+            senderName: params.senderName,
+            action: "AJUSTAR",
+            reasonIdOrCode: selectedReasonCode || selectedReasonName
+        });
 
-    if (!res.success) {
+        const cleanSender = params.senderPhone.replace(/\D/g, "");
+        const mentionTag = `@${cleanSender.startsWith("55") ? cleanSender : `55${cleanSender}`}`;
+
+        const replyMsg = `✅ *Ajuste #${code} Solicitado com Sucesso!*\n\n` +
+            `👤 *Colaborador:* ${adjustment.employee.name}\n` +
+            `⏰ *Horário:* ${adjustment.expectedTime}\n` +
+            `📋 *Motivo Selecionado:* ${selectedReasonName}\n` +
+            `Solicitado por: ${mentionTag}\n\n` +
+            `👉 *Enviado para auditoria e gravação no Secullum pelo RH.*`;
+
         return {
             handled: true,
-            replyText: `❌ Não foi possível processar o ajuste para #${code}: ${res.message}`
+            replyText: replyMsg
         };
     }
 
-    const cleanSender = params.senderPhone.replace(/\D/g, "");
-    const mentionTag = `@${cleanSender.startsWith("55") ? cleanSender : `55${cleanSender}`}`;
-
-    const replyMsg = `✅ *Solicitação de Ajuste #${code} Registrada!*\n` +
-        `👤 *Motivo:* ${selectedReasonName || "Sem Registro de Ponto"}\n` +
-        `⏰ *Horário:* ${res.adjustment?.requestedTime || "Escala Padrão"}\n` +
-        `Solicitado por: ${mentionTag}\n` +
-        `👉 Encaminhado para auditoria e injeção no Secullum pelo RH.`;
-
-    return {
-        handled: true,
-        replyText: replyMsg
-    };
+    return { handled: false };
 }

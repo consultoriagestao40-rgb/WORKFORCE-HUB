@@ -449,6 +449,21 @@ function parseMessageBody(body: any) {
     else if (body.message?.listResponseMessage?.title) content = body.message.listResponseMessage.title;
     else if (body.message?.templateButtonReplyMessage?.selectedDisplayText) content = body.message.templateButtonReplyMessage.selectedDisplayText;
 
+    // Capturar ID do botão ou item da lista clicado (ex: #AJ1001_ajustar ou #AJ1001_MOT_xxx)
+    const buttonOrRowId = body.buttonId || 
+        body.buttonsResponseMessage?.buttonId || 
+        body.buttonsResponseMessage?.selectedButtonId || 
+        body.message?.buttonsResponseMessage?.selectedButtonId ||
+        body.listResponseMessage?.singleSelectReply?.selectedRowId ||
+        body.listResponseMessage?.selectedRowId ||
+        body.message?.listResponseMessage?.singleSelectReply?.selectedRowId ||
+        body.listResponse?.id ||
+        body.selectedRowId;
+
+    if (buttonOrRowId && typeof buttonOrRowId === "string") {
+        content = `${buttonOrRowId} ${content}`.trim();
+    }
+
     // 2. Tratar Notificações de Grupo (Entrou, Saiu, Removido, Convidado, etc.)
     const eventType = body.type || body.event || body.notificationType || "";
     const action = body.action || body.subType || "";
