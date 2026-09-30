@@ -36,7 +36,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Combobox } from "@/components/ui/combobox";
 import { toast } from "sonner";
 import { getPayrollPreview, PayrollPreviewItem, updateMonthlyDeductions, InstallmentPlan } from "@/actions/payroll";
-import { syncSecullumOccurrences } from "@/actions/secullum";
+import { syncSecullumOccurrences, syncSingleEmployeeSecullumOccurrences } from "@/actions/secullum";
 import * as XLSX from "xlsx";
 import Link from "next/link";
 import { ClipboardCheck } from "lucide-react";
@@ -311,6 +311,7 @@ export default function PayrollPreviewPage() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [isSyncingSecullum, setIsSyncingSecullum] = useState(false);
+    const [syncingEmployeeId, setSyncingEmployeeId] = useState<string | null>(null);
     const [items, setItems] = useState<PayrollPreviewItem[]>([]);
     const [sortField, setSortField] = useState<'none' | 'name' | 'company' | 'baseSalary' | 'insalubridade' | 'periculosidade' | 'gratificacao' | 'outrosAdicionais' | 'horasExtras' | 'adicionalNoturno' | 'salarioFamilia' | 'absenteismoAward' | 'ajudaCusto' | 'totalGrossSalary' | 'faltas' | 'atestados' | 'dsr' | 'descFaltas' | 'descDsr' | 'descAtrasos' | 'descVt' | 'descVa' | 'diversosDescontos' | 'emprestimos' | 'convenios' | 'sindicato' | 'inss' | 'irrf' | 'netSalary'>('none');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -405,6 +406,28 @@ export default function PayrollPreviewPage() {
             toast.error(err.message || "Erro ao sincronizar com o Secullum.");
         } finally {
             setIsSyncingSecullum(false);
+        }
+    };
+
+    const handleSyncSingleEmployee = async (item: PayrollPreviewItem) => {
+        if (syncingEmployeeId) return;
+        setSyncingEmployeeId(item.employeeId);
+        try {
+            const res = await syncSingleEmployeeSecullumOccurrences(item.employeeId, selectedYear, selectedMonth);
+            if (res.success) {
+                toast.success(res.message || `Ponto de ${item.employeeName} sincronizado com sucesso!`);
+                if (res.updatedItem) {
+                    setItems(prev => prev.map(it => it.employeeId === item.employeeId ? res.updatedItem! : it));
+                } else {
+                    loadData();
+                }
+            } else {
+                toast.error(res.message || "Erro ao sincronizar ponto do colaborador.");
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Erro inesperado ao sincronizar com o Secullum.");
+        } finally {
+            setSyncingEmployeeId(null);
         }
     };
 
@@ -1511,6 +1534,19 @@ export default function PayrollPreviewPage() {
                                                         </span>
                                                     )}
                                                     <button 
+                                                        onClick={() => handleSyncSingleEmployee(item)}
+                                                        disabled={syncingEmployeeId === item.employeeId}
+                                                        className={cn(
+                                                            "text-slate-400 hover:text-indigo-650 hover:bg-indigo-50 p-1 rounded-md transition-all cursor-pointer",
+                                                            syncingEmployeeId === item.employeeId 
+                                                                ? "opacity-100 text-indigo-600 bg-indigo-50" 
+                                                                : "opacity-60 group-hover:opacity-100 hover:opacity-100"
+                                                        )}
+                                                        title={`Sincronizar ponto/faltas de ${item.employeeName} com o Secullum`}
+                                                    >
+                                                        <RefreshCw className={cn("w-3 h-3", syncingEmployeeId === item.employeeId && "animate-spin text-indigo-600")} />
+                                                    </button>
+                                                    <button 
                                                         onClick={() => handleOpenEditDeductions(item)}
                                                         className="text-slate-400 hover:text-slate-800 hover:bg-slate-100 p-0.5 rounded transition-all cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100"
                                                         title="Lançar Empréstimo / Descontos / Observações"
@@ -1750,8 +1786,19 @@ export default function PayrollPreviewPage() {
                                                                 </div>
                                                             ))}
                                                         </div>
-                                                        <div className="text-[9px] text-slate-500 italic pt-1 border-t leading-normal">
-                                                            Fórmula CLT: (Salário Base + Adicionais Fixos) / 30 por falta injustificada.
+                                                        <div className="pt-2 border-t flex items-center justify-between gap-2">
+                                                            <span className="text-[9px] text-slate-500 italic leading-normal">
+                                                                Fórmula CLT: (Salário + Adicionais) / 30
+                                                            </span>
+                                                            <button
+                                                                onClick={() => handleSyncSingleEmployee(item)}
+                                                                disabled={syncingEmployeeId === item.employeeId}
+                                                                className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors cursor-pointer disabled:opacity-50"
+                                                                title="Atualizar faltas diretamente do Secullum"
+                                                            >
+                                                                <RefreshCw className={cn("w-2.5 h-2.5", syncingEmployeeId === item.employeeId && "animate-spin")} />
+                                                                <span>{syncingEmployeeId === item.employeeId ? "Sincronizando..." : "Sinc Ponto"}</span>
+                                                            </button>
                                                         </div>
                                                     </PopoverContent>
                                                 </Popover>
@@ -2276,6 +2323,19 @@ export default function PayrollPreviewPage() {
                                                                                     <div>
                                                                                         <div className="flex items-center gap-1.5">
                                                                                             <span className="font-bold text-slate-850">{sub.employeeName}</span>
+                                                                                            <button 
+                                                                                                onClick={() => handleSyncSingleEmployee(sub)}
+                                                                                                disabled={syncingEmployeeId === sub.employeeId}
+                                                                                                className={cn(
+                                                                                                    "text-slate-400 hover:text-indigo-650 hover:bg-indigo-50 p-1 rounded-md transition-all cursor-pointer",
+                                                                                                    syncingEmployeeId === sub.employeeId 
+                                                                                                        ? "opacity-100 text-indigo-600 bg-indigo-50" 
+                                                                                                        : "opacity-60 group-hover:opacity-100 hover:opacity-100"
+                                                                                                )}
+                                                                                                title={`Sincronizar ponto/faltas de ${sub.employeeName} com o Secullum`}
+                                                                                            >
+                                                                                                <RefreshCw className={cn("w-3 h-3", syncingEmployeeId === sub.employeeId && "animate-spin text-indigo-600")} />
+                                                                                            </button>
                                                                                             <button 
                                                                                                 onClick={() => handleOpenEditDeductions(sub)}
                                                                                                 className="text-slate-400 hover:text-slate-800 hover:bg-slate-100 p-0.5 rounded transition-all cursor-pointer"

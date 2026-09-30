@@ -107,7 +107,7 @@ function getUniqueWeeksCount(dates: Date[]): number {
     return uniqueWeeks.size;
 }
 
-export async function getPayrollPreview(year: number, month: number) {
+export async function getPayrollPreview(year: number, month: number, targetEmployeeId?: string) {
     const user = await getCurrentUser();
     if (!user) return { items: [], currentUserId: null };
 
@@ -121,22 +121,27 @@ export async function getPayrollPreview(year: number, month: number) {
     const windowStart = new Date(startYear, startMonth - 1, 26, 0, 0, 0, 0);
     const windowEnd = new Date(year, month - 1, 25, 23, 59, 59, 999);
 
+    const whereEmployees: any = {
+        status: "Ativo",
+        situation: {
+            name: { notIn: ["Desligado", "Demitido"] }
+        },
+        assignments: {
+            some: { endDate: null }
+        },
+        // Do NOT include employees admitted after the cutoff date (25th of the month)
+        // They will be computed in the next month's payroll window (26th to 25th)
+        admissionDate: {
+            lte: windowEnd
+        }
+    };
+    if (targetEmployeeId) {
+        whereEmployees.id = targetEmployeeId;
+    }
+
     // Fetch active employees
     const employees = await prisma.employee.findMany({
-        where: {
-            status: "Ativo",
-            situation: {
-                name: { notIn: ["Desligado", "Demitido"] }
-            },
-            assignments: {
-                some: { endDate: null }
-            },
-            // Do NOT include employees admitted after the cutoff date (25th of the month)
-            // They will be computed in the next month's payroll window (26th to 25th)
-            admissionDate: {
-                lte: windowEnd
-            }
-        },
+        where: whereEmployees,
         include: {
             company: true,
             role: true,
@@ -170,11 +175,15 @@ export async function getPayrollPreview(year: number, month: number) {
     // Fetch quarterly occurrences for absenteismo evaluation (last 3 months)
     const quarterlyStart = new Date(year, month - 3, 26, 0, 0, 0, 0);
     const quarterlyEnd = new Date(year, month - 1, 25, 23, 59, 59, 999);
+    const quarterlyWhere: any = {
+        date: { gte: quarterlyStart, lte: quarterlyEnd },
+        type: { in: ["FALTA", "FALTA_INJUSTIFICADA", "ATESTADO"] }
+    };
+    if (targetEmployeeId) {
+        quarterlyWhere.employeeId = targetEmployeeId;
+    }
     const quarterlyOccurrences = await prisma.occurrence.findMany({
-        where: {
-            date: { gte: quarterlyStart, lte: quarterlyEnd },
-            type: { in: ["FALTA", "FALTA_INJUSTIFICADA", "ATESTADO"] }
-        },
+        where: quarterlyWhere,
         select: { employeeId: true }
     });
     const quarterlyFailsSet = new Set(quarterlyOccurrences.map(o => o.employeeId).filter(Boolean) as string[]);

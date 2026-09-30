@@ -6,6 +6,20 @@ import { revalidatePath } from "next/cache";
 import { getBenefitsConfig } from "@/actions/benefits";
 import { SecullumApiClient } from "@/lib/secullum";
 import { generateRoster } from "@/lib/scheduling";
+import { getPayrollPreview } from "@/actions/payroll";
+
+// Helper: Parse HH:MM to decimal hours (supports negative strings like -08:00)
+function parseTimeToHours(timeStr: string): number {
+    if (!timeStr) return 0;
+    const isNegative = timeStr.startsWith("-");
+    const cleanStr = isNegative ? timeStr.substring(1) : timeStr;
+    const parts = cleanStr.split(":");
+    if (parts.length < 2) return 0;
+    const hours = parseInt(parts[0], 10) || 0;
+    const minutes = parseInt(parts[1], 10) || 0;
+    const decimal = hours + (minutes / 60);
+    return isNegative ? -decimal : decimal;
+}
 
 // Helper: Format Date to YYYY-MM-DD
 function formatDateToISO(date: Date): string {
@@ -517,6 +531,21 @@ export async function syncSecullumOccurrences(year: number, month: number, compa
                                 adicionalNoturnoHours: notHours
                             }
                         });
+                    } else {
+                        // Reset previously stored hours if point was corrected to zero
+                        await prisma.employeeMonthlyCalculus.updateMany({
+                            where: {
+                                employeeId: emp.id,
+                                year,
+                                month
+                            },
+                            data: {
+                                atrasosHours: 0,
+                                extras50Hours: 0,
+                                extras100Hours: 0,
+                                adicionalNoturnoHours: 0
+                            }
+                        });
                     }
                 } catch (calcErr) {
                     // Suppress individual point API errors
@@ -551,3 +580,329 @@ export async function syncSecullumOccurrences(year: number, month: number, compa
         };
     }
 }
+
+// 3. Sincronização Individual por Colaborador
+export async function syncSingleEmployeeSecullumOccurrences(employeeId: string, year: number, month: number) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado.");
+
+    const config = await getBenefitsConfig();
+    if (!config.secullumApiToken) {
+        return {
+            success: false,
+            message: "Por favor, configure as credenciais do Secullum nas Configurações antes de sincronizar."
+        };
+    }
+
+    const emp = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        include: {
+            company: true,
+            assignments: {
+                where: { endDate: null },
+                include: { posto: true }
+            }
+        }
+    });
+
+    if (!emp) {
+        return { success: false, message: "Colaborador não encontrado." };
+    }
+
+    const bankId = config.secullumCompanyId || "85740";
+    let apiUrl = config.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br";
+    if (apiUrl.includes("pontoweb.secullum.com.br") && !apiUrl.includes("pontowebintegracaoexterna")) {
+        apiUrl = "https://pontowebintegracaoexterna.secullum.com.br";
+    }
+
+    // Janela de apuração (26 do mês anterior a 25 do mês corrente)
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const prevYear = month === 1 ? year - 1 : year;
+    const startDate = new Date(prevYear, prevMonth - 1, config.payrollCutoffStartDay || 26);
+    const endDate = new Date(year, month - 1, config.payrollCutoffEndDay || 25);
+    const windowStart = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0, 0);
+    const windowEnd = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999);
+
+    const startDateStr = formatDateToISO(startDate);
+    const endDateStr = formatDateToISO(endDate);
+
+    try {
+        const client = new SecullumApiClient(config.secullumApiToken, bankId, apiUrl);
+
+        // 1. Obter colaboradores do Secullum para localizar por CPF ou Nome
+        const secullumEmployees = await client.getFuncionarios();
+        const cleanTargetCpf = cleanCpfStr(emp.cpf);
+
+        let secEmp = secullumEmployees.find(se => se.Cpf && cleanCpfStr(se.Cpf) === cleanTargetCpf);
+        if (!secEmp && emp.name) {
+            const matchedId = matchEmployeeByName(emp.name, secullumEmployees.map(se => ({ 
+                id: se.Id?.toString() || se.NumeroFolha || se.Nome, 
+                name: se.Nome 
+            })));
+            if (matchedId) {
+                secEmp = secullumEmployees.find(se => (se.Id?.toString() || se.NumeroFolha || se.Nome) === matchedId);
+            }
+        }
+
+        const secFolha = secEmp?.NumeroFolha?.trim();
+        const secCpf = secEmp?.Cpf ? cleanCpfStr(secEmp.Cpf) : cleanTargetCpf;
+
+        // 2. Buscar batidas e afastamentos do Secullum no período
+        const [batidas, afastamentos] = await Promise.all([
+            client.getBatidas(startDateStr, endDateStr),
+            client.getAfastamentos(startDateStr, endDateStr)
+        ]);
+
+        // Filtrar batidas e afastamentos apenas deste colaborador
+        const empBatidas = batidas.filter(b => {
+            const bFolha = b.Funcionario?.NumeroFolha?.trim();
+            if (secFolha && bFolha && bFolha === secFolha) return true;
+            if (b.Funcionario?.Nome && emp.name) {
+                const bCleanName = b.Funcionario.Nome.trim().toUpperCase();
+                const empCleanName = emp.name.trim().toUpperCase();
+                if (bCleanName === empCleanName) return true;
+            }
+            return false;
+        });
+
+        const empAfastamentos = afastamentos.filter(af => {
+            const afCpf = cleanCpfStr(af.Cpf);
+            if (secCpf && afCpf && afCpf === secCpf) return true;
+            if (cleanTargetCpf && afCpf && afCpf === cleanTargetCpf) return true;
+            return false;
+        });
+
+        // 3. Mapear ocorrências legítimas que existem no Secullum para o colaborador
+        // Chave: 'YYYY-MM-DD'
+        const validOccurrencesMap = new Map<string, {
+            type: string;
+            title: string;
+            description: string;
+            date: Date;
+        }>();
+
+        // Processar Afastamentos
+        for (const af of empAfastamentos) {
+            const startAfDate = af.Inicio ? parseLocalDate(af.Inicio) : null;
+            const endAfDate = af.Fim ? parseLocalDate(af.Fim) : null;
+            if (!startAfDate) continue;
+            const finalEndAfDate = endAfDate || startAfDate;
+
+            const datesInRange = getDatesInRange(startAfDate, finalEndAfDate);
+            const validDates = datesInRange.filter(d => d >= startDate && d <= endDate);
+
+            let type = "FALTA";
+            const desc = (af.JustificativaNome || af.Motivo || "").toLowerCase();
+            if (desc.includes("atestado") || desc.includes("médico") || desc.includes("medico")) {
+                type = "ATESTADO";
+            } else if (desc.includes("férias") || desc.includes("ferias")) {
+                type = "FERIAS";
+            } else if (desc.includes("licença") || desc.includes("licenca")) {
+                type = "LICENCA";
+            } else {
+                type = "AFASTAMENTO";
+            }
+
+            for (const d of validDates) {
+                const dateKey = formatDateToISO(d);
+                validOccurrencesMap.set(dateKey, {
+                    type,
+                    title: `Secullum (Afastamento): ${af.JustificativaNome || af.Motivo || 'Afastamento'}`,
+                    description: `Importado automaticamente da API Secullum Ponto Web.`,
+                    date: d
+                });
+            }
+        }
+
+        // Processar Batidas
+        const activeAssignment = emp.assignments?.[0];
+        const posto = activeAssignment?.posto;
+
+        for (const b of empBatidas) {
+            const occDate = b.Data ? parseLocalDate(b.Data) : new Date();
+            const dateKey = formatDateToISO(occDate);
+
+            // Escala local para checar folga
+            let isLocalFolga = false;
+            if (posto && posto.schedule) {
+                const pivotDate = activeAssignment.startDate || emp.admissionDate || new Date();
+                const roster = generateRoster(posto.schedule, pivotDate, [occDate]);
+                if (roster.length > 0 && roster[0].status === "Folga") {
+                    isLocalFolga = true;
+                }
+            }
+
+            const rawObs = (b.Observacoes || "").toLowerCase();
+            const rawEntrada = (b.Entrada1 || "").toLowerCase();
+            const isAtestado = /at\.?\s*med/i.test(rawEntrada) || /at\.?\s*med/i.test(rawObs) ||
+                               rawEntrada.includes("atestado") || rawEntrada.includes("medico") || rawEntrada.includes("médico") || rawEntrada.includes("atest") ||
+                               rawObs.includes("atestado") || rawObs.includes("medico") || rawObs.includes("médico") || rawObs.includes("atest");
+            const hasNoPunches = !b.Entrada1 && !b.Saida1 && !b.Entrada2 && !b.Saida2;
+            const isWorkday = b.Folga === false;
+            const isFalta = !isLocalFolga && (rawEntrada.includes("falta") || rawObs.includes("falta") || (hasNoPunches && isWorkday && !isAtestado));
+
+            if (isAtestado) {
+                validOccurrencesMap.set(dateKey, {
+                    type: "ATESTADO",
+                    title: `Secullum (Atestado): ${b.Observacoes || "Atestado Médico registrado"}`,
+                    description: `Importada automaticamente das batidas do Secullum Ponto Web.`,
+                    date: occDate
+                });
+            } else if (isFalta) {
+                validOccurrencesMap.set(dateKey, {
+                    type: "FALTA",
+                    title: "Secullum (Falta): Falta registrada",
+                    description: `Importada automaticamente das batidas do Secullum Ponto Web. Obs: ${b.Observacoes || 'Nenhuma'}`,
+                    date: occDate
+                });
+            } else {
+                // Dia sem falta (com batidas preenchidas ou abonado)
+                if (!isAtestado) {
+                    validOccurrencesMap.delete(dateKey);
+                }
+            }
+        }
+
+        // 4. Sincronizar com as ocorrências no banco de dados
+        const existingOccs = await prisma.occurrence.findMany({
+            where: {
+                employeeId: emp.id,
+                date: { gte: windowStart, lte: windowEnd }
+            }
+        });
+
+        const postoId = activeAssignment?.postoId || (await prisma.posto.findFirst())?.id;
+
+        for (const existing of existingOccs) {
+            const dateKey = formatDateToISO(existing.date);
+            const valid = validOccurrencesMap.get(dateKey);
+
+            if (valid) {
+                // Atualiza se mudou o tipo ou o título
+                if (existing.type !== valid.type || existing.title !== valid.title) {
+                    await prisma.occurrence.update({
+                        where: { id: existing.id },
+                        data: {
+                            type: valid.type,
+                            title: valid.title,
+                            description: valid.description
+                        }
+                    });
+                }
+                validOccurrencesMap.delete(dateKey);
+            } else {
+                // Se a ocorrência no banco não consta mais como falta/atestado no Secullum, remove-a!
+                if (existing.title.includes("Secullum") || existing.type === "FALTA" || existing.type === "FALTA_INJUSTIFICADA" || existing.type === "ATESTADO") {
+                    await prisma.occurrence.delete({
+                        where: { id: existing.id }
+                    });
+                }
+            }
+        }
+
+        // Inserir as novas ocorrências válidas
+        for (const [_, occ] of validOccurrencesMap) {
+            if (postoId) {
+                await prisma.occurrence.create({
+                    data: {
+                        employeeId: emp.id,
+                        postoId,
+                        type: occ.type,
+                        date: occ.date,
+                        title: occ.title,
+                        description: occ.description
+                    }
+                });
+            }
+        }
+
+        // 5. Cálculos do Secullum (Atrasos, Horas Extras, Adicional Noturno)
+        const calcCpf = secCpf || cleanTargetCpf;
+        if (calcCpf && calcCpf.length === 11) {
+            try {
+                const res = await client.getCalculos(calcCpf, startDateStr, endDateStr);
+                if (res && res.Colunas && res.Totais) {
+                    const cols = res.Colunas as string[];
+                    const totais = res.Totais as string[];
+                    const faltasIdx = cols.findIndex(c => /^Faltas?$/i.test(c));
+                    const atrasIdx = cols.findIndex(c => /^Atras\.?$/i.test(c) || /Atraso/i.test(c));
+                    const extrasIdx = cols.findIndex(c => /^Extras?$/i.test(c));
+                    let notIdx = cols.findIndex(c => /^Not\.?$/i.test(c));
+                    if (notIdx === -1) notIdx = cols.findIndex(c => /^Noturna/i.test(c) || /Adic\.?\s*Not/i.test(c));
+                    if (notIdx === -1) notIdx = cols.findIndex(c => /Not\.Tot/i.test(c));
+
+                    const faltasHours = faltasIdx !== -1 && faltasIdx < totais.length ? parseTimeToHours(totais[faltasIdx]) : 0;
+                    const atrasosVal = atrasIdx !== -1 && atrasIdx < totais.length ? parseTimeToHours(totais[atrasIdx]) : 0;
+                    const atrasosHours = Math.round((faltasHours + atrasosVal) * 100) / 100;
+                    const extras50Hours = extrasIdx !== -1 && extrasIdx < totais.length ? parseTimeToHours(totais[extrasIdx]) : 0;
+                    const notHours = notIdx !== -1 && notIdx < totais.length ? parseTimeToHours(totais[notIdx]) : 0;
+
+                    if (notHours > 0 || extras50Hours > 0 || atrasosHours > 0) {
+                        await prisma.employeeMonthlyCalculus.upsert({
+                            where: {
+                                employeeId_year_month: {
+                                    employeeId: emp.id,
+                                    year,
+                                    month
+                                }
+                            },
+                            update: {
+                                atrasosHours,
+                                extras50Hours,
+                                extras100Hours: 0,
+                                adicionalNoturnoHours: notHours
+                            },
+                            create: {
+                                employeeId: emp.id,
+                                year,
+                                month,
+                                atrasosHours,
+                                extras50Hours,
+                                extras100Hours: 0,
+                                adicionalNoturnoHours: notHours
+                            }
+                        });
+                    } else {
+                        // Reset para zero
+                        await prisma.employeeMonthlyCalculus.updateMany({
+                            where: {
+                                employeeId: emp.id,
+                                year,
+                                month
+                            },
+                            data: {
+                                atrasosHours: 0,
+                                extras50Hours: 0,
+                                extras100Hours: 0,
+                                adicionalNoturnoHours: 0
+                            }
+                        });
+                    }
+                }
+            } catch (err) {
+                // Silencioso se getCalculos falhar
+            }
+        }
+
+        // 6. Recalcular a prévia para este colaborador
+        const preview = await getPayrollPreview(year, month, emp.id);
+        const updatedItem = preview.items && preview.items.length > 0 ? preview.items[0] : null;
+
+        try {
+            revalidatePath("/admin/payroll-preview");
+        } catch (e) {}
+
+        return {
+            success: true,
+            message: `Ponto de ${emp.name} sincronizado com sucesso!`,
+            updatedItem
+        };
+
+    } catch (err: any) {
+        return {
+            success: false,
+            message: `Erro ao sincronizar ponto de ${emp.name}: ${err.message}`
+        };
+    }
+}
+
