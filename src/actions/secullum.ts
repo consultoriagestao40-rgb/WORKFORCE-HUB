@@ -331,15 +331,14 @@ export async function syncSecullumOccurrences(year: number, month: number, compa
                                rawObs.includes("atestado") || rawObs.includes("medico") || rawObs.includes("médico") || rawObs.includes("atest") ||
                                rawAjuste.includes("atestado") || rawAjuste.includes("medico") || rawAjuste.includes("médico") || rawAjuste.includes("atest");
             
-            // Only count as Lack (Falta) if explicitly marked OR if workday with NO real or memory punches and not compensated
+            // Only count as Lack (Falta) if explicitly marked OR if workday with NO real or memory punches
             const hasPunches = Boolean(
                 b.Entrada1 || b.Saida1 || b.Entrada2 || b.Saida2 || b.Entrada3 || b.Saida3 ||
-                b.MemoriaEntrada1 || b.MemoriaSaida1 || b.MemoriaEntrada2 || b.MemoriaSaida2 || b.MemoriaEntrada3 || b.MemoriaSaida3 ||
-                b.Compensado === true
+                b.MemoriaEntrada1 || b.MemoriaSaida1 || b.MemoriaEntrada2 || b.MemoriaSaida2 || b.MemoriaEntrada3 || b.MemoriaSaida3
             );
             const hasNoPunches = !hasPunches;
             const isWorkday = b.Folga === false;
-            const isFalta = !isLocalFolga && !b.Compensado && (rawEntrada.includes("falta") || rawObs.includes("falta") || rawAjuste.includes("falta") || (hasNoPunches && isWorkday && !isAtestado));
+            const isFalta = !isLocalFolga && (rawEntrada.includes("falta") || rawObs.includes("falta") || rawAjuste.includes("falta") || (hasNoPunches && isWorkday && !isAtestado));
             const startOfDay = new Date(occDate);
             startOfDay.setHours(0, 0, 0, 0);
             const endOfDay = new Date(occDate);
@@ -525,7 +524,72 @@ export async function syncSecullumOccurrences(year: number, month: number, compa
                                 
                                 const faltasHours = faltasIdx !== -1 && faltasIdx < totais.length ? parseTimeToHours(totais[faltasIdx]) : 0;
                                 const atrasosVal = atrasIdx !== -1 && atrasIdx < totais.length ? parseTimeToHours(totais[atrasIdx]) : 0;
-                                atrasosHours = Math.round((faltasHours + atrasosVal) * 100) / 100;
+                                
+                                let fullDayFaltaHoursTotal = 0;
+                                if (Array.isArray(res.Linhas)) {
+                                    const e1Idx = cols.findIndex(c => /^Entrada\s*1$/i.test(c));
+                                    const s1Idx = cols.findIndex(c => /^Sa[íi]da\s*1$/i.test(c));
+                                    const cargaIdx = cols.findIndex(c => /^Carga$/i.test(c));
+
+                                    for (const row of res.Linhas) {
+                                        if (!row.Key || !Array.isArray(row.Value)) continue;
+                                        const occDate = parseLocalDate(row.Key);
+
+                                        if (emp.admissionDate) {
+                                            const admStart = new Date(emp.admissionDate);
+                                            admStart.setHours(0, 0, 0, 0);
+                                            if (occDate < admStart) continue;
+                                        }
+
+                                        const e1Val = (e1Idx !== -1 && row.Value[e1Idx] ? String(row.Value[e1Idx]) : "").trim();
+                                        const s1Val = (s1Idx !== -1 && row.Value[s1Idx] ? String(row.Value[s1Idx]) : "").trim();
+                                        const fVal = (faltasIdx !== -1 && row.Value[faltasIdx] ? String(row.Value[faltasIdx]) : "").trim();
+                                        const cVal = (cargaIdx !== -1 && row.Value[cargaIdx] ? String(row.Value[cargaIdx]) : "").trim();
+
+                                        const isAtestadoCalc = /at\.?\s*med/i.test(e1Val) || /atestado/i.test(e1Val) || /médico/i.test(e1Val) || /medico/i.test(e1Val);
+                                        const isFaltaCalc = /falta/i.test(e1Val) || /falta/i.test(s1Val) || (fVal && cVal && fVal === cVal && !/folga/i.test(e1Val) && !isAtestadoCalc);
+
+                                        if (isFaltaCalc) {
+                                            const rowFaltaH = parseTimeToHours(fVal);
+                                            fullDayFaltaHoursTotal += rowFaltaH;
+
+                                            const startOfDay = new Date(occDate);
+                                            startOfDay.setHours(0, 0, 0, 0);
+                                            const endOfDay = new Date(occDate);
+                                            endOfDay.setHours(23, 59, 59, 999);
+
+                                            const existingOcc = await prisma.occurrence.findFirst({
+                                                where: {
+                                                    employeeId: emp.id,
+                                                    date: { gte: startOfDay, lte: endOfDay }
+                                                }
+                                            });
+
+                                            if (!existingOcc) {
+                                                const assignment = await prisma.assignment.findFirst({
+                                                    where: { employeeId: emp.id, endDate: null }
+                                                });
+                                                const postoId = assignment?.postoId || (await prisma.posto.findFirst())?.id;
+                                                if (postoId) {
+                                                    await prisma.occurrence.create({
+                                                        data: {
+                                                            employeeId: emp.id,
+                                                            postoId,
+                                                            type: "FALTA",
+                                                            date: occDate,
+                                                            title: "Secullum (Falta): Falta registrada",
+                                                            description: `Importada automaticamente do cálculo do Secullum Ponto Web. (Carga: ${cVal || fVal})`
+                                                        }
+                                                    });
+                                                    totalImported++;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                const netFaltasHours = Math.max(0, faltasHours - fullDayFaltaHoursTotal);
+                                atrasosHours = Math.round((netFaltasHours + atrasosVal) * 100) / 100;
                                 
                                 const extrasHours = extrasIdx !== -1 && extrasIdx < totais.length ? parseTimeToHours(totais[extrasIdx]) : 0;
                                 notHours = notIdx !== -1 && notIdx < totais.length ? parseTimeToHours(totais[notIdx]) : 0;
@@ -692,10 +756,12 @@ export async function syncSingleEmployeeSecullumOccurrences(employeeId: string, 
         const secPis = secEmp?.NumeroPis?.trim();
         const secCpf = secEmp?.Cpf ? cleanCpfStr(secEmp.Cpf) : cleanTargetCpf;
 
-        // 2. Buscar batidas e afastamentos do Secullum no período
-        const [batidas, afastamentos] = await Promise.all([
+        // 2. Buscar batidas, afastamentos e cálculos do Secullum no período
+        const calcCpf = secCpf || cleanTargetCpf;
+        const [batidas, afastamentos, calcRes] = await Promise.all([
             client.getBatidas(startDateStr, endDateStr),
-            client.getAfastamentos(startDateStr, endDateStr)
+            client.getAfastamentos(startDateStr, endDateStr),
+            calcCpf && calcCpf.length === 11 ? client.getCalculos(calcCpf, startDateStr, endDateStr).catch(() => null) : null
         ]);
 
         // Filtrar batidas e afastamentos apenas deste colaborador
@@ -793,12 +859,11 @@ export async function syncSingleEmployeeSecullumOccurrences(employeeId: string, 
 
             const hasPunches = Boolean(
                 b.Entrada1 || b.Saida1 || b.Entrada2 || b.Saida2 || b.Entrada3 || b.Saida3 ||
-                b.MemoriaEntrada1 || b.MemoriaSaida1 || b.MemoriaEntrada2 || b.MemoriaSaida2 || b.MemoriaEntrada3 || b.MemoriaSaida3 ||
-                b.Compensado === true
+                b.MemoriaEntrada1 || b.MemoriaSaida1 || b.MemoriaEntrada2 || b.MemoriaSaida2 || b.MemoriaEntrada3 || b.MemoriaSaida3
             );
             const hasNoPunches = !hasPunches;
             const isWorkday = b.Folga === false;
-            const isFalta = !isLocalFolga && !b.Compensado && (rawEntrada.includes("falta") || rawObs.includes("falta") || rawAjuste.includes("falta") || (hasNoPunches && isWorkday && !isAtestado));
+            const isFalta = !isLocalFolga && (rawEntrada.includes("falta") || rawObs.includes("falta") || rawAjuste.includes("falta") || (hasNoPunches && isWorkday && !isAtestado));
 
             if (isAtestado) {
                 validOccurrencesMap.set(dateKey, {
@@ -817,6 +882,60 @@ export async function syncSingleEmployeeSecullumOccurrences(employeeId: string, 
             } else {
                 // Dia sem falta (com batidas preenchidas ou abonado)
                 if (!isAtestado) {
+                    validOccurrencesMap.delete(dateKey);
+                }
+            }
+        }
+
+        // Processar Linhas dos Cálculos oficiais do Secullum (identifica faltas e atestados lançados na folha/cálculo)
+        let fullDayFaltaHoursTotal = 0;
+        if (calcRes && calcRes.Colunas && Array.isArray(calcRes.Linhas)) {
+            const cols = calcRes.Colunas as string[];
+            const e1Idx = cols.findIndex(c => /^Entrada\s*1$/i.test(c));
+            const s1Idx = cols.findIndex(c => /^Sa[íi]da\s*1$/i.test(c));
+            const faltasIdx = cols.findIndex(c => /^Faltas?$/i.test(c));
+            const cargaIdx = cols.findIndex(c => /^Carga$/i.test(c));
+
+            for (const row of calcRes.Linhas) {
+                if (!row.Key || !Array.isArray(row.Value)) continue;
+                const occDate = parseLocalDate(row.Key);
+                const dateKey = formatDateToISO(occDate);
+
+                // Não pode ser falta se a data for anterior à admissão do colaborador!
+                if (emp.admissionDate) {
+                    const admStart = new Date(emp.admissionDate);
+                    admStart.setHours(0, 0, 0, 0);
+                    if (occDate < admStart) continue;
+                }
+
+                const e1Val = (e1Idx !== -1 && row.Value[e1Idx] ? String(row.Value[e1Idx]) : "").trim();
+                const s1Val = (s1Idx !== -1 && row.Value[s1Idx] ? String(row.Value[s1Idx]) : "").trim();
+                const fVal = (faltasIdx !== -1 && row.Value[faltasIdx] ? String(row.Value[faltasIdx]) : "").trim();
+                const cVal = (cargaIdx !== -1 && row.Value[cargaIdx] ? String(row.Value[cargaIdx]) : "").trim();
+
+                const isAtestadoCalc = /at\.?\s*med/i.test(e1Val) || /atestado/i.test(e1Val) || /médico/i.test(e1Val) || /medico/i.test(e1Val);
+                const isFaltaCalc = /falta/i.test(e1Val) || /falta/i.test(s1Val) || (fVal && cVal && fVal === cVal && !/folga/i.test(e1Val) && !isAtestadoCalc);
+                const isFolgaCalc = /folga/i.test(e1Val);
+
+                if (isAtestadoCalc) {
+                    validOccurrencesMap.set(dateKey, {
+                        type: "ATESTADO",
+                        title: `Secullum (Atestado): Atestado Médico registrado`,
+                        description: `Importada automaticamente dos cálculos do Secullum Ponto Web.`,
+                        date: occDate
+                    });
+                } else if (isFaltaCalc) {
+                    const rowFaltaH = parseTimeToHours(fVal);
+                    fullDayFaltaHoursTotal += rowFaltaH;
+
+                    validOccurrencesMap.set(dateKey, {
+                        type: "FALTA",
+                        title: "Secullum (Falta): Falta registrada",
+                        description: `Importada automaticamente do cálculo do Secullum Ponto Web. (Carga: ${cVal || fVal})`,
+                        date: occDate
+                    });
+                } else if (isFolgaCalc) {
+                    // Se for folga declarada no cálculo oficial do Secullum, garante que não seja tratada como falta
                     validOccurrencesMap.delete(dateKey);
                 }
             }
@@ -882,70 +1001,69 @@ export async function syncSingleEmployeeSecullumOccurrences(employeeId: string, 
         }
 
         // 5. Cálculos do Secullum (Atrasos, Horas Extras, Adicional Noturno)
-        const calcCpf = secCpf || cleanTargetCpf;
-        if (calcCpf && calcCpf.length === 11) {
+        if (calcRes && calcRes.Colunas && calcRes.Totais) {
             try {
-                const res = await client.getCalculos(calcCpf, startDateStr, endDateStr);
-                if (res && res.Colunas && res.Totais) {
-                    const cols = res.Colunas as string[];
-                    const totais = res.Totais as string[];
-                    const faltasIdx = cols.findIndex(c => /^Faltas?$/i.test(c));
-                    const atrasIdx = cols.findIndex(c => /^Atras\.?$/i.test(c) || /Atraso/i.test(c));
-                    const extrasIdx = cols.findIndex(c => /^Extras?$/i.test(c));
-                    let notIdx = cols.findIndex(c => /^Not\.?$/i.test(c));
-                    if (notIdx === -1) notIdx = cols.findIndex(c => /^Noturna/i.test(c) || /Adic\.?\s*Not/i.test(c));
-                    if (notIdx === -1) notIdx = cols.findIndex(c => /Not\.Tot/i.test(c));
+                const cols = calcRes.Colunas as string[];
+                const totais = calcRes.Totais as string[];
+                const faltasIdx = cols.findIndex(c => /^Faltas?$/i.test(c));
+                const atrasIdx = cols.findIndex(c => /^Atras\.?$/i.test(c) || /Atraso/i.test(c));
+                const extrasIdx = cols.findIndex(c => /^Extras?$/i.test(c));
+                let notIdx = cols.findIndex(c => /^Not\.?$/i.test(c));
+                if (notIdx === -1) notIdx = cols.findIndex(c => /^Noturna/i.test(c) || /Adic\.?\s*Not/i.test(c));
+                if (notIdx === -1) notIdx = cols.findIndex(c => /Not\.Tot/i.test(c));
 
-                    const faltasHours = faltasIdx !== -1 && faltasIdx < totais.length ? parseTimeToHours(totais[faltasIdx]) : 0;
-                    const atrasosVal = atrasIdx !== -1 && atrasIdx < totais.length ? parseTimeToHours(totais[atrasIdx]) : 0;
-                    const atrasosHours = Math.round((faltasHours + atrasosVal) * 100) / 100;
-                    const extras50Hours = extrasIdx !== -1 && extrasIdx < totais.length ? parseTimeToHours(totais[extrasIdx]) : 0;
-                    const notHours = notIdx !== -1 && notIdx < totais.length ? parseTimeToHours(totais[notIdx]) : 0;
+                const totalFaltasHours = faltasIdx !== -1 && faltasIdx < totais.length ? parseTimeToHours(totais[faltasIdx]) : 0;
+                const atrasosVal = atrasIdx !== -1 && atrasIdx < totais.length ? parseTimeToHours(totais[atrasIdx]) : 0;
+                
+                // Subtrai as horas de falta integral do dia já contabilizadas como ocorrência FALTA
+                const netFaltasHours = Math.max(0, totalFaltasHours - fullDayFaltaHoursTotal);
+                const atrasosHours = Math.round((netFaltasHours + atrasosVal) * 100) / 100;
+                const extras50Hours = extrasIdx !== -1 && extrasIdx < totais.length ? parseTimeToHours(totais[extrasIdx]) : 0;
+                const notHours = notIdx !== -1 && notIdx < totais.length ? parseTimeToHours(totais[notIdx]) : 0;
 
-                    if (notHours > 0 || extras50Hours > 0 || atrasosHours > 0) {
-                        await prisma.employeeMonthlyCalculus.upsert({
-                            where: {
-                                employeeId_year_month: {
-                                    employeeId: emp.id,
-                                    year,
-                                    month
-                                }
-                            },
-                            update: {
-                                atrasosHours,
-                                extras50Hours,
-                                extras100Hours: 0,
-                                adicionalNoturnoHours: notHours
-                            },
-                            create: {
-                                employeeId: emp.id,
-                                year,
-                                month,
-                                atrasosHours,
-                                extras50Hours,
-                                extras100Hours: 0,
-                                adicionalNoturnoHours: notHours
-                            }
-                        });
-                    } else {
-                        // Reset para zero
-                        await prisma.employeeMonthlyCalculus.updateMany({
-                            where: {
+                if (notHours > 0 || extras50Hours > 0 || atrasosHours > 0) {
+                    await prisma.employeeMonthlyCalculus.upsert({
+                        where: {
+                            employeeId_year_month: {
                                 employeeId: emp.id,
                                 year,
                                 month
-                            },
-                            data: {
-                                atrasosHours: 0,
-                                extras50Hours: 0,
-                                extras100Hours: 0,
-                                adicionalNoturnoHours: 0
                             }
-                        });
-                    }
+                        },
+                        update: {
+                            atrasosHours,
+                            extras50Hours,
+                            extras100Hours: 0,
+                            adicionalNoturnoHours: notHours
+                        },
+                        create: {
+                            employeeId: emp.id,
+                            year,
+                            month,
+                            atrasosHours,
+                            extras50Hours,
+                            extras100Hours: 0,
+                            adicionalNoturnoHours: notHours
+                        }
+                    });
+                } else {
+                    // Reset para zero
+                    await prisma.employeeMonthlyCalculus.updateMany({
+                        where: {
+                            employeeId: emp.id,
+                            year,
+                            month
+                        },
+                        data: {
+                            atrasosHours: 0,
+                            extras50Hours: 0,
+                            extras100Hours: 0,
+                            adicionalNoturnoHours: 0
+                        }
+                    });
                 }
             } catch (err) {
-                // Silencioso se getCalculos falhar
+                // Silencioso se der erro no banco
             }
         }
 
