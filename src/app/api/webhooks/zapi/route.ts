@@ -126,8 +126,8 @@ export async function POST(req: Request) {
             const { messageType, content, mediaUrl, msgId } = parseMessageBody(body);
             const participantRaw = body.participantPhone || body.participant || body.author || body.senderPhone || body.phone || "";
             const participantPhone = participantRaw ? participantRaw.toString().replace(/\D/g, "").replace(/@.+$/, "") : "";
-            const participantName = body.senderName || body.pushName || "Líder";
-            const groupPhone = (body.phone || body.chatId || body.remoteJid || "").toString().replace(/@.+$/, "");
+            const rawGroup = (body.phone || body.chatId || body.remoteJid || "").toString();
+            const groupPhone = rawGroup.includes("@g.us") ? rawGroup : (rawGroup.includes("-group") ? rawGroup : (rawGroup.startsWith("120363") ? `${rawGroup}-group` : rawGroup));
 
             // 1. Interceptar Respostas de Ajuste de Ponto (#AJ...) em qualquer grupo operacional / de teste
             if (!isFromMe && content && (content.includes("#AJ") || content.includes("#aj"))) {
@@ -140,12 +140,14 @@ export async function POST(req: Request) {
                         groupPhone
                     });
 
-                    if (replyRes.handled && replyRes.replyText) {
-                        await sendZapiWithMentions({
-                            target: groupPhone,
-                            message: replyRes.replyText,
-                            mentionedPhones: participantPhone ? [participantPhone] : []
-                        });
+                    if (replyRes.handled) {
+                        if (replyRes.replyText) {
+                            await sendZapiWithMentions({
+                                target: groupPhone,
+                                message: replyRes.replyText,
+                                mentionedPhones: participantPhone ? [participantPhone] : []
+                            });
+                        }
                         console.log(`[Z-API] ✅ Resposta de ajuste processada no grupo ${groupPhone}: ${content}`);
                         return NextResponse.json({ status: "punch_adjustment_command_handled" });
                     }

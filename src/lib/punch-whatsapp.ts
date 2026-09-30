@@ -9,7 +9,14 @@ export const DEFAULT_OPERATIONS_GROUP = "120363425022319430";
 
 function normalizePhone(target: string): string {
     let finalPhone = target.trim();
-    if (!finalPhone.includes("@") && !finalPhone.includes("-group")) {
+    if (finalPhone.includes("@g.us") || finalPhone.includes("-group") || finalPhone.startsWith("120363")) {
+        // Garantir formato aceito pela Z-API para grupos
+        if (finalPhone.startsWith("120363") && !finalPhone.includes("@") && !finalPhone.includes("-group")) {
+            return `${finalPhone}-group`;
+        }
+        return finalPhone;
+    }
+    if (!finalPhone.includes("@")) {
         const clean = finalPhone.replace(/\D/g, "");
         finalPhone = clean.startsWith("55") ? clean : `55${clean}`;
     }
