@@ -17,9 +17,45 @@ import {
     Check,
     Zap,
     MessageSquare,
-    ExternalLink
+    ExternalLink,
+    Sparkles,
+    FileSpreadsheet,
+    ShieldAlert,
+    Filter
 } from "lucide-react";
 import { toast } from "sonner";
+import { format, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+    DialogDescription
+} from "@/components/ui/dialog";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+
 import {
     syncSecullumJustifications,
     checkPunchAgainstSecullum,
@@ -89,7 +125,7 @@ export default function PunchAdjustmentsClient({
 }: Props) {
     const [adjustments, setAdjustments] = useState<PunchAdjustmentItem[]>(initialAdjustments);
     const [justifications, setJustifications] = useState<JustificationItem[]>(initialJusts);
-    const [filterStatus, setFilterStatus] = useState<string>("ALL");
+    const [activeTab, setActiveTab] = useState<string>("ALL");
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [checkingId, setCheckingId] = useState<string | null>(null);
     const [approvingId, setApprovingId] = useState<string | null>(null);
@@ -104,7 +140,7 @@ export default function PunchAdjustmentsClient({
     const [testGroupTarget, setTestGroupTarget] = useState(defaultGroup);
     const [isSendingTest, setIsSendingTest] = useState(false);
 
-    // Estatísticas dos cards
+    // Estatísticas dos cards (Padrão Atestados)
     const stats = {
         total: adjustments.length,
         pendingResponse: adjustments.filter(a => a.status === "PENDING_RESPONSE").length,
@@ -222,10 +258,15 @@ export default function PunchAdjustmentsClient({
         }
     };
 
-    // Filtragem de lista
+    // Filtragem dos registros
     const filteredItems = adjustments.filter(item => {
-        if (filterStatus !== "ALL" && item.status !== filterStatus) return false;
-        if (searchTerm) {
+        if (activeTab === "PENDING_RESPONSE" && item.status !== "PENDING_RESPONSE") return false;
+        if (activeTab === "PENDING_AUDIT" && item.status !== "PENDING_AUDIT") return false;
+        if (activeTab === "APPROVED_SYNCED" && item.status !== "APPROVED_SYNCED") return false;
+        if (activeTab === "DISCARDED_OFFLINE_FOUND" && item.status !== "DISCARDED_OFFLINE_FOUND") return false;
+        if (activeTab === "CONFIRMED_ABSENCE" && item.status !== "CONFIRMED_ABSENCE") return false;
+
+        if (searchTerm.trim()) {
             const term = searchTerm.toLowerCase();
             const empName = item.employee?.name?.toLowerCase() || "";
             const clientName = item.client?.name?.toLowerCase() || "";
@@ -235,361 +276,574 @@ export default function PunchAdjustmentsClient({
         return true;
     });
 
+    const formatDataExibicao = (dateVal: any) => {
+        if (!dateVal) return "-";
+        try {
+            const d = typeof dateVal === "string" ? parseISO(dateVal) : new Date(dateVal);
+            return format(d, "dd/MM/yyyy", { locale: ptBR });
+        } catch {
+            return String(dateVal).split("T")[0];
+        }
+    };
+
     const getStatusBadge = (status: string) => {
         switch (status) {
             case "PENDING_RESPONSE":
-                return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20"><Clock className="w-3.5 h-3.5" /> Aguardando Gestor</span>;
+                return (
+                    <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 font-semibold gap-1.5 py-0.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                        Aguardando Gestor
+                    </Badge>
+                );
             case "PENDING_AUDIT":
-                return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"><Zap className="w-3.5 h-3.5" /> Pendente RH</span>;
+                return (
+                    <Badge variant="outline" className="bg-sky-50 text-sky-800 border-sky-300 font-bold gap-1.5 py-0.5 animate-pulse">
+                        <Zap className="w-3.5 h-3.5 text-sky-600" />
+                        Pendente RH (Pronto)
+                    </Badge>
+                );
             case "APPROVED_SYNCED":
-                return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><CheckCircle2 className="w-3.5 h-3.5" /> Sincronizado Secullum</span>;
+                return (
+                    <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300 font-bold gap-1.5 py-0.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        Lançado no Secullum
+                    </Badge>
+                );
             case "DISCARDED_OFFLINE_FOUND":
-                return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20"><RefreshCw className="w-3.5 h-3.5" /> Batida Offline Detectada</span>;
+                return (
+                    <Badge variant="outline" className="bg-purple-50 text-purple-800 border-purple-300 font-semibold gap-1.5 py-0.5">
+                        <RefreshCw className="w-3.5 h-3.5 text-purple-600" />
+                        Batida Offline Detectada
+                    </Badge>
+                );
             case "CONFIRMED_ABSENCE":
-                return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20"><XCircle className="w-3.5 h-3.5" /> Falta Confirmada</span>;
+                return (
+                    <Badge variant="outline" className="bg-rose-50 text-rose-800 border-rose-300 font-semibold gap-1.5 py-0.5">
+                        <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                        Falta Confirmada
+                    </Badge>
+                );
             default:
-                return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-slate-800 text-slate-400">{status}</span>;
+                return (
+                    <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-300">
+                        {status}
+                    </Badge>
+                );
         }
     };
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/60 p-6 rounded-2xl border border-slate-800 shadow-xl backdrop-blur-md">
+            {/* Header & Ações Rápidas (Exato Padrão Atestados) */}
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 pb-2 border-b border-slate-200">
                 <div>
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-cyan-400">
-                            <Clock className="w-6 h-6" />
+                    <div className="flex items-center gap-2 mb-1.5">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/80">
+                            <Sparkles className="w-3.5 h-3.5 text-sky-500" />
+                            Nexus Operacional + Secullum Ponto Web
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                            <MessageSquare className="w-3 h-3 text-emerald-600" />
+                            Grupo WhatsApp Conectado (@Menção do Gestor)
+                        </span>
+                    </div>
+                    <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">
+                        <Clock className="w-8 h-8 text-sky-600" />
+                        Automação de Ajuste de Batidas
+                    </h1>
+                    <p className="text-sm text-slate-500 font-medium mt-1">
+                        Inconsistências do Nexus tratadas via WhatsApp pelos líderes, auditadas com filtro de batida off-line e integradas ao Secullum.
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <Button
+                        variant="outline"
+                        onClick={handleSyncJusts}
+                        disabled={isSyncingJusts}
+                        className="bg-white border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl h-10 shadow-sm"
+                    >
+                        <RefreshCw className={`w-4 h-4 mr-2 ${isSyncingJusts ? "animate-spin text-sky-600" : "text-slate-500"}`} />
+                        <span>Sincronizar Motivos ({justifications.length})</span>
+                    </Button>
+
+                    <Button
+                        onClick={() => setIsTestModalOpen(true)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm rounded-xl px-4 h-10 flex items-center gap-2 transition-all duration-200 hover:shadow-md"
+                    >
+                        <Send className="w-4 h-4 text-indigo-200" />
+                        <span>Disparar Alerta de Teste (WhatsApp)</span>
+                    </Button>
+                </div>
+            </div>
+
+            {/* Cards de Métricas (Exato Padrão Atestados) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                {/* Aguardando Gestor */}
+                <div
+                    onClick={() => setActiveTab("PENDING_RESPONSE")}
+                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${
+                        activeTab === "PENDING_RESPONSE"
+                            ? "border-amber-400 ring-2 ring-amber-100 bg-amber-50/20"
+                            : "border-slate-200 hover:border-slate-300"
+                    }`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-amber-800">
+                            Aguardando Gestor (Zap)
+                        </span>
+                        <div className="p-2.5 bg-amber-100 text-amber-700 rounded-xl">
+                            <Clock className="w-5 h-5" />
                         </div>
-                        <div>
-                            <h1 className="text-2xl font-bold text-white tracking-tight">Automação de Ajuste de Batidas</h1>
-                            <p className="text-sm text-slate-400">
-                                Fluxo inteligente: Nexus ➔ WhatsApp do Gestor ➔ Auditoria RH com filtro off-line ➔ Secullum.
-                            </p>
-                        </div>
+                    </div>
+                    <div className="mt-3">
+                        <div className="text-3xl font-black text-slate-900">{stats.pendingResponse}</div>
+                        <p className="text-xs text-amber-700 font-medium mt-1">Aguardando resposta do líder</p>
                     </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                    <button
-                        onClick={handleSyncJusts}
-                        disabled={isSyncingJusts}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium border border-slate-700 transition"
-                    >
-                        <RefreshCw className={`w-4 h-4 ${isSyncingJusts ? "animate-spin" : ""}`} />
-                        Sincronizar Motivos ({justifications.length})
-                    </button>
+                {/* Pendente RH (Pronto) */}
+                <div
+                    onClick={() => setActiveTab("PENDING_AUDIT")}
+                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${
+                        activeTab === "PENDING_AUDIT"
+                            ? "border-sky-400 ring-2 ring-sky-100 bg-sky-50/20"
+                            : "border-slate-200 hover:border-slate-300"
+                    }`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-sky-800">
+                            Pendente RH (Pronto)
+                        </span>
+                        <div className="p-2.5 bg-sky-100 text-sky-700 rounded-xl">
+                            <Zap className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        <div className="text-3xl font-black text-slate-900">{stats.pendingAudit}</div>
+                        <p className="text-xs text-sky-700 font-medium mt-1">Solicitado pelo líder para conferência</p>
+                    </div>
+                </div>
 
-                    <button
-                        onClick={() => setIsTestModalOpen(true)}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white text-sm font-semibold shadow-lg shadow-cyan-500/20 transition"
-                    >
-                        <Send className="w-4 h-4" />
-                        Disparar Alerta de Teste (WhatsApp)
-                    </button>
+                {/* Gravados no Secullum */}
+                <div
+                    onClick={() => setActiveTab("APPROVED_SYNCED")}
+                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${
+                        activeTab === "APPROVED_SYNCED"
+                            ? "border-emerald-400 ring-2 ring-emerald-100 bg-emerald-50/20"
+                            : "border-slate-200 hover:border-slate-300"
+                    }`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
+                            Lançados no Secullum
+                        </span>
+                        <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
+                            <CheckCircle2 className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        <div className="text-3xl font-black text-slate-900">{stats.approved}</div>
+                        <p className="text-xs text-emerald-700 font-medium mt-1">Ajustados e integrados com sucesso</p>
+                    </div>
+                </div>
+
+                {/* Batida Offline Detectada */}
+                <div
+                    onClick={() => setActiveTab("DISCARDED_OFFLINE_FOUND")}
+                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${
+                        activeTab === "DISCARDED_OFFLINE_FOUND"
+                            ? "border-purple-400 ring-2 ring-purple-100 bg-purple-50/20"
+                            : "border-slate-200 hover:border-slate-300"
+                    }`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-purple-800">
+                            Batida Offline Detectada
+                        </span>
+                        <div className="p-2.5 bg-purple-100 text-purple-700 rounded-xl">
+                            <RefreshCw className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        <div className="text-3xl font-black text-slate-900">{stats.offlineFound}</div>
+                        <p className="text-xs text-purple-700 font-medium mt-1">Evitou duplicidade ou erro no ponto</p>
+                    </div>
+                </div>
+
+                {/* Total */}
+                <div
+                    onClick={() => setActiveTab("ALL")}
+                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${
+                        activeTab === "ALL"
+                            ? "border-indigo-400 ring-2 ring-indigo-100 bg-indigo-50/20"
+                            : "border-slate-200 hover:border-slate-300"
+                    }`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                            Total Ocorrências
+                        </span>
+                        <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
+                            <FileSpreadsheet className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        <div className="text-3xl font-black text-slate-900">{stats.total}</div>
+                        <p className="text-xs text-slate-500 font-medium mt-1">Inconsistências registradas</p>
+                    </div>
                 </div>
             </div>
 
-            {/* Cards de Métricas */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div
-                    onClick={() => setFilterStatus("ALL")}
-                    className={`cursor-pointer p-4 rounded-xl border transition ${filterStatus === "ALL" ? "bg-slate-800/80 border-cyan-500/50 shadow-md" : "bg-slate-900/40 border-slate-800 hover:bg-slate-800/40"}`}
-                >
-                    <p className="text-xs text-slate-400 font-medium">Total de Ocorrências</p>
-                    <p className="text-2xl font-black text-white mt-1">{stats.total}</p>
+            {/* Painel Principal com Abas e Filtros (Exato Padrão Atestados) */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-4">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    {/* Abas */}
+                    <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80 w-fit">
+                        <button
+                            onClick={() => setActiveTab("ALL")}
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                activeTab === "ALL"
+                                    ? "bg-white text-slate-900 shadow-sm"
+                                    : "text-slate-600 hover:text-slate-900"
+                            }`}
+                        >
+                            <span>Todas</span>
+                            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-slate-200 text-slate-800">
+                                {stats.total}
+                            </span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTab("PENDING_RESPONSE")}
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                activeTab === "PENDING_RESPONSE"
+                                    ? "bg-white text-slate-900 shadow-sm"
+                                    : "text-slate-600 hover:text-slate-900"
+                            }`}
+                        >
+                            <Clock className="w-3.5 h-3.5 text-amber-500" />
+                            <span>Aguardando Gestor</span>
+                            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-100 text-amber-800">
+                                {stats.pendingResponse}
+                            </span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTab("PENDING_AUDIT")}
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                activeTab === "PENDING_AUDIT"
+                                    ? "bg-white text-slate-900 shadow-sm"
+                                    : "text-slate-600 hover:text-slate-900"
+                            }`}
+                        >
+                            <Zap className="w-3.5 h-3.5 text-sky-500" />
+                            <span>Pendente RH</span>
+                            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-sky-100 text-sky-800">
+                                {stats.pendingAudit}
+                            </span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTab("APPROVED_SYNCED")}
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                activeTab === "APPROVED_SYNCED"
+                                    ? "bg-white text-slate-900 shadow-sm"
+                                    : "text-slate-600 hover:text-slate-900"
+                            }`}
+                        >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                            <span>Lançados Secullum</span>
+                            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">
+                                {stats.approved}
+                            </span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTab("DISCARDED_OFFLINE_FOUND")}
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                activeTab === "DISCARDED_OFFLINE_FOUND"
+                                    ? "bg-white text-slate-900 shadow-sm"
+                                    : "text-slate-600 hover:text-slate-900"
+                            }`}
+                        >
+                            <RefreshCw className="w-3.5 h-3.5 text-purple-500" />
+                            <span>Batida Offline</span>
+                            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-purple-100 text-purple-800">
+                                {stats.offlineFound}
+                            </span>
+                        </button>
+                    </div>
+
+                    {/* Campo de Busca */}
+                    <div className="relative w-full sm:w-80">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <Input
+                            placeholder="Buscar por colaborador, posto ou #AJ..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-9 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl h-10 text-xs font-medium focus-visible:ring-indigo-500"
+                        />
+                    </div>
                 </div>
 
-                <div
-                    onClick={() => setFilterStatus("PENDING_RESPONSE")}
-                    className={`cursor-pointer p-4 rounded-xl border transition ${filterStatus === "PENDING_RESPONSE" ? "bg-amber-950/30 border-amber-500/50 shadow-md" : "bg-slate-900/40 border-slate-800 hover:bg-slate-800/40"}`}
-                >
-                    <p className="text-xs text-amber-400 font-medium">Aguardando Gestor (Zap)</p>
-                    <p className="text-2xl font-black text-amber-300 mt-1">{stats.pendingResponse}</p>
-                </div>
-
-                <div
-                    onClick={() => setFilterStatus("PENDING_AUDIT")}
-                    className={`cursor-pointer p-4 rounded-xl border transition ${filterStatus === "PENDING_AUDIT" ? "bg-cyan-950/30 border-cyan-500/50 shadow-md" : "bg-slate-900/40 border-slate-800 hover:bg-slate-800/40"}`}
-                >
-                    <p className="text-xs text-cyan-400 font-medium">Pendente RH (Pronto)</p>
-                    <p className="text-2xl font-black text-cyan-300 mt-1">{stats.pendingAudit}</p>
-                </div>
-
-                <div
-                    onClick={() => setFilterStatus("APPROVED_SYNCED")}
-                    className={`cursor-pointer p-4 rounded-xl border transition ${filterStatus === "APPROVED_SYNCED" ? "bg-emerald-950/30 border-emerald-500/50 shadow-md" : "bg-slate-900/40 border-slate-800 hover:bg-slate-800/40"}`}
-                >
-                    <p className="text-xs text-emerald-400 font-medium">Gravados no Secullum</p>
-                    <p className="text-2xl font-black text-emerald-300 mt-1">{stats.approved}</p>
-                </div>
-
-                <div
-                    onClick={() => setFilterStatus("DISCARDED_OFFLINE_FOUND")}
-                    className={`cursor-pointer p-4 rounded-xl border transition ${filterStatus === "DISCARDED_OFFLINE_FOUND" ? "bg-purple-950/30 border-purple-500/50 shadow-md" : "bg-slate-900/40 border-slate-800 hover:bg-slate-800/40"}`}
-                >
-                    <p className="text-xs text-purple-400 font-medium">Batida Offline (Evitou Erro)</p>
-                    <p className="text-2xl font-black text-purple-300 mt-1">{stats.offlineFound}</p>
-                </div>
-            </div>
-
-            {/* Barra de Busca e Filtros */}
-            <div className="flex items-center gap-3 bg-slate-900/40 p-3 rounded-xl border border-slate-800">
-                <Search className="w-5 h-5 text-slate-500 ml-2" />
-                <input
-                    type="text"
-                    placeholder="Buscar por colaborador, contrato ou código (#AJ...)"
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    className="flex-1 bg-transparent border-none text-sm text-white placeholder-slate-500 focus:outline-none"
-                />
-            </div>
-
-            {/* Tabela de Ajustes */}
-            <div className="bg-slate-900/40 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-slate-300">
-                        <thead className="bg-slate-950/60 text-xs uppercase tracking-wider text-slate-400 border-b border-slate-800">
-                            <tr>
-                                <th className="px-6 py-4">Código / Data</th>
-                                <th className="px-6 py-4">Colaborador</th>
-                                <th className="px-6 py-4">Contrato & Posto</th>
-                                <th className="px-6 py-4">Gestor Responsável</th>
-                                <th className="px-6 py-4">Marcação Solicitada</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4 text-right">Ações do RH</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800/60 font-normal">
+                {/* Tabela de Ajustes (Exato Padrão Atestados) */}
+                <div className="rounded-xl border border-slate-200 overflow-hidden">
+                    <Table>
+                        <TableHeader className="bg-slate-50 border-b border-slate-200">
+                            <TableRow>
+                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3.5">Código / Data</TableHead>
+                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3.5">Colaborador</TableHead>
+                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3.5">Contrato & Posto</TableHead>
+                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3.5">Gestor Responsável</TableHead>
+                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3.5">Marcação Solicitada</TableHead>
+                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3.5">Status</TableHead>
+                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3.5 text-right">Ações do RH</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {filteredItems.length === 0 ? (
-                                <tr>
-                                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
-                                        Nenhuma solicitação ou inconsistência encontrada.
-                                    </td>
-                                </tr>
+                                <TableRow>
+                                    <TableCell colSpan={7} className="h-48 text-center text-slate-400">
+                                        <div className="flex flex-col items-center justify-center gap-2">
+                                            <div className="p-3 bg-slate-100 rounded-full text-slate-400">
+                                                <Clock className="w-6 h-6" />
+                                            </div>
+                                            <p className="text-sm font-semibold text-slate-600">Nenhum ajuste de batida encontrado</p>
+                                            <p className="text-xs text-slate-400">Nenhuma inconsistência pendente com os filtros selecionados.</p>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
                             ) : (
-                                filteredItems.map(item => {
-                                    const dateObj = new Date(item.date);
-                                    const dateStr = dateObj.toLocaleDateString("pt-BR");
+                                filteredItems.map((item) => {
                                     const isPendingRH = item.status === "PENDING_AUDIT";
                                     const isDone = item.status === "APPROVED_SYNCED";
 
                                     return (
-                                        <tr key={item.id} className="hover:bg-slate-800/30 transition">
-                                            <td className="px-6 py-4">
-                                                <span className="font-mono font-bold text-cyan-400 bg-cyan-950/30 px-2 py-0.5 rounded border border-cyan-500/20">
-                                                    #{item.code}
-                                                </span>
-                                                <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                                                    <Calendar className="w-3 h-3" /> {dateStr}
+                                        <TableRow key={item.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-100">
+                                            {/* Código e Data */}
+                                            <TableCell className="py-4 font-medium">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                        #{item.code}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-slate-500 mt-1 flex items-center gap-1 font-normal">
+                                                    <Calendar className="w-3 h-3 text-slate-400" />
+                                                    {formatDataExibicao(item.date)}
                                                 </p>
-                                            </td>
+                                            </TableCell>
 
-                                            <td className="px-6 py-4">
-                                                <div className="font-semibold text-white">{item.employee?.name}</div>
-                                                <div className="text-xs text-slate-500 font-mono">CPF: {item.employee?.cpf}</div>
-                                            </td>
+                                            {/* Colaborador */}
+                                            <TableCell className="py-4">
+                                                <div className="font-bold text-slate-900 text-sm">
+                                                    {item.employee?.name}
+                                                </div>
+                                                <div className="text-xs text-slate-500 font-mono mt-0.5">
+                                                    CPF: {item.employee?.cpf}
+                                                </div>
+                                            </TableCell>
 
-                                            <td className="px-6 py-4">
-                                                <div className="text-slate-300 font-medium flex items-center gap-1.5">
-                                                    <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                                            {/* Contrato e Posto */}
+                                            <TableCell className="py-4">
+                                                <div className="text-slate-800 font-semibold text-xs flex items-center gap-1.5">
+                                                    <Building2 className="w-3.5 h-3.5 text-slate-400" />
                                                     {item.client?.name || "Sem Contrato"}
                                                 </div>
                                                 <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
-                                                    <MapPin className="w-3 h-3 text-slate-600" />
+                                                    <MapPin className="w-3 h-3 text-slate-400" />
                                                     {item.posto?.role?.name || "Geral"}
                                                 </div>
-                                            </td>
+                                            </TableCell>
 
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm text-slate-300 flex items-center gap-1.5">
-                                                    <User className="w-3.5 h-3.5 text-indigo-400" />
+                                            {/* Gestor Responsável */}
+                                            <TableCell className="py-4">
+                                                <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                                                    <User className="w-3.5 h-3.5 text-indigo-500" />
                                                     {item.client?.accountManager?.name || item.requestedByName || "Não atribuído"}
                                                 </div>
                                                 {item.isAccountManager && (
-                                                    <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                                    <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
                                                         Gestor da Conta
                                                     </span>
                                                 )}
-                                            </td>
+                                            </TableCell>
 
-                                            <td className="px-6 py-4">
-                                                <div className="text-white font-medium">
+                                            {/* Marcação Solicitada */}
+                                            <TableCell className="py-4">
+                                                <div className="text-xs font-bold text-slate-900">
                                                     {item.requestedTime || item.expectedTime} ({item.punchType})
                                                 </div>
-                                                <div className="text-xs text-amber-400/90 mt-0.5 font-medium">
+                                                <div className="text-xs text-amber-700 font-semibold mt-0.5">
                                                     {item.secullumReasonName || "Aguardando definição"}
                                                 </div>
-                                            </td>
+                                            </TableCell>
 
-                                            <td className="px-6 py-4">
+                                            {/* Status */}
+                                            <TableCell className="py-4">
                                                 {getStatusBadge(item.status)}
-                                            </td>
+                                            </TableCell>
 
-                                            <td className="px-6 py-4 text-right">
+                                            {/* Ações */}
+                                            <TableCell className="py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2">
                                                     {/* Checar Secullum em tempo real */}
-                                                    <button
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
                                                         onClick={() => handleCheckSecullum(item)}
                                                         disabled={checkingId === item.id}
                                                         title="Verificar se o colaborador já possui batida offline no Secullum"
-                                                        className="p-1.5 text-slate-400 hover:text-cyan-300 hover:bg-cyan-950/40 rounded-lg border border-slate-700/60 transition"
+                                                        className="h-8 px-2 border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg"
                                                     >
-                                                        <RefreshCw className={`w-4 h-4 ${checkingId === item.id ? "animate-spin text-cyan-400" : ""}`} />
-                                                    </button>
+                                                        <RefreshCw className={`w-3.5 h-3.5 ${checkingId === item.id ? "animate-spin text-sky-600" : "text-slate-500"}`} />
+                                                    </Button>
 
                                                     {/* Botão de Aprovação e Injeção no Secullum */}
                                                     {isPendingRH && (
-                                                        <button
+                                                        <Button
+                                                            size="sm"
                                                             onClick={() => handleApprove(item.id)}
                                                             disabled={approvingId === item.id}
-                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md transition"
+                                                            className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm rounded-lg flex items-center gap-1.5"
                                                         >
                                                             <Check className="w-3.5 h-3.5" />
-                                                            {approvingId === item.id ? "Gravando..." : "Aprovar no Secullum"}
-                                                        </button>
+                                                            <span>{approvingId === item.id ? "Gravando..." : "Aprovar no Secullum"}</span>
+                                                        </Button>
                                                     )}
 
                                                     {/* Descartar se a batida offline existir */}
                                                     {isPendingRH && (
-                                                        <button
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
                                                             onClick={() => handleDiscard(item.id, "OFFLINE_FOUND")}
-                                                            className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition"
+                                                            className="h-8 px-2.5 border-slate-200 hover:bg-slate-50 text-slate-600 font-medium text-xs rounded-lg"
                                                         >
                                                             Descartar
-                                                        </button>
+                                                        </Button>
                                                     )}
                                                 </div>
-                                            </td>
-                                        </tr>
+                                            </TableCell>
+                                        </TableRow>
                                     );
                                 })
                             )}
-                        </tbody>
-                    </table>
+                        </TableBody>
+                    </Table>
                 </div>
             </div>
 
-            {/* Modal de Disparo de Alerta de Teste */}
-            {isTestModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
-                        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                            <div className="flex items-center gap-2 text-cyan-400">
-                                <Send className="w-5 h-5" />
-                                <h2 className="text-lg font-bold text-white">Disparar Teste no WhatsApp</h2>
-                            </div>
-                            <button
-                                onClick={() => setIsTestModalOpen(false)}
-                                className="text-slate-400 hover:text-white"
+            {/* Modal de Disparo de Alerta de Teste (Padrão Shadcn Dialog) */}
+            <Dialog open={isTestModalOpen} onOpenChange={setIsTestModalOpen}>
+                <DialogContent className="sm:max-w-lg bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl">
+                    <DialogHeader>
+                        <div className="flex items-center gap-2 text-indigo-600 mb-1">
+                            <Send className="w-5 h-5" />
+                            <DialogTitle className="text-xl font-bold text-slate-900">
+                                Disparar Alerta de Teste no WhatsApp
+                            </DialogTitle>
+                        </div>
+                        <DialogDescription className="text-xs text-slate-500">
+                            Dispara uma mensagem formatada no grupo com a @menção do gestor da conta e todos os motivos do Secullum cadastrados.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form onSubmit={handleSendTestAlert} className="space-y-4 pt-2">
+                        <div>
+                            <Label className="text-xs font-bold text-slate-700">Colaborador para Teste</Label>
+                            <select
+                                value={testEmpId}
+                                onChange={(e) => setTestEmpId(e.target.value)}
+                                required
+                                className="w-full mt-1.5 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             >
-                                ✕
-                            </button>
+                                <option value="">Selecione um colaborador...</option>
+                                {employeesList.map((e) => (
+                                    <option key={e.id} value={e.id}>
+                                        {e.name} (CPF: {e.cpf}) {e.companyName ? `- ${e.companyName}` : ""}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
 
-                        <form onSubmit={handleSendTestAlert} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                                    Colaborador para Teste
-                                </label>
+                                <Label className="text-xs font-bold text-slate-700">Tipo de Marcação</Label>
                                 <select
-                                    value={testEmpId}
-                                    onChange={e => setTestEmpId(e.target.value)}
-                                    required
-                                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                                    value={testPunchType}
+                                    onChange={(e) => setTestPunchType(e.target.value as any)}
+                                    className="w-full mt-1.5 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 >
-                                    <option value="">Selecione um colaborador...</option>
-                                    {employeesList.map(e => (
-                                        <option key={e.id} value={e.id}>
-                                            {e.name} (CPF: {e.cpf}) {e.companyName ? `- ${e.companyName}` : ""}
-                                        </option>
-                                    ))}
+                                    <option value="ENTRADA_1">Entrada 1 (Início do Turno)</option>
+                                    <option value="SAIDA_1">Saída 1 (Almoço)</option>
                                 </select>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                                        Tipo de Batida
-                                    </label>
-                                    <select
-                                        value={testPunchType}
-                                        onChange={e => setTestPunchType(e.target.value as any)}
-                                        className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
-                                    >
-                                        <option value="ENTRADA_1">Entrada 1 (Início do Turno)</option>
-                                        <option value="SAIDA_1">Saída 1 (Almoço)</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                                        Horário Previsto
-                                    </label>
-                                    <input
-                                        type="time"
-                                        value={testExpectedTime}
-                                        onChange={e => setTestExpectedTime(e.target.value)}
-                                        className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
-                                    />
-                                </div>
-                            </div>
-
                             <div>
-                                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                                    Grupo WhatsApp de Destino
-                                </label>
-                                {whatsappGroups.length > 0 ? (
-                                    <select
-                                        value={testGroupTarget}
-                                        onChange={e => setTestGroupTarget(e.target.value)}
-                                        className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
-                                    >
-                                        {whatsappGroups.map(g => (
-                                            <option key={g.id} value={g.phone}>
-                                                {g.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                ) : (
-                                    <input
-                                        type="text"
-                                        placeholder="Ex: 120363..."
-                                        value={testGroupTarget}
-                                        onChange={e => setTestGroupTarget(e.target.value)}
-                                        className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
-                                    />
-                                )}
-                                <p className="text-[11px] text-slate-500 mt-1">
-                                    Os grupos são carregados automaticamente via Z-API. O grupo de teste pode ser selecionado diretamente na lista!
-                                </p>
+                                <Label className="text-xs font-bold text-slate-700">Horário Previsto</Label>
+                                <Input
+                                    type="time"
+                                    value={testExpectedTime}
+                                    onChange={(e) => setTestExpectedTime(e.target.value)}
+                                    className="mt-1.5 bg-white border-slate-200 text-slate-900 rounded-xl h-10 text-sm font-semibold"
+                                />
                             </div>
+                        </div>
 
-                            <div className="p-3 bg-cyan-950/20 border border-cyan-500/20 rounded-xl text-xs text-cyan-300">
-                                💡 O bot vai montar o alerta formatado, com @menção do gestor da conta e a lista de motivos do Secullum cadastrados.
-                            </div>
+                        <div>
+                            <Label className="text-xs font-bold text-slate-700">Grupo WhatsApp de Destino</Label>
+                            {whatsappGroups.length > 0 ? (
+                                <select
+                                    value={testGroupTarget}
+                                    onChange={(e) => setTestGroupTarget(e.target.value)}
+                                    className="w-full mt-1.5 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    {whatsappGroups.map((g) => (
+                                        <option key={g.id} value={g.phone}>
+                                            {g.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <Input
+                                    type="text"
+                                    placeholder="Ex: 120363..."
+                                    value={testGroupTarget}
+                                    onChange={(e) => setTestGroupTarget(e.target.value)}
+                                    className="mt-1.5 bg-white border-slate-200 text-slate-900 rounded-xl h-10 text-sm font-medium"
+                                />
+                            )}
+                            <p className="text-[11px] text-slate-500 mt-1">
+                                Os grupos foram carregados automaticamente via Z-API. Selecione o grupo que você acabou de criar.
+                            </p>
+                        </div>
 
-                            <div className="flex items-center justify-end gap-3 pt-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsTestModalOpen(false)}
-                                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium transition"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={isSendingTest}
-                                    className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-sm shadow-lg shadow-cyan-600/30 transition"
-                                >
-                                    <Send className="w-4 h-4" />
-                                    {isSendingTest ? "Disparando..." : "Disparar Alerta"}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+                        <div className="p-3 bg-sky-50 border border-sky-200/80 rounded-xl text-xs text-sky-800">
+                            💡 O bot vai montar o alerta formatado, com @menção do gestor da conta e a lista de motivos oficiais do Secullum.
+                        </div>
+
+                        <DialogFooter className="pt-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsTestModalOpen(false)}
+                                className="border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold rounded-xl"
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={isSendingTest}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm"
+                            >
+                                <Send className="w-4 h-4 mr-2" />
+                                {isSendingTest ? "Disparando..." : "Disparar Alerta"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

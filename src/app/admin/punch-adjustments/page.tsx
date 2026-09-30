@@ -34,7 +34,7 @@ export default async function PunchAdjustmentsPage() {
 
     // 4. Buscar colaboradores ativos para o seletor de testes
     const employees = await prisma.employee.findMany({
-        where: { status: "ATIVO" },
+        where: { status: { in: ["Ativo", "ATIVO", "ativo"] } },
         select: {
             id: true,
             name: true,
