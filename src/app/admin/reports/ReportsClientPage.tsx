@@ -20,7 +20,12 @@ import {
     CheckCircle2,
     XCircle,
     Building,
-    FileSpreadsheet
+    FileSpreadsheet,
+    Printer,
+    UserPlus,
+    UserMinus,
+    ShieldAlert,
+    FileText
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,7 +52,9 @@ import {
     getMonthOccurrencesDetails,
     getMonthAttendancesDetails,
     getMonthVacanciesDetails,
-    getMonthTurnoverDetails
+    getMonthTurnoverDetails,
+    getAdmissionsAndDismissalsAudit,
+    MovementAuditItem
 } from "./actions";
 import { toast } from "sonner";
 
@@ -63,7 +70,29 @@ const MONTH_FULL_NAMES = [
 
 export function ReportsClientPage() {
     const [year, setYear] = useState<number>(() => new Date().getFullYear());
-    const [activeTab, setActiveTab] = useState<"turnover" | "absenteismo" | "cobertura" | "colaborador" | "recruitment">("turnover");
+    const [activeTab, setActiveTab] = useState<"turnover" | "absenteismo" | "cobertura" | "colaborador" | "recruitment" | "movimentacoes">("turnover");
+
+    // Auditoria de Movimentações (Admitidos e Demitidos x Ponto)
+    const [auditStartDate, setAuditStartDate] = useState<string>(() => {
+        const d = new Date();
+        return format(new Date(d.getFullYear(), d.getMonth(), 1), "yyyy-MM-dd");
+    });
+    const [auditEndDate, setAuditEndDate] = useState<string>(() => {
+        const d = new Date();
+        return format(new Date(d.getFullYear(), d.getMonth() + 1, 0), "yyyy-MM-dd");
+    });
+    const [auditEventType, setAuditEventType] = useState<"ALL" | "DEMISSAO" | "ADMISSAO">("ALL");
+    const [auditDivergenceFilter, setAuditDivergenceFilter] = useState<"ALL" | "WITH_DIVERGENCE" | "WITHOUT_DIVERGENCE">("ALL");
+    const [auditCompany, setAuditCompany] = useState<string>("all");
+    const [auditItems, setAuditItems] = useState<MovementAuditItem[]>([]);
+    const [auditSummary, setAuditSummary] = useState({
+        total: 0,
+        admissions: 0,
+        dismissals: 0,
+        divergences: 0,
+        regular: 0
+    });
+    const [auditLoading, setAuditLoading] = useState(false);
     
     // Filtros
     const [searchQuery, setSearchQuery] = useState("");
@@ -111,6 +140,33 @@ export function ReportsClientPage() {
     useEffect(() => {
         loadData(year);
     }, [year]);
+
+    const loadAuditData = async () => {
+        setAuditLoading(true);
+        try {
+            const res = await getAdmissionsAndDismissalsAudit({
+                startDate: auditStartDate,
+                endDate: auditEndDate,
+                companyId: auditCompany === "all" ? undefined : auditCompany
+            });
+            if (res.success && res.items) {
+                setAuditItems(res.items);
+                if (res.summary) setAuditSummary(res.summary);
+            } else {
+                toast.error(res.error || "Erro ao carregar auditoria.");
+            }
+        } catch (err: any) {
+            toast.error("Falha ao carregar auditoria de movimentações.");
+        } finally {
+            setAuditLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === "movimentacoes") {
+            loadAuditData();
+        }
+    }, [activeTab, auditStartDate, auditEndDate, auditCompany]);
 
     // Handler para abrir os modais de detalhe ao clicar na célula
     const handleCellClick = async (
@@ -521,6 +577,56 @@ export function ReportsClientPage() {
         toast.success("Relatório anual com base analítica de detalhamento exportado!");
     };
 
+    const filteredAuditItems = auditItems.filter(item => {
+        if (auditEventType !== "ALL" && item.eventType !== auditEventType) return false;
+        if (auditDivergenceFilter === "WITH_DIVERGENCE" && !item.hasDivergence) return false;
+        if (auditDivergenceFilter === "WITHOUT_DIVERGENCE" && item.hasDivergence) return false;
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            const matchName = item.employeeName.toLowerCase().includes(q);
+            const matchCpf = item.cpf.includes(q);
+            const matchClient = item.clientName.toLowerCase().includes(q);
+            const matchRole = item.postoRole.toLowerCase().includes(q);
+            return matchName || matchCpf || matchClient || matchRole;
+        }
+        return true;
+    });
+
+    const handleExportAuditExcel = () => {
+        if (filteredAuditItems.length === 0) {
+            toast.info("Nenhum registro para exportar.");
+            return;
+        }
+        const rows = filteredAuditItems.map(item => ({
+            "Tipo": item.eventType === "ADMISSAO" ? "Admissão" : "Demissão",
+            "Data do Evento": format(new Date(item.eventDate + "T12:00:00"), "dd/MM/yyyy"),
+            "Colaborador": item.employeeName,
+            "CPF": item.cpf,
+            "Empresa": item.companyName,
+            "Cliente / Contrato": item.clientName,
+            "Cargo / Posto": item.postoRole,
+            "Situação Cadastral": item.situation,
+            "Motivo Desligamento": item.dismissalReason || "-",
+            "Auditoria do Ponto": item.hasDivergence ? `DIVERGÊNCIA: ${item.divergenceTitle}` : "Regular",
+            "Detalhe da Divergência": item.divergenceDescription,
+            "Datas das Ocorrências": item.divergenceDates.join(", ") || "-"
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Auditoria de Ponto");
+        XLSX.writeFile(wb, `Auditoria_Movimentacoes_Ponto_${auditStartDate}_a_${auditEndDate}.xlsx`);
+        toast.success("Planilha Excel exportada com sucesso!");
+    };
+
+    const handleExportAuditPdf = () => {
+        if (filteredAuditItems.length === 0) {
+            toast.info("Nenhum registro para gerar PDF.");
+            return;
+        }
+        window.print();
+    };
+
     const uniqueCompanies = Array.from(
         new Set(
             data?.turnoverReport?.map((c: any) => c.companyName).filter(Boolean) || []
@@ -561,13 +667,14 @@ export function ReportsClientPage() {
             </div>
 
             {/* Menu de Abas */}
-            <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100 rounded-2xl w-full border border-slate-200/60 shadow-inner">
+            <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100 rounded-2xl w-full border border-slate-200/60 shadow-inner print:hidden">
                 {[
                     { id: "turnover", label: "Turnover Substituições", icon: TrendingUp },
                     { id: "absenteismo", label: "Absenteísmo (Secullum)", icon: AlertTriangle },
                     { id: "cobertura", label: "Índice de Cobertura", icon: Percent },
                     { id: "colaborador", label: "Faltas por Colaborador", icon: Users },
-                    { id: "recruitment", label: "Recrutamento & SLA", icon: Briefcase }
+                    { id: "recruitment", label: "Recrutamento & SLA", icon: Briefcase },
+                    { id: "movimentacoes", label: "Admitidos & Demitidos (Auditoria Ponto)", icon: UserCheck }
                 ].map(tab => {
                     const Icon = tab.icon;
                     const isActive = activeTab === tab.id;
@@ -592,8 +699,8 @@ export function ReportsClientPage() {
             </div>
 
             {/* Filtros Globais */}
-            {data && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm">
+            {data && activeTab !== "movimentacoes" && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm print:hidden">
                     <div className="flex flex-col gap-1.5">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Filtrar por Empresa</label>
                         <select
@@ -1262,6 +1369,375 @@ export function ReportsClientPage() {
                                 </div>
                             </Card>
                         </>
+                    )}
+
+                    {/* 6. SEÇÃO AUDITORIA DE ADMITIDOS E DEMITIDOS (PONTO) */}
+                    {activeTab === "movimentacoes" && (
+                        <div className="space-y-6">
+                            {/* Cabeçalho Executivo de Impressão (Aparece apenas na impressão / PDF) */}
+                            <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-6">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h1 className="text-xl font-black text-slate-900 uppercase">
+                                            Workforce Hub — Auditoria de Admissões e Demissões
+                                        </h1>
+                                        <p className="text-xs text-slate-600 mt-1">
+                                            Cruzamento de Movimentações com Registros de Ponto (Secullum e Nexus)
+                                        </p>
+                                    </div>
+                                    <div className="text-right text-xs text-slate-500 font-mono">
+                                        <p>Período: {format(new Date(auditStartDate + "T12:00:00"), "dd/MM/yyyy")} a {format(new Date(auditEndDate + "T12:00:00"), "dd/MM/yyyy")}</p>
+                                        <p>Emitido em: {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
+                                    </div>
+                                </div>
+                                <div className="mt-4 flex gap-4 text-xs font-bold text-slate-700">
+                                    <span>Total de Registros: {filteredAuditItems.length}</span>
+                                    <span>•</span>
+                                    <span>Admissões: {filteredAuditItems.filter(i => i.eventType === "ADMISSAO").length}</span>
+                                    <span>•</span>
+                                    <span>Demissões: {filteredAuditItems.filter(i => i.eventType === "DEMISSAO").length}</span>
+                                    <span>•</span>
+                                    <span className="text-rose-700">Com Divergência: {filteredAuditItems.filter(i => i.hasDivergence).length}</span>
+                                </div>
+                            </div>
+
+                            {/* Barra de Filtros e Ações da Auditoria (Escondida no PDF) */}
+                            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 print:hidden">
+                                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                                    <div>
+                                        <h2 className="text-base font-black text-slate-800 flex items-center gap-2">
+                                            <ShieldAlert className="w-5 h-5 text-indigo-600" />
+                                            Filtros de Auditoria por Período
+                                        </h2>
+                                        <p className="text-xs text-slate-500">
+                                            Defina o período para auditar admissões e demissões e verificar inconsistências no registro de ponto.
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            onClick={handleExportAuditExcel}
+                                            disabled={auditLoading || filteredAuditItems.length === 0}
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl h-9 px-3.5 gap-1.5 shadow-sm"
+                                        >
+                                            <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
+                                            Exportar Excel (.xlsx)
+                                        </Button>
+
+                                        <Button
+                                            onClick={handleExportAuditPdf}
+                                            disabled={auditLoading || filteredAuditItems.length === 0}
+                                            variant="outline"
+                                            className="bg-white border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl h-9 px-3.5 gap-1.5 shadow-sm"
+                                        >
+                                            <Printer className="w-4 h-4 text-slate-600" />
+                                            Exportar PDF / Imprimir
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                                    {/* Data Início */}
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Data Início</label>
+                                        <Input
+                                            type="date"
+                                            value={auditStartDate}
+                                            onChange={(e) => setAuditStartDate(e.target.value)}
+                                            className="h-9 text-xs font-semibold rounded-xl bg-slate-50"
+                                        />
+                                    </div>
+
+                                    {/* Data Fim */}
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Data Fim</label>
+                                        <Input
+                                            type="date"
+                                            value={auditEndDate}
+                                            onChange={(e) => setAuditEndDate(e.target.value)}
+                                            className="h-9 text-xs font-semibold rounded-xl bg-slate-50"
+                                        />
+                                    </div>
+
+                                    {/* Tipo de Movimentação */}
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Movimentação</label>
+                                        <select
+                                            value={auditEventType}
+                                            onChange={(e) => setAuditEventType(e.target.value as any)}
+                                            className="h-9 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold px-3 outline-none cursor-pointer"
+                                        >
+                                            <option value="ALL">Todas (Admitidos e Demitidos)</option>
+                                            <option value="DEMISSAO">Apenas Demitidos</option>
+                                            <option value="ADMISSAO">Apenas Admitidos</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Filtro de Auditoria */}
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Status do Ponto</label>
+                                        <select
+                                            value={auditDivergenceFilter}
+                                            onChange={(e) => setAuditDivergenceFilter(e.target.value as any)}
+                                            className="h-9 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold px-3 outline-none cursor-pointer"
+                                        >
+                                            <option value="ALL">Todos os Registros</option>
+                                            <option value="WITH_DIVERGENCE">⚠️ Com Divergência de Ponto</option>
+                                            <option value="WITHOUT_DIVERGENCE">✓ Ponto Regular</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Empresa */}
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Empresa</label>
+                                        <select
+                                            value={auditCompany}
+                                            onChange={(e) => setAuditCompany(e.target.value)}
+                                            className="h-9 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold px-3 outline-none cursor-pointer"
+                                        >
+                                            <option value="all">Todas as Empresas</option>
+                                            {uniqueCompanies.map(c => (
+                                                <option key={c} value={c}>{c}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
+                                    <div className="relative flex-1 w-full">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                        <Input
+                                            type="text"
+                                            placeholder="Buscar por colaborador, CPF, posto ou contrato..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="pl-9 text-xs h-9 bg-slate-50 border-slate-200 rounded-xl"
+                                        />
+                                    </div>
+                                    <Button
+                                        onClick={loadAuditData}
+                                        disabled={auditLoading}
+                                        variant="outline"
+                                        className="h-9 px-4 text-xs font-bold rounded-xl border-slate-300 hover:bg-slate-50 shrink-0"
+                                    >
+                                        <Clock className={`w-3.5 h-3.5 mr-1.5 ${auditLoading ? "animate-spin text-indigo-600" : "text-slate-500"}`} />
+                                        Atualizar Auditoria
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Cards de Métricas do Período (KPIs) */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                                <Card className="p-4 border-slate-200 shadow-sm bg-white">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Total Auditado</span>
+                                        <div className="p-2 bg-slate-100 text-slate-600 rounded-xl">
+                                            <Users className="w-4 h-4" />
+                                        </div>
+                                    </div>
+                                    <div className="mt-2">
+                                        <div className="text-2xl font-black text-slate-900">{auditSummary.total}</div>
+                                        <p className="text-[11px] text-slate-500 font-medium">Movimentações no período</p>
+                                    </div>
+                                </Card>
+
+                                <Card className="p-4 border-slate-200 shadow-sm bg-white">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black text-emerald-700 uppercase tracking-wider">Admitidos</span>
+                                        <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
+                                            <UserPlus className="w-4 h-4" />
+                                        </div>
+                                    </div>
+                                    <div className="mt-2">
+                                        <div className="text-2xl font-black text-slate-900">{auditSummary.admissions}</div>
+                                        <p className="text-[11px] text-emerald-700 font-medium">Novos vínculos no período</p>
+                                    </div>
+                                </Card>
+
+                                <Card className="p-4 border-slate-200 shadow-sm bg-white">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black text-purple-700 uppercase tracking-wider">Demitidos</span>
+                                        <div className="p-2 bg-purple-100 text-purple-700 rounded-xl">
+                                            <UserMinus className="w-4 h-4" />
+                                        </div>
+                                    </div>
+                                    <div className="mt-2">
+                                        <div className="text-2xl font-black text-slate-900">{auditSummary.dismissals}</div>
+                                        <p className="text-[11px] text-purple-700 font-medium">Desligamentos no período</p>
+                                    </div>
+                                </Card>
+
+                                <Card className={`p-4 border shadow-sm ${auditSummary.divergences > 0 ? "bg-rose-50/40 border-rose-200" : "bg-white border-slate-200"}`}>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black text-rose-800 uppercase tracking-wider">Com Divergência</span>
+                                        <div className={`p-2 rounded-xl ${auditSummary.divergences > 0 ? "bg-rose-100 text-rose-700 animate-pulse" : "bg-slate-100 text-slate-500"}`}>
+                                            <AlertTriangle className="w-4 h-4" />
+                                        </div>
+                                    </div>
+                                    <div className="mt-2">
+                                        <div className="text-2xl font-black text-rose-900">{auditSummary.divergences}</div>
+                                        <p className="text-[11px] text-rose-700 font-bold">Inconsistências no ponto</p>
+                                    </div>
+                                </Card>
+
+                                <Card className="p-4 border-slate-200 shadow-sm bg-white">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black text-sky-700 uppercase tracking-wider">Ponto Regular</span>
+                                        <div className="p-2 bg-sky-100 text-sky-700 rounded-xl">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                        </div>
+                                    </div>
+                                    <div className="mt-2">
+                                        <div className="text-2xl font-black text-slate-900">{auditSummary.regular}</div>
+                                        <p className="text-[11px] text-sky-700 font-medium">Sem divergências de ponto</p>
+                                    </div>
+                                </Card>
+                            </div>
+
+                            {/* Tabela de Auditoria de Movimentações */}
+                            <Card className="border border-slate-200 shadow-sm bg-white overflow-hidden rounded-2xl">
+                                <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                            Lista de Colaboradores Auditados ({filteredAuditItems.length})
+                                        </span>
+                                    </div>
+                                    {auditLoading && (
+                                        <span className="text-xs text-indigo-600 font-bold animate-pulse flex items-center gap-1.5">
+                                            <Clock className="w-3.5 h-3.5 animate-spin" /> Auditando batidas...
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="w-full overflow-x-auto">
+                                    <Table className="min-w-[1050px]">
+                                        <TableHeader className="bg-slate-50 border-b border-slate-200">
+                                            <TableRow>
+                                                <TableHead className="font-bold text-slate-700 text-xs py-3">Tipo / Data</TableHead>
+                                                <TableHead className="font-bold text-slate-700 text-xs py-3">Colaborador</TableHead>
+                                                <TableHead className="font-bold text-slate-700 text-xs py-3">Contrato & Posto</TableHead>
+                                                <TableHead className="font-bold text-slate-700 text-xs py-3">Situação Cadastral</TableHead>
+                                                <TableHead className="font-bold text-slate-700 text-xs py-3">Auditoria com o Ponto</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {auditLoading ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={5} className="py-16 text-center">
+                                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto" />
+                                                        <p className="text-xs font-bold text-slate-400 mt-3">Cruzando movimentações e batidas do Secullum...</p>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : filteredAuditItems.length === 0 ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={5} className="py-16 text-center text-slate-500 text-xs font-medium">
+                                                        Nenhuma movimentação encontrada para os filtros selecionados no período de {format(new Date(auditStartDate + "T12:00:00"), "dd/MM/yyyy")} a {format(new Date(auditEndDate + "T12:00:00"), "dd/MM/yyyy")}.
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : (
+                                                filteredAuditItems.map(item => (
+                                                    <TableRow key={item.id} className="hover:bg-slate-50/70 border-b border-slate-100 transition-colors">
+                                                        {/* Tipo e Data */}
+                                                        <TableCell className="py-3.5">
+                                                            <div className="flex items-center gap-2">
+                                                                {item.eventType === "ADMISSAO" ? (
+                                                                    <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300 font-bold text-[10px] gap-1 py-0.5">
+                                                                        <UserPlus className="w-3 h-3 text-emerald-600" />
+                                                                        Admissão
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <Badge variant="outline" className="bg-purple-50 text-purple-800 border-purple-300 font-bold text-[10px] gap-1 py-0.5">
+                                                                        <UserMinus className="w-3 h-3 text-purple-600" />
+                                                                        Demissão
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-xs font-bold text-slate-800 mt-1 flex items-center gap-1 font-mono">
+                                                                <Calendar className="w-3 h-3 text-slate-400" />
+                                                                {format(new Date(item.eventDate + "T12:00:00"), "dd/MM/yyyy")}
+                                                            </p>
+                                                        </TableCell>
+
+                                                        {/* Colaborador */}
+                                                        <TableCell className="py-3.5">
+                                                            <div className="font-bold text-slate-900 text-xs">
+                                                                {item.employeeName}
+                                                            </div>
+                                                            <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                                                                CPF: {item.cpf}
+                                                            </div>
+                                                        </TableCell>
+
+                                                        {/* Contrato e Posto */}
+                                                        <TableCell className="py-3.5">
+                                                            <div className="text-xs font-semibold text-slate-800 flex items-center gap-1">
+                                                                <Building className="w-3.5 h-3.5 text-slate-400" />
+                                                                {item.clientName}
+                                                            </div>
+                                                            <div className="text-[11px] text-slate-500 mt-0.5">
+                                                                {item.postoRole} • <span className="text-slate-400">{item.companyName}</span>
+                                                            </div>
+                                                        </TableCell>
+
+                                                        {/* Situação Cadastral */}
+                                                        <TableCell className="py-3.5">
+                                                            <div className="text-xs font-medium text-slate-700">
+                                                                {item.situation}
+                                                            </div>
+                                                            {item.dismissalReason && (
+                                                                <div className="text-[11px] text-slate-500 mt-0.5 italic">
+                                                                    {item.dismissalReason}
+                                                                </div>
+                                                            )}
+                                                        </TableCell>
+
+                                                        {/* Auditoria com o Ponto */}
+                                                        <TableCell className="py-3.5">
+                                                            {item.hasDivergence ? (
+                                                                <div className="space-y-1">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <Badge variant="outline" className="bg-rose-50 text-rose-800 border-rose-300 font-bold text-[10px] gap-1 py-0.5 animate-pulse">
+                                                                            <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                                                            {item.divergenceTitle}
+                                                                        </Badge>
+                                                                    </div>
+                                                                    <p className="text-[11px] text-rose-700 font-medium leading-relaxed">
+                                                                        {item.divergenceDescription}
+                                                                    </p>
+                                                                    {item.divergenceDates.length > 0 && (
+                                                                        <div className="flex flex-wrap gap-1 mt-1">
+                                                                            {item.divergenceDates.slice(0, 5).map((d, i) => (
+                                                                                <span key={i} className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 font-bold">
+                                                                                    {format(new Date(d + "T12:00:00"), "dd/MM")}
+                                                                                </span>
+                                                                            ))}
+                                                                            {item.divergenceDates.length > 5 && (
+                                                                                <span className="text-[10px] text-rose-600 font-bold">
+                                                                                    +{item.divergenceDates.length - 5} datas
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <div>
+                                                                    <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300 font-semibold text-[10px] gap-1 py-0.5">
+                                                                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                                                        Ponto Regular
+                                                                    </Badge>
+                                                                    <p className="text-[11px] text-slate-500 mt-1">
+                                                                        {item.divergenceDescription}
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </Card>
+                        </div>
                     )}
                 </div>
             )}

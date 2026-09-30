@@ -3,6 +3,8 @@
 import { prisma } from "@/lib/db";
 import { startOfYear, endOfYear, differenceInDays } from "date-fns";
 import { generateRoster } from "@/lib/scheduling";
+import { SecullumApiClient } from "@/lib/secullum";
+import { getBenefitsConfig } from "@/actions/benefits";
 
 export async function getReportsData(year: number) {
     try {
@@ -1012,3 +1014,322 @@ export async function getMonthTurnoverDetails(clientId: string, year: number, mo
         return { success: false, error: error.message };
     }
 }
+
+export interface MovementAuditItem {
+    id: string;
+    employeeId: string;
+    employeeName: string;
+    cpf: string;
+    companyName: string;
+    clientName: string;
+    postoRole: string;
+    eventType: "ADMISSAO" | "DEMISSAO";
+    eventDate: string; // YYYY-MM-DD
+    situation: string;
+    dismissalReason: string | null;
+    hasDivergence: boolean;
+    divergenceType: "NONE" | "PUNCH_AFTER_DISMISSAL" | "PUNCH_BEFORE_ADMISSION" | "NO_PUNCH_AFTER_ADMISSION" | "OCCURRENCE_AFTER_DISMISSAL";
+    divergenceTitle: string;
+    divergenceDescription: string;
+    divergenceCount: number;
+    divergenceDates: string[];
+}
+
+export async function getAdmissionsAndDismissalsAudit(params: {
+    startDate: string;
+    endDate: string;
+    companyId?: string;
+}) {
+    try {
+        const start = new Date(`${params.startDate}T00:00:00.000`);
+        const end = new Date(`${params.endDate}T23:59:59.999`);
+
+        const whereEmployee: any = {};
+        if (params.companyId && params.companyId !== "all") {
+            whereEmployee.companyId = params.companyId;
+        }
+
+        // 1. Carregar colaboradores com suas alocações, situações e empresas
+        const employees = await prisma.employee.findMany({
+            where: whereEmployee,
+            include: {
+                company: true,
+                situation: true,
+                role: true,
+                assignments: {
+                    include: {
+                        posto: {
+                            include: {
+                                client: { include: { company: true } },
+                                role: true
+                            }
+                        }
+                    },
+                    orderBy: { startDate: "asc" }
+                }
+            },
+            orderBy: { name: "asc" }
+        });
+
+        const employeeIds = employees.map(e => e.id);
+
+        // 2. Buscar batidas da mesa de operações e presenças
+        const attendances = await prisma.attendance.findMany({
+            where: {
+                employeeId: { in: employeeIds }
+            },
+            select: {
+                employeeId: true,
+                date: true,
+                status: true,
+                clockInTime: true
+            }
+        });
+
+        // 3. Buscar ajustes de ponto aprovados ou solicitados
+        const punchAdjustments = await prisma.attendancePunchAdjustment.findMany({
+            where: {
+                employeeId: { in: employeeIds },
+                status: { in: ["APPROVED_SYNCED", "PENDING_AUDIT"] }
+            },
+            select: {
+                employeeId: true,
+                date: true,
+                status: true,
+                requestedTime: true,
+                expectedTime: true
+            }
+        });
+
+        // 4. Buscar ocorrências do Secullum (faltas / atestados)
+        const occurrences = await prisma.occurrence.findMany({
+            where: {
+                employeeId: { in: employeeIds },
+                title: { startsWith: "Secullum" }
+            },
+            select: {
+                employeeId: true,
+                date: true,
+                title: true,
+                type: true
+            }
+        });
+
+        // 5. Tentar consultar batidas do Secullum se configurado
+        const secullumPunchesByCpf = new Map<string, Date[]>();
+        try {
+            const config = await getBenefitsConfig();
+            const bankId = config?.secullumCompanyId?.trim();
+            const token = config?.secullumApiToken?.trim();
+            const apiUrl = config?.secullumApiUrl?.trim();
+            if (bankId && token) {
+                const client = new SecullumApiClient(token, bankId, apiUrl);
+                const rawBatidas = await client.getBatidas(params.startDate, params.endDate);
+                if (Array.isArray(rawBatidas)) {
+                    for (const b of rawBatidas) {
+                        const cpf = (b.FuncionarioCpf || "").replace(/\D/g, "");
+                        if (!cpf) continue;
+                        const date = new Date(b.DataHora || b.Data);
+                        if (!isNaN(date.getTime())) {
+                            if (!secullumPunchesByCpf.has(cpf)) {
+                                secullumPunchesByCpf.set(cpf, []);
+                            }
+                            secullumPunchesByCpf.get(cpf)!.push(date);
+                        }
+                    }
+                }
+            }
+        } catch (secErr) {
+            console.warn("[getAdmissionsAndDismissalsAudit] Secullum API bypass:", secErr);
+        }
+
+        // Mapa de batidas agregadas por colaborador
+        const punchesByEmployeeId = new Map<string, Date[]>();
+        attendances.forEach(a => {
+            if (!a.employeeId) return;
+            const valid = (a.status && a.status.includes("PRESENTE")) || a.clockInTime !== null;
+            if (valid) {
+                if (!punchesByEmployeeId.has(a.employeeId)) punchesByEmployeeId.set(a.employeeId, []);
+                punchesByEmployeeId.get(a.employeeId)!.push(new Date(a.date));
+            }
+        });
+        punchAdjustments.forEach(adj => {
+            if (!adj.employeeId) return;
+            if (!punchesByEmployeeId.has(adj.employeeId)) punchesByEmployeeId.set(adj.employeeId, []);
+            punchesByEmployeeId.get(adj.employeeId)!.push(new Date(adj.date));
+        });
+
+        const items: MovementAuditItem[] = [];
+
+        for (const emp of employees) {
+            const extra = (emp.extraFields as any) || {};
+            const proc = extra.dismissalProcess || {};
+            const cleanCpf = (emp.cpf || "").replace(/\D/g, "");
+
+            // Todas as batidas conhecidas deste colaborador
+            const allPunches: Date[] = [
+                ...(punchesByEmployeeId.get(emp.id) || []),
+                ...(secullumPunchesByCpf.get(cleanCpf) || [])
+            ];
+
+            const empOccurrences = occurrences.filter(o => o.employeeId === emp.id);
+
+            // Último contrato / posto alocado
+            const lastAsg = emp.assignments.length > 0 ? emp.assignments[emp.assignments.length - 1] : null;
+            const clientName = lastAsg?.posto?.client?.name || "-";
+            const companyName = emp.company?.name || lastAsg?.posto?.client?.company?.name || "-";
+            const postoRole = lastAsg?.posto?.role?.name || emp.role?.name || "-";
+
+            // A. VERIFICAR ADMISSÃO NO PERÍODO
+            const admissionDate = emp.admissionDate ? new Date(emp.admissionDate) : null;
+            if (admissionDate && admissionDate >= start && admissionDate <= end) {
+                const admStartDay = new Date(admissionDate.getFullYear(), admissionDate.getMonth(), admissionDate.getDate());
+                
+                // Checar se teve batidas antes da admissão
+                const punchesBefore = allPunches.filter(p => {
+                    const pDay = new Date(p.getFullYear(), p.getMonth(), p.getDate());
+                    return pDay < admStartDay;
+                });
+
+                // Checar se não tem batidas após a admissão
+                const punchesAfter = allPunches.filter(p => {
+                    const pDay = new Date(p.getFullYear(), p.getMonth(), p.getDate());
+                    return pDay >= admStartDay;
+                });
+
+                let hasDivergence = false;
+                let divergenceType: MovementAuditItem["divergenceType"] = "NONE";
+                let divergenceTitle = "Regular";
+                let divergenceDescription = "Ponto regular e compatível com a admissão";
+                let divergenceDates: string[] = [];
+
+                if (punchesBefore.length > 0) {
+                    hasDivergence = true;
+                    divergenceType = "PUNCH_BEFORE_ADMISSION";
+                    divergenceTitle = "Batida Anterior à Admissão";
+                    divergenceDates = punchesBefore.map(d => d.toISOString().split("T")[0]);
+                    divergenceDescription = `${punchesBefore.length} batida(s) identificada(s) antes da admissão oficial (${admissionDate.toISOString().split("T")[0]})`;
+                } else if (differenceInDays(new Date(), admissionDate) >= 3 && punchesAfter.length === 0) {
+                    hasDivergence = true;
+                    divergenceType = "NO_PUNCH_AFTER_ADMISSION";
+                    divergenceTitle = "Sem Batidas Desde a Admissão";
+                    divergenceDescription = `Colaborador admitido há ${differenceInDays(new Date(), admissionDate)} dias sem nenhuma marcação registrada no ponto`;
+                }
+
+                items.push({
+                    id: `${emp.id}-adm`,
+                    employeeId: emp.id,
+                    employeeName: emp.name,
+                    cpf: emp.cpf,
+                    companyName,
+                    clientName,
+                    postoRole,
+                    eventType: "ADMISSAO",
+                    eventDate: admissionDate.toISOString().split("T")[0],
+                    situation: emp.situation?.name || emp.status || "Ativo",
+                    dismissalReason: null,
+                    hasDivergence,
+                    divergenceType,
+                    divergenceTitle,
+                    divergenceDescription,
+                    divergenceCount: divergenceDates.length,
+                    divergenceDates
+                });
+            }
+
+            // B. VERIFICAR DEMISSÃO NO PERÍODO
+            const isDismissed = 
+                emp.status === "Desligado" ||
+                emp.status === "Inativo" ||
+                emp.situation?.name?.toLowerCase().includes("desligado") ||
+                Boolean(emp.dismissalReason) ||
+                Boolean(proc.type);
+
+            let dismissalDate: Date | null = null;
+            if (proc.lastWorkingDay) dismissalDate = new Date(proc.lastWorkingDay);
+            else if (proc.endDate) dismissalDate = new Date(proc.endDate);
+            else if (emp.assignments.length > 0 && emp.assignments.every(a => a.endDate !== null)) {
+                dismissalDate = new Date(Math.max(...emp.assignments.map(a => a.endDate!.getTime())));
+            } else if (isDismissed) {
+                dismissalDate = new Date(emp.updatedAt);
+            }
+
+            if (isDismissed && dismissalDate && dismissalDate >= start && dismissalDate <= end) {
+                const dismEndDay = new Date(dismissalDate.getFullYear(), dismissalDate.getMonth(), dismissalDate.getDate());
+
+                // Checar se teve batidas APÓS a data de desligamento
+                const punchesAfterDismissal = allPunches.filter(p => {
+                    const pDay = new Date(p.getFullYear(), p.getMonth(), p.getDate());
+                    return pDay > dismEndDay;
+                });
+
+                // Checar ocorrências após a data de desligamento
+                const occsAfterDismissal = empOccurrences.filter(o => {
+                    const oDay = new Date(o.date.getFullYear(), o.date.getMonth(), o.date.getDate());
+                    return oDay > dismEndDay;
+                });
+
+                let hasDivergence = false;
+                let divergenceType: MovementAuditItem["divergenceType"] = "NONE";
+                let divergenceTitle = "Regular";
+                let divergenceDescription = "Desligamento regular sem marcações posteriores";
+                let divergenceDates: string[] = [];
+
+                if (punchesAfterDismissal.length > 0) {
+                    hasDivergence = true;
+                    divergenceType = "PUNCH_AFTER_DISMISSAL";
+                    divergenceTitle = "Batida Registrada Após Demissão";
+                    divergenceDates = punchesAfterDismissal.map(d => d.toISOString().split("T")[0]);
+                    divergenceDescription = `${punchesAfterDismissal.length} batida(s) identificada(s) após o desligamento (${dismissalDate.toISOString().split("T")[0]})`;
+                } else if (occsAfterDismissal.length > 0) {
+                    hasDivergence = true;
+                    divergenceType = "OCCURRENCE_AFTER_DISMISSAL";
+                    divergenceTitle = "Falta / Ocorrência Gerada Após Demissão";
+                    divergenceDates = occsAfterDismissal.map(d => d.date.toISOString().split("T")[0]);
+                    divergenceDescription = `${occsAfterDismissal.length} ocorrência(s) gerada(s) no Secullum após o encerramento do contrato`;
+                }
+
+                items.push({
+                    id: `${emp.id}-dism`,
+                    employeeId: emp.id,
+                    employeeName: emp.name,
+                    cpf: emp.cpf,
+                    companyName,
+                    clientName,
+                    postoRole,
+                    eventType: "DEMISSAO",
+                    eventDate: dismissalDate.toISOString().split("T")[0],
+                    situation: emp.situation?.name || "Desligado",
+                    dismissalReason: emp.dismissalReason || proc.dismissalSubType || proc.type || "Rescisão Contratual",
+                    hasDivergence,
+                    divergenceType,
+                    divergenceTitle,
+                    divergenceDescription,
+                    divergenceCount: divergenceDates.length,
+                    divergenceDates
+                });
+            }
+        }
+
+        // Ordenar por data decrescente
+        items.sort((a, b) => b.eventDate.localeCompare(a.eventDate));
+
+        const summary = {
+            total: items.length,
+            admissions: items.filter(i => i.eventType === "ADMISSAO").length,
+            dismissals: items.filter(i => i.eventType === "DEMISSAO").length,
+            divergences: items.filter(i => i.hasDivergence).length,
+            regular: items.filter(i => !i.hasDivergence).length
+        };
+
+        return {
+            success: true,
+            items,
+            summary
+        };
+    } catch (error: any) {
+        console.error("[getAdmissionsAndDismissalsAudit] Erro:", error);
+        return { success: false, error: error.message };
+    }
+}
+
