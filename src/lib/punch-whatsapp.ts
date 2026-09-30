@@ -174,9 +174,10 @@ export async function sendZapiOptionList(params: {
     }
 }
 
+export const BOT_PHONE = "554135030020";
+
 /**
- * ETAPA 1: Dispara o alerta inicial no WhatsApp com 2 BOTÕES CLICÁVEIS:
- * [✅ Ajustar Ponto] | [❌ Confirmar Falta]
+ * ETAPA 1: Dispara o alerta inicial no WhatsApp com LINKS DE 1 TOQUE (wa.me) e suporte a resposta rápida
  */
 export async function sendPunchAdjustmentWhatsAppAlert(
     adjustmentId: string,
@@ -219,7 +220,6 @@ export async function sendPunchAdjustmentWhatsAppAlert(
         const tipoText = tipoMap[adj.punchType] || adj.punchType;
         const dataFormatada = adj.date.toLocaleDateString("pt-BR");
 
-        // Texto limpo e direto (sem a lista de 24 motivos poluindo a tela)
         const headerAlert = `🚨 *INCONSISTÊNCIA DE PONTO — #${adj.code}*`;
         const colabInfo = `👤 *Colaborador:* ${adj.employee.name}\n🏢 *Contrato:* ${adj.client?.name || "Geral"}\n📍 *Posto:* ${adj.posto?.role?.name || "Não informado"}\n📅 *Data:* ${dataFormatada} | *Marcação:* ${tipoText}\n⏰ *Horário Previsto:* ${adj.expectedTime}`;
 
@@ -227,18 +227,20 @@ export async function sendPunchAdjustmentWhatsAppAlert(
             ? `\n👉 Atenção ${mentionTag} (Gestor do Contrato):`
             : `\n👉 Líderes da operação:`;
 
-        const instructionText = `\n_Clique em um dos botões abaixo para definir a tratativa:_`;
+        const linkAjustar = `https://wa.me/${BOT_PHONE}?text=%23${adj.code}%201`;
+        const linkFalta = `https://wa.me/${BOT_PHONE}?text=%23${adj.code}%202`;
 
-        const fullMessage = `${headerAlert}\n\n${colabInfo}${managerCallout}${instructionText}`;
+        const optionsText = `\n👇 *Defina a tratativa em 1 toque (sem precisar digitar):*\n\n` +
+            `🟢 *[ 1. SOLICITAR AJUSTE DE PONTO ]*\n👉 ${linkAjustar}\n\n` +
+            `🔴 *[ 2. CONFIRMAR FALTA ]*\n👉 ${linkFalta}\n\n` +
+            `💡 _Ou responda no grupo citando esta mensagem com:_ *1* (Ajustar) ou *2* (Falta)`;
 
-        // Dispara com BOTÕES CLICÁVEIS
-        const sendRes = await sendZapiButtonList({
+        const fullMessage = `${headerAlert}\n\n${colabInfo}${managerCallout}${optionsText}`;
+
+        const sendRes = await sendZapiWithMentions({
             target: targetGroup,
             message: fullMessage,
-            buttons: [
-                { id: `#${adj.code}_ajustar`, label: "✅ Ajustar Ponto" },
-                { id: `#${adj.code}_falta`, label: "❌ Confirmar Falta" }
-            ]
+            mentionedPhones
         });
 
         if (sendRes.success) {
@@ -260,12 +262,11 @@ export async function sendPunchAdjustmentWhatsAppAlert(
 }
 
 /**
- * ETAPA 2: Dispara o MENU CLICÁVEL de Motivos do Secullum
- * (Acionado quando o gestor clica no botão "✅ Ajustar Ponto")
+ * ETAPA 2: Envia os 24 MOTIVOS OFICIAIS DO SECULLUM com links rápidos de 1 clique
  */
-export async function sendReasonsOptionList(params: {
+export async function sendReasonsWhatsAppList(params: {
     code: string;
-    groupPhone: string;
+    targetPhone: string;
     employeeName: string;
     expectedTime: string;
 }) {
@@ -274,36 +275,42 @@ export async function sendReasonsOptionList(params: {
         orderBy: { descricao: "asc" }
     });
 
-    // Ordenar para garantir os motivos operacionais mais usados no topo (máximo 10 no menu WhatsApp)
-    const priorityKeywords = ["REGISTRO", "ESQUECIMENTO", "RELÓGIO", "REP", "TROCA", "DECLAR", "INTEGR", "VIAGEM", "FOLGA", "ABONO"];
-    const sortedJusts = [...rawJusts].sort((a, b) => {
-        const aDesc = a.descricao.toUpperCase();
-        const bDesc = b.descricao.toUpperCase();
-        const aPri = priorityKeywords.findIndex(k => aDesc.includes(k));
-        const bPri = priorityKeywords.findIndex(k => bDesc.includes(k));
-        if (aPri !== -1 && bPri === -1) return -1;
-        if (bPri !== -1 && aPri === -1) return 1;
-        if (aPri !== -1 && bPri !== -1) return aPri - bPri;
-        return aDesc.localeCompare(bDesc);
-    });
+    const lines = rawJusts.map((j, idx) => `*${idx + 1}* - ${j.descricao}`);
 
-    const topOptions = sortedJusts.slice(0, 10).map(j => ({
-        id: `#${params.code}_MOT_${j.id}`,
-        title: j.descricao.slice(0, 24),
-        description: `Motivo Secullum (${j.codigo || "Oficial"})`
-    }));
+    // Identificar índices dos motivos operacionais mais comuns
+    const findIndex = (kw: string) => rawJusts.findIndex(j => j.descricao.toUpperCase().includes(kw)) + 1;
+    const idxSemRegistro = findIndex("REGISTRO") || 20;
+    const idxAtestado = findIndex("ATESTADO") || 6;
+    const idxDeclaracao = findIndex("DECLAR") || 10;
+    const idxTroca = findIndex("TROCA") || 22;
+    const idxFolga = findIndex("FOLGA") || 13;
 
-    return sendZapiOptionList({
-        target: params.groupPhone,
-        message: `📋 *Ajuste #${params.code} — Horário: ${params.expectedTime}*\n_Colaborador: ${params.employeeName}_\n\nToque no botão abaixo para escolher o motivo oficial do ponto:`,
-        title: "Motivos de Ponto Secullum",
-        buttonLabel: "Escolher Motivo 👇",
-        options: topOptions
+    const linkSemReg = `https://wa.me/${BOT_PHONE}?text=%23${params.code}%20${idxSemRegistro}`;
+    const linkAtestado = `https://wa.me/${BOT_PHONE}?text=%23${params.code}%20${idxAtestado}`;
+    const linkDeclaracao = `https://wa.me/${BOT_PHONE}?text=%23${params.code}%20${idxDeclaracao}`;
+    const linkTroca = `https://wa.me/${BOT_PHONE}?text=%23${params.code}%20${idxTroca}`;
+    const linkFolga = `https://wa.me/${BOT_PHONE}?text=%23${params.code}%20${idxFolga}`;
+
+    const msg = `📋 *Ajuste #${params.code} — Horário: ${params.expectedTime}*\n` +
+        `👤 _Colaborador: ${params.employeeName}_\n\n` +
+        `👇 *Toque no motivo para confirmar em 1 clique:*\n` +
+        `• 🟢 *Sem Registro de Ponto:* ${linkSemReg}\n` +
+        `• 🏥 *Atestado Médico:* ${linkAtestado}\n` +
+        `• 📄 *Declaração de Horas:* ${linkDeclaracao}\n` +
+        `• 🔄 *Troca de Plantão:* ${linkTroca}\n` +
+        `• 🏖️ *Folga:* ${linkFolga}\n\n` +
+        `📋 *Todos os 24 Motivos Secullum:*\n` +
+        lines.join("\n") +
+        `\n\n👉 *Ou responda citando com o número do motivo (ex:* #${params.code} ${idxSemRegistro} *ou apenas* ${idxSemRegistro}*)*`;
+
+    return sendZapiWithMentions({
+        target: params.targetPhone,
+        message: msg
     });
 }
 
 /**
- * PARSER DO WEBHOOK: Processa cliques nos Botões e seleções no Menu de Opções
+ * PARSER DO WEBHOOK: Processa comandos #AJ... em grupos ou privado
  */
 export async function tryParsePunchAdjustmentReply(params: {
     messageText: string;
@@ -311,10 +318,10 @@ export async function tryParsePunchAdjustmentReply(params: {
     senderName?: string;
     groupPhone?: string;
 }): Promise<{ handled: boolean; replyText?: string }> {
-    const text = (params.messageText || "").trim();
+    const rawText = (params.messageText || "").trim();
 
-    // 1. Verificar se a mensagem contém referência ao código #AJ...
-    const codeMatch = text.match(/#(AJ\d+(?:_\d+)?)/i);
+    // 1. Extrair código #AJ... do texto ou da citação
+    const codeMatch = rawText.match(/#(AJ\d+(?:_\d+)?)/i);
     if (!codeMatch) {
         return { handled: false };
     }
@@ -334,74 +341,86 @@ export async function tryParsePunchAdjustmentReply(params: {
         return { handled: false };
     }
 
-    // A. CLIQUE NO BOTÃO: "Confirmar Falta" (#AJ1001_falta ou texto "Confirmar Falta")
-    if (text.includes("_falta") || text.toLowerCase().includes("confirmar falta") || text.toLowerCase().includes("falta")) {
-        const res = await processManagerWhatsAppResponse({
+    // Isolar o texto real do usuário excluindo linhas citadas (> ...)
+    const lines = rawText.split("\n");
+    const userLines = lines.filter(l => !l.trim().startsWith(">"));
+    let userText = (userLines.length > 0 ? userLines.join(" ") : rawText)
+        .replace(/#(AJ\d+(?:_\d+)?)/ig, "")
+        .trim();
+
+    const cleanSender = params.senderPhone.replace(/\D/g, "");
+    const mentionTag = `@${cleanSender.startsWith("55") ? cleanSender : `55${cleanSender}`}`;
+    const targetDestination = params.groupPhone || params.senderPhone;
+
+    // A. OPÇÃO FALTA (2, falta, não)
+    if (userText === "2" || userText.toLowerCase().includes("falta") || userText.toLowerCase().includes("não") || rawText.includes("_falta")) {
+        await processManagerWhatsAppResponse({
             code,
             senderPhone: params.senderPhone,
             senderName: params.senderName,
             action: "FALTA"
         });
 
-        const cleanSender = params.senderPhone.replace(/\D/g, "");
-        const mentionTag = `@${cleanSender.startsWith("55") ? cleanSender : `55${cleanSender}`}`;
-
         return {
             handled: true,
-            replyText: `❌ *Falta confirmada para #${code}!* (${adjustment.employee.name})\nRegistrado por: ${mentionTag}. O RH foi notificado.`
+            replyText: `❌ *Falta confirmada para #${code}!* (${adjustment.employee.name})\nConfirmado por: ${mentionTag}. O RH foi notificado.`
         };
     }
 
-    // B. CLIQUE NO BOTÃO: "Ajustar Ponto" (#AJ1001_ajustar ou texto "Ajustar Ponto")
-    // Dispara a ETAPA 2: Menu Interativo de Motivos Clicável!
-    if (text.includes("_ajustar") || text.toLowerCase().includes("ajustar ponto") || text.toLowerCase().endsWith("ajustar")) {
-        if (params.groupPhone) {
-            await sendReasonsOptionList({
-                code,
-                groupPhone: params.groupPhone,
-                employeeName: adjustment.employee.name,
-                expectedTime: adjustment.expectedTime
-            });
-        }
+    // B. OPÇÃO AJUSTAR — ETAPA 1 (1, ajustar, sim)
+    if (userText === "1" || userText.toLowerCase().includes("ajustar") || userText.toLowerCase().includes("sim") || rawText.includes("_ajustar")) {
+        await sendReasonsWhatsAppList({
+            code,
+            targetPhone: targetDestination,
+            employeeName: adjustment.employee.name,
+            expectedTime: adjustment.expectedTime
+        });
+
         return {
             handled: true,
-            replyText: undefined // A própria sendReasonsOptionList já enviou o menu interativo
+            replyText: undefined // A própria sendReasonsWhatsAppList já disparou o menu completo
         };
     }
 
-    // C. CLIQUE NO MENU DE MOTIVOS: (#AJ1001_MOT_uuid ou seleção de um motivo)
-    if (text.includes("_MOT_")) {
-        const motIdMatch = text.match(/_MOT_([a-zA-Z0-9_-]+)/);
-        const justificationId = motIdMatch ? motIdMatch[1] : undefined;
+    // C. OPÇÃO MOTIVO ESCOLHIDO (número de 1 a 24 ou texto do motivo)
+    const rawJusts = await prisma.secullumJustification.findMany({
+        where: { isActive: true },
+        orderBy: { descricao: "asc" }
+    });
 
-        let selectedReasonName = "SEM REGISTRO DE PONTO";
-        let selectedReasonCode = "S/ REG.";
+    let selectedJust: { id: string; codigo: string | null; descricao: string } | null = null;
 
-        if (justificationId) {
-            const just = await prisma.secullumJustification.findUnique({
-                where: { id: justificationId }
-            });
-            if (just) {
-                selectedReasonName = just.descricao;
-                selectedReasonCode = just.codigo || just.descricao;
-            }
+    // Checar se digitou número (ex: 20 ou #AJ1004 20)
+    const numMatch = userText.match(/^\s*(\d{1,2})\b/);
+    if (numMatch) {
+        const num = parseInt(numMatch[1], 10);
+        if (num >= 1 && num <= rawJusts.length) {
+            selectedJust = rawJusts[num - 1];
         }
+    }
 
-        const res = await processManagerWhatsAppResponse({
+    // Checar por texto do motivo se não for número
+    if (!selectedJust && userText.length >= 3) {
+        const searchUpper = userText.toUpperCase();
+        selectedJust = rawJusts.find(j => 
+            searchUpper.includes(j.descricao.toUpperCase()) || 
+            (j.codigo && searchUpper.includes(j.codigo.toUpperCase()))
+        ) || null;
+    }
+
+    if (selectedJust) {
+        await processManagerWhatsAppResponse({
             code,
             senderPhone: params.senderPhone,
             senderName: params.senderName,
             action: "AJUSTAR",
-            reasonIdOrCode: selectedReasonCode || selectedReasonName
+            reasonIdOrCode: selectedJust.codigo || selectedJust.descricao
         });
-
-        const cleanSender = params.senderPhone.replace(/\D/g, "");
-        const mentionTag = `@${cleanSender.startsWith("55") ? cleanSender : `55${cleanSender}`}`;
 
         const replyMsg = `✅ *Ajuste #${code} Solicitado com Sucesso!*\n\n` +
             `👤 *Colaborador:* ${adjustment.employee.name}\n` +
             `⏰ *Horário:* ${adjustment.expectedTime}\n` +
-            `📋 *Motivo Selecionado:* ${selectedReasonName}\n` +
+            `📋 *Motivo Selecionado:* ${selectedJust.descricao} (${selectedJust.codigo || "Oficial"})\n` +
             `Solicitado por: ${mentionTag}\n\n` +
             `👉 *Enviado para auditoria e gravação no Secullum pelo RH.*`;
 
@@ -413,3 +432,4 @@ export async function tryParsePunchAdjustmentReply(params: {
 
     return { handled: false };
 }
+

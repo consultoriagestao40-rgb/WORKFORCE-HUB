@@ -206,6 +206,33 @@ export async function POST(req: Request) {
         // Resolver LID para Telefone Real
         cleanPhone = await resolveLidToPhone(cleanPhone);
 
+        const { messageType, content } = parseMessageBody(body);
+
+        // Interceptar Respostas de Ajuste de Ponto (#AJ...) no privado (ex: quando o gestor clica no link wa.me)
+        if (!isFromMe && content && (content.includes("#AJ") || content.includes("#aj"))) {
+            try {
+                const { tryParsePunchAdjustmentReply, sendZapiWithMentions } = await import("@/lib/punch-whatsapp");
+                const replyRes = await tryParsePunchAdjustmentReply({
+                    messageText: content,
+                    senderPhone: cleanPhone,
+                    senderName: body.senderName || body.pushName || "Gestor"
+                });
+
+                if (replyRes.handled) {
+                    if (replyRes.replyText) {
+                        await sendZapiWithMentions({
+                            target: cleanPhone,
+                            message: replyRes.replyText
+                        });
+                    }
+                    console.log(`[Z-API] ✅ Resposta de ajuste processada no privado (${cleanPhone}): ${content}`);
+                    return NextResponse.json({ status: "punch_adjustment_private_handled" });
+                }
+            } catch (punchErr) {
+                console.error("[Z-API] Falha ao processar comando de ajuste no privado:", punchErr);
+            }
+        }
+
         const phoneShort = cleanPhone.startsWith("55") ? cleanPhone.slice(2) : cleanPhone;
         const phoneSearch = phoneShort.slice(-9);
 
