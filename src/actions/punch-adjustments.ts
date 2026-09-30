@@ -466,3 +466,11 @@ export async function getPendingAdjustmentsForD1() {
         return [];
     }
 }
+
+/**
+ * Server Action para disparar alerta via WhatsApp sem vazar Prisma para o bundle cliente
+ */
+export async function sendPunchAdjustmentAlertAction(adjustmentId: string, targetGroup?: string) {
+    const { sendPunchAdjustmentWhatsAppAlert } = await import("@/lib/punch-whatsapp");
+    return await sendPunchAdjustmentWhatsAppAlert(adjustmentId, targetGroup);
+}

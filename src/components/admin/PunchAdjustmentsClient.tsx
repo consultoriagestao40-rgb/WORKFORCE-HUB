@@ -61,9 +61,9 @@ import {
     checkPunchAgainstSecullum,
     approveAndSyncPunchAdjustment,
     discardPunchAdjustment,
-    createPunchAdjustmentAlert
+    createPunchAdjustmentAlert,
+    sendPunchAdjustmentAlertAction
 } from "@/actions/punch-adjustments";
-import { sendPunchAdjustmentWhatsAppAlert } from "@/lib/punch-whatsapp";
 
 interface PunchAdjustmentItem {
     id: string;
@@ -242,8 +242,8 @@ export default function PunchAdjustmentsClient({
                 return;
             }
 
-            // Disparar no WhatsApp
-            const sendRes = await sendPunchAdjustmentWhatsAppAlert(createRes.adjustment.id, testGroupTarget || undefined);
+            // Disparar no WhatsApp via Server Action
+            const sendRes = await sendPunchAdjustmentAlertAction(createRes.adjustment.id, testGroupTarget || undefined);
             if (sendRes.success) {
                 toast.success(`🎉 Alerta #${createRes.adjustment.code} enviado no WhatsApp com sucesso!`);
                 setIsTestModalOpen(false);
