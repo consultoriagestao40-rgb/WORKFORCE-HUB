@@ -644,7 +644,9 @@ export async function syncSingleEmployeeSecullumOccurrences(employeeId: string, 
             }
         }
 
+        const secId = secEmp?.Id;
         const secFolha = secEmp?.NumeroFolha?.trim();
+        const secPis = secEmp?.NumeroPis?.trim();
         const secCpf = secEmp?.Cpf ? cleanCpfStr(secEmp.Cpf) : cleanTargetCpf;
 
         // 2. Buscar batidas e afastamentos do Secullum no período
@@ -655,13 +657,11 @@ export async function syncSingleEmployeeSecullumOccurrences(employeeId: string, 
 
         // Filtrar batidas e afastamentos apenas deste colaborador
         const empBatidas = batidas.filter(b => {
+            if (secId && b.FuncionarioId && b.FuncionarioId === secId) return true;
             const bFolha = b.Funcionario?.NumeroFolha?.trim();
             if (secFolha && bFolha && bFolha === secFolha) return true;
-            if (b.Funcionario?.Nome && emp.name) {
-                const bCleanName = b.Funcionario.Nome.trim().toUpperCase();
-                const empCleanName = emp.name.trim().toUpperCase();
-                if (bCleanName === empCleanName) return true;
-            }
+            const bPis = b.Funcionario?.NumeroPis?.trim();
+            if (secPis && bPis && bPis === secPis) return true;
             return false;
         });
 
