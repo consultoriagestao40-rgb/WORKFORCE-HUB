@@ -24,10 +24,13 @@ interface Employee {
     type: string;
     vacations: { id: string; startDate: string | Date; endDate: string | Date }[];
     company?: { id: string; name: string } | null;
+    cpf?: string | null;
     insalubridade?: number;
     periculosidade?: number;
     gratificacao?: number;
     outrosAdicionais?: number;
+    ajudaCusto?: number;
+    adicionalViagem?: number;
     valeAlimentacao?: number;
     valeTransporte?: number;
     assignments?: {
@@ -279,27 +282,49 @@ export function FinancialCostsClient({
         } else if (activeTab === "folha") {
             const headers = [
                 "Colaborador",
+                "CPF",
+                "Situação",
+                "Data de Admissão",
                 "Cargo",
-                "Contrato",
+                "Contrato / Cliente",
                 "Empresa",
-                "Tipo",
+                "Tipo Contrato",
                 "Salário Base (R$)",
-                "Adicionais (R$)",
-                "Remuneração Total (R$)",
-                "Vale Transporte (VT) (R$)",
-                "Vale Alimentação (VA) (R$)",
-                "Custo Mensal (R$)"
+                "Insalubridade (R$)",
+                "Periculosidade (R$)",
+                "Gratificação CCT (R$)",
+                "Outros Adicionais (R$)",
+                "Total Adicionais (R$)",
+                "Ajuda de Custo (R$)",
+                "Adicional Viagem (R$)",
+                "Remuneração Total / Salário Bruto (R$)",
+                "VT Diário (R$)",
+                "Vale Transporte (VT Mensal) (R$)",
+                "VA Diário (R$)",
+                "Vale Alimentação (VA Mensal) (R$)",
+                "Custo Mensal Total (R$)"
             ];
             const rows = folhaData.map(item => [
                 item.name,
+                item.cpf,
+                item.situation,
+                item.admissionDate ? new Date(item.admissionDate).toLocaleDateString('pt-BR') : "-",
                 item.role,
                 item.contractName,
                 item.companyName,
                 item.type,
                 item.salary,
+                item.insalubridade,
+                item.periculosidade,
+                item.gratificacao,
+                item.outrosAdicionais,
                 item.totalAdicionais,
+                item.ajudaCusto,
+                item.adicionalViagem,
                 item.remuneracaoTotal,
+                item.vtDiario,
                 item.vtMensal,
+                item.vaDiario,
                 item.vaMensal,
                 item.totalCustoMensal
             ]);
@@ -533,6 +558,8 @@ export function FinancialCostsClient({
             let periculosidade = emp.periculosidade || 0;
             let gratificacao = emp.gratificacao || 0;
             let outrosAdicionais = emp.outrosAdicionais || 0;
+            let ajudaCusto = emp.ajudaCusto || 0;
+            let adicionalViagem = emp.adicionalViagem || 0;
 
             // Check if admitted in the current month & year
             const isAdmittedThisMonth = admission.getFullYear() === today.getFullYear() && admission.getMonth() === today.getMonth();
@@ -547,13 +574,15 @@ export function FinancialCostsClient({
                 periculosidade = (periculosidade / totalDaysInMonth) * daysWorked;
                 gratificacao = (gratificacao / totalDaysInMonth) * daysWorked;
                 outrosAdicionais = (outrosAdicionais / totalDaysInMonth) * daysWorked;
+                ajudaCusto = (ajudaCusto / totalDaysInMonth) * daysWorked;
+                adicionalViagem = (adicionalViagem / totalDaysInMonth) * daysWorked;
                 
                 // Pro-rata of 22 days worked
                 vtDays = Math.round((daysWorked / totalDaysInMonth) * 22);
             }
 
             const totalAdicionais = insalubridade + periculosidade + gratificacao + outrosAdicionais;
-            const remuneracaoTotal = salary + totalAdicionais;
+            const remuneracaoTotal = salary + totalAdicionais + ajudaCusto + adicionalViagem;
 
             // VT Intelligent Calculation (Daily vs Monthly detection)
             let vtDiario = 12;
@@ -597,6 +626,9 @@ export function FinancialCostsClient({
             return {
                 id: emp.id,
                 name: emp.name,
+                cpf: emp.cpf || "",
+                admissionDate: emp.admissionDate,
+                situation: emp.situation?.name || "Ativo",
                 role: emp.role?.name || "-",
                 salary,
                 insalubridade,
@@ -604,6 +636,8 @@ export function FinancialCostsClient({
                 gratificacao,
                 outrosAdicionais,
                 totalAdicionais,
+                ajudaCusto,
+                adicionalViagem,
                 remuneracaoTotal,
                 vtDiario,
                 vtMensal,
@@ -2076,6 +2110,14 @@ export function FinancialCostsClient({
                                                                     item.periculosidade > 0 && `Peric.: ${formatCurrency(item.periculosidade)}`,
                                                                     item.gratificacao > 0 && `Gratif.: ${formatCurrency(item.gratificacao)}`,
                                                                     item.outrosAdicionais > 0 && `Outros: ${formatCurrency(item.outrosAdicionais)}`
+                                                                ].filter(Boolean).join(" | ")}
+                                                            </span>
+                                                        )}
+                                                        {(item.ajudaCusto > 0 || item.adicionalViagem > 0) && (
+                                                            <span className="text-[9px] text-sky-600 font-medium">
+                                                                {[
+                                                                    item.ajudaCusto > 0 && `Ajuda Custo: ${formatCurrency(item.ajudaCusto)}`,
+                                                                    item.adicionalViagem > 0 && `Viagem: ${formatCurrency(item.adicionalViagem)}`
                                                                 ].filter(Boolean).join(" | ")}
                                                             </span>
                                                         )}
