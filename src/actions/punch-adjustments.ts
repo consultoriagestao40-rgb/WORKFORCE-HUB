@@ -160,7 +160,7 @@ export async function createPunchAdjustmentAlert(params: {
             include: {
                 employee: { select: { id: true, name: true, cpf: true } },
                 client: { select: { id: true, name: true, accountManager: true } },
-                posto: { select: { id: true, name: true } }
+                posto: { select: { id: true, role: { select: { name: true } } } }
             }
         });
 
@@ -455,7 +455,7 @@ export async function getPendingAdjustmentsForD1() {
                         accountManager: { select: { id: true, name: true, phone: true } }
                     }
                 },
-                posto: { select: { name: true } }
+                posto: { select: { id: true, role: { select: { name: true } } } }
             },
             orderBy: [{ clientId: "asc" }, { date: "asc" }]
         });

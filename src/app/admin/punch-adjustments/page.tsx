@@ -16,7 +16,7 @@ export default async function PunchAdjustmentsPage() {
                     accountManager: { select: { id: true, name: true, phone: true } }
                 }
             },
-            posto: { select: { id: true, name: true } }
+            posto: { select: { id: true, role: { select: { name: true } } } }
         },
         orderBy: { createdAt: "desc" },
         take: 200

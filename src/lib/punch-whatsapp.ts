@@ -75,7 +75,7 @@ export async function sendPunchAdjustmentWhatsAppAlert(
             include: {
                 employee: true,
                 client: { include: { accountManager: true } },
-                posto: true
+                posto: { include: { role: true } }
             }
         });
 
@@ -120,7 +120,7 @@ export async function sendPunchAdjustmentWhatsAppAlert(
 
         // 3. Montar texto da mensagem
         const headerAlert = `🚨 *INCONSISTÊNCIA DE PONTO — #${adj.code}*`;
-        const colabInfo = `👤 *Colaborador:* ${adj.employee.name}\n🏢 *Contrato:* ${adj.client?.name || "Geral"}\n📍 *Posto:* ${adj.posto?.name || "Não informado"}\n📅 *Data:* ${dataFormatada} | *Marcação:* ${tipoText}\n⏰ *Horário Previsto:* ${adj.expectedTime}`;
+        const colabInfo = `👤 *Colaborador:* ${adj.employee.name}\n🏢 *Contrato:* ${adj.client?.name || "Geral"}\n📍 *Posto:* ${adj.posto?.role?.name || "Não informado"}\n📅 *Data:* ${dataFormatada} | *Marcação:* ${tipoText}\n⏰ *Horário Previsto:* ${adj.expectedTime}`;
 
         const managerCallout = mentionTag
             ? `\n👉 Atenção ${mentionTag} (Gestor do Contrato): favor definir a tratativa:`

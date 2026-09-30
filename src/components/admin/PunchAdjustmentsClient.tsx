@@ -60,7 +60,9 @@ interface PunchAdjustmentItem {
     } | null;
     posto: {
         id: string;
-        name: string;
+        role?: {
+            name: string;
+        } | null;
     } | null;
 }
 
@@ -395,7 +397,7 @@ export default function PunchAdjustmentsClient({
                                                 </div>
                                                 <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
                                                     <MapPin className="w-3 h-3 text-slate-600" />
-                                                    {item.posto?.name || "Geral"}
+                                                    {item.posto?.role?.name || "Geral"}
                                                 </div>
                                             </td>
 
