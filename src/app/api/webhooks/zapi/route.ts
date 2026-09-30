@@ -126,6 +126,7 @@ export async function POST(req: Request) {
             const { messageType, content, mediaUrl, msgId } = parseMessageBody(body);
             const participantRaw = body.participantPhone || body.participant || body.author || body.senderPhone || body.phone || "";
             const participantPhone = participantRaw ? participantRaw.toString().replace(/\D/g, "").replace(/@.+$/, "") : "";
+            const participantName = body.senderName || body.pushName || "Líder";
             const rawGroup = (body.phone || body.chatId || body.remoteJid || "").toString();
             const groupPhone = rawGroup.includes("@g.us") ? rawGroup : (rawGroup.includes("-group") ? rawGroup : (rawGroup.startsWith("120363") ? `${rawGroup}-group` : rawGroup));
 
