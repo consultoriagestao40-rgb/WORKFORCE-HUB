@@ -419,9 +419,35 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
         }
         const vacationDatesStr = vacationDatesList.length > 0 ? vacationDatesList.join(", ") : "-";
 
+        // Ajuste proporcional por férias: se o colaborador teve férias neste mês, deduz os dias de férias
+        // No caso de férias o mês todo iniciando no dia 1, paga-se apenas os dias da janela do corte anterior (dias 26 a 31 = 6 dias)
+        if (vacationDaysInMonth > 0 && !lastWorkingDayObj) {
+            if (vacationDaysInMonth >= totalDaysInMonth) {
+                const firstVac = (emp.vacations || []).find(v => {
+                    const vS = new Date(v.startDate);
+                    return vS <= monthEnd && new Date(v.endDate) >= monthStart;
+                });
+                const vStartDay = firstVac ? new Date(firstVac.startDate).getUTCDate() : 1;
+                if (vStartDay === 1) {
+                    daysWorked = 6; // Proporcional aos dias 26 a 31 do mês anterior
+                } else {
+                    daysWorked = Math.max(0, vStartDay - 1);
+                }
+            } else {
+                daysWorked = Math.max(0, totalDaysInMonth - vacationDaysInMonth);
+            }
+
+            baseSalary = Math.round(((initialSalary / totalDaysInMonth) * daysWorked) * 100) / 100;
+            insalubridade = Math.round(((initialInsalubridade / totalDaysInMonth) * daysWorked) * 100) / 100;
+            periculosidade = Math.round(((initialPericulosidade / totalDaysInMonth) * daysWorked) * 100) / 100;
+            gratificacao = Math.round(((initialGratificacao / totalDaysInMonth) * daysWorked) * 100) / 100;
+            outrosAdicionais = Math.round(((initialOutrosAdicionais / totalDaysInMonth) * daysWorked) * 100) / 100;
+        }
+
         const totalGrossSalaryBase = baseSalary + insalubridade + periculosidade + gratificacao + outrosAdicionais;
 
         // Filter occurrences to only include dates on or after the employee's admission date (using UTC)
+        // and ignore occurrences during vacation periods
         const filteredOccurrences = (emp.occurrences || []).filter(occ => {
             const occurrenceDate = new Date(occ.date);
             const occurrenceDay = new Date(
@@ -434,7 +460,20 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
                 admissionDateObj.getUTCMonth(),
                 admissionDateObj.getUTCDate()
             );
-            return occurrenceDay >= admissionDay;
+            if (occurrenceDay < admissionDay) return false;
+
+            // Férias: dias de férias nunca geram falta/desconto na folha!
+            for (const vac of emp.vacations || []) {
+                const vStart = new Date(vac.startDate);
+                const vEnd = new Date(vac.endDate);
+                const vacStartDay = new Date(vStart.getUTCFullYear(), vStart.getUTCMonth(), vStart.getUTCDate());
+                const vacEndDay = new Date(vEnd.getUTCFullYear(), vEnd.getUTCMonth(), vEnd.getUTCDate(), 23, 59, 59, 999);
+                if (occurrenceDay >= vacStartDay && occurrenceDay <= vacEndDay) {
+                    return false;
+                }
+            }
+
+            return true;
         });
 
         // Occurrences list & count in payroll window
@@ -513,6 +552,12 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
                 ? `Afastado(a) INSS em ${dataFmt} — salário proporcional`
                 : `Afastado(a) INSS neste mês — salário proporcional`;
             observacoes = observacoes ? `${observacoes} | ${afastadoNota}` : afastadoNota;
+        }
+
+        // Se o funcionário tem férias este mês, acrescenta nota na observação
+        if (vacationDaysInMonth > 0) {
+            const vacNota = `Férias ${vacationDatesStr} — Proporcional a ${daysWorked} dias trabalhados`;
+            observacoes = observacoes ? `${observacoes} | ${vacNota}` : vacNota;
         }
 
         const hourlyRate = fullFixedSalary / (emp.workload || 220);

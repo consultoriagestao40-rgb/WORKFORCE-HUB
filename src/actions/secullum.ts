@@ -289,23 +289,40 @@ export async function syncSecullumOccurrences(year: number, month: number, compa
             const activeAssignment = empDb?.assignments?.[0];
             const posto = activeAssignment?.posto;
 
+            // Não pode ser falta se a data for anterior à admissão do colaborador!
+            if (empDb?.admissionDate) {
+                const admStart = new Date(empDb.admissionDate);
+                admStart.setHours(0, 0, 0, 0);
+                if (occDate < admStart) continue;
+            }
+
             let isLocalFolga = false;
             if (posto && posto.schedule) {
-                const pivotDate = activeAssignment.startDate || empDb?.admissionDate || new Date();
+                const pivotDate = activeAssignment?.startDate || empDb?.admissionDate || new Date();
                 const roster = generateRoster(posto.schedule, pivotDate, [occDate]);
                 if (roster.length > 0 && roster[0].status === "Folga") {
                     isLocalFolga = true;
                 }
             }
 
-            const isAtestado = /at\.?\s*med/i.test(rawEntrada) || /at\.?\s*med/i.test(rawObs) ||
+            const rawObs = (b.Observacoes || "").toLowerCase();
+            const rawEntrada = (b.Entrada1 || "").toLowerCase();
+            const rawAjuste = (b.Ajuste || "").toLowerCase();
+
+            const isAtestado = /at\.?\s*med/i.test(rawEntrada) || /at\.?\s*med/i.test(rawObs) || /at\.?\s*med/i.test(rawAjuste) ||
                                rawEntrada.includes("atestado") || rawEntrada.includes("medico") || rawEntrada.includes("médico") || rawEntrada.includes("atest") ||
-                               rawObs.includes("atestado") || rawObs.includes("medico") || rawObs.includes("médico") || rawObs.includes("atest");
+                               rawObs.includes("atestado") || rawObs.includes("medico") || rawObs.includes("médico") || rawObs.includes("atest") ||
+                               rawAjuste.includes("atestado") || rawAjuste.includes("medico") || rawAjuste.includes("médico") || rawAjuste.includes("atest");
             
-            // Only count as Lack (Falta) if explicitly marked OR if it's a scheduled workday with no punches
-            const hasNoPunches = !b.Entrada1 && !b.Saida1 && !b.Entrada2 && !b.Saida2;
+            // Only count as Lack (Falta) if explicitly marked OR if workday with NO real or memory punches and not compensated
+            const hasPunches = Boolean(
+                b.Entrada1 || b.Saida1 || b.Entrada2 || b.Saida2 || b.Entrada3 || b.Saida3 ||
+                b.MemoriaEntrada1 || b.MemoriaSaida1 || b.MemoriaEntrada2 || b.MemoriaSaida2 || b.MemoriaEntrada3 || b.MemoriaSaida3 ||
+                b.Compensado === true
+            );
+            const hasNoPunches = !hasPunches;
             const isWorkday = b.Folga === false;
-            const isFalta = !isLocalFolga && (rawEntrada.includes("falta") || rawObs.includes("falta") || (hasNoPunches && isWorkday && !isAtestado));
+            const isFalta = !isLocalFolga && !b.Compensado && (rawEntrada.includes("falta") || rawObs.includes("falta") || rawAjuste.includes("falta") || (hasNoPunches && isWorkday && !isAtestado));
             const startOfDay = new Date(occDate);
             startOfDay.setHours(0, 0, 0, 0);
             const endOfDay = new Date(occDate);
@@ -722,10 +739,17 @@ export async function syncSingleEmployeeSecullumOccurrences(employeeId: string, 
             const occDate = b.Data ? parseLocalDate(b.Data) : new Date();
             const dateKey = formatDateToISO(occDate);
 
+            // Não pode ser falta se a data for anterior à admissão do colaborador!
+            if (emp.admissionDate) {
+                const admStart = new Date(emp.admissionDate);
+                admStart.setHours(0, 0, 0, 0);
+                if (occDate < admStart) continue;
+            }
+
             // Escala local para checar folga
             let isLocalFolga = false;
             if (posto && posto.schedule) {
-                const pivotDate = activeAssignment.startDate || emp.admissionDate || new Date();
+                const pivotDate = activeAssignment?.startDate || emp.admissionDate || new Date();
                 const roster = generateRoster(posto.schedule, pivotDate, [occDate]);
                 if (roster.length > 0 && roster[0].status === "Folga") {
                     isLocalFolga = true;
@@ -734,12 +758,21 @@ export async function syncSingleEmployeeSecullumOccurrences(employeeId: string, 
 
             const rawObs = (b.Observacoes || "").toLowerCase();
             const rawEntrada = (b.Entrada1 || "").toLowerCase();
-            const isAtestado = /at\.?\s*med/i.test(rawEntrada) || /at\.?\s*med/i.test(rawObs) ||
+            const rawAjuste = (b.Ajuste || "").toLowerCase();
+
+            const isAtestado = /at\.?\s*med/i.test(rawEntrada) || /at\.?\s*med/i.test(rawObs) || /at\.?\s*med/i.test(rawAjuste) ||
                                rawEntrada.includes("atestado") || rawEntrada.includes("medico") || rawEntrada.includes("médico") || rawEntrada.includes("atest") ||
-                               rawObs.includes("atestado") || rawObs.includes("medico") || rawObs.includes("médico") || rawObs.includes("atest");
-            const hasNoPunches = !b.Entrada1 && !b.Saida1 && !b.Entrada2 && !b.Saida2;
+                               rawObs.includes("atestado") || rawObs.includes("medico") || rawObs.includes("médico") || rawObs.includes("atest") ||
+                               rawAjuste.includes("atestado") || rawAjuste.includes("medico") || rawAjuste.includes("médico") || rawAjuste.includes("atest");
+
+            const hasPunches = Boolean(
+                b.Entrada1 || b.Saida1 || b.Entrada2 || b.Saida2 || b.Entrada3 || b.Saida3 ||
+                b.MemoriaEntrada1 || b.MemoriaSaida1 || b.MemoriaEntrada2 || b.MemoriaSaida2 || b.MemoriaEntrada3 || b.MemoriaSaida3 ||
+                b.Compensado === true
+            );
+            const hasNoPunches = !hasPunches;
             const isWorkday = b.Folga === false;
-            const isFalta = !isLocalFolga && (rawEntrada.includes("falta") || rawObs.includes("falta") || (hasNoPunches && isWorkday && !isAtestado));
+            const isFalta = !isLocalFolga && !b.Compensado && (rawEntrada.includes("falta") || rawObs.includes("falta") || rawAjuste.includes("falta") || (hasNoPunches && isWorkday && !isAtestado));
 
             if (isAtestado) {
                 validOccurrencesMap.set(dateKey, {
@@ -776,6 +809,12 @@ export async function syncSingleEmployeeSecullumOccurrences(employeeId: string, 
         for (const existing of existingOccs) {
             const dateKey = formatDateToISO(existing.date);
             const valid = validOccurrencesMap.get(dateKey);
+
+            // Se for anterior à data de admissão do colaborador, remove imediatamente!
+            if (emp.admissionDate && existing.date < new Date(new Date(emp.admissionDate).setHours(0, 0, 0, 0))) {
+                await prisma.occurrence.delete({ where: { id: existing.id } });
+                continue;
+            }
 
             if (valid) {
                 // Atualiza se mudou o tipo ou o título

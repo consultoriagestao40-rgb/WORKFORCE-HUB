@@ -29,6 +29,14 @@ export interface SecullumBatida {
     Saida1?: string;
     Entrada2?: string;
     Saida2?: string;
+    Entrada3?: string;
+    Saida3?: string;
+    MemoriaEntrada1?: string;
+    MemoriaSaida1?: string;
+    MemoriaEntrada2?: string;
+    MemoriaSaida2?: string;
+    MemoriaEntrada3?: string;
+    MemoriaSaida3?: string;
     Folga?: boolean;
     Observacoes?: string;
     Ajuste?: string;
