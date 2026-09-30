@@ -38,7 +38,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Combobox } from "@/components/ui/combobox";
 import { toast } from "sonner";
 import { getBenefitsCalculation, updateBenefitsConfig, markBenefitAsPaid, getSystemUsers, markMultipleBenefitsAsPaid, BenefitsCalculationItem } from "@/actions/benefits";
-import { syncSecullumOccurrences, testSecullumConnectionAction } from "@/actions/secullum";
+import { syncSecullumOccurrences, syncSingleEmployeeSecullumOccurrences, testSecullumConnectionAction } from "@/actions/secullum";
 import { CajuReceiptImportModal } from "@/components/admin/CajuReceiptImportModal";
 
 export default function BenefitsPage() {
@@ -61,6 +61,7 @@ export default function BenefitsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSyncingSecullum, setIsSyncingSecullum] = useState(false);
     const [isTestingSecullum, setIsTestingSecullum] = useState(false);
+    const [syncingEmployeeId, setSyncingEmployeeId] = useState<string | null>(null);
 
     const [items, setItems] = useState<BenefitsCalculationItem[]>([]);
     const [config, setConfig] = useState<any>(null);
@@ -430,6 +431,24 @@ export default function BenefitsPage() {
             toast.error(err.message || "Erro ao sincronizar com o Secullum.");
         } finally {
             setIsSyncingSecullum(false);
+        }
+    };
+
+    const handleSyncSingleEmployee = async (item: BenefitsCalculationItem) => {
+        if (syncingEmployeeId) return;
+        setSyncingEmployeeId(item.employeeId);
+        try {
+            const res = await syncSingleEmployeeSecullumOccurrences(item.employeeId, selectedYear, selectedMonth);
+            if (res.success) {
+                toast.success(res.message || `Ponto de ${item.employeeName} sincronizado com sucesso!`);
+                loadData();
+            } else {
+                toast.error(res.message || "Erro ao sincronizar ponto do colaborador.");
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Erro inesperado ao sincronizar com o Secullum.");
+        } finally {
+            setSyncingEmployeeId(null);
         }
     };
 
@@ -1789,6 +1808,19 @@ export default function BenefitsPage() {
                                                                     {item.situationName}
                                                                 </span>
                                                             )}
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => handleSyncSingleEmployee(item)}
+                                                                disabled={syncingEmployeeId === item.employeeId}
+                                                                className={`p-1 rounded-md transition-all cursor-pointer ${
+                                                                    syncingEmployeeId === item.employeeId 
+                                                                        ? "opacity-100 text-indigo-600 bg-indigo-50" 
+                                                                        : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-60 group-hover:opacity-100 hover:opacity-100"
+                                                                }`}
+                                                                title={`Sincronizar ponto/faltas de ${item.employeeName} com o Secullum`}
+                                                            >
+                                                                <RefreshCw className={`w-3 h-3 ${syncingEmployeeId === item.employeeId ? "animate-spin text-indigo-600" : ""}`} />
+                                                            </button>
                                                         </div>
                                                         <div className="text-[10px] font-mono text-slate-400">{item.employeeCpf}</div>
                                                     </td>
@@ -1894,6 +1926,19 @@ export default function BenefitsPage() {
                                                                                 </div>
                                                                             );
                                                                         })}
+                                                                    </div>
+                                                                    <div className="pt-2 border-t flex items-center justify-between gap-2">
+                                                                        <span className="text-[9px] text-slate-400 italic">Secullum Ponto Web</span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleSyncSingleEmployee(item)}
+                                                                            disabled={syncingEmployeeId === item.employeeId}
+                                                                            className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors cursor-pointer disabled:opacity-50"
+                                                                            title="Atualizar faltas diretamente do Secullum"
+                                                                        >
+                                                                            <RefreshCw className={`w-2.5 h-2.5 ${syncingEmployeeId === item.employeeId ? "animate-spin" : ""}`} />
+                                                                            <span>{syncingEmployeeId === item.employeeId ? "Sincronizando..." : "Sinc Ponto"}</span>
+                                                                        </button>
                                                                     </div>
                                                                 </PopoverContent>
                                                             </Popover>
@@ -2419,6 +2464,27 @@ export default function BenefitsPage() {
                                                                                 <span>{item.employeeName}</span>
                                                                                 <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                                                                             </Link>
+                                                                            {item.situationName && item.situationName !== "Ativo" && (
+                                                                                <span 
+                                                                                    className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md text-white shadow-xs shrink-0"
+                                                                                    style={{ backgroundColor: item.situationColor || '#ef4444' }}
+                                                                                >
+                                                                                    {item.situationName}
+                                                                                </span>
+                                                                            )}
+                                                                            <button 
+                                                                                type="button"
+                                                                                onClick={() => handleSyncSingleEmployee(item)}
+                                                                                disabled={syncingEmployeeId === item.employeeId}
+                                                                                className={`p-1 rounded-md transition-all cursor-pointer ${
+                                                                                    syncingEmployeeId === item.employeeId 
+                                                                                        ? "opacity-100 text-indigo-600 bg-indigo-50" 
+                                                                                        : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-60 group-hover:opacity-100 hover:opacity-100"
+                                                                                }`}
+                                                                                title={`Sincronizar ponto/faltas de ${item.employeeName} com o Secullum`}
+                                                                            >
+                                                                                <RefreshCw className={`w-3 h-3 ${syncingEmployeeId === item.employeeId ? "animate-spin text-indigo-600" : ""}`} />
+                                                                            </button>
                                                                         </div>
                                                                         <div className="text-[9px] font-mono text-slate-400">{item.employeeCpf}</div>
                                                                     </td>
@@ -2629,6 +2695,27 @@ export default function BenefitsPage() {
                                                                                 <span>{item.employeeName}</span>
                                                                                 <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                                                                             </Link>
+                                                                            {item.situationName && item.situationName !== "Ativo" && (
+                                                                                <span 
+                                                                                    className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md text-white shadow-xs shrink-0"
+                                                                                    style={{ backgroundColor: item.situationColor || '#ef4444' }}
+                                                                                >
+                                                                                    {item.situationName}
+                                                                                </span>
+                                                                            )}
+                                                                            <button 
+                                                                                type="button"
+                                                                                onClick={() => handleSyncSingleEmployee(item)}
+                                                                                disabled={syncingEmployeeId === item.employeeId}
+                                                                                className={`p-1 rounded-md transition-all cursor-pointer ${
+                                                                                    syncingEmployeeId === item.employeeId 
+                                                                                        ? "opacity-100 text-indigo-600 bg-indigo-50" 
+                                                                                        : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-60 group-hover:opacity-100 hover:opacity-100"
+                                                                                }`}
+                                                                                title={`Sincronizar ponto/faltas de ${item.employeeName} com o Secullum`}
+                                                                            >
+                                                                                <RefreshCw className={`w-3 h-3 ${syncingEmployeeId === item.employeeId ? "animate-spin text-indigo-600" : ""}`} />
+                                                                            </button>
                                                                         </div>
                                                                         <div className="text-[9px] font-mono text-slate-400">{item.employeeCpf}</div>
                                                                     </td>
