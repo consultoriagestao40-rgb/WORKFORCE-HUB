@@ -120,43 +120,20 @@ export async function sendZapiButtonList(params: {
 }
 
 /**
- * Envia MENU DE LISTA INTERATIVA CLICÁVEL (send-option-list) com suporte a seções e opções
+ * Envia MENU DE LISTA INTERATIVA CLICÁVEL (send-option-list)
  */
 export async function sendZapiOptionList(params: {
     target: string;
     message: string;
     title: string;
     buttonLabel: string;
-    options?: Array<{ id: string; title: string; description?: string }>;
-    sections?: Array<{ title: string; options: Array<{ id: string; title: string; description?: string }> }>;
+    options: Array<{ id: string; title: string; description?: string }>;
 }): Promise<{ success: boolean; zapiId?: string; error?: string }> {
     try {
         if (!params.target) return { success: false, error: "Destinatário vazio" };
         const finalPhone = normalizePhone(params.target);
 
         const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-option-list`;
-        const optionListPayload: Record<string, any> = {
-            title: params.title.slice(0, 50),
-            buttonLabel: params.buttonLabel.slice(0, 20)
-        };
-
-        if (params.sections && params.sections.length > 0) {
-            optionListPayload.sections = params.sections.map(sec => ({
-                title: sec.title.slice(0, 50),
-                options: sec.options.slice(0, 10).map(opt => ({
-                    id: opt.id,
-                    title: opt.title.slice(0, 100),
-                    description: (opt.description || "").slice(0, 100)
-                }))
-            }));
-        } else if (params.options) {
-            optionListPayload.options = params.options.slice(0, 10).map(opt => ({
-                id: opt.id,
-                title: opt.title.slice(0, 100),
-                description: (opt.description || "").slice(0, 100)
-            }));
-        }
-
         const res = await fetch(url, {
             method: "POST",
             headers: {
@@ -166,7 +143,15 @@ export async function sendZapiOptionList(params: {
             body: JSON.stringify({
                 phone: finalPhone,
                 message: params.message,
-                optionList: optionListPayload
+                optionList: {
+                    title: params.title.slice(0, 50),
+                    buttonLabel: params.buttonLabel.slice(0, 20),
+                    options: params.options.map(opt => ({
+                        id: opt.id,
+                        title: opt.title.slice(0, 24),
+                        description: (opt.description || "").slice(0, 72)
+                    }))
+                }
             })
         });
 
@@ -185,8 +170,8 @@ export async function sendZapiOptionList(params: {
 }
 
 /**
- * ETAPA 1: Dispara o alerta inicial no WhatsApp com 2 BOTÕES CLICÁVEIS:
- * [✅ Ajustar Ponto] | [❌ Confirmar Falta]
+ * ETAPA 1: Dispara o alerta inicial no WhatsApp com MENU INTERATIVO:
+ * [ Definir Tratativa 👇 ] -> [ ✅ Ajustar Ponto ] | [ ❌ Confirmar Falta ]
  */
 export async function sendPunchAdjustmentWhatsAppAlert(
     adjustmentId: string,
@@ -270,7 +255,7 @@ export async function sendPunchAdjustmentWhatsAppAlert(
 }
 
 /**
- * ETAPA 2: Dispara o MENU CLICÁVEL com TODOS OS MOTIVOS DO SECULLUM organizados em seções
+ * ETAPA 2: Dispara o MENU CLICÁVEL com TODOS OS 24 MOTIVOS NATIVOS DO SECULLUM
  * Acionado quando o gestor clica no botão "✅ Ajustar Ponto"
  */
 export async function sendReasonsOptionList(params: {
@@ -284,36 +269,18 @@ export async function sendReasonsOptionList(params: {
         orderBy: { descricao: "asc" }
     });
 
-    // Seção 1: Operacionais e Mais Frequentes
-    const priorityKeywords = ["REGISTRO", "ESQUECIMENTO", "RELÓGIO", "REP", "TROCA", "DECLAR", "INTEGR", "FOLGA", "ABONO", "ATESTADO"];
-    const sec1Items = rawJusts.filter(j => priorityKeywords.some(k => j.descricao.toUpperCase().includes(k)));
-    const secOtherItems = rawJusts.filter(j => !sec1Items.some(s => s.id === j.id));
-
-    const sections = [
-        {
-            title: "⭐ Mais Usados na Operação",
-            options: sec1Items.slice(0, 10).map(j => ({
-                id: `#${params.code}_MOT_${j.id}`,
-                title: j.descricao.slice(0, 24),
-                description: `Secullum: ${j.codigo || "Oficial"}`
-            }))
-        },
-        {
-            title: "📋 Outros Motivos Secullum",
-            options: secOtherItems.slice(0, 10).map(j => ({
-                id: `#${params.code}_MOT_${j.id}`,
-                title: j.descricao.slice(0, 24),
-                description: `Secullum: ${j.codigo || "Oficial"}`
-            }))
-        }
-    ];
+    const options = rawJusts.map(j => ({
+        id: `#${params.code}_MOT_${j.id}`,
+        title: j.descricao.slice(0, 24),
+        description: `Código Secullum: ${j.codigo || j.descricao}`.slice(0, 72)
+    }));
 
     return sendZapiOptionList({
         target: params.groupPhone,
         message: `📋 *Ajuste #${params.code} — Horário: ${params.expectedTime}*\n_Colaborador: ${params.employeeName}_\n\nToque no botão abaixo para escolher o motivo oficial do ponto:`,
         title: "Motivos Secullum",
         buttonLabel: "Escolher Motivo 👇",
-        sections
+        options
     });
 }
 
