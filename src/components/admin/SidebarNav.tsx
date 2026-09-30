@@ -118,6 +118,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
                 <SectionHeader title="Operação" />
 
                 <NavLink href="/admin/operations" icon={Clock} label="Mesa de Operações" colorClass="text-indigo-400" />
+                <NavLink href="/admin/punch-adjustments" icon={Clock} label="Ajustes de Ponto" colorClass="text-cyan-400 font-bold" />
                 <NavLink href="/admin/atendimento" icon={Headphones} label="Atendimento RH" colorClass="text-emerald-400 font-bold" />
                 <NavLink href="/admin/atestados" icon={FileText} label="Gestão de Atestados" colorClass="text-sky-400 font-bold" badge={atestadosPendentes} />
                 <NavLink href="/admin/disciplinary" icon={Scale} label="Gestão de Medidas" colorClass="text-rose-500" />

@@ -49,6 +49,8 @@ model User {
   hrTicketTransfersTo        HrTicketTransfer[]    @relation("HrTicketTransferTo")
   hrScheduledMessages        HrScheduledMessage[]  @relation("HrScheduledMessageCreator")
   validatedCertificates      MedicalCertificate[]  @relation("AtestadoValidator")
+  punchAdjustmentsRequested  AttendancePunchAdjustment[] @relation("PunchAdjustmentRequestedBy")
+  punchAdjustmentsResolved   AttendancePunchAdjustment[] @relation("PunchAdjustmentResolvedBy")
 }
 
 model Log {
@@ -101,6 +103,7 @@ model Client {
   requests            Request[]
   pops                PopDocument[]
   monthlyDocumentRequirements MonthlyDocumentRequirement[]
+  punchAdjustments           AttendancePunchAdjustment[]
 
   @@index([companyId])
 }
@@ -158,6 +161,7 @@ model Posto {
   scheduleOverrides ScheduleOverride[]
   workRoutines      WorkRoutine[]
   pops              PopDocument[]
+  punchAdjustments  AttendancePunchAdjustment[]
 
   @@index([clientId])
 }
@@ -272,6 +276,7 @@ model Employee {
   epiDeliveries          EpiDelivery[]
   hrTickets              HrTicket[]
   medicalCertificates    MedicalCertificate[]
+  punchAdjustments       AttendancePunchAdjustment[]
 }
 
 model BenefitsConfig {
@@ -1320,4 +1325,60 @@ model MedicalCertificate {
   @@index([employeeId])
   @@index([startDate, endDate])
   @@index([createdAt])
+}
+
+model SecullumJustification {
+  id          String   @id @default(uuid())
+  secullumId  Int?     @unique
+  codigo      String?
+  descricao   String
+  abonar      Boolean  @default(true)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([descricao])
+}
+
+model AttendancePunchAdjustment {
+  id                    String    @id @default(uuid())
+  code                  String    @unique // ex: AJ1042
+  employeeId            String
+  clientId              String?
+  postoId               String?
+  date                  DateTime  // Data da ocorrência
+  punchType             String    // ENTRADA_1, SAIDA_1, ENTRADA_2, SAIDA_2
+  expectedTime          String    // ex: "07:00"
+  requestedTime         String?   // ex: "07:00"
+  secullumReasonId      String?   // ID ou código do motivo no Secullum
+  secullumReasonName    String?   // Nome do motivo (ex: "ESQUECIMENTO")
+  notes                 String?   // Observações adicionais
+  status                String    @default("PENDING_RESPONSE") // PENDING_RESPONSE, PENDING_AUDIT, APPROVED_SYNCED, DISCARDED_OFFLINE_FOUND, REJECTED, CONFIRMED_ABSENCE
+  source                String    @default("NEXUS_ALERT") // NEXUS_ALERT, WHATSAPP_BOT, MANUAL
+  whatsappGroupId       String?
+  whatsappMessageId     String?
+  managerMentionedPhone String?
+  requestedByPhone      String?
+  requestedByName       String?
+  requestedByUserId     String?
+  isAccountManager      Boolean   @default(false)
+  resolvedByUserId      String?
+  resolvedAt            DateTime?
+  secullumStatus        String?   // SUCESSO, ERRO, EXISTENTE_OFFLINE
+  secullumResponseLog   String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  employee              Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  client                Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  posto                 Posto?    @relation(fields: [postoId], references: [id], onDelete: SetNull)
+  requestedByUser       User?     @relation("PunchAdjustmentRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  resolvedByUser        User?     @relation("PunchAdjustmentResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([employeeId])
+  @@index([clientId])
+  @@index([date])
+  @@index([createdAt])
+  @@index([code])
 }

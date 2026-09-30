@@ -123,7 +123,38 @@ export async function POST(req: Request) {
         );
 
         if (isGroup) {
-            // VERIFICAÇÃO RIGOROSA: Apenas captura se for estritamente o grupo de ATESTADOS & FALTAS
+            const { messageType, content, mediaUrl, msgId } = parseMessageBody(body);
+            const participantRaw = body.participantPhone || body.participant || body.author || body.senderPhone || body.phone || "";
+            const participantPhone = participantRaw ? participantRaw.toString().replace(/\D/g, "").replace(/@.+$/, "") : "";
+            const participantName = body.senderName || body.pushName || "Líder";
+            const groupPhone = (body.phone || body.chatId || body.remoteJid || "").toString().replace(/@.+$/, "");
+
+            // 1. Interceptar Respostas de Ajuste de Ponto (#AJ...) em qualquer grupo operacional / de teste
+            if (!isFromMe && content && (content.includes("#AJ") || content.includes("#aj"))) {
+                try {
+                    const { tryParsePunchAdjustmentReply, sendZapiWithMentions } = await import("@/lib/punch-whatsapp");
+                    const replyRes = await tryParsePunchAdjustmentReply({
+                        messageText: content,
+                        senderPhone: participantPhone,
+                        senderName: participantName,
+                        groupPhone
+                    });
+
+                    if (replyRes.handled && replyRes.replyText) {
+                        await sendZapiWithMentions({
+                            target: groupPhone,
+                            message: replyRes.replyText,
+                            mentionedPhones: participantPhone ? [participantPhone] : []
+                        });
+                        console.log(`[Z-API] ✅ Resposta de ajuste processada no grupo ${groupPhone}: ${content}`);
+                        return NextResponse.json({ status: "punch_adjustment_command_handled" });
+                    }
+                } catch (punchErr) {
+                    console.error("[Z-API] Falha ao processar comando de ajuste de ponto:", punchErr);
+                }
+            }
+
+            // 2. VERIFICAÇÃO RIGOROSA DE ATESTADOS: Apenas captura se for estritamente o grupo de ATESTADOS & FALTAS
             const rawGroupName = (body.groupName || body.chatName || "").toString().toUpperCase();
             const isAtestadoGroup = rawGroupName.includes("ATESTADO") || rawGroupName.includes("FALTA");
 
@@ -136,8 +167,6 @@ export async function POST(req: Request) {
             if (isFromMe && (eventType === "on-message-send" || eventType === "MessageSent")) {
                 return NextResponse.json({ status: "ignored_sent_group_echo" });
             }
-
-            const { messageType, content, mediaUrl, msgId } = parseMessageBody(body);
 
             // Deduplicação pelo ID único da mensagem do WhatsApp
             if (msgId && isDuplicateZapiMessage(msgId)) {
