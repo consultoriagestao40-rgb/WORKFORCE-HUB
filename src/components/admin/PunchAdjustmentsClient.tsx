@@ -378,29 +378,7 @@ export default function PunchAdjustmentsClient({
             </div>
 
             {/* Cards de Métricas (Exato Padrão Atestados) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                {/* Aguardando Gestor */}
-                <div
-                    onClick={() => setActiveTab("PENDING_RESPONSE")}
-                    className={`bg-white rounded-xl border p-5 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md ${
-                        activeTab === "PENDING_RESPONSE"
-                            ? "border-amber-400 ring-2 ring-amber-100 bg-amber-50/20"
-                            : "border-slate-200 hover:border-slate-300"
-                    }`}
-                >
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-wider text-amber-800">
-                            Aguardando Gestor (Zap)
-                        </span>
-                        <div className="p-2.5 bg-amber-100 text-amber-700 rounded-xl">
-                            <Clock className="w-5 h-5" />
-                        </div>
-                    </div>
-                    <div className="mt-3">
-                        <div className="text-3xl font-black text-slate-900">{stats.pendingResponse}</div>
-                        <p className="text-xs text-amber-700 font-medium mt-1">Aguardando resposta do líder</p>
-                    </div>
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
                 {/* Pendente RH (Pronto) */}
                 <div
@@ -514,20 +492,6 @@ export default function PunchAdjustmentsClient({
                             </span>
                         </button>
 
-                        <button
-                            onClick={() => setActiveTab("PENDING_RESPONSE")}
-                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                activeTab === "PENDING_RESPONSE"
-                                    ? "bg-white text-slate-900 shadow-sm"
-                                    : "text-slate-600 hover:text-slate-900"
-                            }`}
-                        >
-                            <Clock className="w-3.5 h-3.5 text-amber-500" />
-                            <span>Aguardando Gestor</span>
-                            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-100 text-amber-800">
-                                {stats.pendingResponse}
-                            </span>
-                        </button>
 
                         <button
                             onClick={() => setActiveTab("PENDING_AUDIT")}

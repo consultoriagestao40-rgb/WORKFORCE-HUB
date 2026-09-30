@@ -5,8 +5,11 @@ import PunchAdjustmentsClient from "@/components/admin/PunchAdjustmentsClient";
 export const dynamic = "force-dynamic";
 
 export default async function PunchAdjustmentsPage() {
-    // 1. Buscar todas as solicitações / alertas de ajuste de batida
+    // 1. Buscar apenas as solicitações onde o gestor clicou em SIM e definiu o motivo
     const adjustments = await prisma.attendancePunchAdjustment.findMany({
+        where: {
+            status: { in: ["PENDING_AUDIT", "APPROVED_SYNCED", "DISCARDED_OFFLINE_FOUND", "REJECTED"] }
+        },
         include: {
             employee: { select: { id: true, name: true, cpf: true } },
             client: {
@@ -18,7 +21,7 @@ export default async function PunchAdjustmentsPage() {
             },
             posto: { select: { id: true, role: { select: { name: true } } } }
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { updatedAt: "desc" },
         take: 200
     });
 
