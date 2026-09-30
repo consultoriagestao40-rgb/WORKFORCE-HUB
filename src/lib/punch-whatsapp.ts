@@ -254,9 +254,40 @@ export async function sendPunchAdjustmentWhatsAppAlert(
     }
 }
 
+export const STANDARDIZED_PUNCH_REASONS = [
+    {
+        id: "ABONO",
+        title: "Abono",
+        description: "Não trabalhou; abono do gestor s/ desconto",
+        secullumCode: "ABONO",
+        secullumName: "ABONO (NÃO TRABALHOU / ABONADO PELO GESTOR)"
+    },
+    {
+        id: "ESQUECIMENTO",
+        title: "Esquecimento",
+        description: "Trabalhou normalmente; esqueceu de registrar",
+        secullumCode: "S/ REG.",
+        secullumName: "SEM REGISTRO DE PONTO (ESQUECIMENTO)"
+    },
+    {
+        id: "PROB_APARELHO",
+        title: "Problema Aparelho",
+        description: "Aparelho descarregou, defeito ou sem celular",
+        secullumCode: "S/ REG.",
+        secullumName: "SEM REGISTRO DE PONTO (PROBLEMA DE APARELHO)"
+    },
+    {
+        id: "SISTEMA",
+        title: "Instabilidade Sistema",
+        description: "Sistema de ponto fora do ar ou c/ lentidão",
+        secullumCode: "S/ REG.",
+        secullumName: "SEM REGISTRO DE PONTO (INSTABILIDADE DO SISTEMA)"
+    }
+];
+
 /**
- * ETAPA 2: Dispara o MENU CLICÁVEL com TODOS OS 24 MOTIVOS NATIVOS DO SECULLUM
- * Acionado quando o gestor clica no botão "✅ Ajustar Ponto"
+ * ETAPA 2: Dispara o MENU CLICÁVEL com os 4 MOTIVOS OPERACIONAIS PADRONIZADOS
+ * (Abono, Esquecimento, Problema Aparelho, Instabilidade Sistema)
  */
 export async function sendReasonsOptionList(params: {
     code: string;
@@ -264,21 +295,16 @@ export async function sendReasonsOptionList(params: {
     employeeName: string;
     expectedTime: string;
 }) {
-    const rawJusts = await prisma.secullumJustification.findMany({
-        where: { isActive: true },
-        orderBy: { descricao: "asc" }
-    });
-
-    const options = rawJusts.map(j => ({
-        id: `#${params.code}_MOT_${j.id}`,
-        title: j.descricao.slice(0, 24),
-        description: `Código Secullum: ${j.codigo || j.descricao}`.slice(0, 72)
+    const options = STANDARDIZED_PUNCH_REASONS.map(r => ({
+        id: `#${params.code}_MOT_${r.id}`,
+        title: r.title,
+        description: r.description
     }));
 
     return sendZapiOptionList({
         target: params.groupPhone,
-        message: `📋 *Ajuste #${params.code} — Horário: ${params.expectedTime}*\n_Colaborador: ${params.employeeName}_\n\nToque no botão abaixo para escolher o motivo oficial do ponto:`,
-        title: "Motivos Secullum",
+        message: `📋 *Ajuste #${params.code} — Horário: ${params.expectedTime}*\n_Colaborador: ${params.employeeName}_\n\nToque no botão abaixo para definir o motivo do ajuste:`,
+        title: "Motivo do Ajuste",
         buttonLabel: "Escolher Motivo 👇",
         options
     });
@@ -336,7 +362,7 @@ export async function tryParsePunchAdjustmentReply(params: {
     }
 
     // B. CLIQUE NO BOTÃO: "Ajustar Ponto" (#AJ..._ajustar ou texto Ajustar Ponto)
-    // Dispara a ETAPA 2: Menu Interativo de Motivos Clicável!
+    // Dispara a ETAPA 2: Menu Interativo dos 4 Motivos Padronizados!
     if (rawText.includes("_ajustar") || rawText.toLowerCase().includes("ajustar ponto") || rawText.toLowerCase().endsWith("ajustar")) {
         if (targetGroup) {
             await sendReasonsOptionList({
@@ -352,40 +378,18 @@ export async function tryParsePunchAdjustmentReply(params: {
         };
     }
 
-    // C. CLIQUE NO MENU DE MOTIVOS: (#AJ..._MOT_uuid ou seleção do motivo ex: "AT. ACO")
-    let selectedReasonName = "";
-    let selectedReasonCode = "";
+    // C. CLIQUE NO MENU DE MOTIVOS PADRONIZADOS
+    let matchedReason = STANDARDIZED_PUNCH_REASONS.find(r => rawText.includes(`_MOT_${r.id}`));
 
-    const rawJusts = await prisma.secullumJustification.findMany({
-        where: { isActive: true }
-    });
-
-    if (rawText.includes("_MOT_")) {
-        const motIdMatch = rawText.match(/_MOT_([a-zA-Z0-9_-]+)/);
-        const justificationId = motIdMatch ? motIdMatch[1] : undefined;
-        if (justificationId) {
-            const just = rawJusts.find(j => j.id === justificationId);
-            if (just) {
-                selectedReasonName = just.descricao;
-                selectedReasonCode = just.codigo || just.descricao;
-            }
-        }
-    }
-
-    // Se o WhatsApp enviou o nome/código do motivo selecionado diretamente
-    if (!selectedReasonName) {
+    if (!matchedReason) {
         const upper = rawText.toUpperCase();
-        const found = rawJusts.find(j => 
-            upper.includes(j.descricao.toUpperCase()) || 
-            (j.codigo && upper.includes(j.codigo.toUpperCase()))
-        );
-        if (found) {
-            selectedReasonName = found.descricao;
-            selectedReasonCode = found.codigo || found.descricao;
-        }
+        if (upper.includes("ABONO")) matchedReason = STANDARDIZED_PUNCH_REASONS[0];
+        else if (upper.includes("ESQUEC") || upper.includes("ESQUECEU")) matchedReason = STANDARDIZED_PUNCH_REASONS[1];
+        else if (upper.includes("APARELHO") || upper.includes("CELULAR")) matchedReason = STANDARDIZED_PUNCH_REASONS[2];
+        else if (upper.includes("SISTEMA") || upper.includes("INSTABILIDADE") || upper.includes("FORA")) matchedReason = STANDARDIZED_PUNCH_REASONS[3];
     }
 
-    if (selectedReasonName) {
+    if (matchedReason) {
         // GATILHO OFICIAL: O gestor confirmou o ajuste e o motivo!
         // Promove o status para PENDING_AUDIT para entrar no Workforce Hub
         await processManagerWhatsAppResponse({
@@ -393,13 +397,22 @@ export async function tryParsePunchAdjustmentReply(params: {
             senderPhone: params.senderPhone,
             senderName: params.senderName,
             action: "AJUSTAR",
-            reasonIdOrCode: selectedReasonCode || selectedReasonName
+            reasonIdOrCode: matchedReason.secullumCode
+        });
+
+        // Gravar também o nome detalhado e notas da descrição
+        await prisma.attendancePunchAdjustment.update({
+            where: { code },
+            data: {
+                secullumReasonName: matchedReason.secullumName,
+                notes: matchedReason.description
+            }
         });
 
         const replyMsg = `✅ *Ajuste #${code} Solicitado com Sucesso!*\n\n` +
             `👤 *Colaborador:* ${adjustment.employee.name}\n` +
             `⏰ *Horário:* ${adjustment.expectedTime}\n` +
-            `📋 *Motivo Selecionado:* ${selectedReasonName}\n` +
+            `📋 *Motivo:* ${matchedReason.title} (${matchedReason.description})\n` +
             `Solicitado por: ${mentionTag}\n\n` +
             `👉 *Registrado no Workforce Hub para conferência e injeção no Secullum pelo RH.*`;
 
@@ -411,4 +424,5 @@ export async function tryParsePunchAdjustmentReply(params: {
 
     return { handled: false };
 }
+
 
