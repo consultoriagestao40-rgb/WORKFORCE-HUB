@@ -1124,12 +1124,27 @@ export async function getAdmissionsAndDismissalsAudit(params: {
             const apiUrl = config?.secullumApiUrl?.trim();
             if (bankId && token) {
                 const client = new SecullumApiClient(token, bankId, apiUrl);
-                const rawBatidas = await client.getBatidas(params.startDate, params.endDate);
+                const [rawBatidas, secEmployees] = await Promise.all([
+                    client.getBatidas(params.startDate, params.endDate),
+                    client.getFuncionarios()
+                ]);
+                const idToCpf = new Map<number, string>();
+                const folhaToCpf = new Map<string, string>();
+                if (Array.isArray(secEmployees)) {
+                    secEmployees.forEach(e => {
+                        const cleanCpf = (e.Cpf || "").replace(/\D/g, "");
+                        if (cleanCpf) {
+                            if (e.Id) idToCpf.set(e.Id, cleanCpf);
+                            if (e.NumeroFolha) folhaToCpf.set(e.NumeroFolha.trim(), cleanCpf);
+                        }
+                    });
+                }
                 if (Array.isArray(rawBatidas)) {
                     for (const b of rawBatidas) {
-                        const cpf = (b.FuncionarioCpf || "").replace(/\D/g, "");
+                        const folha = b.Funcionario?.NumeroFolha?.trim();
+                        const cpf = (b.FuncionarioId ? idToCpf.get(b.FuncionarioId) : null) || (folha ? folhaToCpf.get(folha) : null);
                         if (!cpf) continue;
-                        const date = new Date(b.DataHora || b.Data);
+                        const date = new Date(b.Data);
                         if (!isNaN(date.getTime())) {
                             if (!secullumPunchesByCpf.has(cpf)) {
                                 secullumPunchesByCpf.set(cpf, []);
