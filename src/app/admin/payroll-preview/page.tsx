@@ -1015,41 +1015,55 @@ export default function PayrollPreviewPage() {
             const pct = (v: number) => `${v.toFixed(2).replace(".", ",")}%`;
             const num = (v: number) => v;
 
-            const contabData = filtered.map(item => ({
-                "Colaborador":              item.employeeName,
-                "CPF":                      item.employeeCpf,
-                "Situação":                 item.situationName || "Ativo",
-                "Empresa":                  item.companyName,
-                "Cliente / Contrato":       item.clientName,
-                "Posto / Função":           item.postoName,
-                "Admissão":                 item.admissionDate,
-                "Dias Trab.":               num(item.daysWorked || 0),
-                "Salário Base (R$)":        brl(item.baseSalary || 0),
-                "Insalubridade (R$)":       brl(item.insalubridade || 0),
-                "Periculosidade (R$)":      brl(item.periculosidade || 0),
-                "Gratificação CCT (R$)":    brl(item.gratificacao || 0),
-                "H.Extras 50% (H)":         num(item.extras50Hours || 0),
-                "Valor Extras 50% (R$)":    brl(item.horasExtras50Value || 0),
-                "H.Extras 100% (H)":        num(item.extras100Hours || 0),
-                "Valor Extras 100% (R$)":   brl(item.horasExtras100Value || 0),
-                "Adic. Noturno (H)":        num(item.adicionalNoturnoHours || 0),
-                "Valor Adic. Noturno (R$)": brl(item.adicionalNoturnoValue || 0),
-                "Ajuda de Custo (R$)":      brl(item.ajudaCusto || 0),
-                "Adic. Viagem (R$)":        brl(item.adicionalViagem || 0),
-                "Prêmio Absenteísmo (R$)":  brl(item.absenteismoAward || 0),
-                "Salário-Família (R$)":     brl(item.salarioFamilia || 0),
-                "Salário Bruto (R$)":       brl(item.totalGrossSalary || 0),
-                "Faltas (Dias)":            num(item.faltasCount || 0),
-                "Desc. Faltas (R$)":        brl(item.faltaDeduction || 0),
-                "DSR Perdidos":             num(item.dsrDeductionsCount || 0),
-                "Desc. DSR (R$)":           brl(item.dsrDeduction || 0),
-                "Atestados (Dias)":         num(item.atestadosCount || 0),
-                "Opção VT":                 item.vtOptIn ? "Optante" : "Não Optante",
-                "VT Valor Bruto (R$)":      brl(item.vtOptIn ? (item.vtBaseValue || 0) : 0),
-                "VT Líquido Creditado (R$)":brl(item.vtOptIn ? (item.vtNetValue || 0) : 0),
-                "Alíquota Desc. VT (%)":    (item.vtOptIn && !(item.ajudaCusto > 0)) ? pct(item.vtDiscountPercentage || 6) : "0,00%",
-                "Desc. VT em Folha (R$)":   brl((item.vtOptIn && !(item.ajudaCusto > 0)) ? (item.vtPayrollDiscount || 0) : 0)
-            }));
+            const contabData = filtered.map(item => {
+                const atestadosList = (item.occurrencesList || []).filter(o => o.rawType === "ATESTADO");
+                const atestadosDatesStr = atestadosList.length > 0
+                    ? atestadosList.map(o => o.date).join(", ")
+                    : "-";
+
+                const faltasList = (item.occurrencesList || []).filter(o => o.rawType === "FALTA" || o.rawType === "FALTA_INJUSTIFICADA");
+                const faltasDatesStr = faltasList.length > 0
+                    ? faltasList.map(o => o.date).join(", ")
+                    : "-";
+
+                return {
+                    "Colaborador":              item.employeeName,
+                    "CPF":                      item.employeeCpf,
+                    "Situação":                 item.situationName || "Ativo",
+                    "Empresa":                  item.companyName,
+                    "Cliente / Contrato":       item.clientName,
+                    "Posto / Função":           item.postoName,
+                    "Admissão":                 item.admissionDate,
+                    "Dias Trab.":               num(item.daysWorked || 0),
+                    "Salário Base (R$)":        brl(item.baseSalary || 0),
+                    "Insalubridade (R$)":       brl(item.insalubridade || 0),
+                    "Periculosidade (R$)":      brl(item.periculosidade || 0),
+                    "Gratificação CCT (R$)":    brl(item.gratificacao || 0),
+                    "H.Extras 50% (H)":         num(item.extras50Hours || 0),
+                    "Valor Extras 50% (R$)":    brl(item.horasExtras50Value || 0),
+                    "H.Extras 100% (H)":        num(item.extras100Hours || 0),
+                    "Valor Extras 100% (R$)":   brl(item.horasExtras100Value || 0),
+                    "Adic. Noturno (H)":        num(item.adicionalNoturnoHours || 0),
+                    "Valor Adic. Noturno (R$)": brl(item.adicionalNoturnoValue || 0),
+                    "Ajuda de Custo (R$)":      brl(item.ajudaCusto || 0),
+                    "Adic. Viagem (R$)":        brl(item.adicionalViagem || 0),
+                    "Prêmio Absenteísmo (R$)":  brl(item.absenteismoAward || 0),
+                    "Salário-Família (R$)":     brl(item.salarioFamilia || 0),
+                    "Salário Bruto (R$)":       brl(item.totalGrossSalary || 0),
+                    "Faltas (Dias)":            num(item.faltasCount || 0),
+                    "Datas das Faltas":         faltasDatesStr,
+                    "Desc. Faltas (R$)":        brl(item.faltaDeduction || 0),
+                    "DSR Perdidos":             num(item.dsrDeductionsCount || 0),
+                    "Desc. DSR (R$)":           brl(item.dsrDeduction || 0),
+                    "Atestados (Dias)":         num(item.atestadosCount || 0),
+                    "Datas dos Atestados":      atestadosDatesStr,
+                    "Opção VT":                 item.vtOptIn ? "Optante" : "Não Optante",
+                    "VT Valor Bruto (R$)":      brl(item.vtOptIn ? (item.vtBaseValue || 0) : 0),
+                    "VT Líquido Creditado (R$)":brl(item.vtOptIn ? (item.vtNetValue || 0) : 0),
+                    "Alíquota Desc. VT (%)":    (item.vtOptIn && !(item.ajudaCusto > 0)) ? pct(item.vtDiscountPercentage || 6) : "0,00%",
+                    "Desc. VT em Folha (R$)":   brl((item.vtOptIn && !(item.ajudaCusto > 0)) ? (item.vtPayrollDiscount || 0) : 0)
+                };
+            });
 
             const ws = XLSX.utils.json_to_sheet(contabData);
             const wb = XLSX.utils.book_new();
