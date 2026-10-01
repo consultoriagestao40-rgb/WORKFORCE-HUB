@@ -673,29 +673,50 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
         let vaPayrollDiscount = 0;
         let vaDiscountPercentage = 20.0;
 
-        if (benefitInfo) {
-            vtBaseValue = Math.round(((benefitInfo.vtBaseValue || 0) + (benefitInfo.vtBaseValue2 || 0)) * 100) / 100;
-            vtNetValue = Math.round(((benefitInfo.vtTotalValue || 0) + (benefitInfo.vtTotalValue2 || 0)) * 100) / 100;
-            vtPayrollDiscount = benefitInfo.vtPayrollDiscount || 0;
-            vtDiscountPercentage = benefitInfo.vtDiscountPercentage !== undefined && benefitInfo.vtDiscountPercentage !== null ? benefitInfo.vtDiscountPercentage : 6.0;
+        if (emp.vtOptIn) {
+            vtDiscountPercentage = emp.vtDiscountPercentage !== null && emp.vtDiscountPercentage !== undefined
+                ? emp.vtDiscountPercentage
+                : (posto?.vtDiscountPercentage !== null && posto?.vtDiscountPercentage !== undefined ? posto.vtDiscountPercentage : 6.0);
 
-            vaBaseValue = benefitInfo.vaBaseValue || 0;
-            vaDeductionValue = benefitInfo.vaDeductionValue || 0;
-            vaNetValue = benefitInfo.vaTotalValue || 0;
-            vaPayrollDiscount = benefitInfo.vaPayrollDiscount || 0;
-            vaDiscountPercentage = benefitInfo.vaDiscountPercentage !== undefined && benefitInfo.vaDiscountPercentage !== null ? benefitInfo.vaDiscountPercentage : 20.0;
-        } else {
-            // Fallback
-            if (emp.vtOptIn) {
-                vtDiscountPercentage = emp.vtDiscountPercentage !== null && emp.vtDiscountPercentage !== undefined
-                    ? emp.vtDiscountPercentage
-                    : (posto?.vtDiscountPercentage !== null && posto?.vtDiscountPercentage !== undefined ? posto.vtDiscountPercentage : 6.0);
-                const rawDiscount = Math.round((emp.salary * (vtDiscountPercentage / 100)) * 100) / 100;
-                vtPayrollDiscount = rawDiscount;
-                vtBaseValue = emp.valeTransporte || 0;
-                vtNetValue = emp.valeTransporte || 0;
+            if (benefitInfo && ((benefitInfo.vtBaseValue || 0) + (benefitInfo.vtBaseValue2 || 0)) > 0) {
+                vtBaseValue = Math.round(((benefitInfo.vtBaseValue || 0) + (benefitInfo.vtBaseValue2 || 0)) * 100) / 100;
+            } else {
+                const rawVt = emp.valeTransporte > 0 ? emp.valeTransporte : (posto?.valeTransporte || 0);
+                vtBaseValue = rawVt > 50 ? rawVt : Math.round((rawVt * 25) * 100) / 100;
             }
 
+            const vtDailyRate = (emp.valeTransporte && emp.valeTransporte > 0)
+                ? (emp.valeTransporte > 50 ? Math.round((emp.valeTransporte / 25) * 100) / 100 : emp.valeTransporte)
+                : ((posto?.valeTransporte && posto.valeTransporte > 50) ? Math.round((posto.valeTransporte / 25) * 100) / 100 : (posto?.valeTransporte || 12.0));
+
+            const totalVtAbsences = (faltasCount + atestadosCount);
+            const vtDeductionValue = Math.round((totalVtAbsences * vtDailyRate) * 100) / 100;
+            vtNetValue = Math.max(0, Math.round((vtBaseValue - vtDeductionValue) * 100) / 100);
+
+            const effectiveSalaryForVt = (isAdmittedThisMonth || daysWorked < totalDaysInMonth) ? baseSalary : (emp.salary || initialSalary);
+            const rawDiscount = Math.round((effectiveSalaryForVt * (vtDiscountPercentage / 100)) * 100) / 100;
+            vtPayrollDiscount = Math.min(rawDiscount, vtNetValue > 0 ? vtNetValue : vtBaseValue);
+
+            // VA Calculation
+            if (benefitInfo) {
+                vaBaseValue = benefitInfo.vaBaseValue || 0;
+                vaDeductionValue = benefitInfo.vaDeductionValue || 0;
+                vaNetValue = benefitInfo.vaTotalValue || 0;
+                vaPayrollDiscount = benefitInfo.vaPayrollDiscount || 0;
+                vaDiscountPercentage = benefitInfo.vaDiscountPercentage !== undefined && benefitInfo.vaDiscountPercentage !== null ? benefitInfo.vaDiscountPercentage : 20.0;
+            } else {
+                vaDiscountPercentage = emp.vaDiscountPercentage !== null && emp.vaDiscountPercentage !== undefined
+                    ? emp.vaDiscountPercentage
+                    : (posto?.vaDiscountPercentage !== null && posto?.vaDiscountPercentage !== undefined ? posto.vaDiscountPercentage : 20.0);
+                const rawBaseVaValue = (emp.valeAlimentacao !== null && emp.valeAlimentacao !== undefined && emp.valeAlimentacao > 0)
+                    ? emp.valeAlimentacao
+                    : (posto?.valeAlimentacao || 0);
+                const baseVaValue = (rawBaseVaValue > 0 && posto?.vaMealsProvidedOnSite) ? 494.00 : rawBaseVaValue;
+                vaBaseValue = baseVaValue;
+                vaNetValue = baseVaValue;
+                vaPayrollDiscount = Math.round((baseVaValue * (vaDiscountPercentage / 100)) * 100) / 100;
+            }
+        } else {
             vaDiscountPercentage = emp.vaDiscountPercentage !== null && emp.vaDiscountPercentage !== undefined
                 ? emp.vaDiscountPercentage
                 : (posto?.vaDiscountPercentage !== null && posto?.vaDiscountPercentage !== undefined ? posto.vaDiscountPercentage : 20.0);
