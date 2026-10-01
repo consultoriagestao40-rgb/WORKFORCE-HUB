@@ -1683,30 +1683,61 @@ export async function togglePostoReservaTecnica(id: string, isReservaTecnica: bo
 export async function updateEmployee(formData: FormData) {
     try {
         const id = formData.get("id") as string;
+        const oldEmployee = await prisma.employee.findUnique({
+            where: { id },
+            include: { role: true, situation: true }
+        });
+
+        if (!oldEmployee) {
+            return { error: "Colaborador não encontrado" };
+        }
+
+        const parseFormFloat = (key: string, fallback: number = 0): number => {
+            const values = formData.getAll(key);
+            for (const v of values) {
+                if (typeof v === "string" && v.trim() !== "") {
+                    const parsed = parseFloat(v.replace(",", "."));
+                    if (!isNaN(parsed) && parsed > 0) return parsed;
+                }
+            }
+            const single = formData.get(key);
+            if (typeof single === "string" && single.trim() !== "") {
+                const parsed = parseFloat(single.replace(",", "."));
+                if (!isNaN(parsed)) return parsed;
+            }
+            return fallback;
+        };
+
         const name = formData.get("name") as string;
         const cpf = formData.get("cpf") as string;
         const roleId = formData.get("roleId") as string;
         const type = formData.get("type") as string;
         const status = formData.get("status") as string;
-        const salary = parseFloat(formData.get("salary") as string) || 0;
-        const insalubridade = parseFloat(formData.get("insalubridade") as string) || 0;
-        const periculosidade = parseFloat(formData.get("periculosidade") as string) || 0;
-        const gratificacao = parseFloat(formData.get("gratificacao") as string) || 0;
-        const outrosAdicionais = parseFloat(formData.get("outrosAdicionais") as string) || 0;
+
+        const inputSalary = parseFormFloat("salary", 0);
+        // Proteção sistêmica: se o input veio zerado/em branco mas o colaborador já tinha salário, preserva
+        const salary = (inputSalary === 0 && oldEmployee.salary > 0 && !formData.has("salary_explicitly_zero"))
+            ? oldEmployee.salary
+            : inputSalary;
+
+        const insalubridade = parseFormFloat("insalubridade", 0);
+        const periculosidade = parseFormFloat("periculosidade", 0);
+        const gratificacao = parseFormFloat("gratificacao", 0);
+        const outrosAdicionais = parseFormFloat("outrosAdicionais", 0);
         const dependentsCount = parseInt(formData.get("dependentsCount") as string) || 0;
-        const ajudaCusto = parseFloat(formData.get("ajudaCusto") as string) || 0;
-        const adicionalViagem = parseFloat(formData.get("adicionalViagem") as string) || 0;
+        const ajudaCusto = parseFormFloat("ajudaCusto", 0);
+        const adicionalViagem = parseFormFloat("adicionalViagem", 0);
         const workload = parseInt(formData.get("workload") as string) || 220;
         const admissionDateStr = formData.get("admissionDate") as string;
         const situationId = formData.get("situationId") as string;
         const lastVacationStartStr = formData.get("lastVacationStart") as string;
         const lastVacationEndStr = formData.get("lastVacationEnd") as string;
         const totalVacationDaysTaken = parseInt(formData.get("totalVacationDaysTaken") as string) || 0;
-        const valeAlimentacao = parseFloat(formData.get("valeAlimentacao") as string) || 0;
+        const valeAlimentacao = parseFormFloat("valeAlimentacao", 0);
         const vtOptInStr = formData.get("vtOptIn") as string;
         const vtOptIn = vtOptInStr === "true";
-        const valeTransporte = vtOptIn ? (parseFloat(formData.get("valeTransporte") as string) || 0) : 0;
-        const valeTransporte2 = vtOptIn ? (parseFloat(formData.get("valeTransporte2") as string) || 0) : 0;
+        const valeTransporte = vtOptIn ? parseFormFloat("valeTransporte", 0) : 0;
+        const valeTransporte2 = vtOptIn ? parseFormFloat("valeTransporte2", 0) : 0;
         const vtPaymentMethod = (formData.get("vtPaymentMethod") as string) || null;
         const vtPaymentMethod2 = (formData.get("vtPaymentMethod2") as string) || null;
         const vtCustomPaymentDetails = (formData.get("vtCustomPaymentDetails") as string) || null;
@@ -1716,8 +1747,8 @@ export async function updateEmployee(formData: FormData) {
         const urbsSic = (formData.get("urbsSic") as string) || null;
         const urbsCqCtNf = (formData.get("urbsCqCtNf") as string) || null;
 
-        const vtDiscountPercentage = formData.get("vtDiscountPercentage") ? parseFloat(formData.get("vtDiscountPercentage") as string) : null;
-        const vaDiscountPercentage = formData.get("vaDiscountPercentage") ? parseFloat(formData.get("vaDiscountPercentage") as string) : null;
+        const vtDiscountPercentage = formData.get("vtDiscountPercentage") ? parseFormFloat("vtDiscountPercentage", 0) : null;
+        const vaDiscountPercentage = formData.get("vaDiscountPercentage") ? parseFormFloat("vaDiscountPercentage", 0) : null;
 
         const extraFieldsStr = formData.get("extraFields") as string;
         const extraFields = extraFieldsStr ? JSON.parse(extraFieldsStr) : null;
@@ -1744,15 +1775,6 @@ export async function updateEmployee(formData: FormData) {
                     return { error: `Colaborador vinculado a um posto. Desvincule do posto antes de alterar para "${newSituation.name}".` };
                 }
             }
-        }
-
-        const oldEmployee = await prisma.employee.findUnique({
-            where: { id },
-            include: { role: true, situation: true }
-        });
-
-        if (!oldEmployee) {
-            return { error: "Colaborador não encontrado" };
         }
 
         // Validate roleId: if missing or invalid, keep the existing employee roleId

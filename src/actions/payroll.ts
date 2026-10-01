@@ -389,6 +389,19 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
         const lastWorkingDayStr = dismissalProc?.lastWorkingDay;
         const lastWorkingDayObj = lastWorkingDayStr ? new Date(lastWorkingDayStr) : null;
 
+        const situationNameLower = (emp.situation?.name || "").toLowerCase();
+        const isCurrentlyDismissedOrInDismissal = Boolean(
+            emp.status === "DISMISSED" ||
+            emp.status === "Desligado" ||
+            emp.dismissalReason ||
+            situationNameLower.includes("rescis") ||
+            situationNameLower.includes("demit") ||
+            situationNameLower.includes("deslig")
+        );
+        const isDismissalProcess = isCurrentlyDismissedOrInDismissal || Boolean(
+            dismissalProc?.lastWorkingDay && emp.situation?.name !== "Ativo" && situationNameLower.includes("abandono")
+        );
+
         let daysWorked = totalDaysInMonth;
         const initialSalary = emp.salary > 0 ? emp.salary : (posto?.baseSalary || 0);
         const initialInsalubridade = emp.insalubridade > 0 ? emp.insalubridade : (posto?.insalubridade || 0);
@@ -402,8 +415,8 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
         let gratificacao = initialGratificacao;
         let outrosAdicionais = initialOutrosAdicionais;
 
-        // If employee was admitted and/or stopped working this month (due to abandonment / dismissal)
-        if (lastWorkingDayObj) {
+        // If employee was admitted and/or stopped working this month (due to active abandonment / dismissal)
+        if (lastWorkingDayObj && isDismissalProcess) {
             const lwdYear = lastWorkingDayObj.getUTCFullYear();
             const lwdMonth = lastWorkingDayObj.getUTCMonth() + 1;
             const lwdDay = lastWorkingDayObj.getUTCDate();
@@ -704,12 +717,6 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
         const totalDeductions = Math.round((faltaDeduction + dsrDeduction + atrasosDeduction + vtPayrollDiscount + vaPayrollDiscount + inssDeduction + irrfDeduction + diversosDescontos + emprestimos + convenios + sindicato) * 100) / 100;
         const netSalary = Math.max(0, Math.round((totalGrossSalary - totalDeductions) * 100) / 100);
 
-        const isDismissalProcess = Boolean(
-            dismissalProc?.lastWorkingDay || 
-            emp.dismissalReason || 
-            emp.status === "DISMISSED" ||
-            (emp.situation?.name && emp.situation.name.toLowerCase().includes("rescis"))
-        );
         const excludedFromPayroll = Boolean(monthlyAdj.excludedFromPayroll);
 
         let finalBaseSalary = baseSalary;
