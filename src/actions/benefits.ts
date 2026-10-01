@@ -489,6 +489,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
     const items: BenefitsCalculationItem[] = employees.map(emp => {
         const resolvedAssignment = resolveEmployeeAssignment(emp.assignments, windowStart, windowEnd);
         const posto = resolvedAssignment?.posto;
+        const activeAssignment = resolvedAssignment?.assignment;
 
         const postoName = posto ? (posto.role?.name || "Posto") : "Sem Posto";
         const clientName = posto?.client ? posto.client.name : "Interno";
