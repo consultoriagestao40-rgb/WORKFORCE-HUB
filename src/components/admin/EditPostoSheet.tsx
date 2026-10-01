@@ -186,7 +186,7 @@ export function EditPostoSheet({ posto, schedules, roles }: EditPostoSheetProps)
                                  </div>
                              </div>
                             <div className="space-y-2 col-span-2">
-                                <Label htmlFor="outrosAdicionais">Outros Adicionais (R$)</Label>
+                                <Label htmlFor="outrosAdicionais">Assiduidade Cartão VA (R$)</Label>
                                 <Input id="outrosAdicionais" name="outrosAdicionais" type="number" step="0.01" defaultValue={posto.outrosAdicionais} />
                             </div>
 
@@ -227,7 +227,7 @@ export function EditPostoSheet({ posto, schedules, roles }: EditPostoSheetProps)
                                      </div>
                                  </div>
                                  <div className="border-t pt-4 mt-4">
-                                     <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Premiação por Absenteísmo</h4>
+                                     <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Premiação por Absenteísmo (Cartão VA)</h4>
                                      <div className="grid grid-cols-2 gap-4">
                                          <div className="space-y-2">
                                              <Label htmlFor={`absenteismoAwardValue-${posto.id}`}>Valor do Prêmio (R$)</Label>

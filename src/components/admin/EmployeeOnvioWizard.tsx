@@ -1701,7 +1701,7 @@ export function EmployeeOnvioWizard({
                                             <Input id="gratificacao" name="gratificacao" type="number" step="0.01" value={gratificacao} onChange={e => setGratificacao(e.target.value)} />
                                         </div>
                                         <div className="space-y-1">
-                                            <Label htmlFor="outrosAdicionais" className="text-slate-700 font-medium">Outros Adicionais (R$)</Label>
+                                            <Label htmlFor="outrosAdicionais" className="text-slate-700 font-medium">Assiduidade Cartão VA (R$)</Label>
                                             <Input id="outrosAdicionais" name="outrosAdicionais" type="number" step="0.01" value={outrosAdicionais} onChange={e => setOutrosAdicionais(e.target.value)} />
                                         </div>
                                         <div className="space-y-1">

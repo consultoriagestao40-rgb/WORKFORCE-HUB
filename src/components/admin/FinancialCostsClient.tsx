@@ -293,7 +293,7 @@ export function FinancialCostsClient({
                 "Insalubridade (R$)",
                 "Periculosidade (R$)",
                 "Gratificação CCT (R$)",
-                "Outros Adicionais (R$)",
+                "Assiduidade Cartão VA (R$)",
                 "Total Adicionais (R$)",
                 "Ajuda de Custo (R$)",
                 "Adicional Viagem (R$)",
@@ -2109,7 +2109,7 @@ export function FinancialCostsClient({
                                                                     item.insalubridade > 0 && `Insal.: ${formatCurrency(item.insalubridade)}`,
                                                                     item.periculosidade > 0 && `Peric.: ${formatCurrency(item.periculosidade)}`,
                                                                     item.gratificacao > 0 && `Gratif.: ${formatCurrency(item.gratificacao)}`,
-                                                                    item.outrosAdicionais > 0 && `Outros: ${formatCurrency(item.outrosAdicionais)}`
+                                                                    item.outrosAdicionais > 0 && `Assid. VA: ${formatCurrency(item.outrosAdicionais)}`
                                                                 ].filter(Boolean).join(" | ")}
                                                             </span>
                                                         )}

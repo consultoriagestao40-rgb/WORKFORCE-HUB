@@ -3186,7 +3186,7 @@ export async function updateEmployeesFinanceBatch(data: any[], commit: boolean =
             }
             if (emp.outrosAdicionais === 0 && row.outrosAdicionais > 0) {
                 updateData.outrosAdicionais = row.outrosAdicionais;
-                changes.push(`Outros Adicionais: R$ 0 ➔ R$ ${row.outrosAdicionais}`);
+                changes.push(`Assiduidade Cartão VA: R$ 0 ➔ R$ ${row.outrosAdicionais}`);
             }
             if (emp.valeAlimentacao === 0 && row.valeAlimentacao > 0) {
                 updateData.valeAlimentacao = row.valeAlimentacao;

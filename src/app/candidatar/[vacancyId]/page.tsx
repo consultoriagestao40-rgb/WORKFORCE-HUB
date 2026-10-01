@@ -177,7 +177,7 @@ export default async function PublicApplicationPage(props: {
                                                 )}
                                                 {vacancy.posto.outrosAdicionais > 0 && (
                                                     <div className="flex justify-between border-b border-slate-200/60 pb-1">
-                                                        <span>Outros Adicionais:</span>
+                                                        <span>Assiduidade Cartão VA:</span>
                                                         <span className="text-emerald-600 font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(vacancy.posto.outrosAdicionais)}</span>
                                                     </div>
                                                 )}

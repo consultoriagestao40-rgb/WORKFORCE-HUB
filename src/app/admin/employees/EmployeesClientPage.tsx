@@ -163,7 +163,7 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                 "Insalubridade": emp.insalubridade || activeAssignment?.posto?.insalubridade || 0,
                 "Periculosidade": emp.periculosidade || activeAssignment?.posto?.periculosidade || 0,
                 "Gratificação CCT": emp.gratificacao || activeAssignment?.posto?.gratificacao || 0,
-                "Outros Adicionais": emp.outrosAdicionais || activeAssignment?.posto?.outrosAdicionais || 0,
+                "Assiduidade Cartão VA": emp.outrosAdicionais || activeAssignment?.posto?.outrosAdicionais || 0,
 
                 // Benefícios
                 "Vale Alimentação": emp.valeAlimentacao || 0,

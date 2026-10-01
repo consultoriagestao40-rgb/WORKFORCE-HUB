@@ -915,7 +915,7 @@ export default function PayrollPreviewPage() {
                     "Insalubridade (R$)": item.insalubridade || 0,
                     "Periculosidade (R$)": item.periculosidade || 0,
                     "Gratificação CCT (R$)": item.gratificacao || 0,
-                    "Outros Adicionais (R$)": item.outrosAdicionais || 0,
+                    "Assiduidade Cartão VA (R$)": item.outrosAdicionais || 0,
                     "H.Extras 50% (H)": item.extras50Hours || 0,
                     "Valor Extras 50% (R$)": item.horasExtras50Value || 0,
                     "H.Extras 100% (H)": item.extras100Hours || 0,
@@ -924,7 +924,7 @@ export default function PayrollPreviewPage() {
                     "Valor Adic. Noturno (R$)": item.adicionalNoturnoValue || 0,
                     "Dependentes (Qtd)": item.dependentsCount || 0,
                     "Salário-Família (R$)": item.salarioFamilia || 0,
-                    "Prêmio Absenteísmo (R$)": item.absenteismoAward || 0,
+                    "Prêmio Absenteísmo (Cartão VA) (R$)": item.absenteismoAward || 0,
                     "Ajuda de Custo (R$)": item.ajudaCusto || 0,
                     "Adic. Viagem (R$)": item.adicionalViagem || 0,
                     "Salário Bruto (R$)": item.totalGrossSalary || 0,
@@ -1039,7 +1039,6 @@ export default function PayrollPreviewPage() {
                     "Insalubridade (R$)":           brl(item.insalubridade || 0),
                     "Periculosidade (R$)":          brl(item.periculosidade || 0),
                     "Gratificação CCT (R$)":        brl(item.gratificacao || 0),
-                    "Outros Adicionais (R$)":       brl(item.outrosAdicionais || 0),
                     "H.Extras 50% (H)":             num(item.extras50Hours || 0),
                     "Valor Extras 50% (R$)":        brl(item.horasExtras50Value || 0),
                     "H.Extras 100% (H)":            num(item.extras100Hours || 0),
@@ -1048,7 +1047,6 @@ export default function PayrollPreviewPage() {
                     "Valor Adic. Noturno (R$)":     brl(item.adicionalNoturnoValue || 0),
                     "Dependentes (Qtd)":            num(item.dependentsCount || 0),
                     "Salário-Família (R$)":         brl(item.salarioFamilia || 0),
-                    "Prêmio Absenteísmo (R$)":      brl(item.absenteismoAward || 0),
                     "Ajuda de Custo (R$)":          brl(item.ajudaCusto || 0),
                     "Adic. Viagem (R$)":            brl(item.adicionalViagem || 0),
                     "Salário Bruto (R$)":           brl(item.totalGrossSalary || 0),
@@ -1399,12 +1397,12 @@ export default function PayrollPreviewPage() {
                                 <col style={{ width: "130px" }} /> {/* Insalubridade */}
                                 <col style={{ width: "130px" }} /> {/* Periculosidade */}
                                 <col style={{ width: "140px" }} /> {/* Gratificação CCT */}
-                                <col style={{ width: "140px" }} /> {/* Outros Adicionais */}
+                                <col style={{ width: "170px" }} /> {/* Assiduidade Cartão VA */}
                                 <col style={{ width: "140px" }} /> {/* H. Extras */}
                                 <col style={{ width: "140px" }} /> {/* Adic. Noturno */}
                                 <col style={{ width: "140px" }} /> {/* Salário-Família */}
                                 <col style={{ width: "140px" }} /> {/* Ajuda Custo */}
-                                <col style={{ width: "150px" }} /> {/* Prêmio Assiduidade */}
+                                <col style={{ width: "185px" }} /> {/* Prêmio Absenteísmo (Cartão VA) */}
                                 <col style={{ width: "150px" }} /> {/* Proventos Brutos */}
                                 <col style={{ width: "100px" }} /> {/* Faltas */}
                                 <col style={{ width: "100px" }} /> {/* Atestados */}
@@ -1486,7 +1484,7 @@ export default function PayrollPreviewPage() {
                                         onClick={() => handleSort('outrosAdicionais')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
-                                            <span>Outros Adicionais</span>
+                                            <span>Assiduidade Cartão VA</span>
                                             {renderSortIcon('outrosAdicionais')}
                                         </div>
                                     </th>
@@ -1536,7 +1534,7 @@ export default function PayrollPreviewPage() {
                                         onClick={() => handleSort('absenteismoAward')}
                                     >
                                         <div className="flex items-center justify-end gap-1">
-                                            <span>Prêmio Assiduidade</span>
+                                            <span>Prêmio Absenteísmo (Cartão VA)</span>
                                             {renderSortIcon('absenteismoAward')}
                                         </div>
                                     </th>
@@ -1835,7 +1833,7 @@ export default function PayrollPreviewPage() {
                                         <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
                                             {item.gratificacao > 0 ? formatCurrency(item.gratificacao) : "-"}
                                         </td>
-                                        {/* Outros Adicionais */}
+                                        {/* Assiduidade Cartão VA */}
                                         <td className="py-3 px-4 text-right font-medium text-slate-850 whitespace-nowrap">
                                             {item.outrosAdicionais > 0 ? formatCurrency(item.outrosAdicionais) : "-"}
                                         </td>
@@ -1948,12 +1946,12 @@ export default function PayrollPreviewPage() {
                                                          {item.insalubridade > 0 && <div className="flex justify-between"><span>Insalubridade:</span><span className="font-bold text-slate-800">{formatCurrency(item.insalubridade)}</span></div>}
                                                          {item.periculosidade > 0 && <div className="flex justify-between"><span>Periculosidade:</span><span className="font-bold text-slate-800">{formatCurrency(item.periculosidade)}</span></div>}
                                                          {item.gratificacao > 0 && <div className="flex justify-between"><span>Gratificação CCT:</span><span className="font-bold text-slate-800">{formatCurrency(item.gratificacao)}</span></div>}
-                                                         {item.outrosAdicionais > 0 && <div className="flex justify-between"><span>Outros Adicionais:</span><span className="font-bold text-slate-800">{formatCurrency(item.outrosAdicionais)}</span></div>}
+                                                         {item.outrosAdicionais > 0 && <div className="flex justify-between"><span>Assiduidade Cartão VA:</span><span className="font-bold text-slate-800">{formatCurrency(item.outrosAdicionais)}</span></div>}
                                                          {item.horasExtras50Value > 0 && <div className="flex justify-between"><span>H. Extras 50% ({formatHours(item.extras50Hours)}h):</span><span className="font-bold text-slate-800">{formatCurrency(item.horasExtras50Value)}</span></div>}
                                                          {item.horasExtras100Value > 0 && <div className="flex justify-between"><span>H. Extras 100% ({formatHours(item.extras100Hours)}h):</span><span className="font-bold text-slate-800">{formatCurrency(item.horasExtras100Value)}</span></div>}
                                                          {item.adicionalNoturnoValue > 0 && <div className="flex justify-between"><span>Adic. Noturno ({formatHours(item.adicionalNoturnoHours)}h):</span><span className="font-bold text-slate-800">{formatCurrency(item.adicionalNoturnoValue)}</span></div>}
                                                          {item.salarioFamilia > 0 && <div className="flex justify-between"><span>Salário-Família:</span><span className="font-bold text-slate-800">{formatCurrency(item.salarioFamilia)}</span></div>}
-                                                         {item.absenteismoAward > 0 && <div className="flex justify-between"><span>Prêmio Absenteísmo:</span><span className="font-bold text-slate-800">{formatCurrency(item.absenteismoAward)}</span></div>}
+                                                         {item.absenteismoAward > 0 && <div className="flex justify-between"><span>Prêmio Absenteísmo (Cartão VA):</span><span className="font-bold text-slate-800">{formatCurrency(item.absenteismoAward)}</span></div>}
                                                          {item.ajudaCusto > 0 && <div className="flex justify-between"><span>Ajuda de Custo:</span><span className="font-bold text-slate-800">{formatCurrency(item.ajudaCusto)}</span></div>}
                                                          {item.adicionalViagem > 0 && <div className="flex justify-between"><span>Adicional Viagem:</span><span className="font-bold text-slate-800">{formatCurrency(item.adicionalViagem)}</span></div>}
                                                      </div>
@@ -2459,13 +2457,13 @@ export default function PayrollPreviewPage() {
                                                                         <col style={{ width: "120px" }} /> {/* Insalubridade */}
                                                                         <col style={{ width: "120px" }} /> {/* Periculosidade */}
                                                                         <col style={{ width: "130px" }} /> {/* Gratificação CCT */}
-                                                                        <col style={{ width: "130px" }} /> {/* Outros Adicionais */}
+                                                                        <col style={{ width: "160px" }} /> {/* Assiduidade Cartão VA */}
                                                                                                                                                  <col style={{ width: "130px" }} /> {/* H. Extras */}
                                                                          <col style={{ width: "130px" }} /> {/* Adic. Noturno */}
                                                                          <col style={{ width: "130px" }} /> {/* Salário-Família */}
                                                                          
                                                                          <col style={{ width: "130px" }} /> {/* Ajuda Custo */}
-                                                                         <col style={{ width: "145px" }} /> {/* Prêmio Assiduidade */}
+                                                                         <col style={{ width: "185px" }} /> {/* Prêmio Absenteísmo (Cartão VA) */}
 <col style={{ width: "140px" }} /> {/* Provento Bruto */}
                                                                         <col style={{ width: "90px" }} /> {/* Faltas */}
                                                                         <col style={{ width: "90px" }} /> {/* Atestados */}
@@ -2490,13 +2488,13 @@ export default function PayrollPreviewPage() {
                                                                             <th className="py-2.5 px-3 text-right">Insalubridade</th>
                                                                             <th className="py-2.5 px-3 text-right">Periculosidade</th>
                                                                             <th className="py-2.5 px-3 text-right">Gratificação CCT</th>
-                                                                            <th className="py-2.5 px-3 text-right">Outros Adicionais</th>
+                                                                            <th className="py-2.5 px-3 text-right">Assiduidade Cartão VA</th>
                                                                                                                                                          <th className="py-2.5 px-3 text-right bg-sky-50/50">H. Extras</th>
                                                                              <th className="py-2.5 px-3 text-right bg-sky-50/50">Adic. Noturno</th>
                                                                              <th className="py-2.5 px-3 text-right bg-sky-50/50">Salário-Família</th>
                                                                              
                                                                              <th className="py-2.5 px-3 text-right bg-sky-50/50">Ajuda Custo</th>
-                                                                             <th className="py-2.5 px-3 text-right bg-sky-50/50">Prêmio Assiduidade</th>
+                                                                             <th className="py-2.5 px-3 text-right bg-sky-50/50">Prêmio Absenteísmo (Cartão VA)</th>
 <th className="py-2.5 px-3 text-right bg-slate-100/50">Provento Bruto</th>
                                                                             <th className="py-2.5 px-3 text-center">Faltas</th>
                                                                             <th className="py-2.5 px-3 text-center">Atestados</th>
@@ -2725,12 +2723,12 @@ export default function PayrollPreviewPage() {
                                                                                                 {sub.insalubridade > 0 && <div className="flex justify-between"><span>Insalubridade:</span><span className="font-bold text-slate-800">{formatCurrency(sub.insalubridade)}</span></div>}
                                                                                                 {sub.periculosidade > 0 && <div className="flex justify-between"><span>Periculosidade:</span><span className="font-bold text-slate-800">{formatCurrency(sub.periculosidade)}</span></div>}
                                                                                                 {sub.gratificacao > 0 && <div className="flex justify-between"><span>Gratificação CCT:</span><span className="font-bold text-slate-800">{formatCurrency(sub.gratificacao)}</span></div>}
-                                                                                                {sub.outrosAdicionais > 0 && <div className="flex justify-between"><span>Outros Adicionais:</span><span className="font-bold text-slate-800">{formatCurrency(sub.outrosAdicionais)}</span></div>}
+                                                                                                {sub.outrosAdicionais > 0 && <div className="flex justify-between"><span>Assiduidade Cartão VA:</span><span className="font-bold text-slate-800">{formatCurrency(sub.outrosAdicionais)}</span></div>}
                                                                                                 {sub.horasExtras50Value > 0 && <div className="flex justify-between"><span>H. Extras 50% ({formatHours(sub.extras50Hours)}h):</span><span className="font-bold text-slate-800">{formatCurrency(sub.horasExtras50Value)}</span></div>}
                                                                                                 {sub.horasExtras100Value > 0 && <div className="flex justify-between"><span>H. Extras 100% ({formatHours(sub.extras100Hours)}h):</span><span className="font-bold text-slate-800">{formatCurrency(sub.horasExtras100Value)}</span></div>}
                                                                                                 {sub.adicionalNoturnoValue > 0 && <div className="flex justify-between"><span>Adic. Noturno ({formatHours(sub.adicionalNoturnoHours)}h):</span><span className="font-bold text-slate-800">{formatCurrency(sub.adicionalNoturnoValue)}</span></div>}
                                                                                                 {sub.salarioFamilia > 0 && <div className="flex justify-between"><span>Salário-Família:</span><span className="font-bold text-slate-800">{formatCurrency(sub.salarioFamilia)}</span></div>}
-                                                                                                {sub.absenteismoAward > 0 && <div className="flex justify-between"><span>Prêmio Absenteísmo:</span><span className="font-bold text-slate-800">{formatCurrency(sub.absenteismoAward)}</span></div>}
+                                                                                                {sub.absenteismoAward > 0 && <div className="flex justify-between"><span>Prêmio Absenteísmo (Cartão VA):</span><span className="font-bold text-slate-800">{formatCurrency(sub.absenteismoAward)}</span></div>}
                                                                                                 {sub.ajudaCusto > 0 && <div className="flex justify-between"><span>Ajuda de Custo:</span><span className="font-bold text-slate-800">{formatCurrency(sub.ajudaCusto)}</span></div>}
                                                                                                 {sub.adicionalViagem > 0 && <div className="flex justify-between"><span>Adicional Viagem:</span><span className="font-bold text-slate-800">{formatCurrency(sub.adicionalViagem)}</span></div>}
                                                                                             </div>
