@@ -978,6 +978,112 @@ export default function PayrollPreviewPage() {
         }
     };
 
+    // ─── PLANILHA CONTABILIDADE (nova função, não afeta o export existente) ─────
+    const [isLoadingContabilidade, setIsLoadingContabilidade] = useState(false);
+
+    const handleExportContabilidade = async () => {
+        setIsLoadingContabilidade(true);
+        try {
+            const res = await getPayrollPreview(selectedYear, selectedMonth);
+            let filtered = res?.items || [];
+
+            // Aplica os mesmos filtros ativos na tela
+            if (selectedCompany !== "all") filtered = filtered.filter(i => i.companyName === selectedCompany);
+            if (selectedClient !== "all") filtered = filtered.filter(i => i.clientName === selectedClient);
+
+            if (filtered.length === 0) {
+                toast.error("Nenhum dado disponível para os filtros selecionados.");
+                return;
+            }
+
+            // Helpers de formatação
+            const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+            const pct = (v: number) => `${v.toFixed(2).replace(".", ",")}%`;
+            const num = (v: number) => v;
+
+            const contabData = filtered.map(item => ({
+                "Colaborador":              item.employeeName,
+                "CPF":                      item.employeeCpf,
+                "Situação":                 item.situationName || "Ativo",
+                "Empresa":                  item.companyName,
+                "Cliente / Contrato":       item.clientName,
+                "Posto / Função":           item.postoName,
+                "Admissão":                 item.admissionDate,
+                "Dias Trab.":               num(item.daysWorked || 0),
+                "Salário Base (R$)":        brl(item.baseSalary || 0),
+                "Insalubridade (R$)":       brl(item.insalubridade || 0),
+                "Periculosidade (R$)":      brl(item.periculosidade || 0),
+                "Gratificação CCT (R$)":    brl(item.gratificacao || 0),
+                "Outros Adicionais (R$)":   brl(item.outrosAdicionais || 0),
+                "H.Extras 50% (H)":         num(item.extras50Hours || 0),
+                "Valor Extras 50% (R$)":    brl(item.horasExtras50Value || 0),
+                "H.Extras 100% (H)":        num(item.extras100Hours || 0),
+                "Valor Extras 100% (R$)":   brl(item.horasExtras100Value || 0),
+                "Adic. Noturno (H)":        num(item.adicionalNoturnoHours || 0),
+                "Valor Adic. Noturno (R$)": brl(item.adicionalNoturnoValue || 0),
+                "Ajuda de Custo (R$)":      brl(item.ajudaCusto || 0),
+                "Adic. Viagem (R$)":        brl(item.adicionalViagem || 0),
+                "Prêmio Absenteísmo (R$)":  brl(item.absenteismoAward || 0),
+                "Salário-Família (R$)":     brl(item.salarioFamilia || 0),
+                "Salário Bruto (R$)":       brl(item.totalGrossSalary || 0),
+                "Faltas (Dias)":            num(item.faltasCount || 0),
+                "Desc. Faltas (R$)":        brl(item.faltaDeduction || 0),
+                "DSR Perdidos":             num(item.dsrDeductionsCount || 0),
+                "Desc. DSR (R$)":           brl(item.dsrDeduction || 0),
+                "Atestados (Dias)":         num(item.atestadosCount || 0),
+                "Opção VT":                 item.vtOptIn ? "Optante" : "Não Optante",
+                "VT Valor Bruto (R$)":      brl(item.vtBaseValue || 0),
+                "VT Líquido Creditado (R$)":brl(item.vtNetValue || 0),
+                "Alíquota Desc. VT (%)":    item.vtOptIn ? pct(item.vtDiscountPercentage || 6) : "0,00%",
+                "Desc. VT em Folha (R$)":   brl(item.vtOptIn ? (item.vtPayrollDiscount || 0) : 0),
+                "VA Valor Bruto (R$)":      brl(item.vaBaseValue || 0),
+                "VA Líquido Creditado (R$)":brl(item.vaNetValue || 0),
+                "Alíquota Desc. VA (%)":    pct(item.vaDiscountPercentage || 20),
+                "Desc. VA em Folha (R$)":   brl(item.vaPayrollDiscount || 0),
+                "Desc. INSS (R$)":          brl(item.inssDeduction || 0),
+                "Desc. IRRF (R$)":          brl(item.irrfDeduction || 0),
+                "Total Descontos (R$)":     brl(item.totalDeductions || 0),
+                "Salário Líquido (R$)":     brl(item.netSalary || 0),
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(contabData);
+            const wb = XLSX.utils.book_new();
+
+            // Ajuste de largura automática
+            const colWidths = Object.keys(contabData[0] || {}).map(key => {
+                let maxLen = key.length;
+                contabData.forEach(row => {
+                    const val = String((row as any)[key] || "");
+                    if (val.length > maxLen) maxLen = val.length;
+                });
+                return { wch: Math.min(Math.max(maxLen + 2, 12), 55) };
+            });
+            ws["!cols"] = colWidths;
+
+            // Linha de cabeçalho em negrito (via estilo XLSX)
+            const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+            for (let col = range.s.c; col <= range.e.c; col++) {
+                const cellAddr = XLSX.utils.encode_cell({ r: 0, c: col });
+                if (ws[cellAddr]) {
+                    ws[cellAddr].s = { font: { bold: true }, fill: { fgColor: { rgb: "1E3A5F" } } };
+                }
+            }
+
+            XLSX.utils.book_append_sheet(wb, ws, "Contabilidade");
+
+            const months = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+            const monthName = months[selectedMonth - 1] || "competencia";
+            XLSX.writeFile(wb, `Planilha_Contabilidade_${monthName}_${selectedYear}.xlsx`);
+            toast.success("Planilha Contabilidade exportada com sucesso!");
+        } catch (error) {
+            console.error("Erro ao exportar Planilha Contabilidade:", error);
+            toast.error("Erro ao gerar a Planilha Contabilidade.");
+        } finally {
+            setIsLoadingContabilidade(false);
+        }
+    };
+    // ─── FIM PLANILHA CONTABILIDADE ────────────────────────────────────────────
+
     return (
         <div className="space-y-6">
             {/* Header com gradiente */}
@@ -1068,6 +1174,16 @@ export default function PayrollPreviewPage() {
                         >
                             <FileSpreadsheet className="w-4 h-4" />
                             <span>Exportar Excel</span>
+                        </button>
+
+                        {/* Planilha Contabilidade */}
+                        <button
+                            onClick={handleExportContabilidade}
+                            disabled={isLoadingContabilidade}
+                            className="flex items-center gap-2 bg-cyan-700 hover:bg-cyan-600 text-white font-bold text-xs h-11 px-4 rounded-2xl border border-cyan-500/30 transition-all cursor-pointer shadow-lg shadow-slate-950/20 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            <FileSpreadsheet className="w-4 h-4" />
+                            <span>{isLoadingContabilidade ? "Gerando..." : "Planilha Contabilidade"}</span>
                         </button>
 
                         {/* Lançamento de Rubricas Onvio */}

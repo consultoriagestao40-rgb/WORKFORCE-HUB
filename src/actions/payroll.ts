@@ -99,6 +99,9 @@ export interface PayrollPreviewItem {
     lastWorkingDay?: string | null;
     paymentDeadline?: string | null;
     excludedFromPayroll?: boolean;
+
+    // VT opt-in flag (for contabilidade export)
+    vtOptIn: boolean;
 }
 
 function getUniqueWeeksCount(dates: Date[]): number {
@@ -704,6 +707,11 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             vaPayrollDiscount = Math.round((baseVaValue * (vaDiscountPercentage / 100)) * 100) / 100;
         }
 
+        // Garante: não-optante de VT nunca tem desconto de VT na folha
+        if (!emp.vtOptIn) {
+            vtPayrollDiscount = 0;
+        }
+
         // Progressive INSS calculation
         const inssBase = Math.max(0, (totalGrossSalaryBase + horasExtras50Value + horasExtras100Value + adicionalNoturnoValue) - faltaDeduction - dsrDeduction - atrasosDeduction);
         const inssDeduction = calculateINSS(inssBase);
@@ -805,7 +813,8 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             isDismissalProcess,
             lastWorkingDay: lastWorkingDayStr || null,
             paymentDeadline: dismissalProc?.paymentDeadline || null,
-            excludedFromPayroll
+            excludedFromPayroll,
+            vtOptIn: emp.vtOptIn || false
         };
     });
 
