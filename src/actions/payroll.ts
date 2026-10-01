@@ -790,6 +790,7 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             admissionDate: new Date(emp.admissionDate).toLocaleDateString('pt-BR'),
             daysWorked,
             totalDaysInMonth,
+            originalSalary: emp.salary || initialSalary || 0,
             situationName: (emp.situation?.name?.toLowerCase() === 'férias' && vacationDaysInMonth === 0) ? "Ativo" : (emp.situation?.name || "Ativo"),
             situationColor: (emp.situation?.name?.toLowerCase() === 'férias' && vacationDaysInMonth === 0) ? "#10b981" : (emp.situation?.color || undefined),
             vacationDays: vacationDaysInMonth,
