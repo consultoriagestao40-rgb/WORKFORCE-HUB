@@ -77,3 +77,72 @@ export function calculateMonthlyPayroll(input: PayrollInput): PayrollResult {
         totalGross
     };
 }
+
+/**
+ * Resolves the effective contractual Posto and Client for an employee during a payroll/benefits competence window.
+ * Properly accounts for vacations (where employee was temporarily placed in ROTATIVO with originPostoId),
+ * and assignments active during the historical window [windowStart, windowEnd].
+ */
+export function resolveEmployeeAssignment(assignments: any[], windowStart: Date, windowEnd: Date) {
+    if (!assignments || assignments.length === 0) return null;
+
+    // 1. Look for assignments active DURING the calculation window [windowStart, windowEnd]
+    const activeInPeriod = assignments.filter(a => {
+        const start = new Date(a.startDate);
+        const end = a.endDate ? new Date(a.endDate) : null;
+        return start <= windowEnd && (end === null || end >= windowStart);
+    });
+
+    // 1a. Prioritize non-ROTATIVO assignment from the period (e.g. employee worked at JVS Facilities in September)
+    const nonRotativoInPeriod = activeInPeriod.find(a => a.posto?.client?.name && a.posto.client.name !== 'ROTATIVO');
+    if (nonRotativoInPeriod) {
+        return {
+            posto: nonRotativoInPeriod.posto,
+            assignment: nonRotativoInPeriod
+        };
+    }
+
+    // 1b. If they were in ROTATIVO during period but had originPosto (e.g. on vacation), use originPosto!
+    const rotativoWithOriginInPeriod = activeInPeriod.find(a => a.originPosto && a.originPosto?.client);
+    if (rotativoWithOriginInPeriod) {
+        return {
+            posto: rotativoWithOriginInPeriod.originPosto,
+            assignment: rotativoWithOriginInPeriod
+        };
+    }
+
+    // 2. Fallback to current active assignment (endDate === null)
+    const currentActive = assignments.find(a => a.endDate === null);
+    if (currentActive) {
+        // If current is ROTATIVO and has originPosto, use originPosto (employee currently on vacation)
+        if (currentActive.originPosto && currentActive.originPosto?.client) {
+            return {
+                posto: currentActive.originPosto,
+                assignment: currentActive
+            };
+        }
+        if (currentActive.posto?.client?.name !== 'ROTATIVO') {
+            return {
+                posto: currentActive.posto,
+                assignment: currentActive
+            };
+        }
+    }
+
+    // 3. Fallback to any past non-rotativo assignment
+    const anyNonRotativo = assignments.find(a => a.posto?.client?.name && a.posto.client.name !== 'ROTATIVO');
+    if (anyNonRotativo) {
+        return {
+            posto: anyNonRotativo.posto,
+            assignment: anyNonRotativo
+        };
+    }
+
+    // 4. Fallback
+    const fallback = assignments[0];
+    return {
+        posto: fallback.originPosto || fallback.posto,
+        assignment: fallback
+    };
+}
+

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { generateRoster } from "@/lib/scheduling";
+import { resolveEmployeeAssignment } from "@/lib/payroll";
 
 export interface BenefitOccurrenceDetail {
     id: string;
@@ -421,7 +422,12 @@ export async function getBenefitsCalculation(year: number, month: number) {
                 name: { notIn: ["Desligado", "Demitido"] }
             },
             assignments: {
-                some: { endDate: null }
+                some: {
+                    OR: [
+                        { endDate: null },
+                        { endDate: { gte: windowStart } }
+                    ]
+                }
             }
         },
         include: {
@@ -429,12 +435,21 @@ export async function getBenefitsCalculation(year: number, month: number) {
             role: true,
             situation: true,
             assignments: {
-                where: { endDate: null },
+                where: {
+                    OR: [
+                        { endDate: null },
+                        { endDate: { gte: windowStart } }
+                    ]
+                },
                 include: {
                     posto: {
                         include: { client: true, role: true }
+                    },
+                    originPosto: {
+                        include: { client: true, role: true }
                     }
-                }
+                },
+                orderBy: { startDate: 'desc' }
             },
             occurrences: {
                 where: {
@@ -472,8 +487,8 @@ export async function getBenefitsCalculation(year: number, month: number) {
     const now = new Date();
 
     const items: BenefitsCalculationItem[] = employees.map(emp => {
-        const activeAssignment = emp.assignments && emp.assignments.length > 0 ? emp.assignments[0] : null;
-        const posto = activeAssignment?.posto;
+        const resolvedAssignment = resolveEmployeeAssignment(emp.assignments, windowStart, windowEnd);
+        const posto = resolvedAssignment?.posto;
 
         const postoName = posto ? (posto.role?.name || "Posto") : "Sem Posto";
         const clientName = posto?.client ? posto.client.name : "Interno";

@@ -2055,6 +2055,8 @@ export async function addVacation(formData: FormData) {
         return { error: cltValidation.reason };
     }
 
+    const currentUser = await getCurrentUser();
+
     await prisma.vacation.create({
         data: {
             employeeId,
@@ -2063,6 +2065,18 @@ export async function addVacation(formData: FormData) {
             daysTaken,
             daysSold,
             notes
+        }
+    });
+
+    // Registrar auditoria detalhada com usuário responsável
+    const startFormatted = startDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+    const endFormatted = endDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+    await prisma.log.create({
+        data: {
+            action: "PROGRAMACAO_FERIAS",
+            details: `Férias programadas: ${startFormatted} até ${endFormatted} (${daysTaken} dias de gozo${daysSold > 0 ? `, ${daysSold} dias de abono pecuniário` : ''})${notes ? `. Obs: ${notes}` : ''}`,
+            employeeId,
+            userId: currentUser?.id || null
         }
     });
 
@@ -2094,8 +2108,6 @@ export async function addVacation(formData: FormData) {
             const clientName = emp.assignments[0]?.posto?.client?.name || "Sem Posto Fixo";
             const roleName = emp.role?.name || "Auxiliar";
             const supervisor = emp.assignments[0]?.posto?.client?.accountManager;
-            const startFormatted = startDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
-            const endFormatted = endDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 
             await dispatchRhNotification({
                 event: 'FERIAS',
@@ -2157,6 +2169,8 @@ export async function updateVacation(formData: FormData) {
     const newTotal = daysTaken + daysSold;
     const diffTotal = newTotal - oldTotal;
 
+    const currentUser = await getCurrentUser();
+
     await prisma.vacation.update({
         where: { id: vacationId },
         data: {
@@ -2165,6 +2179,17 @@ export async function updateVacation(formData: FormData) {
             daysTaken,
             daysSold,
             notes
+        }
+    });
+
+    const startFormatted = startDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+    const endFormatted = endDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+    await prisma.log.create({
+        data: {
+            action: "ALTERACAO_FERIAS",
+            details: `Férias alteradas para o período de ${startFormatted} até ${endFormatted} (${daysTaken} dias de gozo${daysSold > 0 ? `, ${daysSold} dias de abono` : ''})${notes ? `. Obs: ${notes}` : ''}`,
+            employeeId,
+            userId: currentUser?.id || null
         }
     });
 
@@ -2212,9 +2237,21 @@ export async function deleteVacation(vacationId: string, employeeId: string) {
     }
 
     const totalDays = vacation.daysTaken + (vacation.daysSold || 0);
+    const currentUser = await getCurrentUser();
+    const startFormatted = vacation.startDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+    const endFormatted = vacation.endDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 
     await prisma.vacation.delete({
         where: { id: vacationId }
+    });
+
+    await prisma.log.create({
+        data: {
+            action: "CANCELAMENTO_FERIAS",
+            details: `Programação de férias cancelada/excluída: ${startFormatted} até ${endFormatted} (${totalDays} dias)`,
+            employeeId,
+            userId: currentUser?.id || null
+        }
     });
 
     await prisma.employee.update({
@@ -2720,14 +2757,25 @@ export async function getEmployeeTimeline(employeeId: string) {
         }),
         prisma.log.findMany({
             where: { employeeId },
+            include: { user: true },
             orderBy: { timestamp: 'desc' }
         })
     ]);
 
     // Normalize events
     const events: any[] = [];
+    const handledLogIds = new Set<string>();
 
+    // 1. Process assignments (Lotação / Desvinculação)
     assignments.forEach(a => {
+        // Find matching LOTACAO log to extract author user
+        const lotacaoLog = logs.find(l => 
+            l.action === "LOTACAO" &&
+            (Math.abs(new Date(l.timestamp).getTime() - new Date(a.startDate).getTime()) < 60000 ||
+             (l.details && a.posto?.client?.name && l.details.includes(a.posto.client.name)))
+        );
+        if (lotacaoLog) handledLogIds.add(lotacaoLog.id);
+
         events.push({
             id: a.id,
             type: 'ASSIGNMENT',
@@ -2736,15 +2784,19 @@ export async function getEmployeeTimeline(employeeId: string) {
             subtitle: a.posto.role.name,
             details: a.posto.schedule,
             isNightShift: a.posto.isNightShift,
-            endDate: a.endDate
+            endDate: a.endDate,
+            author: lotacaoLog?.user ? lotacaoLog.user.name : "Gestão Operacional",
+            authorRole: lotacaoLog?.user?.role || "OPERACIONAL"
         });
 
         if (a.endDate) {
             // Find desvinculação logs close to the endDate
             const desvLog = logs.find(l => 
                 l.action === "DESVINCULACAO" &&
-                Math.abs(new Date(l.timestamp).getTime() - new Date(a.endDate!).getTime()) < 10000
+                Math.abs(new Date(l.timestamp).getTime() - new Date(a.endDate!).getTime()) < 60000
             );
+            if (desvLog) handledLogIds.add(desvLog.id);
+
             let reason = "";
             if (desvLog) {
                 const match = desvLog.details.match(/\(([^)]+)\)$/);
@@ -2753,8 +2805,9 @@ export async function getEmployeeTimeline(employeeId: string) {
 
             const noteLog = logs.find(l => 
                 l.action === "DESVINCULACAO_NOTAS" &&
-                Math.abs(new Date(l.timestamp).getTime() - new Date(a.endDate!).getTime()) < 10000
+                Math.abs(new Date(l.timestamp).getTime() - new Date(a.endDate!).getTime()) < 60000
             );
+            if (noteLog) handledLogIds.add(noteLog.id);
             const notes = noteLog ? noteLog.details : "";
 
             events.push({
@@ -2763,51 +2816,130 @@ export async function getEmployeeTimeline(employeeId: string) {
                 date: a.endDate,
                 title: `Desvinculado de ${a.posto.client.name}`,
                 subtitle: `${a.posto.role.name}${reason ? ` (${reason})` : ''}`,
-                details: notes || "Fim da alocação"
+                details: notes || (desvLog?.details || "Fim da alocação no posto"),
+                author: desvLog?.user ? desvLog.user.name : "Gestão Operacional",
+                authorRole: desvLog?.user?.role || "OPERACIONAL"
             });
         }
     });
 
+    // 2. Process vacations (Agendamento, Início do Gozo, Retorno)
     vacations.forEach(v => {
+        const startStr = v.startDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+        const endStr = v.endDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+
+        // Find if an explicit PROGRAMACAO_FERIAS log exists
+        const schedLog = logs.find(l =>
+            l.action === "PROGRAMACAO_FERIAS" &&
+            (l.details.includes(startStr) || Math.abs(new Date(l.timestamp).getTime() - new Date(v.createdAt).getTime()) < 60000)
+        );
+        if (schedLog) handledLogIds.add(schedLog.id);
+
+        // A. Event: Programação de Férias (quando as férias foram cadastradas no sistema)
         events.push({
-            id: v.id,
+            id: `sched_${v.id}`,
+            type: 'VACATION_SCHEDULED',
+            date: schedLog ? schedLog.timestamp : v.createdAt,
+            title: 'Programação de Férias',
+            subtitle: `${v.daysTaken} Dias de gozo${v.daysSold > 0 ? ` + ${v.daysSold} dias de abono` : ''}`,
+            details: `Período agendado: ${startStr} até ${endStr}${v.notes ? ` • Obs: ${v.notes}` : ''}`,
+            author: schedLog?.user ? schedLog.user.name : "Equipe de RH / Gestão",
+            authorRole: schedLog?.user?.role || "RH"
+        });
+
+        // B. Event: Início do Período de Férias (quando começa o gozo)
+        events.push({
+            id: `start_${v.id}`,
             type: 'VACATION',
             date: v.startDate,
-            title: 'Férias',
-            subtitle: `${v.daysTaken} Dias`,
-            details: `Até ${v.endDate.toLocaleDateString()}`,
-            endDate: v.endDate
+            title: 'Início do Período de Férias',
+            subtitle: `${v.daysTaken} Dias de descanso`,
+            details: `Período: ${startStr} até ${endStr}${v.notes ? ` • Obs: ${v.notes}` : ''}`,
+            endDate: v.endDate,
+            author: "Automação / Programação RH",
+            authorRole: "RH"
+        });
+
+        // C. Event: Retorno de Férias (quando terminam as férias)
+        events.push({
+            id: `end_${v.id}`,
+            type: 'VACATION_END',
+            date: v.endDate,
+            title: 'Término de Férias / Retorno',
+            subtitle: 'Retorno às atividades',
+            details: `Fim do período de férias (${endStr}). Retorno previsto ao posto de trabalho.`,
+            author: "Automação / Programação RH",
+            authorRole: "RH"
         });
     });
 
+    // 3. Process logs (com nomes humanos, autor e papéis)
     logs.forEach(l => {
-        // Avoid duplicates if log is about allocation/vacation or notes which we already have specific events for
+        if (handledLogIds.has(l.id)) return;
         if (l.action === 'LOTACAO' || l.action === 'DESVINCULACAO' || l.action === 'DESVINCULACAO_NOTAS') return;
 
-        let type = 'LOG';
-        let title = 'Registro';
+        let type: string = 'LOG';
+        let title: string = 'Registro';
+        let subtitle: string = l.action;
 
-        if (l.action === 'ALTERACAO_SALARIAL') {
+        if (l.action === 'PROGRAMACAO_FERIAS') {
+            type = 'VACATION_SCHEDULED';
+            title = 'Programação de Férias';
+            subtitle = 'Agendamento de Férias';
+        } else if (l.action === 'ALTERACAO_FERIAS') {
+            type = 'VACATION_SCHEDULED';
+            title = 'Alteração de Férias';
+            subtitle = 'Modificação de Período';
+        } else if (l.action === 'CANCELAMENTO_FERIAS') {
+            type = 'VACATION_END';
+            title = 'Cancelamento de Férias';
+            subtitle = 'Exclusão do Agendamento';
+        } else if (l.action === 'INICIO_AUTOMATICO_FERIAS') {
+            type = 'VACATION';
+            title = 'Início de Férias (Automático)';
+            subtitle = 'Automação do Sistema';
+        } else if (l.action === 'RETORNO_AUTOMATICO_FERIAS') {
+            type = 'VACATION_END';
+            title = 'Retorno de Férias (Automático)';
+            subtitle = 'Automação do Sistema';
+        } else if (l.action === 'ALTERACAO_SALARIAL') {
             type = 'SALARY';
-            title = 'Ajuste Salarial';
+            title = 'Reajuste / Alteração Salarial';
+            subtitle = 'Remuneração';
         } else if (l.action === 'PROMOCAO_CARGO') {
             type = 'ROLE';
-            title = 'Mudança de Cargo';
+            title = 'Mudança de Cargo / Promoção';
+            subtitle = 'Plano de Carreira';
         } else if (l.action === 'MUDANCA_SITUACAO') {
             type = 'SITUATION';
-            title = 'Mudança de Situação';
-        } else if (l.action === 'DESVINCULACAO_NOTAS') {
+            title = 'Alteração de Situação Cadastral';
+            subtitle = 'Status do Colaborador';
+        } else if (l.action === 'EFETIVACAO_EXPERIENCIA') {
+            type = 'ROLE';
+            title = 'Efetivação de Experiência';
+            subtitle = 'Aprovação de Período Probatório';
+        } else if (l.action === 'DESLIGAMENTO_FINAL' || l.action === 'INICIO_DESLIGAMENTO' || l.action === 'RESCISAO') {
+            type = 'SITUATION';
+            title = 'Processo de Desligamento';
+            subtitle = 'Rescisão Contratual';
+        } else if (l.action === 'EPI_ENTREGA') {
             type = 'OBSERVATION';
-            title = 'Observação de Desvinculação';
+            title = 'Entrega de EPI / Ficha';
+            subtitle = 'Segurança do Trabalho';
         }
+
+        const authorName = l.user ? l.user.name : (l.action.includes('AUTOMATICO') ? 'Automação do Sistema' : 'Sistema');
+        const authorRole = l.user?.role || (l.action.includes('AUTOMATICO') ? 'SISTEMA' : undefined);
 
         events.push({
             id: l.id,
             type,
             date: l.timestamp,
             title,
-            subtitle: l.action,
-            details: l.details
+            subtitle,
+            details: l.details,
+            author: authorName,
+            authorRole
         });
     });
 

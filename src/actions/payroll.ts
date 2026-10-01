@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { getBenefitsCalculation } from "./benefits";
+import { resolveEmployeeAssignment } from "@/lib/payroll";
 
 export interface PayrollOccurrenceDetail {
     id: string;
@@ -133,7 +134,12 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             name: { notIn: ["Desligado", "Demitido"] }
         },
         assignments: {
-            some: { endDate: null }
+            some: {
+                OR: [
+                    { endDate: null },
+                    { endDate: { gte: windowStart } }
+                ]
+            }
         },
         // Do NOT include employees admitted after the cutoff date (25th of the month)
         // They will be computed in the next month's payroll window (26th to 25th)
@@ -153,12 +159,21 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             role: true,
             situation: true,
             assignments: {
-                where: { endDate: null },
+                where: {
+                    OR: [
+                        { endDate: null },
+                        { endDate: { gte: windowStart } }
+                    ]
+                },
                 include: {
                     posto: {
                         include: { client: true, role: true }
+                    },
+                    originPosto: {
+                        include: { client: true, role: true }
                     }
-                }
+                },
+                orderBy: { startDate: 'desc' }
             },
             occurrences: {
                 where: {
@@ -201,8 +216,8 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
     const totalDaysInMonth = new Date(year, month, 0).getDate();
 
     const items: PayrollPreviewItem[] = employees.map(emp => {
-        const activeAssignment = emp.assignments && emp.assignments.length > 0 ? emp.assignments[0] : null;
-        const posto = activeAssignment?.posto;
+        const resolvedAssignment = resolveEmployeeAssignment(emp.assignments, windowStart, windowEnd);
+        const posto = resolvedAssignment?.posto;
 
         const companyName = emp.company?.name || "Sem Empresa";
         const clientName = posto?.client ? posto.client.name : "Interno";
