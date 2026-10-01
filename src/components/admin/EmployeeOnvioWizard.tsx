@@ -136,8 +136,8 @@ export function EmployeeOnvioWizard({
     const [currentTabIdx, setCurrentTabIdx] = useState(0);
 
     // --- STATES PARA CAMPOS PADRÃO (Employee Columns) ---
-    const [name, setName] = useState("");
-    const [cpf, setCpf] = useState("");
+    const [name, setName] = useState(initialData?.name || "");
+    const [cpf, setCpf] = useState(initialData?.cpf || "");
     const [roleId, setRoleId] = useState("");
     const [companyId, setCompanyId] = useState("");
     const [type, setType] = useState("CLT");

@@ -1708,8 +1708,11 @@ export async function updateEmployee(formData: FormData) {
             return fallback;
         };
 
-        const name = formData.get("name") as string;
-        const cpf = formData.get("cpf") as string;
+        // Proteção: se name/cpf chegarem vazios (ex: bug de serialização do wizard), preserva os valores do banco
+        const rawName = (formData.get("name") as string)?.trim();
+        const name = rawName || oldEmployee.name;
+        const rawCpf = (formData.get("cpf") as string)?.trim();
+        const cpf = rawCpf || oldEmployee.cpf;
         const roleId = formData.get("roleId") as string;
         const type = formData.get("type") as string;
         const status = formData.get("status") as string;
@@ -1754,25 +1757,35 @@ export async function updateEmployee(formData: FormData) {
         const extraFields = extraFieldsStr ? JSON.parse(extraFieldsStr) : null;
 
         // Constraint Check: Situation Change vs Active Assignment
-        if (situationId) {
-            const activeAssignments = await prisma.assignment.count({
-                where: {
-                    employeeId: id,
-                    endDate: null,
-                    posto: {
-                        client: {
-                            name: { not: "ROTATIVO" }
-                        }
-                    }
-                }
-            });
+        // Só bloqueia se a situação estiver MUDANDO para algo que implica saída do posto
+        if (situationId && situationId !== oldEmployee.situationId) {
+            const newSituation = await prisma.situation.findUnique({ where: { id: situationId } });
+            if (newSituation) {
+                const sitName = newSituation.name.toLowerCase();
+                const isLeavingSituation = sitName.includes("desligado") ||
+                    sitName.includes("demitido") ||
+                    sitName.includes("afastad") ||
+                    sitName.includes("inss") ||
+                    sitName.includes("férias") ||
+                    sitName.includes("ferias") ||
+                    sitName.includes("suspenso") ||
+                    sitName.includes("inativo");
 
-            if (activeAssignments > 0) {
-                const newSituation = await prisma.situation.findUnique({ where: { id: situationId } });
-                // If situation requires absence (assuming anything other than 'Ativo' implies non-working)
-                // You might want to refine this list or add a flag to Situation model later.
-                if (newSituation && newSituation.name !== 'Ativo') {
-                    return { error: `Colaborador vinculado a um posto. Desvincule do posto antes de alterar para "${newSituation.name}".` };
+                if (isLeavingSituation) {
+                    const activeAssignments = await prisma.assignment.count({
+                        where: {
+                            employeeId: id,
+                            endDate: null,
+                            posto: {
+                                client: {
+                                    name: { not: "ROTATIVO" }
+                                }
+                            }
+                        }
+                    });
+                    if (activeAssignments > 0) {
+                        return { error: `Colaborador vinculado a um posto. Desvincule do posto antes de alterar para "${newSituation.name}".` };
+                    }
                 }
             }
         }
@@ -1825,8 +1838,8 @@ export async function updateEmployee(formData: FormData) {
             const updated = await tx.employee.update({
                 where: { id },
                 data: {
-                    name,
-                    cpf,
+                    name: name || oldEmployee.name,
+                    cpf: cpf || oldEmployee.cpf,
                     roleId: effectiveRoleId,
                     companyId: (formData.get("companyId") === "no_company" || !formData.get("companyId")) ? null : (formData.get("companyId") as string),
                     type,
@@ -1872,27 +1885,33 @@ export async function updateEmployee(formData: FormData) {
             });
 
             // Posto Assignment sync if changed
-            const newPostoId = formData.get("postoId") as string;
-            if (newPostoId && newPostoId !== "no_posto") {
-                const currentActiveAssignment = await tx.assignment.findFirst({
-                    where: { employeeId: id, endDate: null },
-                    orderBy: { startDate: 'desc' }
-                });
+            const newPostoId = (formData.get("postoId") as string)?.trim();
+            if (newPostoId && newPostoId !== "no_posto" && newPostoId !== "") {
+                // Valida se o posto realmente existe no banco antes de tentar criar o assignment
+                const postoExists = await tx.posto.findUnique({ where: { id: newPostoId }, select: { id: true } });
+                if (postoExists) {
+                    const currentActiveAssignment = await tx.assignment.findFirst({
+                        where: { employeeId: id, endDate: null },
+                        orderBy: { startDate: 'desc' }
+                    });
 
-                if (!currentActiveAssignment || currentActiveAssignment.postoId !== newPostoId) {
-                    if (currentActiveAssignment) {
-                        await tx.assignment.update({
-                            where: { id: currentActiveAssignment.id },
-                            data: { endDate: new Date() }
+                    if (!currentActiveAssignment || currentActiveAssignment.postoId !== newPostoId) {
+                        if (currentActiveAssignment) {
+                            await tx.assignment.update({
+                                where: { id: currentActiveAssignment.id },
+                                data: { endDate: new Date() }
+                            });
+                        }
+                        await tx.assignment.create({
+                            data: {
+                                employeeId: id,
+                                postoId: newPostoId,
+                                startDate: new Date()
+                            }
                         });
                     }
-                    await tx.assignment.create({
-                        data: {
-                            employeeId: id,
-                            postoId: newPostoId,
-                            startDate: new Date()
-                        }
-                    });
+                } else {
+                    console.warn(`[updateEmployee] postoId "${newPostoId}" não encontrado no banco. Assignment ignorado.`);
                 }
             }
 
@@ -2001,7 +2020,12 @@ export async function updateEmployee(formData: FormData) {
 
         return { success: true };
     } catch (e: any) {
-        console.error("Error in updateEmployee server action:", e);
+        console.error("[updateEmployee] Erro ao atualizar colaborador:", e?.code, e?.message, e?.meta);
+        // Trata erro de unique constraint do Prisma (ex: CPF duplicado)
+        if (e?.code === "P2002") {
+            const field = e?.meta?.target?.[0] || "campo";
+            return { error: `Erro: já existe outro colaborador com o mesmo ${field === "cpf" ? "CPF" : field}. Verifique os dados.` };
+        }
         return { error: e.message || "Erro inesperado ao atualizar colaborador." };
     }
 }
