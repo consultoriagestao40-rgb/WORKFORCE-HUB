@@ -1756,39 +1756,7 @@ export async function updateEmployee(formData: FormData) {
         const extraFieldsStr = formData.get("extraFields") as string;
         const extraFields = extraFieldsStr ? JSON.parse(extraFieldsStr) : null;
 
-        // Constraint Check: Situation Change vs Active Assignment
-        // Só bloqueia se a situação estiver MUDANDO para algo que implica saída do posto
-        if (situationId && situationId !== oldEmployee.situationId) {
-            const newSituation = await prisma.situation.findUnique({ where: { id: situationId } });
-            if (newSituation) {
-                const sitName = newSituation.name.toLowerCase();
-                const isLeavingSituation = sitName.includes("desligado") ||
-                    sitName.includes("demitido") ||
-                    sitName.includes("afastad") ||
-                    sitName.includes("inss") ||
-                    sitName.includes("férias") ||
-                    sitName.includes("ferias") ||
-                    sitName.includes("suspenso") ||
-                    sitName.includes("inativo");
-
-                if (isLeavingSituation) {
-                    const activeAssignments = await prisma.assignment.count({
-                        where: {
-                            employeeId: id,
-                            endDate: null,
-                            posto: {
-                                client: {
-                                    name: { not: "ROTATIVO" }
-                                }
-                            }
-                        }
-                    });
-                    if (activeAssignments > 0) {
-                        return { error: `Colaborador vinculado a um posto. Desvincule do posto antes de alterar para "${newSituation.name}".` };
-                    }
-                }
-            }
-        }
+        // Situation Change: Se a situação for alterada para desligado/demitido, o encerramento do vínculo/posto é feito automaticamente na transação abaixo sem bloquear o usuário.
 
         // Validate roleId: if missing or invalid, keep the existing employee roleId
         let effectiveRoleId = roleId;

@@ -781,13 +781,17 @@ export async function getBenefitsCalculation(year: number, month: number) {
         // Payroll Discounts calculations
         let vtDiscountPercentage = 6.0;
         let vtPayrollDiscount = 0;
-        if (emp.vtOptIn) {
+        const hasAjudaCusto = (emp.ajudaCusto && emp.ajudaCusto > 0);
+        if (emp.vtOptIn && !hasAjudaCusto) {
             vtDiscountPercentage = emp.vtDiscountPercentage !== null && emp.vtDiscountPercentage !== undefined
                 ? emp.vtDiscountPercentage
                 : (posto?.vtDiscountPercentage !== null && posto?.vtDiscountPercentage !== undefined ? posto.vtDiscountPercentage : 6.0);
             
             const rawDiscount = Math.round((emp.salary * (vtDiscountPercentage / 100)) * 100) / 100;
             vtPayrollDiscount = Math.min(rawDiscount, vtTotalValue + vtTotalValue2);
+        } else {
+            vtDiscountPercentage = 0;
+            vtPayrollDiscount = 0;
         }
 
         const vaDiscountPercentage = emp.vaDiscountPercentage !== null && emp.vaDiscountPercentage !== undefined

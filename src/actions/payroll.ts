@@ -707,9 +707,14 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             vaPayrollDiscount = Math.round((baseVaValue * (vaDiscountPercentage / 100)) * 100) / 100;
         }
 
-        // Garante: não-optante de VT nunca tem desconto de VT na folha
-        if (!emp.vtOptIn) {
+        // Garante: não-optante de VT nunca tem desconto de VT na folha e onde tem ajuda de custo o desconto de VT também sai zerado
+        if (!emp.vtOptIn || ajudaCusto > 0) {
             vtPayrollDiscount = 0;
+            vtDiscountPercentage = 0;
+            if (!emp.vtOptIn) {
+                vtBaseValue = 0;
+                vtNetValue = 0;
+            }
         }
 
         // Progressive INSS calculation
