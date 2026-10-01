@@ -907,6 +907,7 @@ export default function PayrollPreviewPage() {
                     "Situação": item.situationName || "Ativo",
                     "Empresa": item.companyName,
                     "Cliente / Contrato": item.clientName,
+                    "INSS Retido": item.hasInssRetention ? "SIM" : "NÃO",
                     "Posto / Função": item.postoName,
                     "Admissão": item.admissionDate,
                     "Dias Trab.": item.daysWorked,
@@ -1032,6 +1033,7 @@ export default function PayrollPreviewPage() {
                     "Situação":                     item.situationName || "Ativo",
                     "Empresa":                      item.companyName,
                     "Cliente / Contrato":           item.clientName,
+                    "INSS Retido":                  item.hasInssRetention ? "SIM" : "NÃO",
                     "Posto / Função":               item.postoName,
                     "Admissão":                     item.admissionDate,
                     "Dias Trab.":                   num(item.daysWorked || 0),
@@ -1814,7 +1816,14 @@ export default function PayrollPreviewPage() {
                                         <td className="py-3 px-4 whitespace-nowrap">
                                             <div>
                                                 <div className="text-slate-800 text-[11px] font-bold">{item.companyName}</div>
-                                                <div className="text-[10px] text-slate-400 font-medium mt-0.5">{item.clientName}</div>
+                                                <div className="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center gap-1.5">
+                                                    <span>{item.clientName}</span>
+                                                    {item.hasInssRetention && (
+                                                        <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[8px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                            INSS Retido
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </td>
                                         {/* Salário Base */}

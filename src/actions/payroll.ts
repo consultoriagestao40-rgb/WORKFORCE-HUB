@@ -20,6 +20,7 @@ export interface PayrollPreviewItem {
     employeeCpf: string;
     companyName: string;
     clientName: string;
+    hasInssRetention?: boolean;
     postoName: string;
     baseSalary: number;
     insalubridade: number;
@@ -237,6 +238,7 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
         const effectiveCompany = emp.company || posto?.client?.company;
         const companyName = effectiveCompany?.name || "Sem Empresa";
         const clientName = posto?.client ? posto.client.name : "Interno";
+        const hasInssRetention = Boolean(posto?.client?.hasInssRetention);
         const postoName = posto ? (posto.role?.name || "Posto") : "Sem Posto";
 
         // Pro-rata based on admission date (using UTC to avoid timezone shifts)
@@ -307,6 +309,7 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
                     employeeCpf: emp.cpf,
                     companyName,
                     clientName,
+                    hasInssRetention,
                     postoName,
                     baseSalary: 0,
                     insalubridade: 0,
@@ -782,6 +785,7 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             employeeCpf: emp.cpf,
             companyName,
             clientName,
+            hasInssRetention,
             postoName,
             baseSalary: finalBaseSalary,
             insalubridade: finalInsalubridade,

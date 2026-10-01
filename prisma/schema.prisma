@@ -89,6 +89,7 @@ model Client {
   monitorInOperations Boolean  @default(true)
   contractTargetScore Float    @default(90.0)
   isActive            Boolean  @default(true)
+  hasInssRetention    Boolean  @default(false)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   company             Company? @relation(fields: [companyId], references: [id])

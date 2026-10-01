@@ -151,6 +151,7 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                         ? emp.situation?.name
                         : (activeAssignment ? "Alocado" : "Reserva"),
                 "Posto Atual": activeAssignment ? activeAssignment.posto?.client?.name : "-",
+                "INSS Retido": activeAssignment?.posto?.client?.hasInssRetention ? "SIM" : "NÃO",
 
                 "Data Admissão": emp.admissionDate ? format(new Date(emp.admissionDate), 'dd/MM/yyyy') : "-",
                 "Data Nascimento": emp.birthDate ? format(new Date(emp.birthDate), 'dd/MM/yyyy') : "-",

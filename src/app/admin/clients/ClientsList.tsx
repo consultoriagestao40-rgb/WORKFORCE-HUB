@@ -325,6 +325,11 @@ export function ClientsList({
                                                         <span className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors text-sm">
                                                             {client.name}
                                                         </span>
+                                                        {client.hasInssRetention && (
+                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase">
+                                                                INSS Retido
+                                                            </span>
+                                                        )}
                                                         {client.isActive === false && (
                                                             <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-red-100 text-red-700 border border-red-200 uppercase">
                                                                 Encerrado

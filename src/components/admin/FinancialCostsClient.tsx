@@ -40,6 +40,7 @@ interface Employee {
             client: {
                 id: string;
                 name: string;
+                hasInssRetention?: boolean;
             } | null;
         } | null;
     }[];
@@ -287,6 +288,7 @@ export function FinancialCostsClient({
                 "Data de Admissão",
                 "Cargo",
                 "Contrato / Cliente",
+                "INSS Retido",
                 "Empresa",
                 "Tipo Contrato",
                 "Salário Base (R$)",
@@ -311,6 +313,7 @@ export function FinancialCostsClient({
                 item.admissionDate ? new Date(item.admissionDate).toLocaleDateString('pt-BR') : "-",
                 item.role,
                 item.contractName,
+                item.hasInssRetention ? "SIM" : "NÃO",
                 item.companyName,
                 item.type,
                 item.salary,
@@ -621,6 +624,7 @@ export function FinancialCostsClient({
             const totalCustoMensal = remuneracaoTotal + vtMensal + vaMensal;
 
             const clientName = emp.assignments?.[0]?.posto?.client?.name || "Reserva Técnica";
+            const hasInssRetention = Boolean(emp.assignments?.[0]?.posto?.client?.hasInssRetention);
             const companyName = emp.company?.name || "Sem Empresa";
 
             return {
@@ -645,6 +649,7 @@ export function FinancialCostsClient({
                 vaMensal,
                 totalCustoMensal,
                 contractName: clientName,
+                hasInssRetention,
                 companyName,
                 type: emp.type
             };

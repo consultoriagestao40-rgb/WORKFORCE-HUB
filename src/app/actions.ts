@@ -178,6 +178,7 @@ export async function createClient(formData: FormData) {
     const address = formData.get("address") as string;
     const companyId = formData.get("companyId") as string;
     const monitorInOperations = formData.get("monitorInOperations") === "true" || formData.get("monitorInOperations") === "on";
+    const hasInssRetention = formData.get("hasInssRetention") === "true" || formData.get("hasInssRetention") === "on";
     const accountManagerId = formData.get("accountManagerId") as string;
 
     await prisma.client.create({
@@ -186,6 +187,7 @@ export async function createClient(formData: FormData) {
             address,
             companyId: companyId || undefined,
             monitorInOperations,
+            hasInssRetention,
             accountManagerId: (accountManagerId === "none" || !accountManagerId) ? null : accountManagerId
         }
     });
@@ -1369,6 +1371,7 @@ export async function updateClient(formData: FormData) {
     const address = formData.get("address") as string;
     const companyId = formData.get("companyId") as string;
     const monitorInOperations = formData.get("monitorInOperations") === "true" || formData.get("monitorInOperations") === "on";
+    const hasInssRetention = formData.get("hasInssRetention") === "true" || formData.get("hasInssRetention") === "on";
     const accountManagerId = formData.get("accountManagerId") as string;
     const isActive = formData.get("isActive") === "true" || formData.get("isActive") === "on";
 
@@ -1380,6 +1383,7 @@ export async function updateClient(formData: FormData) {
                 address,
                 companyId: companyId || undefined,
                 monitorInOperations,
+                hasInssRetention,
                 isActive,
                 accountManagerId: (accountManagerId === "none" || !accountManagerId) ? null : accountManagerId
             }
