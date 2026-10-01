@@ -2602,7 +2602,17 @@ export async function deleteEmployeesBatch(ids: string[]) {
                 where: { employeeId: { in: ids } }
             });
 
-            // 5. Requests
+            // 5. Requests (apagar comentários antes para evitar FK constraint)
+            const requestsToDelete = await tx.request.findMany({
+                where: { employeeId: { in: ids } },
+                select: { id: true }
+            });
+            const requestIds = requestsToDelete.map(r => r.id);
+            if (requestIds.length > 0) {
+                await tx.requestComment.deleteMany({
+                    where: { requestId: { in: requestIds } }
+                });
+            }
             await tx.request.deleteMany({
                 where: { employeeId: { in: ids } }
             });
@@ -2761,7 +2771,17 @@ export async function deleteEmployee(id: string) {
                 where: { employeeId: id }
             });
 
-            // 5. Clear Requests
+            // 5. Clear Requests (apagar comentários antes para evitar FK constraint)
+            const requestsToDelete = await tx.request.findMany({
+                where: { employeeId: id },
+                select: { id: true }
+            });
+            const requestIds = requestsToDelete.map(r => r.id);
+            if (requestIds.length > 0) {
+                await tx.requestComment.deleteMany({
+                    where: { requestId: { in: requestIds } }
+                });
+            }
             await tx.request.deleteMany({
                 where: { employeeId: id }
             });
