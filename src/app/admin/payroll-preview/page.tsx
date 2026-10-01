@@ -1048,11 +1048,7 @@ export default function PayrollPreviewPage() {
                 "VT Valor Bruto (R$)":      brl(item.vtOptIn ? (item.vtBaseValue || 0) : 0),
                 "VT Líquido Creditado (R$)":brl(item.vtOptIn ? (item.vtNetValue || 0) : 0),
                 "Alíquota Desc. VT (%)":    (item.vtOptIn && !(item.ajudaCusto > 0)) ? pct(item.vtDiscountPercentage || 6) : "0,00%",
-                "Desc. VT em Folha (R$)":   brl((item.vtOptIn && !(item.ajudaCusto > 0)) ? (item.vtPayrollDiscount || 0) : 0),
-                "Desc. INSS (R$)":          brl(item.inssDeduction || 0),
-                "Desc. IRRF (R$)":          brl(item.irrfDeduction || 0),
-                "Total Descontos (R$)":     brl(item.totalDeductions || 0),
-                "Salário Líquido (R$)":     brl(item.netSalary || 0),
+                "Desc. VT em Folha (R$)":   brl((item.vtOptIn && !(item.ajudaCusto > 0)) ? (item.vtPayrollDiscount || 0) : 0)
             }));
 
             const ws = XLSX.utils.json_to_sheet(contabData);
