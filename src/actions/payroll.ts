@@ -167,10 +167,20 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
                 },
                 include: {
                     posto: {
-                        include: { client: true, role: true }
+                        include: {
+                            client: {
+                                include: { company: true }
+                            },
+                            role: true
+                        }
                     },
                     originPosto: {
-                        include: { client: true, role: true }
+                        include: {
+                            client: {
+                                include: { company: true }
+                            },
+                            role: true
+                        }
                     }
                 },
                 orderBy: { startDate: 'desc' }
@@ -213,13 +223,16 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
     const benefitsRes = await getBenefitsCalculation(year, month);
     const benefitsMap = new Map(benefitsRes.items.map(b => [b.employeeId, b]));
 
-    const totalDaysInMonth = new Date(year, month, 0).getDate();
+    const totalDaysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
 
     const items: PayrollPreviewItem[] = employees.map(emp => {
         const resolvedAssignment = resolveEmployeeAssignment(emp.assignments, windowStart, windowEnd);
         const posto = resolvedAssignment?.posto;
 
-        const companyName = emp.company?.name || "Sem Empresa";
+        // Resolução sistêmica da empresa: prioriza o cliente do posto alocado (ex: EMPRESA VIAÇÃO PENHA -> JVS FACILITIES)
+        // se o funcionário estiver sem empresa cadastrada diretamente no perfil
+        const effectiveCompany = emp.company || posto?.client?.company;
+        const companyName = effectiveCompany?.name || "Sem Empresa";
         const clientName = posto?.client ? posto.client.name : "Interno";
         const postoName = posto ? (posto.role?.name || "Posto") : "Sem Posto";
 
@@ -417,9 +430,9 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             outrosAdicionais = Math.round(((initialOutrosAdicionais / totalDaysInMonth) * daysWorked) * 100) / 100;
         }
 
-        // Vacation check for this reference month
-        const monthStart = new Date(year, month - 1, 1);
-        const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+        // Vacation check for this reference month (usando UTC estrito para evitar vazamento de fuso de início no dia 1 do mês seguinte)
+        const monthStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+        const monthEnd = new Date(Date.UTC(year, month - 1, totalDaysInMonth, 23, 59, 59, 999));
         let vacationDaysInMonth = 0;
         const vacationDatesList: string[] = [];
 
@@ -777,9 +790,8 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             admissionDate: new Date(emp.admissionDate).toLocaleDateString('pt-BR'),
             daysWorked,
             totalDaysInMonth,
-            originalSalary: emp.salary,
-            situationName: emp.situation?.name || "Ativo",
-            situationColor: emp.situation?.color || undefined,
+            situationName: (emp.situation?.name?.toLowerCase() === 'férias' && vacationDaysInMonth === 0) ? "Ativo" : (emp.situation?.name || "Ativo"),
+            situationColor: (emp.situation?.name?.toLowerCase() === 'férias' && vacationDaysInMonth === 0) ? "#10b981" : (emp.situation?.color || undefined),
             vacationDays: vacationDaysInMonth,
             vacationDatesStr,
             isDismissalProcess,

@@ -443,10 +443,20 @@ export async function getBenefitsCalculation(year: number, month: number) {
                 },
                 include: {
                     posto: {
-                        include: { client: true, role: true }
+                        include: {
+                            client: {
+                                include: { company: true }
+                            },
+                            role: true
+                        }
                     },
                     originPosto: {
-                        include: { client: true, role: true }
+                        include: {
+                            client: {
+                                include: { company: true }
+                            },
+                            role: true
+                        }
                     }
                 },
                 orderBy: { startDate: 'desc' }
@@ -491,6 +501,8 @@ export async function getBenefitsCalculation(year: number, month: number) {
         const posto = resolvedAssignment?.posto;
         const activeAssignment = resolvedAssignment?.assignment;
 
+        const effectiveCompany = emp.company || posto?.client?.company;
+        const companyName = effectiveCompany?.name || "Sem Empresa";
         const postoName = posto ? (posto.role?.name || "Posto") : "Sem Posto";
         const clientName = posto?.client ? posto.client.name : "Interno";
         const roleName = emp.role ? emp.role.name : "Cargo não informado";
@@ -852,7 +864,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
             urbsCqCtNf: emp.urbsCqCtNf || "",
             postoName,
             clientName,
-            companyName: emp.company?.name || "Sem Empresa",
+            companyName,
             roleName,
             admissionDate: admissionDateObj.toLocaleDateString('pt-BR'),
             isNewHire,
