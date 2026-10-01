@@ -305,9 +305,23 @@ function FieldCommentPopover({
 }
 
 export default function PayrollPreviewPage() {
-    const today = new Date();
-    const [selectedYear, setSelectedYear] = useState<number>(today.getFullYear());
-    const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth() + 1);
+    // Vira para a nova competência apenas a partir do 7º dia do mês (até o 6º dia o padrão é o fechamento da competência anterior)
+    const defaultCompetence = (() => {
+        const d = new Date();
+        if (d.getDate() < 7) {
+            let m = d.getMonth(); // d.getMonth() para Outubro é 9, que corresponde a Setembro (1-indexed)
+            let y = d.getFullYear();
+            if (m === 0) {
+                m = 12;
+                y -= 1;
+            }
+            return { month: m, year: y };
+        }
+        return { month: d.getMonth() + 1, year: d.getFullYear() };
+    })();
+
+    const [selectedYear, setSelectedYear] = useState<number>(defaultCompetence.year);
+    const [selectedMonth, setSelectedMonth] = useState<number>(defaultCompetence.month);
 
     const [isLoading, setIsLoading] = useState(true);
     const [isSyncingSecullum, setIsSyncingSecullum] = useState(false);
