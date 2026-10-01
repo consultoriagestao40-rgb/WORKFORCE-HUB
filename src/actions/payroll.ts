@@ -101,7 +101,7 @@ export interface PayrollPreviewItem {
     excludedFromPayroll?: boolean;
 
     // VT opt-in flag (for contabilidade export)
-    vtOptIn: boolean;
+    vtOptIn?: boolean;
 }
 
 function getUniqueWeeksCount(dates: Date[]): number {
@@ -363,7 +363,8 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
                     situationName: situationNameRaw,
                     situationColor: emp.situation?.color || '#ef4444',
                     vacationDays: 0,
-                    vacationDatesStr: "-"
+                    vacationDatesStr: "-",
+                    vtOptIn: Boolean(emp.vtOptIn)
                 };
             }
 
