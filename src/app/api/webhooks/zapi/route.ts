@@ -131,7 +131,17 @@ export async function POST(req: Request) {
             const groupPhone = rawGroup.includes("@g.us") ? rawGroup : (rawGroup.includes("-group") ? rawGroup : (rawGroup.startsWith("120363") ? `${rawGroup}-group` : rawGroup));
 
             // 1. Interceptar Respostas de Ajuste de Ponto (#AJ...) em qualquer grupo operacional / de teste
-            if (!isFromMe && content && (content.includes("#AJ") || content.includes("#aj"))) {
+            const isPunchAdjustmentRelated = !isFromMe && content && (
+                content.includes("#AJ") || 
+                content.includes("#aj") || 
+                content.toLowerCase().includes("ajustar ponto") || 
+                content.toLowerCase().includes("confirmar falta") ||
+                content.includes("_MOT_") ||
+                content.includes("_ajustar") ||
+                content.includes("_falta")
+            );
+
+            if (isPunchAdjustmentRelated) {
                 try {
                     const { tryParsePunchAdjustmentReply, sendZapiWithMentions } = await import("@/lib/punch-whatsapp");
                     const replyRes = await tryParsePunchAdjustmentReply({

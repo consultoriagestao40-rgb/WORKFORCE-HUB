@@ -171,32 +171,28 @@ export async function sendZapiOptionList(params: {
 export const STANDARDIZED_PUNCH_REASONS = [
     {
         id: "ABONO",
-        optionNumber: "4",
-        title: "Abono do Gestor",
+        title: "Abono",
         description: "Não trabalhou; abono do gestor s/ desconto",
         secullumCode: "ABONO",
         secullumName: "ABONO (NÃO TRABALHOU / ABONADO PELO GESTOR)"
     },
     {
         id: "ESQUECIMENTO",
-        optionNumber: "1",
-        title: "Esquecimento de Bater Ponto",
+        title: "Esquecimento",
         description: "Trabalhou normalmente; esqueceu de registrar",
         secullumCode: "S/ REG.",
         secullumName: "SEM REGISTRO DE PONTO (ESQUECIMENTO)"
     },
     {
         id: "PROB_APARELHO",
-        optionNumber: "3",
-        title: "Problema no Aparelho / Celular",
+        title: "Problema Aparelho",
         description: "Aparelho descarregou, defeito ou sem celular",
         secullumCode: "S/ REG.",
         secullumName: "SEM REGISTRO DE PONTO (PROBLEMA DE APARELHO)"
     },
     {
         id: "SISTEMA",
-        optionNumber: "5",
-        title: "Instabilidade no Sistema Secullum",
+        title: "Instabilidade Sistema",
         description: "Sistema de ponto fora do ar ou c/ lentidão",
         secullumCode: "S/ REG.",
         secullumName: "SEM REGISTRO DE PONTO (INSTABILIDADE DO SISTEMA)"
@@ -204,9 +200,8 @@ export const STANDARDIZED_PUNCH_REASONS = [
 ];
 
 /**
- * Dispara o alerta de inconsistência de ponto no WhatsApp.
- * Em grupos, envia texto formatado com opções numeradas (1 a 5),
- * pois WhatsApp bloqueia o envio de respostas interativas (botões/listas) por membros de grupos.
+ * ETAPA 1: Dispara o alerta inicial no WhatsApp com MENU INTERATIVO:
+ * [ Definir Tratativa 👇 ] -> [ ✅ Ajustar Ponto ] | [ ❌ Confirmar Falta ]
  */
 export async function sendPunchAdjustmentWhatsAppAlert(
     adjustmentId: string,
@@ -253,23 +248,22 @@ export async function sendPunchAdjustmentWhatsAppAlert(
 
         const managerCallout = mentionTag
             ? `\n👉 Atenção ${mentionTag} (Gestor do Contrato):`
-            : `\n👉 Atenção líderes da operação:`;
+            : `\n👉 Líderes da operação:`;
 
-        const optionsGuide = 
-`\n*Responda a esta mensagem com a opção desejada:*\n` +
-`1️⃣ *1* — 🕒 *Esqueceu de bater* (Ajustar no horário previsto: ${adj.expectedTime})\n` +
-`2️⃣ *2* — ❌ *Confirmar Falta* (Ausência sem justificativa)\n` +
-`3️⃣ *3* — 📱 *Problema de Celular / Aparelho* (Ajustar no horário previsto)\n` +
-`4️⃣ *4* — 🩺 *Atestado Médico / Abono do Gestor*\n` +
-`5️⃣ *5* — 💻 *Sistema Secullum Fora do Ar* (Ajustar no horário previsto)\n\n` +
-`💬 _Basta responder citando com o número (ex: *1* ou *2*) ou digitar *#${adj.code} 1*._`;
+        const instructionText = `\n_Toque no botão abaixo para definir a tratativa:_`;
 
-        const fullMessage = `${headerAlert}\n\n${colabInfo}${managerCallout}\n${optionsGuide}`;
+        const fullMessage = `${headerAlert}\n\n${colabInfo}${managerCallout}${instructionText}`;
 
-        const sendRes = await sendZapiWithMentions({
+        // Dispara com MENU INTERATIVO CLICÁVEL
+        const sendRes = await sendZapiOptionList({
             target: targetGroup,
             message: fullMessage,
-            mentionedPhones
+            title: "Tratativa de Ponto",
+            buttonLabel: "Definir Tratativa 👇",
+            options: [
+                { id: `#${adj.code}_ajustar`, title: "✅ Ajustar Ponto", description: "Escolher motivo no Secullum" },
+                { id: `#${adj.code}_falta`, title: "❌ Confirmar Falta", description: "Registrar ausência injustificada" }
+            ]
         });
 
         if (sendRes.success) {
@@ -291,11 +285,32 @@ export async function sendPunchAdjustmentWhatsAppAlert(
 }
 
 /**
- * PARSER DO WEBHOOK: Processa respostas de gestores no WhatsApp
- * Suporta:
- * 1. Respostas citando a mensagem original (ex: "> ... #AJ1011 ... \n 1" ou "2")
- * 2. Mensagens diretas (ex: "#AJ1011 1", "#AJ1011 falta", "#AJ1011_1")
- * 3. Botões/menus legados caso enviados
+ * ETAPA 2: Dispara o MENU CLICÁVEL com os 4 MOTIVOS OPERACIONAIS PADRONIZADOS
+ * (Abono, Esquecimento, Problema Aparelho, Instabilidade Sistema)
+ */
+export async function sendReasonsOptionList(params: {
+    code: string;
+    groupPhone: string;
+    employeeName: string;
+    expectedTime: string;
+}) {
+    const options = STANDARDIZED_PUNCH_REASONS.map(r => ({
+        id: `#${params.code}_MOT_${r.id}`,
+        title: r.title,
+        description: r.description
+    }));
+
+    return sendZapiOptionList({
+        target: params.groupPhone,
+        message: `📋 *Ajuste #${params.code} — Horário: ${params.expectedTime}*\n_Colaborador: ${params.employeeName}_\n\nToque no botão abaixo para definir o motivo do ajuste:`,
+        title: "Motivo do Ajuste",
+        buttonLabel: "Escolher Motivo 👇",
+        options
+    });
+}
+
+/**
+ * PARSER DO WEBHOOK: Processa cliques nos Menus de Opções e Botões
  */
 export async function tryParsePunchAdjustmentReply(params: {
     messageText: string;
@@ -307,64 +322,76 @@ export async function tryParsePunchAdjustmentReply(params: {
 
     // 1. Extrair código #AJ... do texto ou da citação
     const codeMatch = rawText.match(/#(AJ\d+(?:_\d+)?)/i);
-    if (!codeMatch) {
-        return { handled: false };
-    }
+    let candidateCode = codeMatch ? codeMatch[1].toUpperCase() : null;
 
-    let candidateCode = codeMatch[1].toUpperCase();
+    let adjustment = null;
 
-    // Buscar o registro no banco pelo código exato
-    let adjustment = await prisma.attendancePunchAdjustment.findUnique({
-        where: { code: candidateCode },
-        include: {
-            employee: true,
-            client: { include: { accountManager: true } }
-        }
-    });
-
-    // Se não encontrou e o código tinha sufixo (ex: AJ1011_1 -> AJ1011)
-    if (!adjustment && candidateCode.includes("_")) {
-        const baseCode = candidateCode.split("_")[0];
+    if (candidateCode) {
         adjustment = await prisma.attendancePunchAdjustment.findUnique({
-            where: { code: baseCode },
+            where: { code: candidateCode },
             include: {
                 employee: true,
                 client: { include: { accountManager: true } }
             }
         });
-        if (adjustment) {
-            candidateCode = baseCode;
+
+        if (!adjustment && candidateCode.includes("_")) {
+            const baseCode = candidateCode.split("_")[0];
+            adjustment = await prisma.attendancePunchAdjustment.findUnique({
+                where: { code: baseCode },
+                include: {
+                    employee: true,
+                    client: { include: { accountManager: true } }
+                }
+            });
+            if (adjustment) {
+                candidateCode = baseCode;
+            }
         }
     }
 
+    // Se não achou código explícito no texto (ex: o usuário clicou no menu e o WhatsApp enviou apenas o título da opção)
     if (!adjustment) {
+        const isMenuClick = 
+            rawText.includes("_falta") || 
+            rawText.includes("_ajustar") || 
+            rawText.includes("_MOT_") ||
+            rawText.toLowerCase().includes("ajustar ponto") || 
+            rawText.toLowerCase().includes("confirmar falta") ||
+            STANDARDIZED_PUNCH_REASONS.some(r => rawText.toLowerCase().includes(r.title.toLowerCase()));
+
+        if (isMenuClick) {
+            const targetGroupId = params.groupPhone || DEFAULT_OPERATIONS_GROUP;
+            adjustment = await prisma.attendancePunchAdjustment.findFirst({
+                where: {
+                    OR: [
+                        { whatsappGroupId: targetGroupId },
+                        { whatsappGroupId: DEFAULT_OPERATIONS_GROUP }
+                    ],
+                    status: "PENDING_RESPONSE"
+                },
+                orderBy: { createdAt: "desc" },
+                include: {
+                    employee: true,
+                    client: { include: { accountManager: true } }
+                }
+            });
+            if (adjustment) {
+                candidateCode = adjustment.code;
+            }
+        }
+    }
+
+    if (!adjustment || !candidateCode) {
         return { handled: false };
     }
 
     const cleanSender = params.senderPhone.replace(/\D/g, "");
     const mentionTag = cleanSender ? `@${cleanSender.startsWith("55") ? cleanSender : `55${cleanSender}`}` : (params.senderName || "Líder");
+    const targetGroup = params.groupPhone || adjustment.whatsappGroupId || DEFAULT_OPERATIONS_GROUP;
 
-    // Separar linhas citadas do texto escrito pelo usuário
-    const lines = rawText.split("\n");
-    const replyLines = lines.filter(l => !l.trim().startsWith(">"));
-    const userReply = replyLines.join(" ").trim().toLowerCase();
-
-    // 2. IDENTIFICAR AÇÃO
-
-    // A. FALTA (Opção 2, "falta", "ausência", "não veio", "_falta", etc.)
-    const isFalta = 
-        userReply === "2" ||
-        userReply.startsWith("2 ") ||
-        userReply.endsWith(" 2") ||
-        userReply.includes("_falta") ||
-        userReply.includes("falta") ||
-        userReply.includes("ausente") ||
-        userReply.includes("ausencia") ||
-        userReply.includes("não veio") ||
-        userReply.includes("nao veio") ||
-        rawText.includes("_falta");
-
-    if (isFalta) {
+    // A. CLIQUE NO MENU: "Confirmar Falta" (#AJ..._falta ou texto Falta)
+    if (rawText.includes("_falta") || rawText.toLowerCase().includes("confirmar falta") || rawText.toLowerCase().includes("falta")) {
         await processManagerWhatsAppResponse({
             code: candidateCode,
             senderPhone: params.senderPhone,
@@ -372,86 +399,38 @@ export async function tryParsePunchAdjustmentReply(params: {
             action: "FALTA"
         });
 
-        const replyMsg = 
-`❌ *Falta Confirmada — #${candidateCode}*
-
-👤 *Colaborador:* ${adjustment.employee.name}
-📅 *Data:* ${adjustment.date.toLocaleDateString("pt-BR")}
-⏰ *Horário:* ${adjustment.expectedTime}
-✍️ *Registrado por:* ${mentionTag}
-
-👉 *Ausência registrada no Workforce Hub. O RH foi notificado para o fechamento da folha.*`;
-
         return {
             handled: true,
-            replyText: replyMsg
+            replyText: `❌ *Falta confirmada para #${candidateCode}!* (${adjustment.employee.name})\nRegistrado por: ${mentionTag}. O RH foi notificado.`
         };
     }
 
-    // B. AJUSTE — Seleção do Motivo
+    // B. CLIQUE NO MENU: "Ajustar Ponto" (#AJ..._ajustar ou texto Ajustar Ponto)
+    // Dispara a ETAPA 2: Menu Interativo dos 4 Motivos Padronizados!
+    if (rawText.includes("_ajustar") || rawText.toLowerCase().includes("ajustar ponto") || rawText.toLowerCase().endsWith("ajustar")) {
+        if (targetGroup) {
+            await sendReasonsOptionList({
+                code: candidateCode,
+                groupPhone: targetGroup,
+                employeeName: adjustment.employee.name,
+                expectedTime: adjustment.expectedTime
+            });
+        }
+        return {
+            handled: true,
+            replyText: undefined
+        };
+    }
+
+    // C. CLIQUE NO MENU DE MOTIVOS PADRONIZADOS
     let matchedReason = STANDARDIZED_PUNCH_REASONS.find(r => rawText.includes(`_MOT_${r.id}`));
 
     if (!matchedReason) {
-        // Opção 1: Esquecimento de bater ponto
-        if (
-            userReply === "1" ||
-            userReply.startsWith("1 ") ||
-            userReply.endsWith(" 1") ||
-            userReply.includes("_1") ||
-            userReply.includes("esquece") ||
-            userReply.includes("esqueceu") ||
-            userReply.includes("normal") ||
-            userReply.includes("trabalhou") ||
-            userReply.includes("trabalho") ||
-            userReply.includes("_ajustar") ||
-            userReply === "ajustar" ||
-            userReply === "ajustar ponto" ||
-            userReply === "ok" ||
-            userReply === "sim"
-        ) {
-            matchedReason = STANDARDIZED_PUNCH_REASONS[1]; // Esquecimento
-        }
-        // Opção 3: Problema no celular / aparelho
-        else if (
-            userReply === "3" ||
-            userReply.startsWith("3 ") ||
-            userReply.endsWith(" 3") ||
-            userReply.includes("_3") ||
-            userReply.includes("celular") ||
-            userReply.includes("aparelho") ||
-            userReply.includes("bateria") ||
-            userReply.includes("descarregou")
-        ) {
-            matchedReason = STANDARDIZED_PUNCH_REASONS[2]; // Problema Aparelho
-        }
-        // Opção 4: Abono do gestor / atestado
-        else if (
-            userReply === "4" ||
-            userReply.startsWith("4 ") ||
-            userReply.endsWith(" 4") ||
-            userReply.includes("_4") ||
-            userReply.includes("abono") ||
-            userReply.includes("abonar") ||
-            userReply.includes("atestado") ||
-            userReply.includes("medico") ||
-            userReply.includes("médico")
-        ) {
-            matchedReason = STANDARDIZED_PUNCH_REASONS[0]; // Abono
-        }
-        // Opção 5: Instabilidade no Sistema Secullum
-        else if (
-            userReply === "5" ||
-            userReply.startsWith("5 ") ||
-            userReply.endsWith(" 5") ||
-            userReply.includes("_5") ||
-            userReply.includes("sistema") ||
-            userReply.includes("instabilidade") ||
-            userReply.includes("secullum") ||
-            userReply.includes("fora do ar") ||
-            userReply.includes("fora")
-        ) {
-            matchedReason = STANDARDIZED_PUNCH_REASONS[3]; // Instabilidade Sistema
-        }
+        const upper = rawText.toUpperCase();
+        if (upper.includes("ABONO")) matchedReason = STANDARDIZED_PUNCH_REASONS[0];
+        else if (upper.includes("ESQUEC") || upper.includes("ESQUECEU")) matchedReason = STANDARDIZED_PUNCH_REASONS[1];
+        else if (upper.includes("APARELHO") || upper.includes("CELULAR")) matchedReason = STANDARDIZED_PUNCH_REASONS[2];
+        else if (upper.includes("SISTEMA") || upper.includes("INSTABILIDADE") || upper.includes("FORA")) matchedReason = STANDARDIZED_PUNCH_REASONS[3];
     }
 
     if (matchedReason) {
@@ -474,16 +453,12 @@ export async function tryParsePunchAdjustmentReply(params: {
             }
         });
 
-        const replyMsg = 
-`✅ *Ajuste Solicitado com Sucesso — #${candidateCode}*
-
-👤 *Colaborador:* ${adjustment.employee.name}
-📅 *Data:* ${adjustment.date.toLocaleDateString("pt-BR")}
-⏰ *Horário Ajustado:* ${adjustment.expectedTime}
-📋 *Motivo:* ${matchedReason.title}
-✍️ *Solicitado por:* ${mentionTag}
-
-👉 *Registrado no Workforce Hub para validação e injeção no Secullum pelo RH.*`;
+        const replyMsg = `✅ *Ajuste #${candidateCode} Solicitado com Sucesso!*\n\n` +
+            `👤 *Colaborador:* ${adjustment.employee.name}\n` +
+            `⏰ *Horário:* ${adjustment.expectedTime}\n` +
+            `📋 *Motivo:* ${matchedReason.title} (${matchedReason.description})\n` +
+            `Solicitado por: ${mentionTag}\n\n` +
+            `👉 *Registrado no Workforce Hub para conferência e injeção no Secullum pelo RH.*`;
 
         return {
             handled: true,
@@ -491,22 +466,9 @@ export async function tryParsePunchAdjustmentReply(params: {
         };
     }
 
-    // Se o usuário digitou o código mas não colocou número ou opção válida, orienta:
-    const guidanceMsg = 
-`ℹ️ *Ajuste de Ponto #${candidateCode}* (${adjustment.employee.name})
-
-Para registrar a tratativa, responda citando com o número:
-1️⃣ *1* — 🕒 Esqueceu de bater (Ajustar Horário)
-2️⃣ *2* — ❌ Confirmar Falta (Sem justificativa)
-3️⃣ *3* — 📱 Problema no Celular / Aparelho
-4️⃣ *4* — 🩺 Atestado Médico / Abono do Gestor
-5️⃣ *5* — 💻 Sistema Secullum Fora do Ar`;
-
-    return {
-        handled: true,
-        replyText: guidanceMsg
-    };
+    return { handled: false };
 }
+
 
 
 
