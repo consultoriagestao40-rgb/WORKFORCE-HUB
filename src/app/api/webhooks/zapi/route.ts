@@ -132,7 +132,21 @@ export async function POST(req: Request) {
 
             // 1. Interceptar Respostas de Ajuste de Ponto (#AJ...) em qualquer grupo operacional / de teste
             const isAjusteDePontoGroup = groupPhone.includes("120363412937009664");
-            const isPunchAdjustmentRelated = !isFromMe && content && (
+            const hasButtonOrRowAction = Boolean(
+                body.buttonId || 
+                body.buttonsResponseMessage || 
+                body.listResponseMessage || 
+                body.listResponse || 
+                body.selectedRowId ||
+                content.includes("_MOT_") ||
+                content.includes("_ajustar") ||
+                content.includes("_falta")
+            );
+
+            // Permite interação mesmo se o usuário estiver respondendo na mesma conta vinculada à Z-API
+            const isBotSelfEcho = isFromMe && !hasButtonOrRowAction && (eventType === "on-message-send" || eventType === "MessageSent");
+
+            const isPunchAdjustmentRelated = !isBotSelfEcho && content && (
                 isAjusteDePontoGroup ||
                 content.includes("#AJ") || 
                 content.includes("#aj") || 
@@ -142,7 +156,13 @@ export async function POST(req: Request) {
                 content.includes("_ajustar") ||
                 content.includes("_falta") ||
                 content.trim() === "1" ||
-                content.trim() === "2"
+                content.trim() === "2" ||
+                content.trim() === "3" ||
+                content.trim() === "4" ||
+                content.toLowerCase().includes("esquec") ||
+                content.toLowerCase().includes("abono") ||
+                content.toLowerCase().includes("aparelho") ||
+                content.toLowerCase().includes("sistema")
             );
 
             if (isPunchAdjustmentRelated) {
