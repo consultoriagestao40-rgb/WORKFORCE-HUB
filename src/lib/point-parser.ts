@@ -41,7 +41,184 @@ function cleanCpf(cpfRaw: string): string {
 }
 
 /**
- * Parses Secullum Cartão Ponto text (from PDF)
+ * Parses a single Secullum Cartão Ponto page from pdfjs text items
+ */
+export function parsePointPdfPage(items: { str: string; transform?: number[] }[]): ParsedPointEmployee | null {
+    if (!items || items.length === 0) return null;
+
+    // 1. Employee Name:
+    // Priority A: from signature block at the bottom (immediately below the line of underscores)
+    let name = "";
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].str.includes("________")) {
+            for (let j = i + 1; j < Math.min(i + 10, items.length); j++) {
+                const s = items[j].str.trim();
+                if (s && !s.includes("RH") && !s.includes("ADM") && !s.includes("____") && s.length >= 3) {
+                    name = s;
+                    break;
+                }
+            }
+            break;
+        }
+    }
+
+    // Priority B: from OBSERVAÇÃO header
+    if (!name) {
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].str.includes("OBSERVAÇÃO:")) {
+                for (let j = i + 1; j < Math.min(i + 6, items.length); j++) {
+                    const s = items[j].str.trim();
+                    if (s && s.length >= 3 && !s.includes("ISENTO") && !/^\d+$/.test(s) && !s.includes("RH")) {
+                        name = s;
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    // Clean name: remove suffixes like (spatium), (ferias), extra whitespace
+    if (name) {
+        name = name.replace(/\(.*?\)/g, "").replace(/\s+/g, " ").trim().toUpperCase();
+    }
+
+    // 2. Extract CPF
+    let cpf = "";
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].str.includes("CPF:")) {
+            for (let j = i + 1; j < Math.min(i + 8, items.length); j++) {
+                const s = items[j].str.trim();
+                const cleanDigits = s.replace(/\D/g, "");
+                if (cleanDigits.length === 11) {
+                    cpf = cleanCpf(cleanDigits);
+                    break;
+                }
+            }
+            break;
+        }
+    }
+
+    // Fallback: search for any 11-digit CPF formatted in the page items
+    if (!cpf) {
+        for (const it of items) {
+            const m = it.str.match(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/);
+            if (m) {
+                cpf = cleanCpf(m[0]);
+                break;
+            }
+        }
+    }
+
+    // 3. Extract Folha code
+    let folha = "";
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].str.includes("FOLHA")) {
+            for (let j = i + 1; j < Math.min(i + 8, items.length); j++) {
+                const s = items[j].str.trim();
+                if (/^\d{1,6}$/.test(s)) {
+                    folha = s;
+                    break;
+                }
+            }
+            break;
+        }
+    }
+
+    // 4. Role & Department
+    let role = "";
+    let department = "";
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].str.includes("FUNÇÃO:")) {
+            for (let j = i + 1; j < Math.min(i + 6, items.length); j++) {
+                const s = items[j].str.trim();
+                if (s && s.length >= 4 && !s.includes("DEPARTAMENTO") && !s.includes("OBSERVAÇÃO")) {
+                    role = s;
+                    break;
+                }
+            }
+        }
+        if (items[i].str.includes("DEPARTAMENTO:")) {
+            for (let j = i + 1; j < Math.min(i + 6, items.length); j++) {
+                const s = items[j].str.trim();
+                if (s && s.length >= 3 && !s.includes("OBSERVAÇÃO") && !s.includes("ISENTO")) {
+                    department = s;
+                    break;
+                }
+            }
+        }
+    }
+
+    // 5. Totais by row coordinate
+    let workedHours = 0;
+    let faltasHours = 0;
+    let extrasHours = 0;
+    let noturnoHours = 0;
+
+    const totaisItem = items.find(it => it.str.includes("TOTAIS"));
+    if (totaisItem && totaisItem.transform) {
+        const yTotais = Math.round(totaisItem.transform[5]);
+        const rowItems = items.filter(it => it.transform && Math.abs(Math.round(it.transform[5]) - yTotais) <= 6);
+        for (const it of rowItems) {
+            const x = Math.round(it.transform?.[4] || 0);
+            const s = it.str.trim();
+            if (/^-?\d{1,4}:\d{2}$/.test(s)) {
+                if (x >= 320 && x <= 365) workedHours = parseTimeToHours(s);
+                else if (x >= 366 && x <= 405) faltasHours = parseTimeToHours(s);
+                else if (x >= 406 && x <= 445) extrasHours = parseTimeToHours(s);
+                else if (x >= 485 && x <= 530) noturnoHours = parseTimeToHours(s);
+            }
+        }
+    }
+
+    // Fallback: search Totais in text order if coordinates missing
+    if (workedHours === 0 && faltasHours === 0 && extrasHours === 0) {
+        const fullStr = items.map(it => it.str).join(" ");
+        const tMatch = fullStr.match(/TOTAIS\s+([\d:]+)(?:\s+([\d:]+))?(?:\s+([\d:]+))?(?:\s+([\d:]+))?(?:\s+([\d:]+))?/i);
+        if (tMatch) {
+            if (tMatch[1]) workedHours = parseTimeToHours(tMatch[1]);
+            if (tMatch[2]) faltasHours = parseTimeToHours(tMatch[2]);
+            if (tMatch[3]) extrasHours = parseTimeToHours(tMatch[3]);
+            if (tMatch[5]) noturnoHours = parseTimeToHours(tMatch[5]);
+        }
+    }
+
+    // 6. Punches & Faltas days count
+    let punchesCount = 0;
+    let faltasCount = 0;
+    const dayItems = items.filter(it => it.transform && /^\d{2}\/\d{2}\/\d{4}/.test(it.str.trim()));
+    for (const d of dayItems) {
+        const y = Math.round(d.transform![5]);
+        const lineItems = items.filter(it => it.transform && Math.abs(Math.round(it.transform[5]) - y) <= 4);
+        const lineText = lineItems.map(it => it.str).join(" ").toUpperCase();
+        if (lineText.includes("FALTA") || lineText.includes("AUSENTE")) {
+            faltasCount++;
+        } else {
+            const times = Array.from(lineText.matchAll(/(\d{1,2}:\d{2})/g));
+            if (times.length >= 2) punchesCount++;
+        }
+    }
+
+    if (!name && !cpf) return null;
+
+    return {
+        name: name || `Cartao_Ponto_${folha || cpf}`,
+        cpf,
+        folha,
+        workedHours,
+        faltasCount,
+        faltasHours,
+        extrasHours,
+        noturnoHours,
+        atrasosHours: 0,
+        punchesCount,
+        department,
+        company: undefined
+    };
+}
+
+/**
+ * Parses Secullum Cartão Ponto text (from PDF raw text)
  */
 export function parsePointPdfText(fullText: string): ParsedPointEmployee[] {
     const lines = fullText.split("\n").map(l => l.trim()).filter(Boolean);
@@ -84,12 +261,11 @@ export function parsePointPdfText(fullText: string): ParsedPointEmployee[] {
                 punchesCount: 0
             };
 
-            const nameMatch = line.match(/NOME\s*:\s*(.+?)(?:\s+N[ºo°]?\s*FOLHA|\s*CPF|\s*$)/i);
+            // Avoid catching CNPJ after NOME:
+            const cleanLine = line.replace(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/g, "").replace(/EMPRESA:[\s\S]*?OBSERVAÇÃO:/i, "");
+            const nameMatch = cleanLine.match(/NOME\s*:\s*(.+?)(?:\s+N[ºo°]?\s*FOLHA|\s*CPF|\s*$)/i);
             if (nameMatch) {
-                currentEmp.name = nameMatch[1].trim();
-            } else {
-                const afterNome = line.replace(/NOME\s*:/i, "").trim();
-                if (afterNome.length > 3) currentEmp.name = afterNome.split(/\s{3,}/)[0].trim();
+                currentEmp.name = nameMatch[1].replace(/\(.*?\)/g, "").trim();
             }
 
             const folhaMatch = line.match(/N[ºo°]?\s*FOLHA\s*:?\s*(\d+)/i);
@@ -106,24 +282,22 @@ export function parsePointPdfText(fullText: string): ParsedPointEmployee[] {
             }
         }
 
-        // 3. Extract Department if present
-        if (!currentEmp.department && (upper.includes("DEPARTAMENTO:") || upper.includes("DEPTO:"))) {
-            const depMatch = line.match(/(?:DEPARTAMENTO|DEPTO)\s*:\s*([^;,\n]+)/i);
-            if (depMatch) currentEmp.department = depMatch[1].trim();
+        // 3. Extract signature name if header name is empty or bad
+        if (!currentEmp.name || currentEmp.name.includes("EMPRESA") || currentEmp.name.includes("CNPJ")) {
+            const sigMatch = line.match(/_{5,}\s*([A-ZÀ-Ú\s]{3,60}?)(?:\s+RH|\s+ADM|\s*$)/i);
+            if (sigMatch) {
+                currentEmp.name = sigMatch[1].replace(/\(.*?\)/g, "").trim().toUpperCase();
+            }
         }
 
-        // 4. Count punches & daily faltas (lines starting with DD/MM)
+        // 4. Count punches & daily faltas
         if (/^\d{2}\/\d{2}/.test(line)) {
             const times = Array.from(line.matchAll(/(\d{1,2}:\d{2})/g));
-            if (times.length >= 2) {
-                daysWithPunches++;
-            }
-            if (upper.includes("FALTA") || upper.includes("AUSENTE")) {
-                faltasDetected++;
-            }
+            if (times.length >= 2) daysWithPunches++;
+            if (upper.includes("FALTA") || upper.includes("AUSENTE")) faltasDetected++;
         }
 
-        // 5. Totais summary row (NORMAIS | FALTAS | EXTRAS | DSR | NOT.)
+        // 5. Totais summary row
         if (upper.includes("TOTAI") || upper.startsWith("TOT ")) {
             const times = Array.from(line.matchAll(/(-?\d{1,4}:\d{2})/g)).map(m => m[1]);
             if (times.length >= 1) currentEmp.workedHours = parseTimeToHours(times[0]);

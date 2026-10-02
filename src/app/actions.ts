@@ -1721,9 +1721,11 @@ export async function updateEmployee(formData: FormData) {
         const type = formData.get("type") as string;
         const status = formData.get("status") as string;
 
+        const rawSalaryValues = formData.getAll("salary");
+        const hasExplicitZero = rawSalaryValues.some(v => typeof v === "string" && (v.trim() === "0" || v.trim() === "0.00" || v.trim() === "0,00"));
         const inputSalary = parseFormFloat("salary", 0);
-        // Proteção sistêmica: se o input veio zerado/em branco mas o colaborador já tinha salário, preserva
-        const salary = (inputSalary === 0 && oldEmployee.salary > 0 && !formData.has("salary_explicitly_zero"))
+        // Proteção sistêmica: se o input veio em branco mas o colaborador já tinha salário, preserva; se veio explicitamente 0, respeita
+        const salary = (inputSalary === 0 && !hasExplicitZero && oldEmployee.salary > 0 && !formData.has("salary_explicitly_zero"))
             ? oldEmployee.salary
             : inputSalary;
 

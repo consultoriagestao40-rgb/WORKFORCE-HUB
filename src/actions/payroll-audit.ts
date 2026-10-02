@@ -123,6 +123,19 @@ function normalizeName(name: string | undefined | null): string {
         .trim();
 }
 
+function nameSimilarity(s1: string, s2: string): number {
+    if (s1 === s2) return 1.0;
+    if (!s1 || !s2) return 0;
+    const longer = s1.length > s2.length ? s1 : s2;
+    const shorter = s1.length > s2.length ? s2 : s1;
+    if (longer.includes(shorter)) return shorter.length / longer.length;
+    const w1 = s1.split(" ").filter(w => w.length > 2);
+    const w2 = s2.split(" ").filter(w => w.length > 2);
+    if (w1.length === 0 || w2.length === 0) return 0;
+    const common = w1.filter(w => w2.some(other => other.includes(w) || w.includes(other)));
+    return (common.length * 2) / (w1.length + w2.length);
+}
+
 /**
  * Lista empresas para filtro de auditoria
  */
@@ -249,6 +262,17 @@ export async function runPayrollAudit(params: {
             || (normName && normName.length >= 3 ? holeriteByName.get(normName) : undefined)
             || (empCode && empCode.length >= 1 ? holeriteByCode.get(empCode) : undefined);
 
+        // Fallback por similaridade de nome para holerite (ex: pequenas variações na grafia do sobrenome)
+        if (!holerite && normName && normName.length >= 5) {
+            for (const [hName, hItem] of holeriteByName.entries()) {
+                if (matchedHoleriteIds.has(hItem.id)) continue;
+                if (nameSimilarity(normName, hName) >= 0.75) {
+                    holerite = hItem;
+                    break;
+                }
+            }
+        }
+
         // Se este holerite já foi vinculado a outro colaborador, não duplica
         if (holerite && matchedHoleriteIds.has(holerite.id)) {
             holerite = undefined;
@@ -263,6 +287,18 @@ export async function runPayrollAudit(params: {
         let point = (cpfDigits && cpfDigits.length >= 11 ? pointByCpf.get(cpfDigits) : undefined)
             || (normName && normName.length >= 3 ? pointByName.get(normName) : undefined)
             || (empCode && empCode.length >= 1 ? pointByCode.get(empCode) : undefined);
+
+        // Fallback por similaridade de nome para ponto
+        if (!point && normName && normName.length >= 5) {
+            for (const [pName, pItem] of pointByName.entries()) {
+                const pk = cleanCpfDigits(pItem.cpf) || normalizeName(pItem.name) || pItem.folha || "";
+                if (matchedPointKeys.has(pk)) continue;
+                if (nameSimilarity(normName, pName) >= 0.75) {
+                    point = pItem;
+                    break;
+                }
+            }
+        }
 
         const pKey = point ? (cleanCpfDigits(point.cpf) || normalizeName(point.name) || point.folha || "") : "";
         if (point && pKey && matchedPointKeys.has(pKey)) {
@@ -509,14 +545,44 @@ export async function runPayrollAudit(params: {
         if (cpfDigits) processedEmpKeys.add(cpfDigits);
         if (normName) processedEmpKeys.add(normName);
 
-        const point = (cpfDigits && pointByCpf.get(cpfDigits)) || pointByName.get(normName);
+        let point = (cpfDigits && pointByCpf.get(cpfDigits)) || pointByName.get(normName);
+        if (!point && normName && normName.length >= 5) {
+            for (const [pName, pItem] of pointByName.entries()) {
+                const pk = cleanCpfDigits(pItem.cpf) || normalizeName(pItem.name) || pItem.folha || "";
+                if (matchedPointKeys.has(pk)) continue;
+                if (nameSimilarity(normName, pName) >= 0.75) {
+                    point = pItem;
+                    break;
+                }
+            }
+        }
+
         if (point) {
-            const pKey = cleanCpfDigits(point.cpf) || normalizeName(point.name);
-            matchedPointKeys.add(pKey);
+            const pKey = cleanCpfDigits(point.cpf) || normalizeName(point.name) || point.folha || "";
+            if (pKey) matchedPointKeys.add(pKey);
         }
 
         const holeriteNet = h.netSalary || (h.totalEarnings ? h.totalEarnings - (h.totalDeductions || 0) : 0);
-        const diagMsg = `🚨 Holerite gerado (R$ ${holeriteNet.toFixed(2)}), mas colaborador NÃO EXISTE no cadastro do WFH!`;
+        const isProLabore = /pro-labore|pr[oó]\s*labore|administrador|diretor/i.test(h.payrollType || "") 
+            || /pro-labore|pr[oó]\s*labore/i.test(h.employeeName) 
+            || /adamo/i.test(h.employeeName);
+
+        let status: AuditDiscrepancyType = "CRITICAL_RISK";
+        let riskLevel: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "NONE" = "CRITICAL";
+        let diagMsg = `🚨 Holerite gerado (R$ ${holeriteNet.toFixed(2)}), mas colaborador NÃO EXISTE no cadastro do WFH!`;
+        let suggestedAction = "Verificar se é admissão nova não lançada no WFH ou pagamento a terceiro indevido.";
+
+        if (!point && isProLabore) {
+            status = "MISSING_POINT";
+            riskLevel = "LOW";
+            diagMsg = `Holerite de Pró-Labore / Sócio emitido (R$ ${holeriteNet.toFixed(2)}), sem registro de ponto do Secullum.`;
+            suggestedAction = "Pró-Labore / Diretoria isento de marcação de ponto no Secullum.";
+        } else if (!point && pointItems.length > 0) {
+            status = "MISSING_POINT";
+            riskLevel = "HIGH";
+            diagMsg = `Holerite gerado pela contabilidade (R$ ${holeriteNet.toFixed(2)}), mas colaborador NÃO ENCONTRADO no ponto Secullum.`;
+            suggestedAction = "Verificar se o colaborador bate ponto em outro equipamento ou se houve falha de exportação.";
+        }
 
         rows.push({
             id: `holerite-only-${h.id}`,
@@ -527,9 +593,9 @@ export async function runPayrollAudit(params: {
             companyId: targetCompany?.id || undefined,
             companyName: h.companyName || targetCompany?.name || "Contabilidade",
             clientName: "NÃO CADASTRADO NO WFH",
-            postoName: "Desconhecido",
-            wfhSituation: "NÃO CONSTA NO SISTEMA",
-            wfhStatus: "NÃO CADASTRADO",
+            postoName: isProLabore ? "Diretoria / Pró-Labore" : "Desconhecido",
+            wfhSituation: isProLabore ? "PRÓ-LABORE" : "NÃO CONSTA NO SISTEMA",
+            wfhStatus: isProLabore ? "DIRETORIA" : "NÃO CADASTRADO",
             wfhBaseSalary: 0,
             wfhFaltasCount: 0,
             hasPoint: !!point,
@@ -547,12 +613,12 @@ export async function runPayrollAudit(params: {
             holeriteAbsenceDays: h.absenceDays || 0,
             holeriteAbsenceDeduction: h.absenceDeduction || 0,
             holeriteWorkedDays: h.workedDays || 30,
-            status: "CRITICAL_RISK",
-            riskLevel: "CRITICAL",
-            severity: "CRITICAL",
+            status,
+            riskLevel,
+            severity: riskLevel === "CRITICAL" ? "CRITICAL" : riskLevel === "HIGH" ? "HIGH" : "LOW",
             diagnosticMessage: diagMsg,
             discrepancies: [diagMsg],
-            suggestedAction: "Verificar se é admissão nova não lançada no WFH ou pagamento a terceiro indevido.",
+            suggestedAction,
             wfh: undefined,
             point: point ? {
                 workedHours: point.workedHours > 0 ? `${point.workedHours.toFixed(1)}h` : "0h",

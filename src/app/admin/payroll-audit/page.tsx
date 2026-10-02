@@ -32,7 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { extractDataFromPageText, ExtractedHoleriteItem } from "@/lib/holerite-processor";
-import { parsePointExcel, parsePointPdfText, ParsedPointEmployee } from "@/lib/point-parser";
+import { parsePointExcel, parsePointPdfText, parsePointPdfPage, ParsedPointEmployee } from "@/lib/point-parser";
 import { runPayrollAudit, getPayrollAuditCompanies, PayrollAuditResult, AuditRow } from "@/actions/payroll-audit";
 
 export default function PayrollAuditPage() {
@@ -138,16 +138,31 @@ export default function PayrollAuditPage() {
                 }
                 const arrayBuffer = await file.arrayBuffer();
                 const pdfjsDoc = await (window as any).pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
-                let fullText = "";
+                const parsed: ParsedPointEmployee[] = [];
                 for (let i = 1; i <= pdfjsDoc.numPages; i++) {
                     const page = await pdfjsDoc.getPage(i);
                     const textContent = await page.getTextContent();
-                    const pageText = textContent.items.map((item: any) => item.str).join(" ");
-                    fullText += "\n" + pageText;
+                    const emp = parsePointPdfPage(textContent.items);
+                    if (emp) {
+                        parsed.push(emp);
+                    }
                 }
-                const parsed = parsePointPdfText(fullText);
-                setPointItems(parsed);
-                toast.success(`Cartão Ponto (PDF) processado: ${parsed.length} colaboradores identificados.`);
+
+                if (parsed.length === 0) {
+                    let fullText = "";
+                    for (let i = 1; i <= pdfjsDoc.numPages; i++) {
+                        const page = await pdfjsDoc.getPage(i);
+                        const textContent = await page.getTextContent();
+                        const pageText = textContent.items.map((item: any) => item.str).join(" ");
+                        fullText += "\n" + pageText;
+                    }
+                    const fallbackParsed = parsePointPdfText(fullText);
+                    setPointItems(fallbackParsed);
+                    toast.success(`Cartão Ponto (PDF) processado: ${fallbackParsed.length} colaboradores identificados.`);
+                } else {
+                    setPointItems(parsed);
+                    toast.success(`Cartão Ponto (PDF) processado: ${parsed.length} colaboradores identificados.`);
+                }
             } else {
                 toast.error("Formato de cartão ponto não suportado. Utilize PDF ou Excel (.xlsx, .xls).");
             }
