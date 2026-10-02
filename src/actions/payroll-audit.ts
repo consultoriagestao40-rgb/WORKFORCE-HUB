@@ -282,6 +282,19 @@ export async function runPayrollAudit(params: {
         const hasHolerite = !!holerite;
         const hasPoint = !!point;
 
+        // Se o colaborador não tem ponto e não tem holerite no lote enviado:
+        // 1. Desligados/Inativos que não têm ponto nem holerite: JAMAIS devem poluir a auditoria
+        if (isDesligado && !hasHolerite && !hasPoint) {
+            continue;
+        }
+
+        // 2. Colaboradores que não constam nos arquivos enviados (ponto e holerite):
+        // Se arquivos foram enviados, a auditoria deve focar exclusivamente nos colaboradores
+        // presentes nos arquivos enviados (ou que tenham holerite/ponto a auditar).
+        if (!hasPoint && !hasHolerite) {
+            continue;
+        }
+
         const holeriteBase = holerite?.baseSalary || 0;
         const holeriteEarnings = holerite?.totalEarnings || 0;
         const holeriteDeductions = holerite?.totalDeductions || 0;
@@ -303,7 +316,7 @@ export async function runPayrollAudit(params: {
         let diagnosticMessage = "Informações de folha, ponto e sistema conferidas.";
         let suggestedAction = "Liberar pagamento normalmente.";
 
-        // Regra 1: Risco Crítico de Pagamento Indevido (Holerite cheio para colaborador que não trabalhou)
+        // Regra 1: Risco Crítico de Pagamento Indevido ou Ponto irregular
         if (hasHolerite && holeriteEarnings > 500) {
             if (isAbandonment) {
                 status = "CRITICAL_RISK";
@@ -326,16 +339,25 @@ export async function runPayrollAudit(params: {
                 diagnosticMessage = `🚨 ALERTA CRÍTICO: Ponto registra 0 batidas / faltas integrais no mês, mas holerite veio com SALÁRIO CHEIO!`;
                 suggestedAction = "Sustar pagamento e enviar cartão ponto com faltas para retificação pela contabilidade.";
             }
+        } else if (hasPoint && isDesligado) {
+            status = "CRITICAL_RISK";
+            riskLevel = "CRITICAL";
+            diagnosticMessage = `🚨 ALERTA: Colaborador DESLIGADO/DEMITIDO no WFH registrou ponto no Secullum (${pointWorkedHours.toFixed(1)}h)!`;
+            suggestedAction = "Verificar se o colaborador continuou trabalhando irregularmente após a rescisão.";
         }
 
-        // Regra 2: Faltando Holerite (Colaborador trabalhou mas não veio na folha)
-        if (status === "ALIGNED" && !hasHolerite && !isDesligado) {
-            if ((hasPoint && (pointWorkedHours > 0 || pointPunchesCount > 0)) || (activeAssignment && !isAfastado && !isAbandonment)) {
+        // Regra 2: Faltando Holerite (Colaborador trabalhou no ponto mas não veio no holerite)
+        // Só se aplica quando um lote de holerites foi enviado para cruzar!
+        if (status === "ALIGNED" && holeriteItems.length > 0 && !hasHolerite && !isDesligado) {
+            if (hasPoint && (pointWorkedHours > 0 || pointPunchesCount > 0)) {
                 status = "MISSING_HOLERITE";
                 riskLevel = "HIGH";
-                diagnosticMessage = "Colaborador ativo com posto/ponto, porém NÃO FOI GERADO HOLERITE no lote da contabilidade.";
+                diagnosticMessage = `Colaborador registrou ${pointWorkedHours.toFixed(1)}h no ponto, porém NÃO FOI GERADO HOLERITE no lote da contabilidade.`;
                 suggestedAction = "Solicitar emissão complementar de holerite à contabilidade com urgência.";
             }
+        } else if (status === "ALIGNED" && holeriteItems.length === 0 && hasPoint) {
+            diagnosticMessage = "Ponto Secullum conferido com a base ativa WFH (Aguardando envio de holerite para conferência financeira).";
+            suggestedAction = "Envie o arquivo de holerites para realizar o cruzamento de valores líquidos e descontos.";
         }
 
         // Regra 3: Faltando Ponto (Tem holerite mas não consta no arquivo do Secullum)
@@ -597,8 +619,7 @@ export async function runPayrollAudit(params: {
             holeriteNetSalary: 0,
             holeriteAbsenceDays: 0,
             holeriteAbsenceDeduction: 0,
-            holeriteWorkedDays: 0,
-            status: "MISSING_HOLERITE",
+            status: holeriteItems.length > 0 ? "MISSING_HOLERITE" : "ALIGNED",
             riskLevel: "HIGH",
             severity: "HIGH",
             diagnosticMessage: diagMsg,

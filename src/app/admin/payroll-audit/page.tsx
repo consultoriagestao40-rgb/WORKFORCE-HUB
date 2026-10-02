@@ -102,9 +102,24 @@ export default function PayrollAuditPage() {
         return cpf;
     };
 
+    // --- Auto-detect Company from uploaded file name ---
+    const tryAutoDetectCompany = (filename: string) => {
+        if (!companies || companies.length === 0) return;
+        const cleanName = filename.toLowerCase();
+        const matched = companies.find(c => {
+            const cName = c.name.toLowerCase().trim();
+            return cleanName.includes(cName) || (cName.length >= 4 && cleanName.includes(cName.slice(0, 4)));
+        });
+        if (matched && selectedCompanyId === "all") {
+            setSelectedCompanyId(matched.id);
+            toast.info(`Empresa detectada pelo arquivo: ${matched.name}`);
+        }
+    };
+
     // --- Process Point File (Excel or PDF) ---
     const handlePointFileChange = async (file: File) => {
         setPointFile(file);
+        tryAutoDetectCompany(file.name);
         setIsProcessingPoint(true);
         try {
             const fileNameLower = file.name.toLowerCase();
@@ -147,6 +162,7 @@ export default function PayrollAuditPage() {
     // --- Process Holerites File (PDF) ---
     const handleHoleriteFileChange = async (file: File) => {
         setHoleriteFile(file);
+        tryAutoDetectCompany(file.name);
         setIsProcessingHolerite(true);
         try {
             if (!pdfJsLoaded && !(window as any).pdfjsLib) {
@@ -696,7 +712,11 @@ export default function PayrollAuditPage() {
                                 </span>
                             </div>
                             <div className="text-3xl font-black text-amber-600">{activeSummary?.missingHoleriteCount ?? 0}</div>
-                            <div className="text-[11px] font-semibold text-slate-500 mt-1">Trabalhou no ponto, sem holerite</div>
+                            <div className="text-[11px] font-semibold text-slate-500 mt-1">
+                                {holeriteItems.length === 0 
+                                    ? "Envie holerites para cruzar" 
+                                    : "Trabalhou no ponto, sem holerite"}
+                            </div>
                         </div>
 
                         {/* Sem Ponto */}
