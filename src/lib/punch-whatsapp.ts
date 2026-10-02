@@ -389,14 +389,16 @@ export async function tryParsePunchAdjustmentReply(params: {
         }
     }
 
-    // Se não achou código explícito no texto (ex: o usuário clicou no menu e o WhatsApp enviou apenas o título da opção)
+    // Se não achou código explícito no texto (ex: o usuário clicou no menu ou digitou 1, 2, ajustar, falta)
     if (!adjustment) {
         const isMenuClick = 
             rawText.includes("_falta") || 
             rawText.includes("_ajustar") || 
             rawText.includes("_MOT_") ||
-            rawText.toLowerCase().includes("ajustar ponto") || 
-            rawText.toLowerCase().includes("confirmar falta") ||
+            rawText.toLowerCase().includes("ajustar") || 
+            rawText.toLowerCase().includes("falta") ||
+            rawText.trim() === "1" ||
+            rawText.trim() === "2" ||
             STANDARDIZED_PUNCH_REASONS.some(r => rawText.toLowerCase().includes(r.title.toLowerCase()));
 
         if (isMenuClick) {
@@ -404,6 +406,7 @@ export async function tryParsePunchAdjustmentReply(params: {
             adjustment = await prisma.attendancePunchAdjustment.findFirst({
                 where: {
                     OR: [
+                        { whatsappGroupId: { contains: "120363412937009664" } },
                         { whatsappGroupId: targetGroupId },
                         { whatsappGroupId: DEFAULT_OPERATIONS_GROUP }
                     ],
@@ -454,8 +457,14 @@ export async function tryParsePunchAdjustmentReply(params: {
     const mentionTag = cleanSender ? `@${cleanSender.startsWith("55") ? cleanSender : `55${cleanSender}`}` : (params.senderName || "Líder");
     const targetGroup = params.groupPhone || adjustment.whatsappGroupId || DEFAULT_OPERATIONS_GROUP;
 
-    // A. CLIQUE NO MENU: "Confirmar Falta" (#AJ..._falta ou texto Falta)
-    if (rawText.includes("_falta") || rawText.toLowerCase().includes("confirmar falta") || rawText.toLowerCase().includes("falta")) {
+    // A. CLIQUE NO MENU / DIGITAR: "Confirmar Falta" (Opção 2, _falta, texto Falta)
+    const isFalta = rawText.includes("_falta") || 
+                    rawText.toLowerCase().includes("confirmar falta") || 
+                    rawText.toLowerCase().includes("falta") ||
+                    rawText.trim() === "2" ||
+                    rawText.startsWith("2 ");
+
+    if (isFalta) {
         await processManagerWhatsAppResponse({
             code: candidateCode,
             senderPhone: params.senderPhone,
@@ -475,9 +484,16 @@ export async function tryParsePunchAdjustmentReply(params: {
         };
     }
 
-    // B. CLIQUE NO MENU: "Ajustar Ponto" (#AJ..._ajustar ou texto Ajustar Ponto)
+    // B. CLIQUE NO MENU / DIGITAR: "Ajustar Ponto" (Opção 1, _ajustar, texto Ajustar)
     // Dispara a ETAPA 2: Menu Interativo dos 4 Motivos Padronizados!
-    if (rawText.includes("_ajustar") || rawText.toLowerCase().includes("ajustar ponto") || rawText.toLowerCase().endsWith("ajustar")) {
+    const isAjustar = (
+        rawText.includes("_ajustar") || 
+        rawText.toLowerCase().includes("ajustar") || 
+        rawText.trim() === "1" || 
+        rawText.startsWith("1 ")
+    ) && !rawText.includes("_MOT_");
+
+    if (isAjustar) {
         if (targetGroup) {
             await sendReasonsOptionList({
                 code: candidateCode,

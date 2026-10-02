@@ -131,14 +131,18 @@ export async function POST(req: Request) {
             const groupPhone = rawGroup.includes("@g.us") ? rawGroup : (rawGroup.includes("-group") ? rawGroup : (rawGroup.startsWith("120363") ? `${rawGroup}-group` : rawGroup));
 
             // 1. Interceptar Respostas de Ajuste de Ponto (#AJ...) em qualquer grupo operacional / de teste
+            const isAjusteDePontoGroup = groupPhone.includes("120363412937009664");
             const isPunchAdjustmentRelated = !isFromMe && content && (
+                isAjusteDePontoGroup ||
                 content.includes("#AJ") || 
                 content.includes("#aj") || 
-                content.toLowerCase().includes("ajustar ponto") || 
-                content.toLowerCase().includes("confirmar falta") ||
+                content.toLowerCase().includes("ajustar") || 
+                content.toLowerCase().includes("falta") ||
                 content.includes("_MOT_") ||
                 content.includes("_ajustar") ||
-                content.includes("_falta")
+                content.includes("_falta") ||
+                content.trim() === "1" ||
+                content.trim() === "2"
             );
 
             if (isPunchAdjustmentRelated) {
