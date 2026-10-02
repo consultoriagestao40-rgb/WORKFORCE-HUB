@@ -489,7 +489,7 @@ export async function tryParsePunchAdjustmentReply(params: {
         }
         return {
             handled: true,
-            replyText: undefined
+            replyText: `⏳ *Ajuste #${candidateCode} Selecionado!* (${adjustment.employee.name} — ${postoNome})\n\nToque no menu abaixo para definir o motivo do ajuste 👇`
         };
     }
 

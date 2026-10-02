@@ -486,7 +486,10 @@ function parseMessageBody(body: any) {
     else if (body.message?.documentMessage?.caption) content = body.message.documentMessage.caption;
     else if (body.message?.videoMessage?.caption) content = body.message.videoMessage.caption;
     else if (body.message?.buttonsResponseMessage?.selectedDisplayText) content = body.message.buttonsResponseMessage.selectedDisplayText;
+    else if (body.buttonsResponseMessage?.selectedDisplayText) content = body.buttonsResponseMessage.selectedDisplayText;
     else if (body.message?.listResponseMessage?.title) content = body.message.listResponseMessage.title;
+    else if (body.listResponseMessage?.title) content = body.listResponseMessage.title;
+    else if (body.listResponse?.title) content = body.listResponse.title;
     else if (body.message?.templateButtonReplyMessage?.selectedDisplayText) content = body.message.templateButtonReplyMessage.selectedDisplayText;
 
     // Capturar ID do botão ou item da lista clicado (ex: #AJ1001_ajustar ou #AJ1001_MOT_xxx)
@@ -497,11 +500,25 @@ function parseMessageBody(body: any) {
         body.listResponseMessage?.singleSelectReply?.selectedRowId ||
         body.listResponseMessage?.selectedRowId ||
         body.message?.listResponseMessage?.singleSelectReply?.selectedRowId ||
+        body.message?.listResponseMessage?.selectedRowId ||
         body.listResponse?.id ||
-        body.selectedRowId;
+        body.selectedRowId ||
+        body.rowId ||
+        body.selectedButtonId ||
+        body.templateButtonReplyMessage?.selectedId ||
+        body.message?.templateButtonReplyMessage?.selectedId;
 
     if (buttonOrRowId && typeof buttonOrRowId === "string") {
         content = `${buttonOrRowId} ${content}`.trim();
+    }
+
+    // Varredura profunda de emergência para tokens de ajuste (#AJ, _ajustar, _falta, _MOT_)
+    if (!content.includes("#AJ") && !content.includes("#aj") && !content.includes("_MOT_") && !content.includes("_ajustar") && !content.includes("_falta")) {
+        const rawJson = JSON.stringify(body);
+        const codeFound = rawJson.match(/#(AJ\d+(?:_\w+)?)/i);
+        if (codeFound) {
+            content = `${codeFound[0]} ${content}`.trim();
+        }
     }
 
     // 2. Tratar Notificações de Grupo (Entrou, Saiu, Removido, Convidado, etc.)
