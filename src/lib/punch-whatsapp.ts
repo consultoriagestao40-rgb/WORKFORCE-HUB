@@ -213,7 +213,7 @@ export async function sendPunchAdjustmentWhatsAppAlert(
             include: {
                 employee: true,
                 client: { include: { accountManager: true } },
-                posto: { include: { role: true } }
+                posto: { include: { role: true, client: true } }
             }
         });
 
@@ -221,9 +221,32 @@ export async function sendPunchAdjustmentWhatsAppAlert(
             return { success: false, message: "Ajuste não encontrado." };
         }
 
+        // Buscar o posto ativo do colaborador caso não esteja preenchido no ajuste
+        let posto = adj.posto;
+        let client = adj.client;
+
+        if (!posto) {
+            const activeAssignment = await prisma.assignment.findFirst({
+                where: { employeeId: adj.employeeId, endDate: null },
+                orderBy: { startDate: "desc" },
+                include: {
+                    posto: {
+                        include: {
+                            role: true,
+                            client: { include: { accountManager: true } }
+                        }
+                    }
+                }
+            });
+            if (activeAssignment?.posto) {
+                posto = activeAssignment.posto;
+                if (!client) client = activeAssignment.posto.client;
+            }
+        }
+
         const targetGroup = targetGroupOverride || adj.whatsappGroupId || DEFAULT_OPERATIONS_GROUP;
 
-        const manager = adj.client?.accountManager;
+        const manager = client?.accountManager || adj.client?.accountManager;
         let mentionTag = "";
         let mentionedPhones: string[] = [];
 
@@ -243,8 +266,17 @@ export async function sendPunchAdjustmentWhatsAppAlert(
         const tipoText = tipoMap[adj.punchType] || adj.punchType;
         const dataFormatada = adj.date.toLocaleDateString("pt-BR");
 
+        const postoNome = posto?.role?.name || "Não informado";
+        const postoEscala = posto?.schedule ? ` (${posto.schedule}${posto.startTime && posto.endTime ? ` — ${posto.startTime} às ${posto.endTime}` : ""})` : "";
+        const postoInfo = `${postoNome}${postoEscala}`;
+
         const headerAlert = `🚨 *INCONSISTÊNCIA DE PONTO — #${adj.code}*`;
-        const colabInfo = `👤 *Colaborador:* ${adj.employee.name}\n🏢 *Contrato:* ${adj.client?.name || "Geral"}\n📍 *Posto:* ${adj.posto?.role?.name || "Não informado"}\n📅 *Data:* ${dataFormatada} | *Marcação:* ${tipoText}\n⏰ *Horário Previsto:* ${adj.expectedTime}`;
+        const colabInfo = 
+`👤 *Colaborador:* ${adj.employee.name}
+🏢 *Cliente/Contrato:* ${client?.name || "Geral"}
+📍 *Posto / Função:* ${postoInfo}
+📅 *Data:* ${dataFormatada} | *Marcação:* ${tipoText}
+⏰ *Horário Previsto:* ${adj.expectedTime}`;
 
         const managerCallout = mentionTag
             ? `\n👉 Atenção ${mentionTag} (Gestor do Contrato):`
@@ -272,7 +304,9 @@ export async function sendPunchAdjustmentWhatsAppAlert(
                 data: {
                     whatsappGroupId: targetGroup,
                     whatsappMessageId: sendRes.zapiId,
-                    managerMentionedPhone: mentionedPhones[0] || null
+                    managerMentionedPhone: mentionedPhones[0] || null,
+                    postoId: posto?.id || adj.postoId || null,
+                    clientId: client?.id || adj.clientId || null
                 }
             });
         }
@@ -293,6 +327,7 @@ export async function sendReasonsOptionList(params: {
     groupPhone: string;
     employeeName: string;
     expectedTime: string;
+    postoName?: string;
 }) {
     const options = STANDARDIZED_PUNCH_REASONS.map(r => ({
         id: `#${params.code}_MOT_${r.id}`,
@@ -300,9 +335,11 @@ export async function sendReasonsOptionList(params: {
         description: r.description
     }));
 
+    const postoText = params.postoName ? ` | Posto: ${params.postoName}` : "";
+
     return sendZapiOptionList({
         target: params.groupPhone,
-        message: `📋 *Ajuste #${params.code} — Horário: ${params.expectedTime}*\n_Colaborador: ${params.employeeName}_\n\nToque no botão abaixo para definir o motivo do ajuste:`,
+        message: `📋 *Ajuste #${params.code} — Horário: ${params.expectedTime}*\n_Colaborador: ${params.employeeName}${postoText}_\n\nToque no botão abaixo para definir o motivo do ajuste:`,
         title: "Motivo do Ajuste",
         buttonLabel: "Escolher Motivo 👇",
         options
@@ -331,7 +368,8 @@ export async function tryParsePunchAdjustmentReply(params: {
             where: { code: candidateCode },
             include: {
                 employee: true,
-                client: { include: { accountManager: true } }
+                client: { include: { accountManager: true } },
+                posto: { include: { role: true, client: true } }
             }
         });
 
@@ -341,7 +379,8 @@ export async function tryParsePunchAdjustmentReply(params: {
                 where: { code: baseCode },
                 include: {
                     employee: true,
-                    client: { include: { accountManager: true } }
+                    client: { include: { accountManager: true } },
+                    posto: { include: { role: true, client: true } }
                 }
             });
             if (adjustment) {
@@ -373,7 +412,8 @@ export async function tryParsePunchAdjustmentReply(params: {
                 orderBy: { createdAt: "desc" },
                 include: {
                     employee: true,
-                    client: { include: { accountManager: true } }
+                    client: { include: { accountManager: true } },
+                    posto: { include: { role: true, client: true } }
                 }
             });
             if (adjustment) {
@@ -386,6 +426,30 @@ export async function tryParsePunchAdjustmentReply(params: {
         return { handled: false };
     }
 
+    // Resolver Posto e Cliente caso não estejam salvos diretamente
+    let posto = adjustment.posto;
+    let client = adjustment.client;
+
+    if (!posto) {
+        const activeAssignment = await prisma.assignment.findFirst({
+            where: { employeeId: adjustment.employeeId, endDate: null },
+            orderBy: { startDate: "desc" },
+            include: {
+                posto: {
+                    include: {
+                        role: true,
+                        client: { include: { accountManager: true } }
+                    }
+                }
+            }
+        });
+        if (activeAssignment?.posto) {
+            posto = activeAssignment.posto;
+            if (!client) client = activeAssignment.posto.client;
+        }
+    }
+
+    const postoNome = posto?.role?.name || "Não informado";
     const cleanSender = params.senderPhone.replace(/\D/g, "");
     const mentionTag = cleanSender ? `@${cleanSender.startsWith("55") ? cleanSender : `55${cleanSender}`}` : (params.senderName || "Líder");
     const targetGroup = params.groupPhone || adjustment.whatsappGroupId || DEFAULT_OPERATIONS_GROUP;
@@ -399,9 +463,15 @@ export async function tryParsePunchAdjustmentReply(params: {
             action: "FALTA"
         });
 
+        const replyMsg = `❌ *Falta confirmada para #${candidateCode}!*\n\n` +
+            `👤 *Colaborador:* ${adjustment.employee.name}\n` +
+            `🏢 *Cliente:* ${client?.name || "Geral"}\n` +
+            `📍 *Posto:* ${postoNome}\n` +
+            `✍️ *Registrado por:* ${mentionTag}. O RH foi notificado.`;
+
         return {
             handled: true,
-            replyText: `❌ *Falta confirmada para #${candidateCode}!* (${adjustment.employee.name})\nRegistrado por: ${mentionTag}. O RH foi notificado.`
+            replyText: replyMsg
         };
     }
 
@@ -413,7 +483,8 @@ export async function tryParsePunchAdjustmentReply(params: {
                 code: candidateCode,
                 groupPhone: targetGroup,
                 employeeName: adjustment.employee.name,
-                expectedTime: adjustment.expectedTime
+                expectedTime: adjustment.expectedTime,
+                postoName: postoNome
             });
         }
         return {
@@ -444,20 +515,24 @@ export async function tryParsePunchAdjustmentReply(params: {
             reasonIdOrCode: matchedReason.secullumCode
         });
 
-        // Gravar também a descrição padronizada
+        // Gravar também a descrição padronizada e garantir posto/cliente
         await prisma.attendancePunchAdjustment.update({
             where: { id: adjustment.id },
             data: {
                 secullumReasonName: matchedReason.secullumName,
-                notes: matchedReason.description
+                notes: matchedReason.description,
+                postoId: posto?.id || adjustment.postoId || null,
+                clientId: client?.id || adjustment.clientId || null
             }
         });
 
         const replyMsg = `✅ *Ajuste #${candidateCode} Solicitado com Sucesso!*\n\n` +
             `👤 *Colaborador:* ${adjustment.employee.name}\n` +
+            `🏢 *Cliente:* ${client?.name || "Geral"}\n` +
+            `📍 *Posto:* ${postoNome}\n` +
             `⏰ *Horário:* ${adjustment.expectedTime}\n` +
             `📋 *Motivo:* ${matchedReason.title} (${matchedReason.description})\n` +
-            `Solicitado por: ${mentionTag}\n\n` +
+            `✍️ *Solicitado por:* ${mentionTag}\n\n` +
             `👉 *Registrado no Workforce Hub para conferência e injeção no Secullum pelo RH.*`;
 
         return {
@@ -468,6 +543,7 @@ export async function tryParsePunchAdjustmentReply(params: {
 
     return { handled: false };
 }
+
 
 
 

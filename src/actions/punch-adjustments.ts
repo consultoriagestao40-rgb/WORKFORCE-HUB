@@ -125,14 +125,28 @@ export async function createPunchAdjustmentAlert(params: {
         let clientId = params.clientId;
         let postoId = params.postoId;
 
+        // Se o posto não foi informado, buscar o posto ativo do colaborador na alocação
+        if (!postoId) {
+            const activeAssignment = await prisma.assignment.findFirst({
+                where: { employeeId: params.employeeId, endDate: null },
+                orderBy: { startDate: "desc" },
+                include: { posto: { include: { client: { include: { accountManager: true } } } } }
+            });
+            if (activeAssignment?.posto) {
+                postoId = activeAssignment.postoId;
+                if (!clientId) clientId = activeAssignment.posto.clientId;
+                if (!accountManagerPhone) accountManagerPhone = activeAssignment.posto.client?.accountManager?.phone || null;
+            }
+        }
+
         if (!clientId && postoId) {
             const posto = await prisma.posto.findUnique({
                 where: { id: postoId },
                 include: { client: { include: { accountManager: true } } }
             });
             clientId = posto?.clientId;
-            accountManagerPhone = posto?.client?.accountManager?.phone || null;
-        } else if (clientId) {
+            if (!accountManagerPhone) accountManagerPhone = posto?.client?.accountManager?.phone || null;
+        } else if (clientId && !accountManagerPhone) {
             const client = await prisma.client.findUnique({
                 where: { id: clientId },
                 include: { accountManager: true }
