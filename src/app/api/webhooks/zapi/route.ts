@@ -130,23 +130,20 @@ export async function POST(req: Request) {
             const rawGroup = (body.phone || body.chatId || body.remoteJid || "").toString();
             const groupPhone = rawGroup.includes("@g.us") ? rawGroup : (rawGroup.includes("-group") ? rawGroup : (rawGroup.startsWith("120363") ? `${rawGroup}-group` : rawGroup));
 
+            // 0. NUNCA processar mensagens enviadas pelo próprio bot (evita loops infinitos!)
+            if (isFromMe) {
+                return NextResponse.json({ status: "ignored_from_me" });
+            }
+
+            // Deduplicação pelo ID único da mensagem do WhatsApp
+            if (msgId && isDuplicateZapiMessage(msgId)) {
+                return NextResponse.json({ status: "duplicate_group_message_ignored" });
+            }
+
             // 1. Interceptar Respostas de Ajuste de Ponto (#AJ...) em qualquer grupo operacional / de teste
             const isAjusteDePontoGroup = groupPhone.includes("120363412937009664");
-            const hasButtonOrRowAction = Boolean(
-                body.buttonId || 
-                body.buttonsResponseMessage || 
-                body.listResponseMessage || 
-                body.listResponse || 
-                body.selectedRowId ||
-                content.includes("_MOT_") ||
-                content.includes("_ajustar") ||
-                content.includes("_falta")
-            );
 
-            // Permite interação mesmo se o usuário estiver respondendo na mesma conta vinculada à Z-API
-            const isBotSelfEcho = isFromMe && !hasButtonOrRowAction && (eventType === "on-message-send" || eventType === "MessageSent");
-
-            const isPunchAdjustmentRelated = !isBotSelfEcho && content && (
+            const isPunchAdjustmentRelated = content && (
                 isAjusteDePontoGroup ||
                 content.includes("#AJ") || 
                 content.includes("#aj") || 
