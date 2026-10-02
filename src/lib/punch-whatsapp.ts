@@ -282,19 +282,19 @@ export async function sendPunchAdjustmentWhatsAppAlert(
             ? `\n👉 Atenção ${mentionTag} (Gestor do Contrato):`
             : `\n👉 Atenção líderes da operação:`;
 
-        const instructionText = `\n_Toque no menu abaixo para definir a tratativa:_\nOu responda diretamente:\n1️⃣ *Ajustar Ponto*\n2️⃣ *Confirmar Falta*`;
+        const instructionText = `\n_Toque no menu abaixo para definir a tratativa:_`;
 
         const fullMessage = `${headerAlert}\n\n${colabInfo}${managerCallout}\n${instructionText}`;
 
-        // Dispara com MENU INTERATIVO CLICÁVEL
+        // Dispara com MENU INTERATIVO CLICÁVEL (IDs limpos sem caracteres especiais)
         const sendRes = await sendZapiOptionList({
             target: targetGroup,
             message: fullMessage,
             title: "Tratativa de Ponto",
             buttonLabel: "Definir Tratativa 👇",
             options: [
-                { id: `#${adj.code}_ajustar`, title: "✅ Ajustar Ponto", description: "Escolher motivo no Secullum" },
-                { id: `#${adj.code}_falta`, title: "❌ Confirmar Falta", description: "Registrar ausência injustificada" }
+                { id: `${adj.code}_ajustar`, title: "✅ Ajustar Ponto", description: "Escolher motivo no Secullum" },
+                { id: `${adj.code}_falta`, title: "❌ Confirmar Falta", description: "Registrar ausência injustificada" }
             ]
         });
 
@@ -330,7 +330,7 @@ export async function sendReasonsOptionList(params: {
     postoName?: string;
 }) {
     const options = STANDARDIZED_PUNCH_REASONS.map(r => ({
-        id: `#${params.code}_MOT_${r.id}`,
+        id: `${params.code}_MOT_${r.id}`,
         title: r.title,
         description: r.description
     }));
@@ -339,11 +339,7 @@ export async function sendReasonsOptionList(params: {
 
     const message = `📋 *Ajuste #${params.code} — Horário: ${params.expectedTime}*\n` +
         `_Colaborador: ${params.employeeName}${postoText}_\n\n` +
-        `Toque no botão *Escolher Motivo 👇* abaixo ou responda com o número:\n` +
-        `1️⃣ *Abono* _(Não trabalhou / abonado pelo gestor)_\n` +
-        `2️⃣ *Esquecimento* _(Trabalhou normalmente; esqueceu de registrar)_\n` +
-        `3️⃣ *Problema Aparelho* _(Aparelho descarregou/sem celular)_\n` +
-        `4️⃣ *Instabilidade Sistema* _(Secullum fora do ar/lentidão)_`;
+        `Toque no menu abaixo para definir o motivo do ajuste:`;
 
     return sendZapiOptionList({
         target: params.groupPhone,
@@ -365,8 +361,8 @@ export async function tryParsePunchAdjustmentReply(params: {
 }): Promise<{ handled: boolean; replyText?: string }> {
     const rawText = (params.messageText || "").trim();
 
-    // 1. Extrair código #AJ... do texto ou da citação
-    const codeMatch = rawText.match(/#(AJ\d+(?:_\d+)?)/i);
+    // 1. Extrair código AJ... do texto, da citação ou do ID do botão
+    const codeMatch = rawText.match(/#?(AJ\d+)/i);
     let candidateCode = codeMatch ? codeMatch[1].toUpperCase() : null;
 
     let adjustment = null;
@@ -585,13 +581,7 @@ export async function tryParsePunchAdjustmentReply(params: {
             });
         }
         return {
-            handled: true,
-            replyText: `⏳ *Ajuste #${candidateCode} Selecionado!* (${adjustment.employee.name} — ${postoNome})\n⏰ *Horário:* ${adjustment.expectedTime}\n\n` +
-                `Toque no menu *Escolher Motivo 👇* abaixo ou responda:\n` +
-                `1️⃣ *Abono*\n` +
-                `2️⃣ *Esquecimento*\n` +
-                `3️⃣ *Problema Aparelho*\n` +
-                `4️⃣ *Instabilidade Sistema*`
+            handled: true
         };
     }
 
