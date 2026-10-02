@@ -553,9 +553,16 @@ function parseMessageBody(body: any) {
     }
 
     // 4. Tratar Mensagem Citada (Quoted Message)
-    if (body.quotedMessage) {
-        const quotedText = body.quotedMessage.text || body.quotedMessage.body || body.quotedMessage.caption || body.quotedMessage.content || "Mensagem";
-        content = `> ${quotedText}\n${content}`;
+    const quoted = body.quotedMessage || 
+                   body.contextInfo?.quotedMessage || 
+                   body.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                   body.message?.contextInfo?.quotedMessage;
+    if (quoted) {
+        const quotedText = quoted.text || quoted.body || quoted.caption || quoted.content || 
+                           quoted.conversation || quoted.extendedTextMessage?.text || "";
+        if (quotedText) {
+            content = `> ${quotedText}\n${content}`;
+        }
     }
 
     const msgId = body.messageId || body.id || body.msgId || body.zaapId || null;

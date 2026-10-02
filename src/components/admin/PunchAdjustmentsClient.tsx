@@ -133,9 +133,7 @@ export default function PunchAdjustmentsClient({
 
     // Modal de Teste
     const defaultGroup = whatsappGroups.find(g => g.name.toLowerCase().includes("ajuste"))?.phone
-        || whatsappGroups.find(g => g.name.toLowerCase().includes("mesa de operaç"))?.phone
-        || whatsappGroups.find(g => g.name.toLowerCase().includes("operaç"))?.phone
-        || "";
+        || "120363412937009664-group";
     const [isTestModalOpen, setIsTestModalOpen] = useState(false);
     const [testEmpId, setTestEmpId] = useState("");
     const [testPunchType, setTestPunchType] = useState<"ENTRADA_1" | "SAIDA_1">("ENTRADA_1");
