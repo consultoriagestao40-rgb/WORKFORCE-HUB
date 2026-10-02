@@ -32,6 +32,7 @@ interface EditEmployeeSheetProps {
     roles: { id: string, name: string }[];
     companies?: { id: string, name: string }[];
     postos?: any[];
+    defaultOpen?: boolean;
 }
 
 export function EditEmployeeSheet({ 
@@ -39,10 +40,26 @@ export function EditEmployeeSheet({
     situations, 
     roles, 
     companies = [],
-    postos = []
+    postos = [],
+    defaultOpen = false
 }: EditEmployeeSheetProps) {
     const router = useRouter();
-    const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(defaultOpen);
+
+    const handleOpenChange = (val: boolean) => {
+        setOpen(val);
+        if (!val && typeof window !== "undefined") {
+            try {
+                const url = new URL(window.location.href);
+                if (url.searchParams.has("edit")) {
+                    url.searchParams.delete("edit");
+                    window.history.replaceState(null, "", url.toString());
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    };
     const [activeTab, setActiveTab] = useState<"onvio" | "vacations" | "disciplinary">("onvio");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -194,6 +211,15 @@ export function EditEmployeeSheet({
             }
 
             setOpen(false);
+            if (typeof window !== "undefined") {
+                try {
+                    const url = new URL(window.location.href);
+                    if (url.searchParams.has("edit")) {
+                        url.searchParams.delete("edit");
+                        window.history.replaceState(null, "", url.toString());
+                    }
+                } catch (e) {}
+            }
             toast.success("Cadastro do colaborador atualizado com sucesso!");
             router.refresh();
             window.location.reload();
@@ -204,7 +230,7 @@ export function EditEmployeeSheet({
     }
 
     return (
-        <Sheet open={open} onOpenChange={setOpen}>
+        <Sheet open={open} onOpenChange={handleOpenChange}>
             <SheetTrigger asChild>
                 <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold border-none h-9 px-4 rounded-xl shadow-xs text-xs uppercase tracking-wider">
                     <Edit className="w-4 h-4" /> Editar Colaborador

@@ -16,10 +16,12 @@ export function BackButton({ fallbackUrl, label, variant = "ghost", size = "defa
 
     const handleBack = (e: React.MouseEvent<HTMLButtonElement>) => {
         e.preventDefault();
-        if (typeof window !== "undefined" && window.history.length > 1) {
+        if (fallbackUrl && fallbackUrl !== "/admin/employees") {
+            router.push(fallbackUrl);
+        } else if (typeof window !== "undefined" && window.history.length > 1) {
             router.back();
         } else {
-            router.push(fallbackUrl);
+            router.push(fallbackUrl || "/admin/employees");
         }
     };
 

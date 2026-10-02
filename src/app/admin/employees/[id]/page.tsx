@@ -86,7 +86,7 @@ const formatUTCDateString = (d: Date) => {
 
 export default async function EmployeeProfilePage(props: { 
     params: Promise<{ id: string }>,
-    searchParams?: Promise<{ backTo?: string }>
+    searchParams?: Promise<{ backTo?: string; edit?: string }>
 }) {
     const params = await props.params;
     const resolvedSearchParams = props.searchParams ? await props.searchParams : {};
@@ -144,7 +144,11 @@ export default async function EmployeeProfilePage(props: {
                 <div>
                     <BackButton 
                         fallbackUrl={backTo} 
-                        label={backTo.includes('financial-costs') ? 'Voltar para Custos' : 'Voltar para Equipe'} 
+                        label={
+                            backTo.includes('payroll-preview') ? 'Voltar para Prévia da Folha' :
+                            backTo.includes('financial-costs') ? 'Voltar para Custos' : 
+                            'Voltar para Equipe'
+                        } 
                     />
                 </div>
                 <div className="flex flex-wrap justify-center gap-3 items-center">
@@ -159,7 +163,14 @@ export default async function EmployeeProfilePage(props: {
                             <FileText className="w-4 h-4" /> Exportar Ficha
                         </Button>
                     </Link>
-                    <EditEmployeeSheet employee={employee} situations={situations} roles={roles} companies={companies} postos={postos} />
+                    <EditEmployeeSheet 
+                        employee={employee} 
+                        situations={situations} 
+                        roles={roles} 
+                        companies={companies} 
+                        postos={postos} 
+                        defaultOpen={resolvedSearchParams.edit === "true" || resolvedSearchParams.edit === "1"}
+                    />
                     <LaunchVacationButton />
                     <TerminationSimulatorDialog employee={{ ...employee, vacationDaysRemaining: daysRemaining }} />
                     {!employee.assignments?.some((a: any) => !a.endDate && a.posto?.client?.name?.toUpperCase() === "ROTATIVO") && (

@@ -24,7 +24,8 @@ import {
     ChevronUp,
     ShieldAlert,
     FileText,
-    MessageSquare
+    MessageSquare,
+    ExternalLink
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -335,6 +336,97 @@ export default function PayrollPreviewPage() {
     const [selectedClient, setSelectedClient] = useState<string>("all");
     const [groupedView, setGroupedView] = useState<"colaborador" | "empresa" | "contrato">("colaborador");
     const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+    const [filtersInitialized, setFiltersInitialized] = useState(false);
+
+    // 1. Restaurar filtros da URL ou do sessionStorage ao carregar a tela
+    useEffect(() => {
+        try {
+            const sp = new URLSearchParams(window.location.search);
+            const savedRaw = sessionStorage.getItem("payroll_preview_saved_filters");
+            const saved = savedRaw ? JSON.parse(savedRaw) : null;
+
+            const yearParam = sp.get("year");
+            const monthParam = sp.get("month");
+            const searchParam = sp.get("search");
+            const companyParam = sp.get("company");
+            const clientParam = sp.get("client");
+            const groupParam = sp.get("group");
+            const sortParam = sp.get("sort");
+            const dirParam = sp.get("dir");
+
+            const finalYear = yearParam ? parseInt(yearParam) : (saved?.year || defaultCompetence.year);
+            const finalMonth = monthParam ? parseInt(monthParam) : (saved?.month || defaultCompetence.month);
+            const finalSearch = searchParam !== null ? searchParam : (saved?.search || "");
+            const finalCompany = companyParam || (saved?.company || "all");
+            const finalClient = clientParam || (saved?.client || "all");
+            const finalGroup = (groupParam as any) || (saved?.group || "colaborador");
+            const finalSort = (sortParam as any) || (saved?.sortField || "none");
+            const finalDir = (dirParam as any) || (saved?.sortDirection || "desc");
+
+            setSelectedYear(finalYear);
+            setSelectedMonth(finalMonth);
+            setSearchTerm(finalSearch);
+            setSelectedCompany(finalCompany);
+            setSelectedClient(finalClient);
+            setGroupedView(finalGroup);
+            setSortField(finalSort);
+            setSortDirection(finalDir);
+        } catch (e) {
+            console.error("Erro ao restaurar filtros da prévia de folha:", e);
+        } finally {
+            setFiltersInitialized(true);
+        }
+    }, []);
+
+    // 2. Persistir filtros e manter a URL sincronizada sempre que qualquer filtro mudar
+    useEffect(() => {
+        if (!filtersInitialized) return;
+
+        const filters = {
+            year: selectedYear,
+            month: selectedMonth,
+            search: searchTerm,
+            company: selectedCompany,
+            client: selectedClient,
+            group: groupedView,
+            sortField,
+            sortDirection
+        };
+
+        try {
+            sessionStorage.setItem("payroll_preview_saved_filters", JSON.stringify(filters));
+
+            const params = new URLSearchParams();
+            if (selectedYear) params.set("year", String(selectedYear));
+            if (selectedMonth) params.set("month", String(selectedMonth));
+            if (searchTerm) params.set("search", searchTerm);
+            if (selectedCompany && selectedCompany !== "all") params.set("company", selectedCompany);
+            if (selectedClient && selectedClient !== "all") params.set("client", selectedClient);
+            if (groupedView && groupedView !== "colaborador") params.set("group", groupedView);
+            if (sortField && sortField !== "none") params.set("sort", sortField);
+            if (sortDirection && sortDirection !== "desc") params.set("dir", sortDirection);
+
+            const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+            window.history.replaceState(null, "", newUrl);
+        } catch (e) {
+            console.error("Erro ao sincronizar filtros:", e);
+        }
+    }, [
+        filtersInitialized,
+        selectedYear,
+        selectedMonth,
+        searchTerm,
+        selectedCompany,
+        selectedClient,
+        groupedView,
+        sortField,
+        sortDirection
+    ]);
+
+    const getCurrentReturnUrl = () => {
+        if (typeof window === "undefined") return "/admin/payroll-preview";
+        return window.location.pathname + window.location.search;
+    };
 
     // Sync Secullum modal state
     const [syncModalOpen, setSyncModalOpen] = useState(false);
@@ -539,8 +631,9 @@ export default function PayrollPreviewPage() {
     };
 
     useEffect(() => {
+        if (!filtersInitialized) return;
         loadData();
-    }, [selectedYear, selectedMonth]);
+    }, [filtersInitialized, selectedYear, selectedMonth]);
 
     const getOccurrencesWindowLabel = () => {
         let startMonth = selectedMonth - 1;
@@ -1709,7 +1802,14 @@ export default function PayrollPreviewPage() {
                                         <td className="py-3 px-4 sticky left-0 z-10 whitespace-nowrap" style={{ position: "sticky", left: 0, backgroundColor: "#ffffff", zIndex: 10 }}>
                                             <div>
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="font-bold text-slate-900 text-[13px]">{item.employeeName}</span>
+                                                    <Link
+                                                        href={`/admin/employees/${item.employeeId}?backTo=${encodeURIComponent(getCurrentReturnUrl())}&edit=true`}
+                                                        className="font-bold text-slate-900 text-[13px] hover:text-orange-600 hover:underline cursor-pointer transition-colors inline-flex items-center gap-1 group/emp"
+                                                        title={`Abrir e editar perfil de ${item.employeeName}`}
+                                                    >
+                                                        <span>{item.employeeName}</span>
+                                                        <ExternalLink className="w-3 h-3 text-slate-400 opacity-0 group-hover/emp:opacity-100 group-hover/emp:text-orange-500 transition-opacity shrink-0" />
+                                                    </Link>
                                                     {item.situationName && item.situationName !== "Ativo" && (
                                                         <span 
                                                             className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md text-white shadow-xs"
@@ -2528,7 +2628,14 @@ export default function PayrollPreviewPage() {
                                                                                 <td className="py-2.5 px-3 whitespace-nowrap">
                                                                                     <div>
                                                                                         <div className="flex items-center gap-1.5">
-                                                                                            <span className="font-bold text-slate-850">{sub.employeeName}</span>
+                                                                                            <Link
+                                                                                                href={`/admin/employees/${sub.employeeId}?backTo=${encodeURIComponent(getCurrentReturnUrl())}&edit=true`}
+                                                                                                className="font-bold text-slate-850 hover:text-orange-600 hover:underline cursor-pointer transition-colors inline-flex items-center gap-1 group/emp"
+                                                                                                title={`Abrir e editar perfil de ${sub.employeeName}`}
+                                                                                            >
+                                                                                                <span>{sub.employeeName}</span>
+                                                                                                <ExternalLink className="w-3 h-3 text-slate-400 opacity-0 group-hover/emp:opacity-100 group-hover/emp:text-orange-500 transition-opacity shrink-0" />
+                                                                                            </Link>
                                                                                             <button 
                                                                                                 onClick={() => handleSyncSingleEmployee(sub)}
                                                                                                 disabled={syncingEmployeeId === sub.employeeId}
