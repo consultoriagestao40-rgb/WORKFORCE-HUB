@@ -207,10 +207,10 @@ export async function runPayrollAudit(params: {
     const holeriteByCode = new Map<string, ExtractedHoleriteItem>();
     for (const h of holeriteItems) {
         const cpf = cleanCpfDigits(h.cpf);
-        if (cpf) holeriteByCpf.set(cpf, h);
+        if (cpf && cpf.length >= 11) holeriteByCpf.set(cpf, h);
         const norm = normalizeName(h.employeeName);
-        if (norm) holeriteByName.set(norm, h);
-        if (h.registrationCode) holeriteByCode.set(h.registrationCode.trim(), h);
+        if (norm && norm.length >= 3 && !norm.startsWith("colaborador_pagina")) holeriteByName.set(norm, h);
+        if (h.registrationCode && h.registrationCode.trim().length > 0) holeriteByCode.set(h.registrationCode.trim(), h);
     }
 
     // Point map by clean CPF, normalized Name, and folha code
@@ -219,10 +219,10 @@ export async function runPayrollAudit(params: {
     const pointByCode = new Map<string, ParsedPointEmployee>();
     for (const p of pointItems) {
         const cpf = cleanCpfDigits(p.cpf);
-        if (cpf) pointByCpf.set(cpf, p);
+        if (cpf && cpf.length >= 11) pointByCpf.set(cpf, p);
         const norm = normalizeName(p.name);
-        if (norm) pointByName.set(norm, p);
-        if (p.folha) pointByCode.set(p.folha.trim(), p);
+        if (norm && norm.length >= 3) pointByName.set(norm, p);
+        if (p.folha && p.folha.trim().length > 0) pointByCode.set(p.folha.trim(), p);
     }
 
     // Tracking sets to ensure zero cross-over duplicates
@@ -245,9 +245,14 @@ export async function runPayrollAudit(params: {
         if (normName) processedEmpKeys.add(normName);
         if (empCode) processedEmpKeys.add(`code:${empCode}`);
 
-        const holerite = (cpfDigits && holeriteByCpf.get(cpfDigits))
-            || holeriteByName.get(normName)
-            || (empCode ? holeriteByCode.get(empCode) : undefined);
+        let holerite = (cpfDigits && cpfDigits.length >= 11 ? holeriteByCpf.get(cpfDigits) : undefined)
+            || (normName && normName.length >= 3 ? holeriteByName.get(normName) : undefined)
+            || (empCode && empCode.length >= 1 ? holeriteByCode.get(empCode) : undefined);
+
+        // Se este holerite já foi vinculado a outro colaborador, não duplica
+        if (holerite && matchedHoleriteIds.has(holerite.id)) {
+            holerite = undefined;
+        }
 
         if (holerite) {
             matchedHoleriteIds.add(holerite.id);
@@ -255,13 +260,17 @@ export async function runPayrollAudit(params: {
             if (holerite.employeeName) processedEmpKeys.add(normalizeName(holerite.employeeName));
         }
 
-        const point = (cpfDigits && pointByCpf.get(cpfDigits))
-            || pointByName.get(normName)
-            || (empCode ? pointByCode.get(empCode) : undefined);
+        let point = (cpfDigits && cpfDigits.length >= 11 ? pointByCpf.get(cpfDigits) : undefined)
+            || (normName && normName.length >= 3 ? pointByName.get(normName) : undefined)
+            || (empCode && empCode.length >= 1 ? pointByCode.get(empCode) : undefined);
+
+        const pKey = point ? (cleanCpfDigits(point.cpf) || normalizeName(point.name) || point.folha || "") : "";
+        if (point && pKey && matchedPointKeys.has(pKey)) {
+            point = undefined;
+        }
 
         if (point) {
-            const pKey = cleanCpfDigits(point.cpf) || normalizeName(point.name);
-            matchedPointKeys.add(pKey);
+            if (pKey) matchedPointKeys.add(pKey);
             if (point.cpf) processedEmpKeys.add(cleanCpfDigits(point.cpf));
             if (point.name) processedEmpKeys.add(normalizeName(point.name));
         }
@@ -619,6 +628,7 @@ export async function runPayrollAudit(params: {
             holeriteNetSalary: 0,
             holeriteAbsenceDays: 0,
             holeriteAbsenceDeduction: 0,
+            holeriteWorkedDays: 0,
             status: holeriteItems.length > 0 ? "MISSING_HOLERITE" : "ALIGNED",
             riskLevel: "HIGH",
             severity: "HIGH",
