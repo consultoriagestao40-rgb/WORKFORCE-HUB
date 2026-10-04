@@ -243,7 +243,7 @@ export async function POST(req: Request) {
         // Interceptar Respostas de Ajuste de Ponto (#AJ...) no privado (ex: quando o gestor clica no link wa.me)
         const isPrivatePunchReply = !!content && (
             /#AJ\d+/i.test(content) ||
-            /\bAJ\d+(?:_\d+)?_(ajustar|falta|MOT_\w+)/i.test(content)
+            /\bAJ\d+(?:_\d+)?_(ajustar|falta|MOT_\w+|ESC_\w+)/i.test(content)
         );
         if (!isFromMe && isPrivatePunchReply) {
             if (msgId0 && isDuplicateZapiMessage(msgId0)) {

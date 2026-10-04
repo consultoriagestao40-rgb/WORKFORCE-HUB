@@ -1364,6 +1364,7 @@ model AttendancePunchAdjustment {
   requestedByUserId     String?
   isAccountManager      Boolean   @default(false)
   requestedAt           DateTime? // Momento em que o gestor solicitou o ajuste / confirmou a falta
+  punchScope            String?   // ENTRADA, SAIDA, INTERVALO, TODOS (marcações a lançar no Secullum)
   resolvedByUserId      String?
   resolvedAt            DateTime?
   secullumStatus        String?   // SUCESSO, ERRO, EXISTENTE_OFFLINE

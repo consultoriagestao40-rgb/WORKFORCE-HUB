@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getBenefitsConfig } from "@/actions/benefits";
 import { SecullumApiClient } from "@/lib/secullum";
 import { getCurrentUser } from "@/lib/auth";
-import { humanizePunchTime, spDateParts, PUNCH_TYPE_TO_SECULLUM_COLUMN } from "@/lib/punch-time";
+import { planPunches, spDateParts, PUNCH_TYPE_TO_SECULLUM_COLUMN } from "@/lib/punch-time";
 
 export interface PunchAdjustmentFilter {
     status?: string;
@@ -392,41 +392,66 @@ export async function approveAndSyncPunchAdjustment(adjustmentId: string) {
                 abonar: true
             });
         } else {
-            const coluna = PUNCH_TYPE_TO_SECULLUM_COLUMN[adj.punchType];
-            if (!coluna) {
-                return { success: false, message: `Tipo de marcação não suportado: ${adj.punchType}` };
-            }
-
-            // Horário cadastrado no Secullum para o dia da semana da ocorrência
-            const horario = await client.getHorarioDoFuncionario(adj.employee.cpf);
-            const dia = horario?.dias.find(d => d.DiaSemana === weekday);
-            const scheduled = (dia as any)?.[coluna] || null;
-
-            if (!scheduled) {
-                const msg = horario
-                    ? `O horário "${horario.descricao}" no Secullum não tem ${coluna} para este dia da semana.`
-                    : "Não foi possível ler o horário do colaborador no Secullum.";
+            const fallbackColumn = PUNCH_TYPE_TO_SECULLUM_COLUMN[adj.punchType] || null;
+            const fail = async (msg: string) => {
                 await prisma.attendancePunchAdjustment.update({
                     where: { id: adjustmentId },
                     data: { secullumStatus: "ERRO", secullumResponseLog: msg }
                 });
                 return { success: false, message: msg };
+            };
+
+            // Horário cadastrado no Secullum para o dia da semana da ocorrência
+            const horario = await client.getHorarioDoFuncionario(adj.employee.cpf);
+            if (!horario) return fail("Não foi possível ler o horário do colaborador no Secullum.");
+            const dia = horario.dias.find(d => d.DiaSemana === weekday);
+
+            // Batidas já existentes no dia (não sobrescrever)
+            const existing: Record<string, string | null> = {};
+            try {
+                const calc = await client.getCalculos(adj.employee.cpf.replace(/\D/g, ""), dateStr, dateStr);
+                const d = Array.isArray(calc?.Dias) ? calc.Dias.find((x: any) => String(x.Data || "").startsWith(dateStr)) : null;
+                for (const c of ["Entrada1", "Saida1", "Entrada2", "Saida2", "Entrada3", "Saida3"]) {
+                    const v = d?.[c];
+                    existing[c] = typeof v === "string" && /^\d{1,2}:\d{2}/.test(v) ? v : null;
+                }
+            } catch (e) {
+                console.warn("[approve] Não foi possível ler batidas existentes:", e);
             }
 
-            insertedTime = humanizePunchTime(scheduled, coluna.startsWith("Entrada"));
-            if (!insertedTime) {
-                return { success: false, message: `Horário inválido no Secullum: ${scheduled}` };
+            const plan = planPunches({ scheduleDay: dia, scope: adj.punchScope, fallbackColumn, existing });
+            if (plan.error) return fail(`${plan.error} (horário "${horario.descricao}")`);
+            if (plan.punches.length === 0) {
+                return fail(`Nada a lançar: as marcações já existem no cartão (${plan.skipped.join(", ")}).`);
             }
 
-            res = await client.lancarBatidaManual({
-                cpf: adj.employee.cpf,
-                data: dateStr,
-                hora: insertedTime,
-                coluna,
-                motivo: `${adj.secullumReasonName || "Ajuste de ponto"} | ${obs}`
-            });
-            if (res.success) {
-                res.message = `${coluna} incluída às ${insertedTime} (previsto ${scheduled}).`;
+            const done: string[] = [];
+            const errors: string[] = [];
+            for (const p of plan.punches) {
+                const r = await client.lancarBatidaManual({
+                    cpf: adj.employee.cpf,
+                    data: dateStr,
+                    hora: p.hora,
+                    coluna: p.coluna,
+                    motivo: `${adj.secullumReasonName || "Ajuste de ponto"} | ${obs}`
+                });
+                if (r.success) done.push(`${p.coluna} ${p.hora} (prev. ${p.previsto})`);
+                else errors.push(`${p.coluna}: ${r.message}`);
+            }
+
+            insertedTime = plan.punches
+                .filter(p => done.some(d => d.startsWith(`${p.coluna} `)))
+                .map(p => `${p.coluna.replace("Entrada", "E").replace("Saida", "S")} ${p.hora}`)
+                .join(" | ") || null;
+
+            const skippedTxt = plan.skipped.length ? ` Já existiam: ${plan.skipped.join(", ")}.` : "";
+            if (errors.length && !done.length) {
+                res = { success: false, message: errors.join(" ; ") };
+            } else if (errors.length) {
+                // Parcial: registra como erro para o RH revisar, mas informa o que entrou
+                res = { success: false, message: `Parcial — incluídas: ${done.join(", ")}. Falharam: ${errors.join(" ; ")}` };
+            } else {
+                res = { success: true, message: `Incluídas: ${done.join(", ")}.${skippedTxt}` };
             }
         }
 

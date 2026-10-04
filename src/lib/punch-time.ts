@@ -64,3 +64,84 @@ export function spDateParts(date: Date): { dateStr: string; weekday: number } {
     const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
     return { dateStr: `${get("year")}-${get("month")}-${get("day")}`, weekday: weekdayMap[get("weekday")] ?? date.getDay() };
 }
+
+const ALL_COLUMNS = ["Entrada1", "Saida1", "Entrada2", "Saida2", "Entrada3", "Saida3"] as const;
+
+export type PlannedPunch = { coluna: string; hora: string; previsto: string };
+
+/**
+ * Converte a escolha do gestor (Só Entrada / Só Saída / Intervalo / Dia Completo) nas batidas a incluir.
+ * - Usa o horário cadastrado no Secullum para o dia (scheduleDay)
+ * - Não inclui colunas que já possuem batida (existing)
+ * - Intervalo: a volta mantém a mesma duração de intervalo cadastrada (nunca encurta o intervalo)
+ */
+export function planPunches(params: {
+    scheduleDay: Record<string, any> | null | undefined;
+    scope: string | null | undefined;     // ENTRADA | SAIDA | INTERVALO | TODOS | null
+    fallbackColumn?: string | null;       // coluna da ocorrência original (quando não há escopo)
+    existing?: Record<string, string | null | undefined>;
+    rand?: () => number;
+}): { punches: PlannedPunch[]; skipped: string[]; error?: string } {
+    const day = params.scheduleDay || {};
+    const existing = params.existing || {};
+    const rand = params.rand || Math.random;
+    const sched = (c: string): string | null => (typeof day[c] === "string" && /^\d{1,2}:\d{2}/.test(day[c]) ? day[c] : null);
+
+    let columns: string[] = [];
+    switch (params.scope) {
+        case "ENTRADA":
+            columns = ["Entrada1"];
+            break;
+        case "SAIDA": {
+            const lastExit = ["Saida3", "Saida2", "Saida1"].find(c => sched(c));
+            columns = lastExit ? [lastExit] : [];
+            break;
+        }
+        case "INTERVALO":
+            if (!sched("Saida1") || !sched("Entrada2")) {
+                return { punches: [], skipped: [], error: "O horário cadastrado no Secullum não possui intervalo para este dia." };
+            }
+            columns = ["Saida1", "Entrada2"];
+            break;
+        case "TODOS":
+            columns = ALL_COLUMNS.filter(c => sched(c));
+            break;
+        default:
+            columns = params.fallbackColumn ? [params.fallbackColumn] : [];
+    }
+
+    columns = columns.filter(c => sched(c));
+    if (columns.length === 0) {
+        return { punches: [], skipped: [], error: "O horário cadastrado no Secullum não possui essas marcações para este dia da semana." };
+    }
+
+    const skipped = columns.filter(c => !!existing[c]);
+    const toInsert = columns.filter(c => !existing[c]);
+    const punches: PlannedPunch[] = [];
+    const chosen: Record<string, string> = {};
+
+    for (const coluna of toInsert) {
+        const previsto = sched(coluna)!;
+        let hora: string | null = null;
+
+        // Volta do intervalo (Entrada2/Entrada3): mantém a duração cadastrada a partir da saída real/gerada
+        const prevExit = coluna === "Entrada2" ? "Saida1" : coluna === "Entrada3" ? "Saida2" : null;
+        if (prevExit) {
+            const exitTime = chosen[prevExit] || existing[prevExit] || null;
+            const sExit = toMinutes(sched(prevExit) || "");
+            const sBack = toMinutes(previsto);
+            const real = toMinutes(exitTime || "");
+            if (exitTime && sExit !== null && sBack !== null && real !== null) {
+                const duration = ((sBack - sExit) % 1440 + 1440) % 1440;
+                hora = toHHMM(real + duration);
+            }
+        }
+
+        if (!hora) hora = humanizePunchTime(previsto, coluna.startsWith("Entrada"), rand);
+        if (!hora) continue;
+        chosen[coluna] = hora;
+        punches.push({ coluna, hora, previsto });
+    }
+
+    return { punches, skipped };
+}

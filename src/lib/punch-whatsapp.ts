@@ -373,6 +373,36 @@ export async function sendReasonsOptionList(params: {
 }
 
 /**
+ * ETAPA 3 (somente motivos em que o colaborador TRABALHOU): quais marcações lançar no Secullum
+ */
+export const PUNCH_SCOPES = [
+    { id: "ENTRADA", title: "🚪 Só Entrada", description: "Lança apenas a entrada do expediente" },
+    { id: "SAIDA", title: "🏁 Só Saída", description: "Lança apenas a saída final do expediente" },
+    { id: "INTERVALO", title: "🍽️ Intervalo", description: "Lança saída e retorno do intervalo" },
+    { id: "TODOS", title: "🗓️ Dia Completo", description: "Lança todas as marcações que faltam no dia" }
+];
+
+export async function sendScopeOptionList(params: {
+    code: string;
+    target: string;
+    employeeName: string;
+    reasonTitle: string;
+}) {
+    const message = `🧩 *Ajuste #${params.code} — ${params.reasonTitle}*\n` +
+        `👤 ${params.employeeName}\n\n` +
+        `_Quais marcações devem ser lançadas no ponto?_ 👇\n` +
+        `(o horário é o cadastrado no Secullum, com variação de minutos; marcações já registradas não são alteradas)`;
+
+    return sendZapiOptionList({
+        target: params.target,
+        message,
+        title: "Marcações a Lançar",
+        buttonLabel: "Escolher Marcações 👇",
+        options: PUNCH_SCOPES.map(s => ({ id: `${params.code}_ESC_${s.id}`, title: s.title, description: s.description }))
+    });
+}
+
+/**
  * PARSER DO WEBHOOK: Processa cliques nos Menus de Opções e Botões
  */
 export async function tryParsePunchAdjustmentReply(params: {
@@ -421,6 +451,7 @@ export async function tryParsePunchAdjustmentReply(params: {
             rawText.includes("_falta") || 
             rawText.includes("_ajustar") || 
             rawText.includes("_MOT_") ||
+            rawText.includes("_ESC_") ||
             rawText.toLowerCase().includes("ajustar") || 
             rawText.toLowerCase().includes("falta") ||
             rawText.trim() === "1" ||
@@ -438,7 +469,7 @@ export async function tryParsePunchAdjustmentReply(params: {
                         { whatsappGroupId: targetGroupId },
                         { whatsappGroupId: DEFAULT_OPERATIONS_GROUP }
                     ],
-                    status: { in: ["PENDING_RESPONSE", "PENDING_REASON"] }
+                    status: { in: ["PENDING_RESPONSE", "PENDING_REASON", "PENDING_SCOPE"] }
                 },
                 orderBy: { updatedAt: "desc" },
                 include: {
@@ -485,8 +516,55 @@ export async function tryParsePunchAdjustmentReply(params: {
     const mentionTag = cleanSender ? `@${cleanSender.startsWith("55") ? cleanSender : `55${cleanSender}`}` : (params.senderName || "Líder");
     const targetGroup = params.groupPhone || adjustment.whatsappGroupId || DEFAULT_OPERATIONS_GROUP;
 
+    // Finaliza a solicitação de ajuste (vai para PENDING_AUDIT no Hub)
+    const finalizeAdjustment = async (
+        reason: typeof STANDARDIZED_PUNCH_REASONS[number],
+        scope: typeof PUNCH_SCOPES[number] | null
+    ) => {
+        await processManagerWhatsAppResponse({
+            code: candidateCode!,
+            senderPhone: params.senderPhone,
+            senderName: params.senderName,
+            action: "AJUSTAR",
+            reasonIdOrCode: reason.secullumCode
+        });
+
+        await prisma.attendancePunchAdjustment.update({
+            where: { id: adjustment!.id },
+            data: {
+                secullumReasonName: reason.secullumName,
+                notes: reason.description,
+                punchScope: scope?.id || null,
+                postoId: posto?.id || adjustment!.postoId || null,
+                clientId: client?.id || adjustment!.clientId || null
+            }
+        });
+
+        const replyMsg = `✅ *Ajuste #${candidateCode} Solicitado com Sucesso!*\n\n` +
+            `👤 *Colaborador:* ${adjustment!.employee.name}\n` +
+            `🏢 *Cliente:* ${client?.name || "Geral"}\n` +
+            `📍 *Posto:* ${postoNome}\n` +
+            `📋 *Motivo:* ${reason.title} (${reason.description})\n` +
+            (scope ? `🧩 *Marcações:* ${scope.title} (${scope.description})\n` : "") +
+            `✍️ *Solicitado por:* ${mentionTag}\n` +
+            `🕒 *Solicitado em:* ${nowBr()}\n\n` +
+            `👉 *Registrado no Workforce Hub para conferência e injeção no Secullum pelo RH.*`;
+
+        return { handled: true, replyText: replyMsg };
+    };
+
     // -------------------------------------------------------------
-    // ETAPA 2 (PRIORIDADE): CLIQUE NO MENU DE MOTIVOS OU NÚMERO/NOME DO MOTIVO
+    // ETAPA 3 (PRIORIDADE MÁXIMA): CLIQUE NO MENU DE MARCAÇÕES A LANÇAR
+    // -------------------------------------------------------------
+    const matchedScope = PUNCH_SCOPES.find(s => rawText.includes(`_ESC_${s.id}`));
+    if (matchedScope) {
+        const savedReason = STANDARDIZED_PUNCH_REASONS.find(r => r.secullumName === adjustment!.secullumReasonName)
+            || STANDARDIZED_PUNCH_REASONS[1];
+        return finalizeAdjustment(savedReason, matchedScope);
+    }
+
+    // -------------------------------------------------------------
+    // ETAPA 2: CLIQUE NO MENU DE MOTIVOS OU NÚMERO/NOME DO MOTIVO
     // -------------------------------------------------------------
     let matchedReason = STANDARDIZED_PUNCH_REASONS.find(r => rawText.includes(`_MOT_${r.id}`));
 
@@ -511,20 +589,16 @@ export async function tryParsePunchAdjustmentReply(params: {
     }
 
     if (matchedReason) {
-        // GATILHO OFICIAL: O gestor confirmou o ajuste e o motivo!
-        // Promove o status para PENDING_AUDIT para entrar no Workforce Hub
-        await processManagerWhatsAppResponse({
-            code: candidateCode,
-            senderPhone: params.senderPhone,
-            senderName: params.senderName,
-            action: "AJUSTAR",
-            reasonIdOrCode: matchedReason.secullumCode
-        });
+        // Abono (não trabalhou): finaliza direto, não há marcações a lançar
+        if (matchedReason.id === "ABONO") {
+            return finalizeAdjustment(matchedReason, null);
+        }
 
-        // Gravar também a descrição padronizada e garantir posto/cliente
+        // Trabalhou e não registrou: guarda o motivo e pergunta quais marcações lançar (Etapa 3)
         await prisma.attendancePunchAdjustment.update({
             where: { id: adjustment.id },
             data: {
+                status: "PENDING_SCOPE",
                 secullumReasonName: matchedReason.secullumName,
                 notes: matchedReason.description,
                 postoId: posto?.id || adjustment.postoId || null,
@@ -532,20 +606,14 @@ export async function tryParsePunchAdjustmentReply(params: {
             }
         });
 
-        const replyMsg = `✅ *Ajuste #${candidateCode} Solicitado com Sucesso!*\n\n` +
-            `👤 *Colaborador:* ${adjustment.employee.name}\n` +
-            `🏢 *Cliente:* ${client?.name || "Geral"}\n` +
-            `📍 *Posto:* ${postoNome}\n` +
-            `⏰ *Horário:* ${adjustment.expectedTime}\n` +
-            `📋 *Motivo:* ${matchedReason.title} (${matchedReason.description})\n` +
-            `✍️ *Solicitado por:* ${mentionTag}\n` +
-            `🕒 *Solicitado em:* ${nowBr()}\n\n` +
-            `👉 *Registrado no Workforce Hub para conferência e injeção no Secullum pelo RH.*`;
+        await sendScopeOptionList({
+            code: candidateCode,
+            target: targetGroup,
+            employeeName: adjustment.employee.name,
+            reasonTitle: matchedReason.title
+        });
 
-        return {
-            handled: true,
-            replyText: replyMsg
-        };
+        return { handled: true };
     }
 
     // -------------------------------------------------------------

@@ -75,6 +75,7 @@ interface PunchAdjustmentItem {
     expectedTime: string;
     requestedTime: string | null;
     requestedAt?: string | Date | null;
+    punchScope?: string | null;
     secullumReasonName: string | null;
     status: string;
     source: string;
@@ -313,6 +314,8 @@ export default function PunchAdjustmentsClient({
     const getStatusBadge = (status: string) => {
         switch (status) {
             case "PENDING_RESPONSE":
+            case "PENDING_REASON":
+            case "PENDING_SCOPE":
                 return (
                     <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 font-semibold gap-1.5 py-0.5">
                         <Clock className="w-3.5 h-3.5 text-amber-600" />
@@ -699,6 +702,11 @@ export default function PunchAdjustmentsClient({
                                                 <div className="text-xs text-amber-700 font-semibold mt-0.5">
                                                     {item.secullumReasonName || "Aguardando definição"}
                                                 </div>
+                                                {item.punchScope && (
+                                                    <div className="text-[11px] text-indigo-700 font-semibold mt-0.5">
+                                                        Marcações: {({ ENTRADA: "Só Entrada", SAIDA: "Só Saída", INTERVALO: "Intervalo", TODOS: "Dia Completo" } as Record<string, string>)[item.punchScope] || item.punchScope}
+                                                    </div>
+                                                )}
                                             </TableCell>
 
                                             {/* Status */}
