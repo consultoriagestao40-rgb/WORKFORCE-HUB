@@ -286,15 +286,15 @@ export async function sendPunchAdjustmentWhatsAppAlert(
 
         const fullMessage = `${headerAlert}\n\n${colabInfo}${managerCallout}\n${instructionText}`;
 
-        // Dispara com MENU INTERATIVO CLICÁVEL (IDs limpos sem caracteres especiais)
+        // Dispara com MENU INTERATIVO CLICÁVEL (títulos sem emojis para total compatibilidade iOS)
         const sendRes = await sendZapiOptionList({
             target: targetGroup,
             message: fullMessage,
             title: "Tratativa de Ponto",
-            buttonLabel: "Definir Tratativa 👇",
+            buttonLabel: "Definir Tratativa",
             options: [
-                { id: `${adj.code}_ajustar`, title: "✅ Ajustar Ponto", description: "Escolher motivo no Secullum" },
-                { id: `${adj.code}_falta`, title: "❌ Confirmar Falta", description: "Registrar ausência injustificada" }
+                { id: `${adj.code}_ajustar`, title: "Ajustar Ponto", description: "Escolher motivo no Secullum" },
+                { id: `${adj.code}_falta`, title: "Confirmar Falta", description: "Registrar falta injustificada" }
             ]
         });
 
@@ -345,7 +345,7 @@ export async function sendReasonsOptionList(params: {
         target: params.groupPhone,
         message,
         title: "Motivo do Ajuste",
-        buttonLabel: "Escolher Motivo 👇",
+        buttonLabel: "Escolher Motivo",
         options
     });
 }
