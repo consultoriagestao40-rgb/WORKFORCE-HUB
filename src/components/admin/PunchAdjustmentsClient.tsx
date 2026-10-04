@@ -72,6 +72,7 @@ interface PunchAdjustmentItem {
     punchType: string;
     expectedTime: string;
     requestedTime: string | null;
+    requestedAt?: string | Date | null;
     secullumReasonName: string | null;
     status: string;
     source: string;
@@ -625,6 +626,12 @@ export default function PunchAdjustmentsClient({
                                                     <Calendar className="w-3 h-3 text-slate-400" />
                                                     {formatDataExibicao(item.date)}
                                                 </p>
+                                                {item.requestedAt && (
+                                                    <p className="text-[11px] text-indigo-600 mt-0.5 flex items-center gap-1 font-medium" title="Data e hora em que o gestor solicitou">
+                                                        <Clock className="w-3 h-3 text-indigo-400" />
+                                                        Solicitado {format(new Date(item.requestedAt), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                                                    </p>
+                                                )}
                                             </TableCell>
 
                                             {/* Colaborador */}

@@ -1363,6 +1363,7 @@ model AttendancePunchAdjustment {
   requestedByName       String?
   requestedByUserId     String?
   isAccountManager      Boolean   @default(false)
+  requestedAt           DateTime? // Momento em que o gestor solicitou o ajuste / confirmou a falta
   resolvedByUserId      String?
   resolvedAt            DateTime?
   secullumStatus        String?   // SUCESSO, ERRO, EXISTENTE_OFFLINE

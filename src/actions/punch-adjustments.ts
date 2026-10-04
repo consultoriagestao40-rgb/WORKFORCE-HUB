@@ -233,6 +233,7 @@ export async function processManagerWhatsAppResponse(params: {
                     requestedByUserId: matchingUser?.id || null,
                     isAccountManager,
                     notes: `${adjustment.notes || ""} | Falta confirmada pelo supervisor no WhatsApp`.trim(),
+                    requestedAt: new Date(),
                     updatedAt: new Date()
                 }
             });
@@ -269,6 +270,7 @@ export async function processManagerWhatsAppResponse(params: {
                 requestedByName: params.senderName || matchingUser?.name || "Líder WhatsApp",
                 requestedByUserId: matchingUser?.id || null,
                 isAccountManager,
+                requestedAt: new Date(),
                 updatedAt: new Date()
             }
         });

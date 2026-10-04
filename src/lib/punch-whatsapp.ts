@@ -168,31 +168,38 @@ export async function sendZapiOptionList(params: {
     }
 }
 
+function nowBr(): string {
+    return new Date().toLocaleString("pt-BR", {
+        timeZone: "America/Sao_Paulo",
+        day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"
+    });
+}
+
 export const STANDARDIZED_PUNCH_REASONS = [
     {
         id: "ABONO",
-        title: "Abono",
+        title: "🩺 Abono",
         description: "Não trabalhou; abono do gestor s/ desconto",
         secullumCode: "ABONO",
         secullumName: "ABONO (NÃO TRABALHOU / ABONADO PELO GESTOR)"
     },
     {
         id: "ESQUECIMENTO",
-        title: "Esquecimento",
+        title: "🕒 Esquecimento",
         description: "Trabalhou normalmente; esqueceu de registrar",
         secullumCode: "S/ REG.",
         secullumName: "SEM REGISTRO DE PONTO (ESQUECIMENTO)"
     },
     {
         id: "PROB_APARELHO",
-        title: "Problema Aparelho",
+        title: "📱 Problema Aparelho",
         description: "Aparelho descarregou, defeito ou sem celular",
         secullumCode: "S/ REG.",
         secullumName: "SEM REGISTRO DE PONTO (PROBLEMA DE APARELHO)"
     },
     {
         id: "SISTEMA",
-        title: "Instabilidade Sistema",
+        title: "💻 Instab. Sistema",
         description: "Sistema de ponto fora do ar ou c/ lentidão",
         secullumCode: "S/ REG.",
         secullumName: "SEM REGISTRO DE PONTO (INSTABILIDADE DO SISTEMA)"
@@ -244,17 +251,17 @@ export async function sendPunchAdjustmentWhatsAppAlert(
             }
         }
 
-        const targetGroup = targetGroupOverride || adj.whatsappGroupId || DEFAULT_OPERATIONS_GROUP;
+        const groupTarget = targetGroupOverride || adj.whatsappGroupId || DEFAULT_OPERATIONS_GROUP;
 
+        // O alerta com menu vai no PRIVADO do Gestor do Contrato (usuário do sistema).
+        // Menus interativos funcionam no privado; em grupos o iPhone falha ao responder.
         const manager = client?.accountManager || adj.client?.accountManager;
-        let mentionTag = "";
-        let mentionedPhones: string[] = [];
-
+        let managerPhone: string | null = null;
         if (manager?.phone) {
             const cleanPhone = manager.phone.replace(/\D/g, "");
-            const fullPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
-            mentionedPhones.push(fullPhone);
-            mentionTag = `@${fullPhone}`;
+            if (cleanPhone.length >= 10) {
+                managerPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
+            }
         }
 
         const tipoMap: Record<string, string> = {
@@ -264,37 +271,51 @@ export async function sendPunchAdjustmentWhatsAppAlert(
             "SAIDA_2": "Saída Final"
         };
         const tipoText = tipoMap[adj.punchType] || adj.punchType;
-        const dataFormatada = adj.date.toLocaleDateString("pt-BR");
+        const dataFormatada = adj.date.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
         const postoNome = posto?.role?.name || "Não informado";
         const postoEscala = posto?.schedule ? ` (${posto.schedule}${posto.startTime && posto.endTime ? ` — ${posto.startTime} às ${posto.endTime}` : ""})` : "";
         const postoInfo = `${postoNome}${postoEscala}`;
 
-        const headerAlert = `🚨 *INCONSISTÊNCIA DE PONTO — #${adj.code}*`;
-        const colabInfo = 
+        const colabInfo =
 `👤 *Colaborador:* ${adj.employee.name}
 🏢 *Cliente/Contrato:* ${client?.name || "Geral"}
 📍 *Posto / Função:* ${postoInfo}
 📅 *Data:* ${dataFormatada} | *Marcação:* ${tipoText}
 ⏰ *Horário Previsto:* ${adj.expectedTime}`;
 
-        const managerCallout = mentionTag
-            ? `\n👉 Atenção ${mentionTag} (Gestor do Contrato):`
-            : `\n👉 Atenção líderes da operação:`;
+        // Sem gestor com WhatsApp cadastrado: avisa o grupo (texto) para alguém cadastrar/tratar
+        if (!managerPhone) {
+            const fallbackMsg = `🚨 *INCONSISTÊNCIA DE PONTO — #${adj.code}*\n\n${colabInfo}\n\n` +
+                `⚠️ *Contrato sem Gestor com WhatsApp cadastrado.* Cadastre o gestor do contrato (com telefone) no Workforce Hub para que ele receba o menu de tratativa no privado.`;
+            const res = await sendZapiWithMentions({ target: groupTarget, message: fallbackMsg });
+            if (res.success) {
+                await prisma.attendancePunchAdjustment.update({
+                    where: { id: adjustmentId },
+                    data: {
+                        whatsappGroupId: groupTarget,
+                        whatsappMessageId: res.zapiId,
+                        postoId: posto?.id || adj.postoId || null,
+                        clientId: client?.id || adj.clientId || null
+                    }
+                });
+            }
+            return { success: res.success, zapiId: res.zapiId, message: "Sem gestor com telefone: aviso enviado ao grupo." };
+        }
 
-        const instructionText = `\n_Toque no menu abaixo para definir a tratativa:_`;
+        const firstName = (manager?.name || "").split(" ")[0];
+        const fullMessage = `🚨 *INCONSISTÊNCIA DE PONTO — #${adj.code}*\n\n` +
+            `Olá${firstName ? ` ${firstName}` : ""}, você é o gestor deste contrato.\n\n` +
+            `${colabInfo}\n\n_Toque no menu abaixo para definir a tratativa:_ 👇`;
 
-        const fullMessage = `${headerAlert}\n\n${colabInfo}${managerCallout}\n${instructionText}`;
-
-        // Dispara com MENU INTERATIVO CLICÁVEL (títulos sem emojis para total compatibilidade iOS)
         const sendRes = await sendZapiOptionList({
-            target: targetGroup,
+            target: managerPhone,
             message: fullMessage,
             title: "Tratativa de Ponto",
-            buttonLabel: "Definir Tratativa",
+            buttonLabel: "Definir Tratativa 👇",
             options: [
-                { id: `${adj.code}_ajustar`, title: "Ajustar Ponto", description: "Escolher motivo no Secullum" },
-                { id: `${adj.code}_falta`, title: "Confirmar Falta", description: "Registrar falta injustificada" }
+                { id: `${adj.code}_ajustar`, title: "✅ Ajustar Ponto", description: "Escolher motivo no Secullum" },
+                { id: `${adj.code}_falta`, title: "❌ Confirmar Falta", description: "Registrar falta injustificada" }
             ]
         });
 
@@ -302,9 +323,10 @@ export async function sendPunchAdjustmentWhatsAppAlert(
             await prisma.attendancePunchAdjustment.update({
                 where: { id: adjustmentId },
                 data: {
-                    whatsappGroupId: targetGroup,
+                    // whatsappGroupId continua sendo o grupo: é onde a decisão final é espelhada
+                    whatsappGroupId: groupTarget,
                     whatsappMessageId: sendRes.zapiId,
-                    managerMentionedPhone: mentionedPhones[0] || null,
+                    managerMentionedPhone: managerPhone,
                     postoId: posto?.id || adj.postoId || null,
                     clientId: client?.id || adj.clientId || null
                 }
@@ -338,14 +360,14 @@ export async function sendReasonsOptionList(params: {
     const postoText = params.postoName ? ` | Posto: ${params.postoName}` : "";
 
     const message = `📋 *Ajuste #${params.code} — Horário: ${params.expectedTime}*\n` +
-        `_Colaborador: ${params.employeeName}${postoText}_\n\n` +
-        `Toque no menu abaixo para definir o motivo do ajuste:`;
+        `👤 ${params.employeeName}${postoText}\n\n` +
+        `_Toque no menu abaixo para definir o motivo do ajuste:_ 👇`;
 
     return sendZapiOptionList({
         target: params.groupPhone,
         message,
         title: "Motivo do Ajuste",
-        buttonLabel: "Escolher Motivo",
+        buttonLabel: "Escolher Motivo 👇",
         options
     });
 }
@@ -516,7 +538,8 @@ export async function tryParsePunchAdjustmentReply(params: {
             `📍 *Posto:* ${postoNome}\n` +
             `⏰ *Horário:* ${adjustment.expectedTime}\n` +
             `📋 *Motivo:* ${matchedReason.title} (${matchedReason.description})\n` +
-            `✍️ *Solicitado por:* ${mentionTag}\n\n` +
+            `✍️ *Solicitado por:* ${mentionTag}\n` +
+            `🕒 *Solicitado em:* ${nowBr()}\n\n` +
             `👉 *Registrado no Workforce Hub para conferência e injeção no Secullum pelo RH.*`;
 
         return {
@@ -545,6 +568,7 @@ export async function tryParsePunchAdjustmentReply(params: {
             `👤 *Colaborador:* ${adjustment.employee.name}\n` +
             `🏢 *Cliente:* ${client?.name || "Geral"}\n` +
             `📍 *Posto:* ${postoNome}\n` +
+            `🕒 *Registrado em:* ${nowBr()}\n` +
             `✍️ *Registrado por:* ${mentionTag}. O RH foi notificado.`;
 
         return {
