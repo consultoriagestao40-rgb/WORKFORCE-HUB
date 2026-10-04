@@ -627,7 +627,7 @@ export async function GET() {
     return NextResponse.json({
         status: "active",
         endpoint: "Z-API Webhook Receiver — HR Attendance & Recruitment",
-        version: "3.0",
+        version: "3.1-deploy-check",
         timestamp: new Date().toISOString()
     });
 }
