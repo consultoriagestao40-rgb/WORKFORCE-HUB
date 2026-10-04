@@ -384,7 +384,7 @@ export async function tryParsePunchAdjustmentReply(params: {
     const rawText = (params.messageText || "").trim();
 
     // 1. Extrair código AJ... do texto, da citação ou do ID do botão
-    const codeMatch = rawText.match(/#?(AJ\d+)/i);
+    const codeMatch = rawText.match(/#?(AJ\d+(?:_\d+)?)/i);
     let candidateCode = codeMatch ? codeMatch[1].toUpperCase() : null;
 
     let adjustment = null;

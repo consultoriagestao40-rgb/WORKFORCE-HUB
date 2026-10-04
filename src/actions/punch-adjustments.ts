@@ -90,15 +90,16 @@ export async function getSecullumJustifications() {
  */
 async function generateAdjustmentCode(): Promise<string> {
     const count = await prisma.attendancePunchAdjustment.count();
-    const nextNum = 1000 + count + 1;
-    let code = `AJ${nextNum}`;
-    
-    // Garantir unicidade
-    const exists = await prisma.attendancePunchAdjustment.findUnique({ where: { code } });
-    if (exists) {
-        code = `AJ${nextNum}_${Math.floor(Math.random() * 900) + 100}`;
+    let nextNum = 1000 + count + 1;
+
+    // Garantir unicidade avançando a sequência (sem sufixos aleatórios, que quebram o parser do WhatsApp)
+    for (let i = 0; i < 500; i++) {
+        const code = `AJ${nextNum}`;
+        const exists = await prisma.attendancePunchAdjustment.findUnique({ where: { code } });
+        if (!exists) return code;
+        nextNum++;
     }
-    return code;
+    return `AJ${Date.now().toString().slice(-7)}`;
 }
 
 /**
