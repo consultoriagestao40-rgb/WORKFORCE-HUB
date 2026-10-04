@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getBenefitsConfig } from "@/actions/benefits";
 import { SecullumApiClient } from "@/lib/secullum";
 import { getCurrentUser } from "@/lib/auth";
+import { humanizePunchTime, spDateParts, PUNCH_TYPE_TO_SECULLUM_COLUMN } from "@/lib/punch-time";
 
 export interface PunchAdjustmentFilter {
     status?: string;
@@ -373,19 +374,61 @@ export async function approveAndSyncPunchAdjustment(adjustmentId: string) {
         }
 
         const client = new SecullumApiClient(token, bankId, apiUrl);
-        const dateStr = adj.date.toISOString().split("T")[0];
-
-        // Lança a justificativa / abono no cartão de ponto do Secullum
-        const justCode = (adj.secullumReasonId || "S/ REG.").slice(0, 7);
+        const { dateStr, weekday } = spDateParts(adj.date);
         const obs = `Ajuste via Hub por ${adj.requestedByName || "Gestor"} | Conf. RH ${user?.name || "Admin"}`;
 
-        const res = await client.lancarJustificativaPonto({
-            cpf: adj.employee.cpf,
-            data: dateStr,
-            justificativa: justCode,
-            observacoes: obs,
-            abonar: true
-        });
+        // Abono (não trabalhou) => justificativa no cartão. Demais motivos (trabalhou e não registrou)
+        // => incluir a BATIDA no horário cadastrado no Secullum, com variação de minutos.
+        const isAbono = (adj.secullumReasonId || "").toUpperCase().includes("ABONO");
+        let res: { success: boolean; message: string; raw?: any };
+        let insertedTime: string | null = null;
+
+        if (isAbono) {
+            res = await client.lancarJustificativaPonto({
+                cpf: adj.employee.cpf,
+                data: dateStr,
+                justificativa: (adj.secullumReasonId || "ABONO").slice(0, 7),
+                observacoes: obs,
+                abonar: true
+            });
+        } else {
+            const coluna = PUNCH_TYPE_TO_SECULLUM_COLUMN[adj.punchType];
+            if (!coluna) {
+                return { success: false, message: `Tipo de marcação não suportado: ${adj.punchType}` };
+            }
+
+            // Horário cadastrado no Secullum para o dia da semana da ocorrência
+            const horario = await client.getHorarioDoFuncionario(adj.employee.cpf);
+            const dia = horario?.dias.find(d => d.DiaSemana === weekday);
+            const scheduled = (dia as any)?.[coluna] || null;
+
+            if (!scheduled) {
+                const msg = horario
+                    ? `O horário "${horario.descricao}" no Secullum não tem ${coluna} para este dia da semana.`
+                    : "Não foi possível ler o horário do colaborador no Secullum.";
+                await prisma.attendancePunchAdjustment.update({
+                    where: { id: adjustmentId },
+                    data: { secullumStatus: "ERRO", secullumResponseLog: msg }
+                });
+                return { success: false, message: msg };
+            }
+
+            insertedTime = humanizePunchTime(scheduled, coluna.startsWith("Entrada"));
+            if (!insertedTime) {
+                return { success: false, message: `Horário inválido no Secullum: ${scheduled}` };
+            }
+
+            res = await client.lancarBatidaManual({
+                cpf: adj.employee.cpf,
+                data: dateStr,
+                hora: insertedTime,
+                coluna,
+                motivo: `${adj.secullumReasonName || "Ajuste de ponto"} | ${obs}`
+            });
+            if (res.success) {
+                res.message = `${coluna} incluída às ${insertedTime} (previsto ${scheduled}).`;
+            }
+        }
 
         if (!res.success) {
             await prisma.attendancePunchAdjustment.update({
@@ -406,14 +449,15 @@ export async function approveAndSyncPunchAdjustment(adjustmentId: string) {
                 resolvedByUserId: user?.id || null,
                 resolvedAt: new Date(),
                 secullumStatus: "SUCESSO",
-                secullumResponseLog: JSON.stringify(res.raw || res.message)
+                ...(insertedTime ? { requestedTime: insertedTime } : {}),
+                secullumResponseLog: JSON.stringify({ message: res.message, raw: res.raw ?? null })
             }
         });
 
         revalidatePath("/admin/operations");
         revalidatePath("/admin/requests");
 
-        return { success: true, message: "Ponto ajustado e gravado no Secullum com sucesso!", adjustment: updated };
+        return { success: true, message: res.message || "Ponto ajustado e gravado no Secullum com sucesso!", adjustment: updated };
     } catch (error: any) {
         console.error("[approveAndSyncPunchAdjustment] Erro:", error);
         return { success: false, message: error.message };

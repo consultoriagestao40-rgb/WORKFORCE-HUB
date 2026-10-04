@@ -375,6 +375,78 @@ export class SecullumApiClient {
     }
 
     /**
+     * Busca o horário (escala) cadastrado no Secullum para o colaborador.
+     * Retorna os dias da semana (DiaSemana 0=Domingo ... 6=Sábado) com Entrada1..Saida2.
+     */
+    async getHorarioDoFuncionario(cpf: string): Promise<{
+        numero: number;
+        descricao: string;
+        dias: Array<{ DiaSemana: number; Entrada1?: string | null; Saida1?: string | null; Entrada2?: string | null; Saida2?: string | null; Entrada3?: string | null; Saida3?: string | null }>;
+    } | null> {
+        const headers = await this.getHeaders();
+        const cleanCpf = cpf.replace(/\D/g, "");
+
+        const fRes = await fetch(`${this.baseUrl}/IntegracaoExterna/Funcionarios/Cpf?cpf=${cleanCpf}`, { headers, cache: "no-store" });
+        if (!fRes.ok) return null;
+        const fData = await fRes.json();
+        const func = Array.isArray(fData) ? fData[0] : fData;
+        const numero = func?.Horario?.Numero;
+        if (numero === undefined || numero === null) return null;
+
+        const hRes = await fetch(`${this.baseUrl}/IntegracaoExterna/Horarios?numero=${numero}`, { headers, cache: "no-store" });
+        if (!hRes.ok) return null;
+        const hData = await hRes.json();
+        const horario = Array.isArray(hData) ? hData[0] : hData;
+        if (!horario) return null;
+
+        return {
+            numero,
+            descricao: horario.Descricao || func?.Horario?.Descricao || "",
+            dias: Array.isArray(horario.Dias) ? horario.Dias : []
+        };
+    }
+
+    /**
+     * Inclui uma batida manual no Cartão Ponto (ex: Entrada1 às 21:54)
+     * Endpoint: POST /IntegracaoExterna/CartaoPonto/Manual
+     */
+    async lancarBatidaManual(params: {
+        cpf: string;
+        data: string;   // YYYY-MM-DD (dia da jornada no cartão)
+        hora: string;   // HH:mm
+        coluna: string; // Entrada1, Saida1, Entrada2, Saida2...
+        motivo: string;
+    }): Promise<{ success: boolean; message: string; raw?: any }> {
+        const headers = await this.getHeaders();
+        const cleanDate = params.data.includes("T") ? params.data.split("T")[0] : params.data;
+
+        try {
+            const res = await fetch(`${this.baseUrl}/IntegracaoExterna/CartaoPonto/Manual`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                    cpf: params.cpf.replace(/\D/g, ""),
+                    data: cleanDate,
+                    hora: params.hora,
+                    coluna: params.coluna,
+                    motivo: params.motivo.slice(0, 200)
+                }),
+                cache: "no-store"
+            });
+
+            const text = await res.text();
+            if (!res.ok) {
+                return { success: false, message: `Secullum CartaoPonto/Manual retornou erro (${res.status}): ${text}` };
+            }
+            let raw: any = text;
+            try { raw = JSON.parse(text); } catch { /* resposta vazia ou texto */ }
+            return { success: true, message: `Batida ${params.coluna} ${params.hora} incluída no cartão ponto.`, raw };
+        } catch (error: any) {
+            return { success: false, message: `Erro na conexão com Secullum: ${error.message || error}` };
+        }
+    }
+
+    /**
      * Cadastra um período de afastamento do funcionário no Secullum
      * Endpoint: POST /IntegracaoExterna/FuncionariosAfastamentos
      */

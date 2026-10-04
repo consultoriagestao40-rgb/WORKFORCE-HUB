@@ -197,8 +197,8 @@ export default function PunchAdjustmentsClient({
         try {
             const res = await approveAndSyncPunchAdjustment(id);
             if (res.success) {
-                toast.success("✅ Ponto ajustado e gravado no Secullum com sucesso!");
-                setAdjustments(prev => prev.map(a => a.id === id ? { ...a, status: "APPROVED_SYNCED" } : a));
+                toast.success(`✅ Gravado no Secullum: ${res.message}`, { duration: 8000 });
+                setAdjustments(prev => prev.map(a => a.id === id ? { ...a, status: "APPROVED_SYNCED", requestedTime: (res as any).adjustment?.requestedTime ?? a.requestedTime } : a));
             } else {
                 toast.error(res.message || "Erro ao injetar ajuste no Secullum.");
             }
