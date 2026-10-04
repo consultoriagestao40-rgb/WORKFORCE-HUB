@@ -238,16 +238,25 @@ export async function POST(req: Request) {
         // Resolver LID para Telefone Real
         cleanPhone = await resolveLidToPhone(cleanPhone);
 
-        const { messageType, content } = parseMessageBody(body);
+        const { messageType, content, msgId: msgId0 } = parseMessageBody(body);
 
         // Interceptar Respostas de Ajuste de Ponto (#AJ...) no privado (ex: quando o gestor clica no link wa.me)
-        if (!isFromMe && content && (content.includes("#AJ") || content.includes("#aj"))) {
+        const isPrivatePunchReply = !!content && (
+            /#AJ\d+/i.test(content) ||
+            /\bAJ\d+_(ajustar|falta|MOT_\w+)/i.test(content)
+        );
+        if (!isFromMe && isPrivatePunchReply) {
+            if (msgId0 && isDuplicateZapiMessage(msgId0)) {
+                return NextResponse.json({ status: "duplicate_private_punch_ignored" });
+            }
             try {
-                const { tryParsePunchAdjustmentReply, sendZapiWithMentions } = await import("@/lib/punch-whatsapp");
+                const { tryParsePunchAdjustmentReply, sendZapiWithMentions, DEFAULT_OPERATIONS_GROUP } = await import("@/lib/punch-whatsapp");
                 const replyRes = await tryParsePunchAdjustmentReply({
                     messageText: content,
                     senderPhone: cleanPhone,
-                    senderName: body.senderName || body.pushName || "Gestor"
+                    senderName: body.senderName || body.pushName || "Gestor",
+                    // Mantém a Etapa 2 (menu de motivos) no privado do gestor
+                    groupPhone: cleanPhone
                 });
 
                 if (replyRes.handled) {
@@ -255,6 +264,14 @@ export async function POST(req: Request) {
                         await sendZapiWithMentions({
                             target: cleanPhone,
                             message: replyRes.replyText
+                        });
+                        // Espelha a decisão final no grupo de Ajuste de Ponto
+                        const code = content.match(/AJ\d+/i)?.[0]?.toUpperCase();
+                        const adj = code ? await prisma.attendancePunchAdjustment.findUnique({ where: { code }, select: { whatsappGroupId: true } }) : null;
+                        await sendZapiWithMentions({
+                            target: adj?.whatsappGroupId || DEFAULT_OPERATIONS_GROUP,
+                            message: replyRes.replyText,
+                            mentionedPhones: [cleanPhone]
                         });
                     }
                     console.log(`[Z-API] ✅ Resposta de ajuste processada no privado (${cleanPhone}): ${content}`);
