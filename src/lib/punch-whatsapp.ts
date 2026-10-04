@@ -119,6 +119,21 @@ export async function sendZapiButtonList(params: {
 }
 
 /**
+ * Corta texto sem quebrar emojis (pares surrogate). Cortar um emoji ao meio
+ * gera MalformedInputException na Z-API e a mensagem não é enviada.
+ */
+function safeSlice(text: string, max: number): string {
+    const src = text || "";
+    if (src.length <= max) return src;
+    let out = "";
+    for (const ch of Array.from(src)) {
+        if (out.length + ch.length > max) break;
+        out += ch;
+    }
+    return out.replace(/[\uFE0F\u200D]+$/, "").trim();
+}
+
+/**
  * Envia MENU DE LISTA INTERATIVA CLICÁVEL (send-option-list)
  */
 export async function sendZapiOptionList(params: {
@@ -143,12 +158,12 @@ export async function sendZapiOptionList(params: {
                 phone: finalPhone,
                 message: params.message,
                 optionList: {
-                    title: params.title.slice(0, 50),
-                    buttonLabel: params.buttonLabel.slice(0, 20),
+                    title: safeSlice(params.title, 50),
+                    buttonLabel: safeSlice(params.buttonLabel, 20),
                     options: params.options.map(opt => ({
                         id: opt.id,
-                        title: opt.title.slice(0, 24),
-                        description: (opt.description || "").slice(0, 72)
+                        title: safeSlice(opt.title, 24),
+                        description: safeSlice(opt.description || "", 72)
                     }))
                 }
             })
@@ -397,7 +412,7 @@ export async function sendScopeOptionList(params: {
         target: params.target,
         message,
         title: "Marcações a Lançar",
-        buttonLabel: "Escolher Marcações 👇",
+        buttonLabel: "Marcações 👇",
         options: PUNCH_SCOPES.map(s => ({ id: `${params.code}_ESC_${s.id}`, title: s.title, description: s.description }))
     });
 }
