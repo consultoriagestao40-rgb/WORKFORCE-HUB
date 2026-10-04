@@ -21,7 +21,8 @@ import {
     Sparkles,
     FileSpreadsheet,
     ShieldAlert,
-    Filter
+    Filter,
+    Trash2
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
@@ -62,7 +63,8 @@ import {
     approveAndSyncPunchAdjustment,
     discardPunchAdjustment,
     createPunchAdjustmentAlert,
-    sendPunchAdjustmentAlertAction
+    sendPunchAdjustmentAlertAction,
+    deletePunchAdjustment
 } from "@/actions/punch-adjustments";
 
 interface PunchAdjustmentItem {
@@ -217,6 +219,26 @@ export default function PunchAdjustmentsClient({
             }
         } catch {
             toast.error("Erro ao descartar solicitação.");
+        }
+    };
+
+    // Excluir ocorrência definitivamente
+    const [deletingId, setDeletingId] = useState<string | null>(null);
+    const handleDelete = async (item: PunchAdjustmentItem) => {
+        if (!window.confirm(`Excluir definitivamente a ocorrência #${item.code} de ${item.employee?.name}?\n\nEssa ação não pode ser desfeita.`)) return;
+        setDeletingId(item.id);
+        try {
+            const res = await deletePunchAdjustment(item.id);
+            if (res.success) {
+                toast.success(`Ocorrência #${item.code} excluída.`);
+                setAdjustments(prev => prev.filter(a => a.id !== item.id));
+            } else {
+                toast.error(res.message || "Erro ao excluir ocorrência.");
+            }
+        } catch {
+            toast.error("Erro ao excluir ocorrência.");
+        } finally {
+            setDeletingId(null);
         }
     };
 
@@ -723,6 +745,18 @@ export default function PunchAdjustmentsClient({
                                                             Descartar
                                                         </Button>
                                                     )}
+
+                                                    {/* Excluir definitivamente */}
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleDelete(item)}
+                                                        disabled={deletingId === item.id}
+                                                        title="Excluir ocorrência"
+                                                        className="h-8 px-2 border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg"
+                                                    >
+                                                        <Trash2 className={`w-3.5 h-3.5 ${deletingId === item.id ? "animate-pulse" : ""}`} />
+                                                    </Button>
                                                 </div>
                                             </TableCell>
                                         </TableRow>

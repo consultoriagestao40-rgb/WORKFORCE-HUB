@@ -447,6 +447,27 @@ export async function discardPunchAdjustment(adjustmentId: string, reason: strin
 }
 
 /**
+ * Exclui definitivamente uma ocorrência de ajuste de ponto
+ */
+export async function deletePunchAdjustment(adjustmentId: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) {
+            return { success: false, message: "Usuário não autenticado." };
+        }
+        await prisma.attendancePunchAdjustment.delete({ where: { id: adjustmentId } });
+
+        revalidatePath("/admin/punch-adjustments");
+        revalidatePath("/admin/operations");
+        revalidatePath("/admin/requests");
+
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, message: error.message };
+    }
+}
+
+/**
  * Busca inconsistências pendentes de dias anteriores para o Lembrete Matinal (D+1)
  */
 export async function getPendingAdjustmentsForD1() {
