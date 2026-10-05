@@ -22,8 +22,10 @@ import {
     FileSpreadsheet,
     ShieldAlert,
     Filter,
-    Trash2
+    Trash2,
+    CalendarX2
 } from "lucide-react";
+import PunchInconsistenciesClient from "@/components/admin/PunchInconsistenciesClient";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -119,14 +121,19 @@ interface Props {
     justifications: JustificationItem[];
     employeesList: Array<{ id: string; name: string; cpf: string; companyName?: string }>;
     whatsappGroups?: Array<{ id: string; name: string; phone: string }>;
+    clients?: Array<{ id: string; name: string }>;
+    managers?: Array<{ id: string; name: string; hasPhone: boolean }>;
 }
 
 export default function PunchAdjustmentsClient({
     initialAdjustments,
     justifications: initialJusts,
     employeesList,
-    whatsappGroups = []
+    whatsappGroups = [],
+    clients = [],
+    managers = []
 }: Props) {
+    const [activeMainTab, setActiveMainTab] = useState<"ADJUSTMENTS" | "INCONSISTENCIES">("ADJUSTMENTS");
     const [adjustments, setAdjustments] = useState<PunchAdjustmentItem[]>(initialAdjustments);
     const [justifications, setJustifications] = useState<JustificationItem[]>(initialJusts);
     const [activeTab, setActiveTab] = useState<string>("ALL");
@@ -404,6 +411,53 @@ export default function PunchAdjustmentsClient({
                 </div>
             </div>
 
+            {/* Abas Principais: 1. Inconsistências (Secullum) | 2. Gestão de Ajustes (Solicitações/Respostas) */}
+            <div className="flex border-b border-slate-200">
+                <button
+                    id="tab-inconsistencies"
+                    type="button"
+                    onClick={() => setActiveMainTab("INCONSISTENCIES")}
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-all duration-150 ${
+                        activeMainTab === "INCONSISTENCIES"
+                            ? "border-rose-600 text-rose-600 bg-rose-50/40"
+                            : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
+                    }`}
+                >
+                    <CalendarX2 className="w-4 h-4 text-rose-500" />
+                    <span>Inconsistências de Ponto</span>
+                    <span className="text-[10px] font-semibold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">
+                        Detecção Secullum
+                    </span>
+                </button>
+
+                <button
+                    id="tab-adjustments"
+                    type="button"
+                    onClick={() => setActiveMainTab("ADJUSTMENTS")}
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-all duration-150 ${
+                        activeMainTab === "ADJUSTMENTS"
+                            ? "border-sky-600 text-sky-600 bg-sky-50/40"
+                            : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
+                    }`}
+                >
+                    <Clock className="w-4 h-4 text-sky-600" />
+                    <span>Gestão de Ajustes & Aprovações</span>
+                    {stats.pendingAudit > 0 && (
+                        <span className="text-[10px] font-semibold bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full animate-pulse">
+                            {stats.pendingAudit} pendentes
+                        </span>
+                    )}
+                </button>
+            </div>
+
+            {activeMainTab === "INCONSISTENCIES" ? (
+                <PunchInconsistenciesClient
+                    clients={clients}
+                    managers={managers}
+                    hideHeader={true}
+                />
+            ) : (
+                <>
             {/* Cards de Métricas (Exato Padrão Atestados) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
 
@@ -775,6 +829,8 @@ export default function PunchAdjustmentsClient({
                     </Table>
                 </div>
             </div>
+            </>
+            )}
 
             {/* Modal de Disparo de Alerta de Teste (Padrão Shadcn Dialog) */}
             <Dialog open={isTestModalOpen} onOpenChange={setIsTestModalOpen}>

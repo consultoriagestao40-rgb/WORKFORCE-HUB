@@ -36,6 +36,7 @@ import {
 type Props = {
     clients: Array<{ id: string; name: string }>;
     managers: Array<{ id: string; name: string; hasPhone: boolean }>;
+    hideHeader?: boolean;
 };
 
 const COLS = ["Entrada1", "Saida1", "Entrada2", "Saida2", "Entrada3", "Saida3"] as const;
@@ -83,7 +84,7 @@ function fmtDate(d: string) {
     return `${day}/${m}/${y}`;
 }
 
-export default function PunchInconsistenciesClient({ clients, managers }: Props) {
+export default function PunchInconsistenciesClient({ clients, managers, hideHeader = false }: Props) {
     const period = useMemo(defaultPeriod, []);
     const [startDate, setStartDate] = useState(period.start);
     const [endDate, setEndDate] = useState(period.end);
@@ -254,34 +255,57 @@ export default function PunchInconsistenciesClient({ clients, managers }: Props)
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 pb-2 border-b border-slate-200">
-                <div>
-                    <div className="flex items-center gap-2 mb-1.5">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/80">
-                            <Sparkles className="w-3.5 h-3.5 text-sky-500" />
-                            Leitura ao vivo do Secullum Ponto Web
-                        </span>
+            {!hideHeader ? (
+                <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 pb-2 border-b border-slate-200">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/80">
+                                <Sparkles className="w-3.5 h-3.5 text-sky-500" />
+                                Leitura ao vivo do Secullum Ponto Web
+                            </span>
+                        </div>
+                        <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">
+                            <CalendarX2 className="w-8 h-8 text-rose-500" />
+                            Inconsistências de Ponto
+                        </h1>
+                        <p className="text-sm text-slate-500 font-medium mt-1">
+                            Dias com batidas faltando ou sem nenhuma batida. Analise e envie ao gestor do contrato para ajustar ou confirmar falta.
+                        </p>
                     </div>
-                    <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">
-                        <CalendarX2 className="w-8 h-8 text-rose-500" />
-                        Inconsistências de Ponto
-                    </h1>
-                    <p className="text-sm text-slate-500 font-medium mt-1">
-                        Dias com batidas faltando ou sem nenhuma batida. Analise e envie ao gestor do contrato para ajustar ou confirmar falta.
-                    </p>
+                    <div className="flex items-center gap-3">
+                        <Button
+                            id="btn-send-selected"
+                            disabled={selectedRows.length === 0 || sendingKeys.size > 0}
+                            onClick={() => setConfirmItems(selectedRows)}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm rounded-xl px-4 h-10 flex items-center gap-2"
+                        >
+                            {sendingKeys.size > 0 ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 text-indigo-200" />}
+                            Enviar selecionados ({selectedRows.length})
+                        </Button>
+                    </div>
                 </div>
-                <div className="flex items-center gap-3">
+            ) : (
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                    <div>
+                        <h2 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                            <CalendarX2 className="w-5 h-5 text-rose-500" />
+                            Inconsistências Detectadas no Secullum
+                        </h2>
+                        <p className="text-xs text-slate-500 font-medium mt-0.5">
+                            Dias com batidas faltando ou em branco. Selecione e dispare o menu de tratativa ao gestor do contrato.
+                        </p>
+                    </div>
                     <Button
-                        id="btn-send-selected"
+                        id="btn-send-selected-tab"
                         disabled={selectedRows.length === 0 || sendingKeys.size > 0}
                         onClick={() => setConfirmItems(selectedRows)}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm rounded-xl px-4 h-10 flex items-center gap-2"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm rounded-xl px-4 h-9 text-xs flex items-center gap-2"
                     >
-                        {sendingKeys.size > 0 ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 text-indigo-200" />}
+                        {sendingKeys.size > 0 ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5 text-indigo-200" />}
                         Enviar selecionados ({selectedRows.length})
                     </Button>
                 </div>
-            </div>
+            )}
 
             {/* Filtros */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
