@@ -130,36 +130,16 @@ export async function POST(req: Request) {
             const rawGroup = (body.phone || body.chatId || body.remoteJid || "").toString();
             const groupPhone = rawGroup.includes("@g.us") ? rawGroup : (rawGroup.includes("-group") ? rawGroup : (rawGroup.startsWith("120363") ? `${rawGroup}-group` : rawGroup));
 
-            // 0. NUNCA processar mensagens enviadas pelo próprio bot (evita loops infinitos!)
-            if (isFromMe) {
-                return NextResponse.json({ status: "ignored_from_me" });
-            }
-
-            // Deduplicação pelo ID único da mensagem do WhatsApp
+            // Deduplicação pelo ID único da mensagem do WhatsApp (UMA única vez por mensagem)
             if (msgId && isDuplicateZapiMessage(msgId)) {
                 return NextResponse.json({ status: "duplicate_group_message_ignored" });
             }
 
-            // 1. Interceptar Respostas de Ajuste de Ponto (#AJ...) em qualquer grupo operacional / de teste
+            // 1. Respostas de Ajuste de Ponto: somente no grupo "Ajuste de ponto" ou com código #AJ explícito.
+            //    Mensagens do próprio bot NUNCA são processadas aqui (evita loops infinitos).
             const isAjusteDePontoGroup = groupPhone.includes("120363412937009664");
-
-            const isPunchAdjustmentRelated = content && (
-                isAjusteDePontoGroup ||
-                content.includes("#AJ") || 
-                content.includes("#aj") || 
-                content.toLowerCase().includes("ajustar") || 
-                content.toLowerCase().includes("falta") ||
-                content.includes("_MOT_") ||
-                content.includes("_ajustar") ||
-                content.includes("_falta") ||
-                content.trim() === "1" ||
-                content.trim() === "2" ||
-                content.trim() === "3" ||
-                content.trim() === "4" ||
-                content.toLowerCase().includes("esquec") ||
-                content.toLowerCase().includes("abono") ||
-                content.toLowerCase().includes("aparelho") ||
-                content.toLowerCase().includes("sistema")
+            const isPunchAdjustmentRelated = !isFromMe && !!content && (
+                isAjusteDePontoGroup || /\bAJ\d+/i.test(content)
             );
 
             if (isPunchAdjustmentRelated) {
@@ -197,15 +177,9 @@ export async function POST(req: Request) {
                 return NextResponse.json({ status: "ignored_non_atestado_group" });
             }
 
-            // Ignorar mensagens de envio próprio em grupos para evitar duplicar com o evento de recebimento do grupo
+            // Ignorar apenas o eco de envio próprio (o mesmo arquivo chega também como mensagem do grupo)
             if (isFromMe && (eventType === "on-message-send" || eventType === "MessageSent")) {
                 return NextResponse.json({ status: "ignored_sent_group_echo" });
-            }
-
-            // Deduplicação pelo ID único da mensagem do WhatsApp
-            if (msgId && isDuplicateZapiMessage(msgId)) {
-                console.log(`[Z-API] Mensagem de grupo duplicada ignorada: ${msgId}`);
-                return NextResponse.json({ status: "duplicate_group_message_ignored" });
             }
 
             if (mediaUrl && (messageType === "IMAGE" || messageType === "DOCUMENT")) {
