@@ -437,6 +437,21 @@ export class SecullumApiClient {
     }
 
     /**
+     * Registro diário do cartão (batidas + horário previsto do dia em Memoria*) de um colaborador.
+     */
+    async getRegistroDoDia(cpf: string, dateStr: string): Promise<Record<string, any> | null> {
+        const headers = await this.getHeaders();
+        const cleanCpf = cpf.replace(/\D/g, "");
+        const fRes = await fetch(`${this.baseUrl}/IntegracaoExterna/Funcionarios/Cpf?cpf=${cleanCpf}`, { headers, cache: "no-store" });
+        if (!fRes.ok) return null;
+        const fData = await fRes.json();
+        const func = Array.isArray(fData) ? fData[0] : fData;
+        if (!func?.Id) return null;
+        const batidas = await this.getBatidas(dateStr, dateStr);
+        return (batidas as any[]).find(b => b.FuncionarioId === func.Id && String(b.Data || "").startsWith(dateStr)) || null;
+    }
+
+    /**
      * Inclui uma batida manual no Cartão Ponto (ex: Entrada1 às 21:54)
      * Endpoint: POST /IntegracaoExterna/CartaoPonto/Manual
      */

@@ -6,6 +6,7 @@ import { getBenefitsConfig } from "@/actions/benefits";
 import { SecullumApiClient } from "@/lib/secullum";
 import { getCurrentUser } from "@/lib/auth";
 import { planPunches, spDateParts, PUNCH_TYPE_TO_SECULLUM_COLUMN } from "@/lib/punch-time";
+import { expectedScheduleFromBatida } from "@/lib/punch-inconsistency";
 
 export interface PunchAdjustmentFilter {
     status?: string;
@@ -112,11 +113,12 @@ export async function createPunchAdjustmentAlert(params: {
     clientId?: string;
     postoId?: string;
     date: Date | string;
-    punchType: "ENTRADA_1" | "SAIDA_1" | "ENTRADA_2" | "SAIDA_2";
+    punchType: string; // ENTRADA_1 | SAIDA_1 | ... | lista "ENTRADA_2,SAIDA_2" | SEM_BATIDAS
     expectedTime: string;
     notes?: string;
     whatsappGroupId?: string;
     whatsappMessageId?: string;
+    source?: string;
 }) {
     try {
         const occDate = typeof params.date === "string" ? new Date(params.date) : params.date;
@@ -171,7 +173,7 @@ export async function createPunchAdjustmentAlert(params: {
                 whatsappMessageId: params.whatsappMessageId,
                 managerMentionedPhone: accountManagerPhone,
                 status: "PENDING_RESPONSE",
-                source: "NEXUS_ALERT"
+                source: params.source || "NEXUS_ALERT"
             },
             include: {
                 employee: { select: { id: true, name: true, cpf: true } },
@@ -401,26 +403,36 @@ export async function approveAndSyncPunchAdjustment(adjustmentId: string) {
                 return { success: false, message: msg };
             };
 
-            // Horário cadastrado no Secullum para o dia da semana da ocorrência
-            const horario = await client.getHorarioDoFuncionario(adj.employee.cpf);
-            if (!horario) return fail("Não foi possível ler o horário do colaborador no Secullum.");
-            const dia = horario.dias.find(d => d.DiaSemana === weekday);
+            // Horário previsto do dia: primeiro o do próprio cartão (Memoria*), depois o Horário cadastrado
+            const registro = await client.getRegistroDoDia(adj.employee.cpf, dateStr).catch(() => null);
+            const memoriaDia = expectedScheduleFromBatida(registro);
+            const horario = Object.keys(memoriaDia).length ? null : await client.getHorarioDoFuncionario(adj.employee.cpf);
+            const dia: Record<string, any> | undefined = Object.keys(memoriaDia).length
+                ? memoriaDia
+                : horario?.dias.find(d => d.DiaSemana === weekday);
+            if (!dia) return fail("Não foi possível ler o horário previsto do colaborador no Secullum.");
 
             // Batidas já existentes no dia (não sobrescrever)
             const existing: Record<string, string | null> = {};
-            try {
-                const calc = await client.getCalculos(adj.employee.cpf.replace(/\D/g, ""), dateStr, dateStr);
-                const d = Array.isArray(calc?.Dias) ? calc.Dias.find((x: any) => String(x.Data || "").startsWith(dateStr)) : null;
-                for (const c of ["Entrada1", "Saida1", "Entrada2", "Saida2", "Entrada3", "Saida3"]) {
-                    const v = d?.[c];
-                    existing[c] = typeof v === "string" && /^\d{1,2}:\d{2}/.test(v) ? v : null;
+            for (const c of ["Entrada1", "Saida1", "Entrada2", "Saida2", "Entrada3", "Saida3"]) {
+                const v = registro?.[c];
+                existing[c] = typeof v === "string" && v.trim() ? v.trim() : null;
+            }
+            if (!registro) {
+                try {
+                    const calc = await client.getCalculos(adj.employee.cpf.replace(/\D/g, ""), dateStr, dateStr);
+                    const d = Array.isArray(calc?.Dias) ? calc.Dias.find((x: any) => String(x.Data || "").startsWith(dateStr)) : null;
+                    for (const c of Object.keys(existing)) {
+                        const v = d?.[c];
+                        existing[c] = typeof v === "string" && /^\d{1,2}:\d{2}/.test(v) ? v : null;
+                    }
+                } catch (e) {
+                    console.warn("[approve] Não foi possível ler batidas existentes:", e);
                 }
-            } catch (e) {
-                console.warn("[approve] Não foi possível ler batidas existentes:", e);
             }
 
             const plan = planPunches({ scheduleDay: dia, scope: adj.punchScope, fallbackColumn, existing });
-            if (plan.error) return fail(`${plan.error} (horário "${horario.descricao}")`);
+            if (plan.error) return fail(`${plan.error}${horario ? ` (horário "${horario.descricao}")` : ""}`);
             if (plan.punches.length === 0) {
                 return fail(`Nada a lançar: as marcações já existem no cartão (${plan.skipped.join(", ")}).`);
             }

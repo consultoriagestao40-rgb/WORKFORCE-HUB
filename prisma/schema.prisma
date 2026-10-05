@@ -1385,3 +1385,16 @@ model AttendancePunchAdjustment {
   @@index([createdAt])
   @@index([code])
 }
+
+// Inconsistências de batida (tela /admin/punch-inconsistencies) marcadas como "ignorar" pelo RH
+model PunchInconsistencyIgnore {
+  id           String   @id @default(uuid())
+  employeeId   String
+  date         String   // YYYY-MM-DD (dia do cartão no Secullum)
+  reason       String?
+  userName     String?
+  createdAt    DateTime @default(now())
+
+  @@unique([employeeId, date])
+  @@index([date])
+}

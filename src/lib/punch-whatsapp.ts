@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { processManagerWhatsAppResponse } from "@/actions/punch-adjustments";
+import { describePunchType } from "@/lib/punch-inconsistency";
 
 const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3F1993DFB59E83474F059E648AE68DF9";
 const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "81087A6B5C1CAB8AAAC801C4";
@@ -285,7 +286,8 @@ export async function sendPunchAdjustmentWhatsAppAlert(
             "ENTRADA_2": "Retorno Almoço",
             "SAIDA_2": "Saída Final"
         };
-        const tipoText = tipoMap[adj.punchType] || adj.punchType;
+        const isMulti = adj.punchType.includes(",") || adj.punchType === "SEM_BATIDAS";
+        const tipoText = isMulti ? describePunchType(adj.punchType) : (tipoMap[adj.punchType] || describePunchType(adj.punchType));
         const dataFormatada = adj.date.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
         const postoNome = posto?.role?.name || "Não informado";
@@ -296,7 +298,7 @@ export async function sendPunchAdjustmentWhatsAppAlert(
 `👤 *Colaborador:* ${adj.employee.name}
 🏢 *Cliente/Contrato:* ${client?.name || "Geral"}
 📍 *Posto / Função:* ${postoInfo}
-📅 *Data:* ${dataFormatada} | *Marcação:* ${tipoText}
+📅 *Data:* ${dataFormatada} | *${adj.punchType === "SEM_BATIDAS" ? "Situação" : isMulti ? "Faltam" : "Marcação"}:* ${tipoText}
 ⏰ *Horário Previsto:* ${adj.expectedTime}`;
 
         // Sem gestor com WhatsApp cadastrado: avisa o grupo (texto) para alguém cadastrar/tratar
