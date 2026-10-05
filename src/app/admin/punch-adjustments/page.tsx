@@ -2,9 +2,14 @@ import React from "react";
 import { prisma } from "@/lib/db";
 import PunchAdjustmentsClient from "@/components/admin/PunchAdjustmentsClient";
 
-export const dynamic = "force-dynamic";
+export default async function PunchAdjustmentsPage({
+    searchParams
+}: {
+    searchParams?: Promise<{ tab?: string }>;
+}) {
+    const sp = searchParams ? await searchParams : {};
+    const initialMainTab = sp?.tab === "adjustments" ? "ADJUSTMENTS" : "INCONSISTENCIES";
 
-export default async function PunchAdjustmentsPage() {
     // 1. Buscar apenas as solicitações onde o gestor clicou em SIM e definiu o motivo
     const adjustments = await prisma.attendancePunchAdjustment.findMany({
         where: {
@@ -86,6 +91,7 @@ export default async function PunchAdjustmentsPage() {
                 whatsappGroups={whatsappGroups}
                 clients={clients.map(c => ({ id: c.id, name: c.name }))}
                 managers={Array.from(managersMap.values()).sort((a, b) => a.name.localeCompare(b.name))}
+                initialMainTab={initialMainTab}
             />
         </div>
     );

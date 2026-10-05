@@ -123,6 +123,7 @@ interface Props {
     whatsappGroups?: Array<{ id: string; name: string; phone: string }>;
     clients?: Array<{ id: string; name: string }>;
     managers?: Array<{ id: string; name: string; hasPhone: boolean }>;
+    initialMainTab?: "ADJUSTMENTS" | "INCONSISTENCIES";
 }
 
 export default function PunchAdjustmentsClient({
@@ -131,9 +132,10 @@ export default function PunchAdjustmentsClient({
     employeesList,
     whatsappGroups = [],
     clients = [],
-    managers = []
+    managers = [],
+    initialMainTab = "INCONSISTENCIES"
 }: Props) {
-    const [activeMainTab, setActiveMainTab] = useState<"ADJUSTMENTS" | "INCONSISTENCIES">("ADJUSTMENTS");
+    const [activeMainTab, setActiveMainTab] = useState<"ADJUSTMENTS" | "INCONSISTENCIES">(initialMainTab);
     const [adjustments, setAdjustments] = useState<PunchAdjustmentItem[]>(initialAdjustments);
     const [justifications, setJustifications] = useState<JustificationItem[]>(initialJusts);
     const [activeTab, setActiveTab] = useState<string>("ALL");
