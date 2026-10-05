@@ -260,8 +260,13 @@ export async function lancarAtestadoNoSecullum(params: {
     try {
         const client = await getSecullumClient();
 
+        const empExtra = employee.extraFields as Record<string, any> | null;
+        const matricula = empExtra?.matricula?.toString() || empExtra?.codigo?.toString() || undefined;
+
         const secullumRes = await client.lancarAtestadoMedico({
             cpf: employee.cpf,
+            employeeName: employee.name,
+            numeroFolha: matricula,
             dataInicioStr: startDateStr,
             dataFimStr: endDateStr,
             dias: days,
@@ -269,6 +274,14 @@ export async function lancarAtestadoNoSecullum(params: {
             cid: cid || undefined,
             observacoes: notes || undefined
         });
+
+        // Se o Secullum resolveu o CPF do colaborador (caso estivesse digitado com divergência no cadastro), atualiza no banco
+        if (secullumRes.resolvedCpf && secullumRes.resolvedCpf.replace(/\D/g, "") !== employee.cpf.replace(/\D/g, "")) {
+            await prisma.employee.update({
+                where: { id: employee.id },
+                data: { cpf: secullumRes.resolvedCpf }
+            }).catch(console.error);
+        }
 
         if (!secullumRes.success) {
             const isAlreadyInSecullum = 

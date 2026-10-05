@@ -308,6 +308,7 @@ export class SecullumApiClient {
      */
     async lancarJustificativaPonto(params: {
         cpf?: string;
+        employeeName?: string;
         numeroPis?: string;
         numeroFolha?: string;
         data: string; // YYYY-MM-DD ou ISO
@@ -315,9 +316,25 @@ export class SecullumApiClient {
         observacoes?: string;
         abonar?: boolean;
         grupos?: number[]; // pares de colunas: 1 = Entrada1/Saida1, 2 = Entrada2/Saida2, 3 = Entrada3/Saida3
-    }): Promise<{ success: boolean; message: string; raw?: any }> {
+    }): Promise<{ success: boolean; message: string; raw?: any; resolvedCpf?: string }> {
         const url = `${this.baseUrl}/IntegracaoExterna/CartaoPonto/Justificativa`;
         const headers = await this.getHeaders();
+
+        let effectiveCpf = params.cpf ? params.cpf.replace(/\D/g, "") : "";
+        let effectiveFolha = params.numeroFolha;
+        let resolvedCpf: string | undefined = undefined;
+
+        // Se temos CPF ou Nome, valida se existe no Secullum
+        if (effectiveCpf || params.employeeName) {
+            const func = await this.findFuncionario({ cpf: effectiveCpf, nome: params.employeeName, numeroFolha: effectiveFolha });
+            if (func) {
+                if (func.Cpf) {
+                    effectiveCpf = func.Cpf.replace(/\D/g, "");
+                    resolvedCpf = func.Cpf;
+                }
+                if (func.NumeroFolha) effectiveFolha = func.NumeroFolha;
+            }
+        }
 
         const cleanDate = params.data.includes("T") ? params.data.split("T")[0] : params.data;
 
@@ -335,9 +352,9 @@ export class SecullumApiClient {
         let grupos = params.grupos;
         if (!grupos || grupos.length === 0) {
             grupos = [1, 2];
-            if (params.cpf) {
+            if (effectiveCpf) {
                 try {
-                    const horario = await this.getHorarioDoFuncionario(params.cpf);
+                    const horario = await this.getHorarioDoFuncionario(effectiveCpf);
                     const weekday = new Date(`${cleanDate}T12:00:00Z`).getUTCDay();
                     const dia: any = horario?.dias.find(d => d.DiaSemana === weekday);
                     if (dia) {
@@ -365,9 +382,9 @@ export class SecullumApiClient {
                 Abonar: params.abonar !== false,
                 Grupo: grupo
             };
-            if (params.cpf) payload.Cpf = params.cpf.replace(/\D/g, "");
+            if (effectiveCpf) payload.Cpf = effectiveCpf;
             if (params.numeroPis) payload.NumeroPis = params.numeroPis;
-            if (params.numeroFolha) payload.NumeroFolha = params.numeroFolha;
+            if (effectiveFolha) payload.NumeroFolha = effectiveFolha;
 
             try {
                 const res = await fetch(url, {
@@ -434,6 +451,49 @@ export class SecullumApiClient {
             descricao: horario.Descricao || func?.Horario?.Descricao || "",
             dias: Array.isArray(horario.Dias) ? horario.Dias : []
         };
+    }
+
+    /**
+     * Localiza o funcionário no Secullum por CPF, Folha ou Nome.
+     * Útil quando o colaborador foi cadastrado no WFH com algum dígito trocado no CPF.
+     */
+    async findFuncionario(params: { cpf?: string; nome?: string; numeroFolha?: string }): Promise<SecullumFuncionario | null> {
+        const headers = await this.getHeaders();
+        const cleanCpf = params.cpf ? params.cpf.replace(/\D/g, "") : "";
+
+        // 1. Tenta por CPF
+        if (cleanCpf && cleanCpf.length >= 11) {
+            try {
+                const fRes = await fetch(`${this.baseUrl}/IntegracaoExterna/Funcionarios/Cpf?cpf=${cleanCpf}`, { headers, cache: "no-store" });
+                if (fRes.ok) {
+                    const fData = await fRes.json();
+                    const func = Array.isArray(fData) ? fData[0] : fData;
+                    if (func?.Id) return func;
+                }
+            } catch (e) {
+                console.warn("[Secullum] Erro na busca por CPF:", e);
+            }
+        }
+
+        // 2. Tenta por Nome completo na listagem de funcionários
+        if (params.nome && params.nome.trim().length >= 4) {
+            try {
+                const fRes = await fetch(`${this.baseUrl}/IntegracaoExterna/Funcionarios`, { headers, cache: "no-store" });
+                if (fRes.ok) {
+                    const allEmps: any[] = await fRes.json();
+                    const targetNorm = params.nome.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+                    const found = allEmps.find(e => {
+                        const empNorm = (e.Nome || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+                        return empNorm === targetNorm || (targetNorm.length >= 8 && empNorm.includes(targetNorm));
+                    });
+                    if (found?.Id) return found;
+                }
+            } catch (e) {
+                console.warn("[Secullum] Erro na busca por Nome:", e);
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -580,14 +640,34 @@ export class SecullumApiClient {
      */
     async lancarAtestadoMedico(params: {
         cpf: string;
+        employeeName?: string;
+        numeroFolha?: string;
         dataInicioStr: string; // YYYY-MM-DD
         dataFimStr: string;    // YYYY-MM-DD
         dias: number;
         justificativaNome?: string;
         cid?: string;
         observacoes?: string;
-    }): Promise<{ success: boolean; message: string; details?: any }> {
-        const cleanCpf = params.cpf.replace(/\D/g, "");
+    }): Promise<{ success: boolean; message: string; details?: any; resolvedCpf?: string }> {
+        let cleanCpf = params.cpf.replace(/\D/g, "");
+        let cleanFolha = params.numeroFolha;
+        let resolvedCpf: string | undefined = undefined;
+
+        // Localiza funcionário no Secullum (pelo CPF ou por nome caso o CPF esteja digitado com divergência)
+        const funcSecullum = await this.findFuncionario({
+            cpf: cleanCpf,
+            nome: params.employeeName,
+            numeroFolha: cleanFolha
+        });
+
+        if (funcSecullum) {
+            if (funcSecullum.Cpf) {
+                cleanCpf = funcSecullum.Cpf.replace(/\D/g, "");
+                resolvedCpf = funcSecullum.Cpf;
+            }
+            if (funcSecullum.NumeroFolha) cleanFolha = funcSecullum.NumeroFolha;
+        }
+
         const rawJust = params.justificativaNome || "AT. MED";
         const justNome = (
             rawJust.toUpperCase().includes("ATESTADO") ||
@@ -600,6 +680,8 @@ export class SecullumApiClient {
             // Lançamento pontual de 1 dia
             const res = await this.lancarJustificativaPonto({
                 cpf: cleanCpf,
+                employeeName: params.employeeName,
+                numeroFolha: cleanFolha,
                 data: params.dataInicioStr,
                 justificativa: justNome,
                 observacoes: obs,
@@ -608,7 +690,7 @@ export class SecullumApiClient {
             if (!res.success && res.message.includes("Não é permitido fazer alterações de ponto e cálculos para esse usuário")) {
                 res.message = "O Secullum recusou o cálculo para esta data. Verifique se o período do cartão de ponto do colaborador está aberto ou se já foi fechado para cálculos.";
             }
-            return res;
+            return { ...res, resolvedCpf };
         }
 
         // Se o atestado for maior que 15 dias: aplica a regra CLT / INSS automaticamente no Secullum
@@ -627,6 +709,7 @@ export class SecullumApiClient {
             // 1. Cadastra os primeiros 15 dias da empresa como AT. MED
             const resEmpresa = await this.lancarAfastamento({
                 cpf: cleanCpf,
+                numeroFolha: cleanFolha,
                 inicio: params.dataInicioStr,
                 fim: fimEmpresaStr,
                 motivo: `${obs} (15 dias empresa)`,
@@ -636,6 +719,7 @@ export class SecullumApiClient {
             // 2. Cadastra os dias restantes como AFASTAM (INSS)
             const resInss = await this.lancarAfastamento({
                 cpf: cleanCpf,
+                numeroFolha: cleanFolha,
                 inicio: inicioInssStr,
                 fim: params.dataFimStr,
                 motivo: "AFASTAMENTO INSS",
@@ -645,7 +729,8 @@ export class SecullumApiClient {
             if (resEmpresa.success || resInss.success) {
                 return {
                     success: true,
-                    message: `Lançado no Secullum com sucesso: 15 dias como AT. MED (${params.dataInicioStr} a ${fimEmpresaStr}) e os ${params.dias - 15} dias restantes como AFASTAM / INSS (${inicioInssStr} a ${params.dataFimStr}).`
+                    message: `Lançado no Secullum com sucesso: 15 dias como AT. MED (${params.dataInicioStr} a ${fimEmpresaStr}) e os ${params.dias - 15} dias restantes como AFASTAM / INSS (${inicioInssStr} a ${params.dataFimStr}).`,
+                    resolvedCpf
                 };
             }
         }
@@ -653,6 +738,7 @@ export class SecullumApiClient {
         // Atestados de até 15 dias: Registra diretamente via Afastamentos no Secullum
         const resAfastamento = await this.lancarAfastamento({
             cpf: cleanCpf,
+            numeroFolha: cleanFolha,
             inicio: params.dataInicioStr,
             fim: params.dataFimStr,
             motivo: obs,
@@ -660,10 +746,10 @@ export class SecullumApiClient {
         });
 
         if (resAfastamento.success) {
-            return resAfastamento;
+            return { ...resAfastamento, resolvedCpf };
         }
 
-        // Se afastamento direto não foi aceito, lança justificativa dia a dia no cartão ponto
+        // Se afastamento direto não foi aceito (ex: dias já calculados/com faltas no cartão ponto), lança justificativa dia a dia no cartão ponto
         // NOTA CLT: Pela legislação trabalhista, a empresa só abona até 15 dias corridos; o excedente é INSS.
         const maxDiasEmpresa = Math.min(params.dias, 15);
         const start = new Date(params.dataInicioStr + "T12:00:00Z");
@@ -675,6 +761,8 @@ export class SecullumApiClient {
             const curStr = current.toISOString().split("T")[0];
             const pRes = await this.lancarJustificativaPonto({
                 cpf: cleanCpf,
+                employeeName: params.employeeName,
+                numeroFolha: cleanFolha,
                 data: curStr,
                 justificativa: justNome,
                 observacoes: obs,
@@ -692,12 +780,14 @@ export class SecullumApiClient {
             if (params.dias > 15) {
                 return {
                     success: true,
-                    message: `Lançados os primeiros ${countOk} dias da empresa no cartão ponto. Os ${params.dias - 15} dias restantes devem ser encaminhados ao INSS (Afastamento Previdenciário).`
+                    message: `Lançados os primeiros ${countOk} dias da empresa no cartão ponto com abono. Os ${params.dias - 15} dias restantes devem ser encaminhados ao INSS (Afastamento Previdenciário).`,
+                    resolvedCpf
                 };
             }
             return {
                 success: true,
-                message: `Lançado dia a dia no cartão ponto (${countOk} dias justificados).`
+                message: `Lançado dia a dia no cartão ponto com abono (${countOk} dias justificados).`,
+                resolvedCpf
             };
         }
 
@@ -708,7 +798,8 @@ export class SecullumApiClient {
 
         return {
             success: false,
-            message: `Falha ao lançar no Secullum: ${errMsg}`
+            message: `Falha ao lançar no Secullum: ${errMsg}`,
+            resolvedCpf
         };
     }
 }
