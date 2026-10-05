@@ -314,6 +314,7 @@ export class SecullumApiClient {
         justificativa: string;
         observacoes?: string;
         abonar?: boolean;
+        grupos?: number[]; // pares de colunas: 1 = Entrada1/Saida1, 2 = Entrada2/Saida2, 3 = Entrada3/Saida3
     }): Promise<{ success: boolean; message: string; raw?: any }> {
         const url = `${this.baseUrl}/IntegracaoExterna/CartaoPonto/Justificativa`;
         const headers = await this.getHeaders();
@@ -330,48 +331,77 @@ export class SecullumApiClient {
             justCodigo = "AT. MED";
         }
 
-        const payload: Record<string, any> = {
-            Data: `${cleanDate}T00:00:00`,
-            Justificativa: justCodigo,
-            Observacoes: params.observacoes || "atestado no grupo",
-            Abonar: params.abonar !== false,
-            Grupo: 1
-        };
-
-        if (params.cpf) {
-            payload.Cpf = params.cpf.replace(/\D/g, "");
-        }
-        if (params.numeroPis) payload.NumeroPis = params.numeroPis;
-        if (params.numeroFolha) payload.NumeroFolha = params.numeroFolha;
-
-        try {
-            const res = await fetch(url, {
-                method: "POST",
-                headers,
-                body: JSON.stringify(payload),
-                cache: "no-store"
-            });
-
-            if (!res.ok) {
-                const errText = await res.text();
-                return {
-                    success: false,
-                    message: `Secullum CartaoPonto retornou erro (${res.status}): ${errText}`
-                };
+        // Dia inteiro: justificar todos os pares de colunas do horário do colaborador naquele dia
+        let grupos = params.grupos;
+        if (!grupos || grupos.length === 0) {
+            grupos = [1, 2];
+            if (params.cpf) {
+                try {
+                    const horario = await this.getHorarioDoFuncionario(params.cpf);
+                    const weekday = new Date(`${cleanDate}T12:00:00Z`).getUTCDay();
+                    const dia: any = horario?.dias.find(d => d.DiaSemana === weekday);
+                    if (dia) {
+                        const g: number[] = [];
+                        if (dia.Entrada1 || dia.Saida1) g.push(1);
+                        if (dia.Entrada2 || dia.Saida2) g.push(2);
+                        if (dia.Entrada3 || dia.Saida3) g.push(3);
+                        if (g.length) grupos = g;
+                    }
+                } catch (e) {
+                    console.warn("[Secullum] Não foi possível ler o horário para definir os grupos da justificativa:", e);
+                }
             }
+        }
 
-            const data = await res.json().catch(() => null);
-            return {
-                success: true,
-                message: "Justificativa lançada no cartão de ponto com sucesso!",
-                raw: data
+        const okGroups: number[] = [];
+        const errors: string[] = [];
+        let lastRaw: any = null;
+
+        for (const grupo of grupos) {
+            const payload: Record<string, any> = {
+                Data: `${cleanDate}T00:00:00`,
+                Justificativa: justCodigo,
+                Observacoes: params.observacoes || "atestado no grupo",
+                Abonar: params.abonar !== false,
+                Grupo: grupo
             };
-        } catch (error: any) {
+            if (params.cpf) payload.Cpf = params.cpf.replace(/\D/g, "");
+            if (params.numeroPis) payload.NumeroPis = params.numeroPis;
+            if (params.numeroFolha) payload.NumeroFolha = params.numeroFolha;
+
+            try {
+                const res = await fetch(url, {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify(payload),
+                    cache: "no-store"
+                });
+
+                if (!res.ok) {
+                    errors.push(`grupo ${grupo}: (${res.status}) ${await res.text()}`);
+                    continue;
+                }
+                lastRaw = await res.json().catch(() => null);
+                okGroups.push(grupo);
+            } catch (error: any) {
+                errors.push(`grupo ${grupo}: ${error.message || error}`);
+            }
+        }
+
+        if (okGroups.length === 0) {
             return {
                 success: false,
-                message: `Erro na conexão com Secullum: ${error.message || error}`
+                message: `Secullum CartaoPonto retornou erro: ${errors.join(" ; ")}`
             };
         }
+
+        return {
+            success: true,
+            message: errors.length
+                ? `Justificativa lançada parcialmente (grupos ${okGroups.join(", ")}). Falhas: ${errors.join(" ; ")}`
+                : "Justificativa lançada no cartão de ponto com sucesso!",
+            raw: lastRaw
+        };
     }
 
     /**
