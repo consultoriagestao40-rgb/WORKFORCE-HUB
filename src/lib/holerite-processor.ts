@@ -303,16 +303,35 @@ export function extractDataFromPageText(text: string, pageNumber: number): {
     // Rubricas de faltas e dias trabalhados
     for (const l of lines) {
         const upperL = l.toUpperCase();
-        if (upperL.includes('FALTA') && !upperL.includes('DESCONTO') && !upperL.includes('TOTAL')) {
-            // e.g. "050 FALTAS 3,00 176,40" or "FALTAS INJUSTIFICADAS 2,00 117,60"
-            const amounts = Array.from(l.matchAll(/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/g)).map(m => m[1]);
-            if (amounts.length >= 2) {
-                // First is reference (days), second is deduction value
-                const days = parseFloat(amounts[0].replace(',', '.'));
+        if (upperL.includes('FALTA') && !upperL.includes('TOTAL') && !upperL.includes('BASE')) {
+            // Suporta formatos:
+            // "050 FALTAS 3,00 176,40" (decimal)
+            // "40 HORAS FALTAS 29:20 253,30" (horas HH:MM)
+            // "42 HORAS FALTAS DSR 22:00 190,00" (DSR)
+            // "FALTAS INJUSTIFICADAS 2,00 117,60"
+            const timeMatch = l.match(/\b(\d{1,3}):(\d{2})\b/);
+            const decimalAmounts = Array.from(l.matchAll(/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/g)).map(m => m[1]);
+
+            if (timeMatch) {
+                const totalHours = parseInt(timeMatch[1], 10) + parseInt(timeMatch[2], 10) / 60;
+                // Se for falta direta de trabalho (não apenas DSR), converte horas em dias equivalentes
+                // Ex: 29:20 = 29.33h ÷ 7.333h (jornada 220h / 30d) = 4 dias
+                if (!upperL.includes('DSR')) {
+                    const days = Math.round(totalHours / 7.3333);
+                    if (days > 0 && days <= 31) {
+                        absenceDays += days;
+                    }
+                }
+                if (decimalAmounts.length > 0) {
+                    absenceDeduction += parseCurrency(decimalAmounts[decimalAmounts.length - 1]);
+                }
+            } else if (decimalAmounts.length >= 2) {
+                // Primeiro valor é a referência (dias), segundo é o desconto em R$
+                const days = parseFloat(decimalAmounts[0].replace(',', '.'));
                 if (!isNaN(days) && days > 0 && days <= 31) absenceDays += days;
-                absenceDeduction += parseCurrency(amounts[1]);
-            } else if (amounts.length === 1) {
-                absenceDeduction += parseCurrency(amounts[0]);
+                absenceDeduction += parseCurrency(decimalAmounts[1]);
+            } else if (decimalAmounts.length === 1) {
+                absenceDeduction += parseCurrency(decimalAmounts[0]);
             }
         }
         if (upperL.includes('SALARIO BASE') || upperL.includes('HORAS NORMAIS') || upperL.includes('DIAS TRABALHADOS')) {
