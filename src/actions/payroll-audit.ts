@@ -123,6 +123,29 @@ function normalizeName(name: string | undefined | null): string {
         .trim();
 }
 
+function levenshtein(a: string, b: string): number {
+    if (a === b) return 0;
+    if (!a.length) return b.length;
+    if (!b.length) return a.length;
+    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+        const cur = [i];
+        for (let j = 1; j <= b.length; j++) {
+            cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        }
+        prev = cur;
+    }
+    return prev[b.length];
+}
+
+/** Palavras equivalentes: iguais, uma contida na outra, ou diferença de grafia pequena (ex: FOGGIATO × FOGGIATTO) */
+function wordsMatch(w1: string, w2: string): boolean {
+    if (w1 === w2 || w1.includes(w2) || w2.includes(w1)) return true;
+    const minLen = Math.min(w1.length, w2.length);
+    if (minLen < 4) return false;
+    return levenshtein(w1, w2) <= (minLen >= 7 ? 2 : 1);
+}
+
 function nameSimilarity(s1: string, s2: string): number {
     if (s1 === s2) return 1.0;
     if (!s1 || !s2) return 0;
@@ -132,7 +155,7 @@ function nameSimilarity(s1: string, s2: string): number {
     const w1 = s1.split(" ").filter(w => w.length > 2);
     const w2 = s2.split(" ").filter(w => w.length > 2);
     if (w1.length === 0 || w2.length === 0) return 0;
-    const common = w1.filter(w => w2.some(other => other.includes(w) || w.includes(other)));
+    const common = w1.filter(w => w2.some(other => wordsMatch(w, other)));
     return (common.length * 2) / (w1.length + w2.length);
 }
 
@@ -244,6 +267,9 @@ export async function runPayrollAudit(params: {
     const processedEmpKeys = new Set<string>();
     const rows: PayrollAuditRow[] = [];
 
+    // Nomes que batem EXATAMENTE com algum colaborador do WFH ficam reservados para ele (não entram no fallback por similaridade)
+    const wfhExactNames = new Set(wfhEmployees.map(e => normalizeName(e.name)).filter(Boolean));
+
     // 3. Process each WFH Employee
     for (const emp of wfhEmployees) {
         const cpfDigits = cleanCpfDigits(emp.cpf);
@@ -264,11 +290,14 @@ export async function runPayrollAudit(params: {
 
         // Fallback por similaridade de nome para holerite (ex: pequenas variações na grafia do sobrenome)
         if (!holerite && normName && normName.length >= 5) {
+            let best = 0;
             for (const [hName, hItem] of holeriteByName.entries()) {
                 if (matchedHoleriteIds.has(hItem.id)) continue;
-                if (nameSimilarity(normName, hName) >= 0.75) {
+                if (hName !== normName && wfhExactNames.has(hName)) continue;
+                const sim = nameSimilarity(normName, hName);
+                if (sim >= 0.75 && sim > best) {
+                    best = sim;
                     holerite = hItem;
-                    break;
                 }
             }
         }
@@ -290,12 +319,15 @@ export async function runPayrollAudit(params: {
 
         // Fallback por similaridade de nome para ponto
         if (!point && normName && normName.length >= 5) {
+            let best = 0;
             for (const [pName, pItem] of pointByName.entries()) {
                 const pk = cleanCpfDigits(pItem.cpf) || normalizeName(pItem.name) || pItem.folha || "";
                 if (matchedPointKeys.has(pk)) continue;
-                if (nameSimilarity(normName, pName) >= 0.75) {
+                if (pName !== normName && wfhExactNames.has(pName)) continue;
+                const sim = nameSimilarity(normName, pName);
+                if (sim >= 0.75 && sim > best) {
+                    best = sim;
                     point = pItem;
-                    break;
                 }
             }
         }
