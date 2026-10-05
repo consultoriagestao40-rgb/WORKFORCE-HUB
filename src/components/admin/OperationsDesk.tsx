@@ -144,6 +144,19 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
     const [generatedDisciplinaryLink, setGeneratedDisciplinaryLink] = useState<string>("");
     const [zapiStatus, setZapiStatus] = useState<{ success: boolean; error?: string } | null>(null);
 
+    // Control expansion of long justification notes in table
+    const [expandedNotesIds, setExpandedNotesIds] = useState<Set<string>>(new Set());
+
+    const toggleNoteExpand = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setExpandedNotesIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
     const handleRequestDisciplinary = (item: AttendanceItem) => {
         setSelectedItem(item);
         setDisciplinaryType("ADVERTENCIA");
@@ -1051,13 +1064,13 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
                         <Table>
                             <TableHeader className="bg-slate-50">
                                 <TableRow>
-                                    <TableHead className="font-bold text-slate-800">Cargo / Cliente</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-center">Horário</TableHead>
-                                    <TableHead className="font-bold text-slate-800">Titular do Posto</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-center">Contato</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-right">Faturamento Diário</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-center">Status de Presença</TableHead>
-                                    <TableHead className="font-bold text-slate-800 text-right pr-6">Ações de Tratativa</TableHead>
+                                    <TableHead className="font-bold text-slate-800 min-w-[180px] max-w-[220px]">Cargo / Cliente</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-center w-[120px]">Horário</TableHead>
+                                    <TableHead className="font-bold text-slate-800 min-w-[240px] max-w-[320px]">Titular do Posto</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-center w-[140px]">Contato</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-right w-[140px]">Faturamento Diário</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-center w-[170px]">Status de Presença</TableHead>
+                                    <TableHead className="font-bold text-slate-800 text-right pr-6 min-w-[200px]">Ações de Tratativa</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -1081,8 +1094,8 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
                                     } else if (att.status === "FALTA") {
                                         if (att.coveredBy) {
                                             statusBadge = (
-                                                <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 font-bold">
-                                                    ● Coberto por Reserva: {att.coveredBy.name}
+                                                <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 font-bold max-w-[180px] truncate" title={`Coberto por Reserva: ${att.coveredBy.name}`}>
+                                                    ● Coberto: {att.coveredBy.name}
                                                 </Badge>
                                             );
                                         } else if (att.coverageType === "DIARISTA") {
@@ -1125,44 +1138,105 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
 
                                     return (
                                         <TableRow key={item.id} className={`hover:bg-slate-50/50 transition-colors ${rowBgClass}`}>
-                                            <TableCell className="text-slate-850 text-sm">
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-slate-900">{item.role}</span>
-                                                    <span className="text-[10px] text-slate-400 font-medium">{item.clientName} • <span className="text-[9px]">{item.companyName}</span></span>
+                                            <TableCell className="text-slate-850 text-sm max-w-[220px] whitespace-normal">
+                                                <div className="flex flex-col max-w-[220px]">
+                                                    <span className="font-bold text-slate-900 truncate" title={item.role}>{item.role}</span>
+                                                    <span className="text-[10px] text-slate-400 font-medium truncate" title={`${item.clientName} • ${item.companyName}`}>
+                                                        {item.clientName} • <span className="text-[9px]">{item.companyName}</span>
+                                                    </span>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="text-center">
+                                            <TableCell className="text-center w-[120px]">
                                                 <div className="flex flex-col items-center">
                                                     <span className="text-xs font-bold text-slate-800">{item.startTime} - {item.endTime}</span>
                                                     <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-500 font-mono mt-0.5">{item.schedule}</span>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="text-slate-800 text-xs font-medium">
-                                                <div className="flex flex-col">
+                                            <TableCell className="text-slate-800 text-xs font-medium min-w-[240px] max-w-[320px] whitespace-normal">
+                                                <div className="flex flex-col max-w-[320px]">
                                                     {item.employee ? (
-                                                        <span className="text-slate-800 font-bold">{item.employee.name}</span>
+                                                        <span className="text-slate-800 font-bold truncate" title={item.employee.name}>{item.employee.name}</span>
                                                     ) : (
                                                         <span className="text-red-500 italic font-bold">Vaga Sem Titular</span>
                                                     )}
                                                     
                                                     {att.coveredBy && (
-                                                        <span className="text-[10px] text-blue-600 font-bold mt-0.5">
-                                                            ↳ Coberto por: {att.coveredBy.name}
-                                                        </span>
+                                                        <div 
+                                                            className="text-[10px] text-blue-700 bg-blue-50/90 border border-blue-200/80 rounded-lg p-1.5 mt-1 max-w-[320px]"
+                                                            title={att.notes || `Coberto por ${att.coveredBy.name}`}
+                                                        >
+                                                            <span className="font-extrabold text-blue-800 flex items-center gap-1">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block shrink-0" />
+                                                                Coberto por: <span className="underline">{att.coveredBy.name}</span>
+                                                            </span>
+                                                            {att.notes && (
+                                                                <p className="text-[10px] text-blue-900/80 font-medium leading-relaxed mt-0.5 whitespace-normal break-words line-clamp-2">
+                                                                    {att.notes}
+                                                                </p>
+                                                            )}
+                                                        </div>
                                                     )}
                                                     {att.coverageType === "DIARISTA" && (
-                                                        <span className="text-[10px] text-orange-600 font-bold mt-0.5">
-                                                            ↳ Diarista: {att.notes || "Não especificado"}
-                                                        </span>
+                                                        <div 
+                                                            className="text-[10px] text-orange-700 bg-orange-50/90 border border-orange-200/80 rounded-lg p-2 mt-1 max-w-[320px] shadow-2xs transition-all"
+                                                        >
+                                                            <div className="flex items-center justify-between gap-1 font-bold text-orange-800">
+                                                                <span className="flex items-center gap-1">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 inline-block shrink-0" />
+                                                                    Diarista Lançado
+                                                                </span>
+                                                                {att.notes && att.notes.length > 45 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => toggleNoteExpand(item.id, e)}
+                                                                        className="text-[9px] text-orange-600 hover:text-orange-900 font-extrabold underline cursor-pointer shrink-0 ml-1"
+                                                                    >
+                                                                        {expandedNotesIds.has(item.id) ? "Recolher" : "Ver justificativa"}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            <p 
+                                                                className={`text-[10px] text-orange-900/90 font-medium leading-relaxed mt-1 whitespace-normal break-words ${
+                                                                    expandedNotesIds.has(item.id) ? "" : "line-clamp-2"
+                                                                }`}
+                                                                title={att.notes || ""}
+                                                            >
+                                                                {att.notes || "Não especificado"}
+                                                            </p>
+                                                        </div>
                                                     )}
                                                     {att.coverageType === "VAGO" && (
-                                                        <span className="text-[10px] text-slate-500 font-bold mt-0.5">
-                                                            ↳ Glosa: {att.notes || "Sem observações"}
-                                                        </span>
+                                                        <div 
+                                                            className="text-[10px] text-slate-600 bg-slate-100/90 border border-slate-200 rounded-lg p-2 mt-1 max-w-[320px]"
+                                                        >
+                                                            <div className="flex items-center justify-between gap-1 font-bold text-slate-700">
+                                                                <span className="flex items-center gap-1">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block shrink-0" />
+                                                                    Glosa (Posto Vago)
+                                                                </span>
+                                                                {att.notes && att.notes.length > 45 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => toggleNoteExpand(item.id, e)}
+                                                                        className="text-[9px] text-slate-500 hover:text-slate-800 font-extrabold underline cursor-pointer shrink-0 ml-1"
+                                                                    >
+                                                                        {expandedNotesIds.has(item.id) ? "Recolher" : "Ver justificativa"}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            <p 
+                                                                className={`text-[10px] text-slate-700 font-medium leading-relaxed mt-1 whitespace-normal break-words ${
+                                                                    expandedNotesIds.has(item.id) ? "" : "line-clamp-2"
+                                                                }`}
+                                                                title={att.notes || ""}
+                                                            >
+                                                                {att.notes || "Sem observações"}
+                                                            </p>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="text-center">
+                                            <TableCell className="text-center w-[140px]">
                                                 {item.employee ? (
                                                     <div className="flex items-center justify-center gap-2">
                                                         <a
@@ -1199,13 +1273,13 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
                                                     <span className="text-slate-300">-</span>
                                                 )}
                                             </TableCell>
-                                            <TableCell className="text-right text-xs font-mono font-bold text-slate-700">
+                                            <TableCell className="text-right text-xs font-mono font-bold text-slate-700 w-[140px]">
                                                 {(item.billingValue / 30).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                                             </TableCell>
-                                            <TableCell className="text-center">
+                                            <TableCell className="text-center w-[170px]">
                                                 {statusBadge}
                                             </TableCell>
-                                            <TableCell className="text-right pr-6">
+                                            <TableCell className="text-right pr-6 min-w-[200px]">
                                                 <div className="flex items-center justify-end gap-1.5">
                                                     {att.status === "PRESENTE_PONTO" || att.status === "PRESENTE_MANUAL" ? (
                                                         <>
