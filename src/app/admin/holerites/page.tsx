@@ -154,7 +154,20 @@ export default function HoleritesPage() {
                 // 1. Extract text from page
                 const page = await pdfjsDoc.getPage(pageNum);
                 const textContent = await page.getTextContent();
-                const pageText = textContent.items.map((item: any) => item.str).join(" ");
+                
+                let lastY: number | null = null;
+                let pageText = "";
+                for (const item of textContent.items as any[]) {
+                    if (lastY !== null && Math.abs(item.transform[5] - lastY) > 3) {
+                        pageText += "\n";
+                    } else if (item.hasEOL) {
+                        pageText += "\n";
+                    } else if (pageText.length > 0 && !pageText.endsWith("\n") && !pageText.endsWith(" ")) {
+                        pageText += " ";
+                    }
+                    pageText += item.str;
+                    lastY = item.transform[5];
+                }
 
                 const parsed = extractDataFromPageText(pageText, pageNum);
 

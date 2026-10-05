@@ -300,40 +300,82 @@ export function extractDataFromPageText(text: string, pageNumber: number): {
         netSalary = Math.max(0, totalEarnings - totalDeductions);
     }
 
-    // Rubricas de faltas e dias trabalhados
-    for (const l of lines) {
-        const upperL = l.toUpperCase();
-        if (upperL.includes('FALTA') && !upperL.includes('TOTAL') && !upperL.includes('BASE')) {
-            // Suporta formatos:
-            // "050 FALTAS 3,00 176,40" (decimal)
-            // "40 HORAS FALTAS 29:20 253,30" (horas HH:MM)
-            // "42 HORAS FALTAS DSR 22:00 190,00" (DSR)
-            // "FALTAS INJUSTIFICADAS 2,00 117,60"
-            const timeMatch = l.match(/\b(\d{1,3}):(\d{2})\b/);
-            const decimalAmounts = Array.from(l.matchAll(/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/g)).map(m => m[1]);
+    // 1. Extração Global de Rubricas de Faltas e DSR (funciona com quebras de linha ou texto contínuo)
+    const dsrRegex = /(?:(?:^|\s)(\d{1,4})\s+)?(?:(?:HORAS\s+|DIAS\s+)?FALTAS?\s+DSR|DSR\s+(?:S\s*\/?\s*|SOBRE\s+)?FALTAS?)\s+(\d{1,3}:\d{2}|[0-9]{1,2},[0-9]{2})\s+([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/gi;
 
-            if (timeMatch) {
-                const totalHours = parseInt(timeMatch[1], 10) + parseInt(timeMatch[2], 10) / 60;
-                // Se for falta direta de trabalho (não apenas DSR), converte horas em dias equivalentes
-                // Ex: 29:20 = 29.33h ÷ 7.333h (jornada 220h / 30d) = 4 dias
-                if (!upperL.includes('DSR')) {
-                    const days = Math.round(totalHours / 7.3333);
-                    if (days > 0 && days <= 31) {
-                        absenceDays += days;
-                    }
-                }
-                if (decimalAmounts.length > 0) {
-                    absenceDeduction += parseCurrency(decimalAmounts[decimalAmounts.length - 1]);
-                }
-            } else if (decimalAmounts.length >= 2) {
-                // Primeiro valor é a referência (dias), segundo é o desconto em R$
-                const days = parseFloat(decimalAmounts[0].replace(',', '.'));
-                if (!isNaN(days) && days > 0 && days <= 31) absenceDays += days;
-                absenceDeduction += parseCurrency(decimalAmounts[1]);
-            } else if (decimalAmounts.length === 1) {
-                absenceDeduction += parseCurrency(decimalAmounts[0]);
+    const faltaRegex = /(?:(?:^|\s)(\d{1,4})\s+)?(?:HORAS\s+|DIAS\s+|DESCONTO\s+(?:DE\s+)?)?FALTAS?(?:\s+INJUSTIFICADAS?|\s+INTEGRAL)?\s+(\d{1,3}:\d{2}|[0-9]{1,2},[0-9]{2})\s+([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/gi;
+
+    for (const match of normalizedText.matchAll(dsrRegex)) {
+        const valStr = match[3];
+        absenceDeduction += parseCurrency(valStr);
+    }
+
+    for (const match of normalizedText.matchAll(faltaRegex)) {
+        const fullMatch = match[0].toUpperCase();
+        if (fullMatch.includes('DSR')) continue;
+
+        const refStr = match[2];
+        const valStr = match[3];
+
+        if (refStr.includes(':')) {
+            const [hStr, mStr] = refStr.split(':');
+            const totalHours = parseInt(hStr, 10) + parseInt(mStr || '0', 10) / 60;
+            // 7h20m diárias = 7.3333h (padrão CLT 220h/mês / 30 dias)
+            const days = Math.round(totalHours / 7.3333);
+            if (days > 0 && days <= 31) {
+                absenceDays += days;
+            }
+        } else {
+            const days = parseFloat(refStr.replace(',', '.'));
+            if (!isNaN(days) && days > 0 && days <= 31) {
+                absenceDays += days;
             }
         }
+
+        absenceDeduction += parseCurrency(valStr);
+    }
+
+    // Se a busca global não encontrou faltas, faz o fallback linha a linha
+    if (absenceDays === 0 && absenceDeduction === 0) {
+        for (const l of lines) {
+            const upperL = l.toUpperCase();
+            if (upperL.includes('FALTA') && !upperL.includes('TOTAL') && !upperL.includes('BASE')) {
+                const timeMatch = l.match(/\b(\d{1,3}):(\d{2})\b/);
+                const decimalAmounts = Array.from(l.matchAll(/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/g)).map(m => m[1]);
+
+                if (timeMatch) {
+                    const totalHours = parseInt(timeMatch[1], 10) + parseInt(timeMatch[2], 10) / 60;
+                    if (!upperL.includes('DSR')) {
+                        const days = Math.round(totalHours / 7.3333);
+                        if (days > 0 && days <= 31) absenceDays += days;
+                    }
+                    if (decimalAmounts.length > 0) {
+                        absenceDeduction += parseCurrency(decimalAmounts[decimalAmounts.length - 1]);
+                    }
+                } else if (decimalAmounts.length >= 2) {
+                    const days = parseFloat(decimalAmounts[0].replace(',', '.'));
+                    if (!isNaN(days) && days > 0 && days <= 31) absenceDays += days;
+                    absenceDeduction += parseCurrency(decimalAmounts[1]);
+                } else if (decimalAmounts.length === 1) {
+                    absenceDeduction += parseCurrency(decimalAmounts[0]);
+                }
+            }
+        }
+    }
+
+    // Fallback de segurança: se houve desconto financeiro de falta mas não foi possível extrair a quantidade de dias
+    if (absenceDays === 0 && absenceDeduction > 0 && baseSalary > 0) {
+        // Estima dias de falta dividindo o valor do desconto pelo valor do dia trabalhado (Salário Base / 30)
+        const dailyRate = baseSalary / 30;
+        const estimatedDays = Math.round(absenceDeduction / dailyRate);
+        if (estimatedDays > 0 && estimatedDays <= 31) {
+            absenceDays = estimatedDays;
+        }
+    }
+
+    // Dias trabalhados
+    for (const l of lines) {
+        const upperL = l.toUpperCase();
         if (upperL.includes('SALARIO BASE') || upperL.includes('HORAS NORMAIS') || upperL.includes('DIAS TRABALHADOS')) {
             const daysMatch = l.match(/([0-9]{1,2},[0-9]{2})\s+[0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}/);
             if (daysMatch) {

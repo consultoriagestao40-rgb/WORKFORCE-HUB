@@ -81,6 +81,7 @@ export interface PayrollAuditRow {
         totalDeductions?: number;
         netSalary?: number;
         workedDays?: number;
+        absenceDays?: number;
         absenceDeduction?: number;
         pageNumber?: number;
         companyName?: string;
@@ -376,8 +377,11 @@ export async function runPayrollAudit(params: {
         const holeriteEarnings = holerite?.totalEarnings || 0;
         const holeriteDeductions = holerite?.totalDeductions || 0;
         const holeriteNet = holerite?.netSalary || (holeriteEarnings > 0 ? holeriteEarnings - holeriteDeductions : 0);
-        const holeriteAbsenceDays = holerite?.absenceDays || 0;
         const holeriteAbsenceDeduction = holerite?.absenceDeduction || 0;
+        let holeriteAbsenceDays = holerite?.absenceDays || 0;
+        if (holeriteAbsenceDays === 0 && holeriteAbsenceDeduction > 0 && holeriteBase > 0) {
+            holeriteAbsenceDays = Math.round(holeriteAbsenceDeduction / (holeriteBase / 30));
+        }
         const holeriteWorkedDays = holerite?.workedDays || 30;
 
         const pointWorkedHours = point?.workedHours || 0;
@@ -537,6 +541,7 @@ export async function runPayrollAudit(params: {
                 totalDeductions: holeriteDeductions,
                 netSalary: holeriteNet,
                 workedDays: holeriteWorkedDays,
+                absenceDays: holeriteAbsenceDays,
                 absenceDeduction: holeriteAbsenceDeduction,
                 pageNumber: holerite?.pageNumber,
                 companyName: holerite?.companyName,

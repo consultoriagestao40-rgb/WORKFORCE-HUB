@@ -200,7 +200,21 @@ export default function PayrollAuditPage() {
             for (let pageNum = 1; pageNum <= numPages; pageNum++) {
                 const page = await pdfjsDoc.getPage(pageNum);
                 const textContent = await page.getTextContent();
-                const pageText = textContent.items.map((item: any) => item.str).join(" ");
+                
+                let lastY: number | null = null;
+                let pageText = "";
+                for (const item of textContent.items as any[]) {
+                    if (lastY !== null && Math.abs(item.transform[5] - lastY) > 3) {
+                        pageText += "\n";
+                    } else if (item.hasEOL) {
+                        pageText += "\n";
+                    } else if (pageText.length > 0 && !pageText.endsWith("\n") && !pageText.endsWith(" ")) {
+                        pageText += " ";
+                    }
+                    pageText += item.str;
+                    lastY = item.transform[5];
+                }
+
                 const parsed = extractDataFromPageText(pageText, pageNum);
 
                 items.push({
@@ -1022,6 +1036,11 @@ export default function PayrollAuditPage() {
                                                                 {row.holerite.pageNumber && (
                                                                     <div className="text-[9px] text-slate-400">
                                                                         Página {row.holerite.pageNumber} do PDF
+                                                                    </div>
+                                                                )}
+                                                                {Boolean((row.holerite.absenceDeduction && row.holerite.absenceDeduction > 0) || (row.holerite.absenceDays && row.holerite.absenceDays > 0)) && (
+                                                                    <div className="text-[10px] font-semibold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded inline-flex items-center gap-1 border border-rose-200 mt-0.5">
+                                                                        Desc. Faltas: {row.holerite.absenceDays || Math.round((row.holerite.absenceDeduction || 0) / ((row.holerite.baseSalary || 1900) / 30))}d ({fmtCurrency(row.holerite.absenceDeduction || 0)})
                                                                     </div>
                                                                 )}
                                                             </div>
