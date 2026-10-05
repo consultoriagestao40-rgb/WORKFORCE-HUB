@@ -24,6 +24,15 @@ export interface ExtractedHoleriteItem {
     workedDays?: number; // Dias trabalhados informados
     absenceDays?: number; // Faltas
     absenceDeduction?: number; // R$ Desconto de faltas
+    rubrics?: HoleriteRubricItem[]; // Linhas detalhadas de proventos e descontos
+}
+
+export interface HoleriteRubricItem {
+    code?: string;
+    description: string;
+    reference?: string;
+    earnings?: number;
+    deductions?: number;
 }
 
 export type NamingPattern = 
@@ -94,6 +103,7 @@ export function extractDataFromPageText(text: string, pageNumber: number): {
     workedDays?: number;
     absenceDays?: number;
     absenceDeduction?: number;
+    rubrics?: HoleriteRubricItem[];
 } {
     let employeeName = `Colaborador_Pagina_${pageNumber}`;
     let cpf = '';
@@ -385,6 +395,91 @@ export function extractDataFromPageText(text: string, pageNumber: number): {
         }
     }
 
+    // Extração de rubricas detalhadas (para composição do holerite)
+    const rubrics: HoleriteRubricItem[] = [];
+    for (const l of lines) {
+        const cleanL = l.trim();
+        const upperL = cleanL.toUpperCase();
+        if (
+            upperL.includes('TOTAL') || 
+            upperL.includes('DECLARO') || 
+            upperL.includes('RECIBO') || 
+            upperL.includes('SALÁRIO BASE') || 
+            upperL.includes('SALARIO BASE') || 
+            upperL.includes('VALOR LÍQUIDO') ||
+            upperL.includes('VALOR LIQUIDO') ||
+            upperL.includes('BASE DE CÁLCULO') ||
+            upperL.includes('BASE DE CALCULO') ||
+            upperL.includes('FGTS') ||
+            upperL.includes('CÓDIGO DESCRIÇÃO') ||
+            upperL.includes('CODIGO DESCRICAO') ||
+            upperL.includes('MENSALISTA') ||
+            upperL.includes('ADMISSÃO') ||
+            upperL.includes('ADMISSAO') ||
+            upperL.includes('DEPARTAMENTO') ||
+            upperL.includes('CNPJ')
+        ) {
+            continue;
+        }
+
+        const rubricMatch = cleanL.match(/^(?:(\d{1,4})\s+)?([A-ZÀ-Ú0-9\.\-\/\%\s\(\)]+?)\s+(\d{1,3}:\d{2}|\d{1,3},\d{2})\s+([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})(?:\s+([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}))?$/i);
+
+        if (rubricMatch) {
+            const code = rubricMatch[1];
+            const desc = rubricMatch[2].trim();
+            const ref = rubricMatch[3];
+            const val1 = parseCurrency(rubricMatch[4]);
+            const val2 = rubricMatch[5] ? parseCurrency(rubricMatch[5]) : null;
+
+            if (desc.length >= 2 && !/^\d+$/.test(desc)) {
+                let earnings: number | undefined = undefined;
+                let deductions: number | undefined = undefined;
+
+                if (val2 !== null) {
+                    earnings = val1;
+                    deductions = val2;
+                } else {
+                    const descUpper = desc.toUpperCase();
+                    const isDeduction = 
+                        descUpper.includes('FALTA') ||
+                        descUpper.includes('DSR') ||
+                        descUpper.includes('INSS') ||
+                        descUpper.includes('I.N.S.S') ||
+                        descUpper.includes('VALE') ||
+                        descUpper.includes('VT') ||
+                        descUpper.includes('VR') ||
+                        descUpper.includes('VA') ||
+                        descUpper.includes('DESCONTO') ||
+                        descUpper.includes('CONTRIB') ||
+                        descUpper.includes('SINDIC') ||
+                        descUpper.includes('ADIANTAMENTO') ||
+                        descUpper.includes('IRRF') ||
+                        descUpper.includes('IR') ||
+                        descUpper.includes('PENSAO') ||
+                        descUpper.includes('PENSÃO') ||
+                        descUpper.includes('SEGURO') ||
+                        descUpper.includes('CONVENIO') ||
+                        descUpper.includes('CONVÊNIO') ||
+                        descUpper.includes('TROCO MES ANTERIOR');
+
+                    if (isDeduction) {
+                        deductions = val1;
+                    } else {
+                        earnings = val1;
+                    }
+                }
+
+                rubrics.push({
+                    code,
+                    description: desc,
+                    reference: ref,
+                    earnings,
+                    deductions
+                });
+            }
+        }
+    }
+
     return {
         employeeName,
         cpf,
@@ -399,7 +494,8 @@ export function extractDataFromPageText(text: string, pageNumber: number): {
         netSalary,
         workedDays,
         absenceDays,
-        absenceDeduction
+        absenceDeduction,
+        rubrics
     };
 }
 

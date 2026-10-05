@@ -62,6 +62,7 @@ export interface PayrollAuditRow {
         companyId?: string;
         companyName?: string;
         clientName?: string;
+        postoName?: string;
         jobTitle?: string;
         baseSalary?: number;
         isAbandonment?: boolean;
@@ -86,6 +87,13 @@ export interface PayrollAuditRow {
         pageNumber?: number;
         companyName?: string;
         role?: string;
+        rubrics?: Array<{
+            code?: string;
+            description: string;
+            reference?: string;
+            earnings?: number;
+            deductions?: number;
+        }>;
     };
 }
 
@@ -522,6 +530,7 @@ export async function runPayrollAudit(params: {
                 companyId: emp.companyId || undefined,
                 companyName: emp.company?.name,
                 clientName: posto?.client?.name || "Interno / Rotativo",
+                postoName: posto?.role?.name || emp.role?.name || "Cargo não informado",
                 jobTitle: posto?.role?.name || emp.role?.name || "Cargo não informado",
                 baseSalary: wfhBaseSalary,
                 isAbandonment,
@@ -545,7 +554,8 @@ export async function runPayrollAudit(params: {
                 absenceDeduction: holeriteAbsenceDeduction,
                 pageNumber: holerite?.pageNumber,
                 companyName: holerite?.companyName,
-                role: holerite?.payrollType
+                role: holerite?.payrollType,
+                rubrics: holerite?.rubrics
             } : undefined
         });
     }
@@ -673,7 +683,8 @@ export async function runPayrollAudit(params: {
                 absenceDeduction: h.absenceDeduction || 0,
                 pageNumber: h.pageNumber,
                 companyName: h.companyName,
-                role: h.payrollType
+                role: h.payrollType,
+                rubrics: h.rubrics
             }
         });
     }

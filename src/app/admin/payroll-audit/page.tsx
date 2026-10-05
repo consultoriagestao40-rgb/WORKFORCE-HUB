@@ -24,16 +24,26 @@ import {
     Building2,
     Eye,
     Filter,
-    Download
+    Download,
+    Receipt,
+    ArrowUpDown,
+    TrendingUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { 
+    Dialog, 
+    DialogContent, 
+    DialogHeader, 
+    DialogTitle, 
+    DialogDescription 
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { extractDataFromPageText, ExtractedHoleriteItem } from "@/lib/holerite-processor";
 import { parsePointExcel, parsePointPdfText, parsePointPdfPage, ParsedPointEmployee } from "@/lib/point-parser";
-import { runPayrollAudit, getPayrollAuditCompanies, PayrollAuditResult, AuditRow } from "@/actions/payroll-audit";
+import { runPayrollAudit, getPayrollAuditCompanies, PayrollAuditResult, AuditRow, PayrollAuditRow } from "@/actions/payroll-audit";
 
 export default function PayrollAuditPage() {
     const today = new Date();
@@ -45,6 +55,9 @@ export default function PayrollAuditPage() {
     const [selectedCompanyId, setSelectedCompanyId] = useState<string>("all");
 
     const [pdfJsLoaded, setPdfJsLoaded] = useState(false);
+
+    // Top Tabs: Auditoria Tripla vs Conferência de Folha Líquida
+    const [activeTopTab, setActiveTopTab] = useState<"AUDIT" | "LIQUIDS">("AUDIT");
 
     // Upload Slot 1: Cartão de Ponto Secullum
     const [pointFile, setPointFile] = useState<File | null>(null);
@@ -60,10 +73,17 @@ export default function PayrollAuditPage() {
     const [isAuditing, setIsAuditing] = useState(false);
     const [auditResult, setAuditResult] = useState<PayrollAuditResult | null>(null);
 
-    // Filter & Search States
+    // Filter & Search States (Auditoria)
     const [searchTerm, setSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState<"ALL" | "CRITICAL_RISK" | "MISSING_HOLERITE" | "MISSING_POINT" | "DEDUCTION_MISMATCH" | "SALARY_MISMATCH" | "ALIGNED">("ALL");
     const [expandedRowIds, setExpandedRowIds] = useState<Set<string>>(new Set());
+
+    // Filter & Search States (Folha Líquida)
+    const [liquidSearchTerm, setLiquidSearchTerm] = useState("");
+    const [liquidStatusFilter, setLiquidStatusFilter] = useState<"ALL" | "ATIVO" | "FERIAS" | "AFASTADO" | "DESLIGADO" | "NAO_CADASTRADO">("ALL");
+    const [liquidSort, setLiquidSort] = useState<"NET_DESC" | "NET_ASC" | "NAME_ASC">("NET_DESC");
+    const [selectedCompositionRow, setSelectedCompositionRow] = useState<PayrollAuditRow | null>(null);
+    const [isCompositionOpen, setIsCompositionOpen] = useState(false);
 
     // Refs for file inputs
     const pointInputRef = useRef<HTMLInputElement | null>(null);
@@ -100,6 +120,53 @@ export default function PayrollAuditPage() {
             return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
         }
         return cpf;
+    };
+
+    // Classificação de status padronizada para a conferência
+    const getCollaboratorStatus = (row: PayrollAuditRow) => {
+        const sit = (row.wfhSituation || row.wfh?.situation || "").toLowerCase();
+        const status = (row.wfhStatus || row.wfh?.status || "").toLowerCase();
+
+        if (sit.includes("férias") || sit.includes("ferias")) {
+            return { 
+                label: "Férias", 
+                type: "FERIAS" as const, 
+                badgeClass: "bg-blue-50 text-blue-700 border-blue-200" 
+            };
+        }
+        if (sit.includes("afastad") || sit.includes("inss") || sit.includes("licença") || sit.includes("licenca") || row.wfh?.isMedicalLeave) {
+            return { 
+                label: "Afastado INSS", 
+                type: "AFASTADO" as const, 
+                badgeClass: "bg-amber-50 text-amber-700 border-amber-200" 
+            };
+        }
+        if (sit.includes("abandono") || row.wfh?.isAbandonment) {
+            return { 
+                label: "Em Abandono", 
+                type: "DESLIGADO" as const, 
+                badgeClass: "bg-red-50 text-red-700 border-red-200" 
+            };
+        }
+        if (sit.includes("desligad") || sit.includes("demiti") || status.includes("desligad") || row.wfh?.isDismissed) {
+            return { 
+                label: "Desligado", 
+                type: "DESLIGADO" as const, 
+                badgeClass: "bg-rose-50 text-rose-700 border-rose-200" 
+            };
+        }
+        if (sit.includes("não consta") || sit.includes("nao consta") || !row.wfh) {
+            return { 
+                label: "Não Cadastrado", 
+                type: "NAO_CADASTRADO" as const, 
+                badgeClass: "bg-purple-50 text-purple-700 border-purple-200" 
+            };
+        }
+        return { 
+            label: "Ativo", 
+            type: "ATIVO" as const, 
+            badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200" 
+        };
     };
 
     // --- Auto-detect Company from uploaded file name ---
@@ -228,6 +295,24 @@ export default function PayrollAuditPage() {
 
             setHoleriteItems(items);
             toast.success(`Holerites processados: ${items.length} recibos extraídos com dados financeiros.`);
+
+            // Executa imediatamente o cruzamento com o banco WFH em segundo plano
+            setIsAuditing(true);
+            runPayrollAudit({
+                year: selectedYear,
+                month: selectedMonth,
+                companyId: selectedCompanyId !== "all" ? selectedCompanyId : undefined,
+                holeriteItems: items,
+                pointItems: pointItems || []
+            }).then(res => {
+                if (res.success && res.data) {
+                    setAuditResult(res.data);
+                }
+            }).catch(err => {
+                console.error("Erro no auto-cruzamento de folha:", err);
+            }).finally(() => {
+                setIsAuditing(false);
+            });
         } catch (error: any) {
             console.error("Erro ao processar holerites:", error);
             toast.error("Falha ao processar arquivo de holerites: " + (error.message || ""));
@@ -235,6 +320,28 @@ export default function PayrollAuditPage() {
             setIsProcessingHolerite(false);
         }
     };
+
+    // Auto-atualizar auditoria ao trocar filtros de período ou empresa
+    useEffect(() => {
+        if (holeriteItems.length > 0) {
+            setIsAuditing(true);
+            runPayrollAudit({
+                year: selectedYear,
+                month: selectedMonth,
+                companyId: selectedCompanyId !== "all" ? selectedCompanyId : undefined,
+                holeriteItems,
+                pointItems: pointItems || []
+            }).then(res => {
+                if (res.success && res.data) {
+                    setAuditResult(res.data);
+                }
+            }).catch(err => {
+                console.error("Erro na atualização da auditoria:", err);
+            }).finally(() => {
+                setIsAuditing(false);
+            });
+        }
+    }, [selectedYear, selectedMonth, selectedCompanyId]);
 
     // --- Run Triple Audit Action ---
     const handleRunAudit = async () => {
@@ -419,6 +526,175 @@ export default function PayrollAuditPage() {
         }
     };
 
+    // --- Dados para a Aba de Conferência de Folha Líquida ---
+    const liquidSourceRows: PayrollAuditRow[] = (rowsForCompany.length > 0 && rowsForCompany.some(r => r.hasHolerite))
+        ? rowsForCompany.filter(r => r.hasHolerite)
+        : holeriteItems.map((h, idx) => ({
+            id: h.id || `holerite-preview-${idx}`,
+            name: h.employeeName,
+            employeeName: h.employeeName,
+            cpf: h.cpf || "",
+            folha: h.registrationCode || "",
+            companyName: h.companyName,
+            wfhSituation: "Não vinculado",
+            wfhStatus: "Não vinculado",
+            wfhBaseSalary: h.baseSalary || 0,
+            wfhFaltasCount: 0,
+            hasPoint: false,
+            pointWorkedHours: 0,
+            pointPunchesCount: 0,
+            pointFaltasCount: 0,
+            pointFaltasHours: 0,
+            pointExtrasHours: 0,
+            pointNoturnoHours: 0,
+            hasHolerite: true,
+            holeriteBaseSalary: h.baseSalary || 0,
+            holeriteTotalEarnings: h.totalEarnings || 0,
+            holeriteTotalDeductions: h.totalDeductions || 0,
+            holeriteNetSalary: h.netSalary || ((h.totalEarnings || 0) - (h.totalDeductions || 0)),
+            holeriteAbsenceDays: h.absenceDays || 0,
+            holeriteAbsenceDeduction: h.absenceDeduction || 0,
+            holeriteWorkedDays: h.workedDays || 30,
+            status: "ALIGNED",
+            riskLevel: "NONE",
+            severity: "OK",
+            diagnosticMessage: "Recibo de pagamento extraído",
+            discrepancies: [],
+            suggestedAction: "",
+            holerite: {
+                baseSalary: h.baseSalary || 0,
+                totalEarnings: h.totalEarnings || 0,
+                totalDeductions: h.totalDeductions || 0,
+                netSalary: h.netSalary || ((h.totalEarnings || 0) - (h.totalDeductions || 0)),
+                workedDays: h.workedDays || 30,
+                absenceDeduction: h.absenceDeduction || 0,
+                pageNumber: h.pageNumber,
+                companyName: h.companyName,
+                role: h.payrollType,
+                rubrics: h.rubrics
+            }
+        }));
+
+    const liquidTotalNet = liquidSourceRows.reduce((acc, r) => acc + (r.holeriteNetSalary || 0), 0);
+    const liquidTotalEarnings = liquidSourceRows.reduce((acc, r) => acc + (r.holeriteTotalEarnings || 0), 0);
+    const liquidTotalDeductions = liquidSourceRows.reduce((acc, r) => acc + (r.holeriteTotalDeductions || 0), 0);
+    const liquidTotalAbsenceDeductions = liquidSourceRows.reduce((acc, r) => acc + (r.holeriteAbsenceDeduction || 0), 0);
+    const liquidAvgNet = liquidSourceRows.length > 0 ? liquidTotalNet / liquidSourceRows.length : 0;
+    const liquidAvgBase = liquidSourceRows.length > 0 ? (liquidSourceRows.reduce((acc, r) => acc + (r.holeriteBaseSalary || 0), 0) / liquidSourceRows.length) : 0;
+
+    const liquidStatusCounts = {
+        all: liquidSourceRows.length,
+        ativos: liquidSourceRows.filter(r => getCollaboratorStatus(r).type === "ATIVO").length,
+        ferias: liquidSourceRows.filter(r => getCollaboratorStatus(r).type === "FERIAS").length,
+        afastados: liquidSourceRows.filter(r => getCollaboratorStatus(r).type === "AFASTADO").length,
+        desligados: liquidSourceRows.filter(r => getCollaboratorStatus(r).type === "DESLIGADO").length,
+        naoCadastrados: liquidSourceRows.filter(r => getCollaboratorStatus(r).type === "NAO_CADASTRADO").length,
+    };
+
+    const filteredLiquidRows = liquidSourceRows.filter(row => {
+        if (liquidStatusFilter !== "ALL") {
+            const st = getCollaboratorStatus(row);
+            if (st.type !== liquidStatusFilter) return false;
+        }
+
+        if (!liquidSearchTerm.trim()) return true;
+
+        const term = liquidSearchTerm.toLowerCase();
+        const digits = liquidSearchTerm.replace(/\D/g, "");
+        const matchName = (row.name || "").toLowerCase().includes(term);
+        const matchCpf = digits.length > 0 && (row.cpf || "").replace(/\D/g, "").includes(digits);
+        const matchFolha = (row.folha || "").toLowerCase().includes(term);
+        const matchPosto = (row.postoName || row.wfh?.postoName || "").toLowerCase().includes(term);
+        const matchClient = (row.clientName || row.wfh?.clientName || "").toLowerCase().includes(term);
+        const matchCompany = (row.companyName || row.wfh?.companyName || "").toLowerCase().includes(term);
+
+        return matchName || matchCpf || matchFolha || matchPosto || matchClient || matchCompany;
+    }).sort((a, b) => {
+        if (liquidSort === "NET_DESC") {
+            return (b.holeriteNetSalary || 0) - (a.holeriteNetSalary || 0);
+        }
+        if (liquidSort === "NET_ASC") {
+            return (a.holeriteNetSalary || 0) - (b.holeriteNetSalary || 0);
+        }
+        return (a.name || "").localeCompare(b.name || "");
+    });
+
+    const exportLiquidPayrollToExcel = () => {
+        if (filteredLiquidRows.length === 0) {
+            toast.error("Nenhum registro de folha para exportar.");
+            return;
+        }
+
+        try {
+            const header = [
+                "Página PDF",
+                "Nome do Colaborador",
+                "CPF",
+                "Matrícula",
+                "Status WFH",
+                "Empresa",
+                "Cliente",
+                "Posto de Trabalho",
+                "Salário Base (R$)",
+                "Total Proventos (R$)",
+                "Total Descontos (R$)",
+                "VALOR LÍQUIDO A PAGAR (R$)"
+            ];
+
+            const dataRows: (string | number)[][] = filteredLiquidRows.map(r => {
+                const st = getCollaboratorStatus(r);
+                return [
+                    r.holerite?.pageNumber ?? "---",
+                    r.name,
+                    fmtCpf(r.cpf),
+                    r.folha || "---",
+                    st.label,
+                    r.wfh?.companyName || r.companyName || "---",
+                    r.wfh?.clientName || "---",
+                    r.wfh?.postoName || r.wfh?.jobTitle || "---",
+                    r.holeriteBaseSalary || 0,
+                    r.holeriteTotalEarnings || 0,
+                    r.holeriteTotalDeductions || 0,
+                    r.holeriteNetSalary || 0
+                ];
+            });
+
+            // Linha de total geral
+            dataRows.push([
+                "TOTAL",
+                `${filteredLiquidRows.length} colaboradores`,
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                filteredLiquidRows.reduce((acc, r) => acc + (r.holeriteTotalEarnings || 0), 0),
+                filteredLiquidRows.reduce((acc, r) => acc + (r.holeriteTotalDeductions || 0), 0),
+                filteredLiquidRows.reduce((acc, r) => acc + (r.holeriteNetSalary || 0), 0)
+            ]);
+
+            const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
+            ws["!cols"] = [
+                { wch: 12 }, { wch: 35 }, { wch: 16 }, { wch: 14 }, { wch: 18 },
+                { wch: 24 }, { wch: 25 }, { wch: 25 }, { wch: 16 }, { wch: 18 },
+                { wch: 18 }, { wch: 22 }
+            ];
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Folha Líquida");
+            const companyPart = selectedCompanyId === "all" 
+                ? "todas_empresas" 
+                : (companies.find(c => c.id === selectedCompanyId)?.name || "empresa").toLowerCase().replace(/[^a-z0-9]/gi, "_");
+            XLSX.writeFile(wb, `Folha_Liquida_${companyPart}_${String(selectedMonth).padStart(2, "0")}_${selectedYear}.xlsx`);
+            toast.success("Folha Líquida exportada com sucesso!");
+        } catch (err) {
+            console.error("Erro ao exportar folha líquida:", err);
+            toast.error("Erro ao exportar planilha.");
+        }
+    };
+
     return (
         <div className="space-y-6">
             <Script
@@ -512,20 +788,67 @@ export default function PayrollAuditPage() {
                         </div>
 
                         {/* Botão Exportar Excel */}
-                        {auditResult && (
+                        {activeTopTab === "AUDIT" && auditResult && (
                             <Button 
                                 onClick={exportToExcel}
-                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-lg h-11 px-4"
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-lg h-11 px-4 cursor-pointer"
                             >
-                                <FileSpreadsheet className="w-4 h-4" /> Exportar XLSX
+                                <FileSpreadsheet className="w-4 h-4" /> Exportar Auditoria XLSX
+                            </Button>
+                        )}
+                        {activeTopTab === "LIQUIDS" && filteredLiquidRows.length > 0 && (
+                            <Button 
+                                onClick={exportLiquidPayrollToExcel}
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-lg h-11 px-4 cursor-pointer"
+                            >
+                                <FileSpreadsheet className="w-4 h-4" /> Exportar Folha Líquida XLSX
                             </Button>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* Slots de Upload: Ponto & Holerites */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Top Tab Switcher */}
+            <div className="flex border-b border-slate-200 gap-2">
+                <button
+                    onClick={() => setActiveTopTab("AUDIT")}
+                    className={`flex items-center gap-2 px-5 py-3 border-b-2 font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                        activeTopTab === "AUDIT"
+                            ? "border-purple-600 text-purple-700 bg-purple-50/50 rounded-t-2xl shadow-sm"
+                            : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-t-2xl"
+                    }`}
+                >
+                    <ShieldAlert className="w-4 h-4 text-purple-600" />
+                    <span>Auditoria & Cruzamento Triplo</span>
+                    {auditResult && auditResult.summary.criticalRiskCount > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse">
+                            {auditResult.summary.criticalRiskCount}
+                        </span>
+                    )}
+                </button>
+                <button
+                    onClick={() => setActiveTopTab("LIQUIDS")}
+                    className={`flex items-center gap-2 px-5 py-3 border-b-2 font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                        activeTopTab === "LIQUIDS"
+                            ? "border-emerald-600 text-emerald-700 bg-emerald-50/50 rounded-t-2xl shadow-sm"
+                            : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-t-2xl"
+                    }`}
+                >
+                    <DollarSign className="w-4 h-4 text-emerald-600" />
+                    <span>Conferência de Folha Líquida</span>
+                    {liquidSourceRows.length > 0 && (
+                        <span className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                            {liquidSourceRows.length}
+                        </span>
+                    )}
+                </button>
+            </div>
+
+            {/* ABA 1: AUDITORIA & CRUZAMENTO TRIPLO */}
+            {activeTopTab === "AUDIT" && (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                    {/* Slots de Upload: Ponto & Holerites */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Slot 1: Cartão de Ponto Secullum */}
                 <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
                     <div>
@@ -1075,6 +1398,575 @@ export default function PayrollAuditPage() {
                     </div>
                 </div>
             )}
+        </div>
+    )}
+
+    {/* ABA 2: CONFERÊNCIA DE FOLHA LÍQUIDA */}
+    {activeTopTab === "LIQUIDS" && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Banner / Slot de Upload para Holerites */}
+            {holeriteItems.length === 0 ? (
+                <div className="bg-white rounded-3xl p-8 md:p-12 border-2 border-dashed border-emerald-300 text-center shadow-sm">
+                    <input 
+                        ref={holeriteInputRef}
+                        type="file" 
+                        accept=".pdf" 
+                        className="hidden" 
+                        onChange={e => {
+                            if (e.target.files && e.target.files[0]) {
+                                handleHoleriteFileChange(e.target.files[0]);
+                            }
+                        }}
+                    />
+                    <div className="max-w-md mx-auto flex flex-col items-center">
+                        <div className="w-16 h-16 rounded-3xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4 shadow-sm border border-emerald-100">
+                            {isProcessingHolerite ? (
+                                <RefreshCw className="w-8 h-8 animate-spin" />
+                            ) : (
+                                <UploadCloud className="w-8 h-8" />
+                            )}
+                        </div>
+                        <h3 className="text-lg md:text-xl font-black text-slate-900 mb-1">
+                            Carregue o PDF de Holerites da Folha
+                        </h3>
+                        <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">
+                            Faça o upload do PDF consolidado de contracheques emitido pela contabilidade. O sistema irá extrair automaticamente os valores líquidos de cada colaborador, checar o status cadastral no WFH e totalizar a folha líquida a pagar.
+                        </p>
+                        <Button
+                            onClick={() => holeriteInputRef.current?.click()}
+                            disabled={isProcessingHolerite}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs gap-2 rounded-2xl shadow-lg h-11 px-6 cursor-pointer"
+                        >
+                            {isProcessingHolerite ? (
+                                <>
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                    <span>Lendo contracheques...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <UploadCloud className="w-4 h-4" />
+                                    <span>Selecionar Arquivo PDF de Holerites</span>
+                                </>
+                            )}
+                        </Button>
+                    </div>
+                </div>
+            ) : (
+                <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <FileText className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-black text-slate-800 truncate max-w-sm">
+                                    {holeriteFile?.name || "Lote de Holerites em PDF"}
+                                </span>
+                                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full">
+                                    {holeriteItems.length} contracheques extraídos
+                                </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                {isAuditing ? "Cruzando com a base de colaboradores do WFH..." : "Contracheques vinculados à base de colaboradores ativos e histórico."}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <input 
+                            ref={holeriteInputRef}
+                            type="file" 
+                            accept=".pdf" 
+                            className="hidden" 
+                            onChange={e => {
+                                if (e.target.files && e.target.files[0]) {
+                                    handleHoleriteFileChange(e.target.files[0]);
+                                }
+                            }}
+                        />
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => holeriteInputRef.current?.click()}
+                            className="text-xs font-bold text-slate-600 hover:text-slate-900 border-slate-200 rounded-xl cursor-pointer gap-1.5"
+                        >
+                            <RefreshCw className="w-3.5 h-3.5" /> Trocar PDF de Holerites
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* Totais & Cards de Métricas da Folha Líquida */}
+            {liquidSourceRows.length > 0 && (
+                <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {/* Card 1: TOTAL LÍQUIDO DA FOLHA (Destaque Principal) */}
+                        <div className="rounded-3xl p-6 bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white shadow-xl relative overflow-hidden">
+                            <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none" />
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-200">
+                                    Total Líquido da Folha
+                                </span>
+                                <span className="p-2 rounded-xl bg-white/20 text-white">
+                                    <DollarSign className="w-4 h-4" />
+                                </span>
+                            </div>
+                            <div className="text-3xl lg:text-4xl font-black tracking-tight mt-1">
+                                {fmtCurrency(liquidTotalNet)}
+                            </div>
+                            <div className="text-[11px] text-emerald-100 font-semibold mt-2 flex items-center justify-between">
+                                <span>{liquidSourceRows.length} pagamentos a realizar</span>
+                                <span className="bg-emerald-500/40 px-2 py-0.5 rounded-full text-[10px] font-bold">100% calculado</span>
+                            </div>
+                        </div>
+
+                        {/* Card 2: Proventos Brutos */}
+                        <div className="rounded-3xl p-6 bg-white border border-slate-200/80 shadow-sm flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                                        Total Proventos (Bruto)
+                                    </span>
+                                    <span className="p-2 rounded-xl bg-slate-100 text-slate-600">
+                                        <TrendingUp className="w-4 h-4 text-emerald-600" />
+                                    </span>
+                                </div>
+                                <div className="text-2xl font-black text-slate-800">
+                                    {fmtCurrency(liquidTotalEarnings)}
+                                </div>
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-medium mt-2">
+                                Vencimentos contratuais somados
+                            </div>
+                        </div>
+
+                        {/* Card 3: Descontos Totais */}
+                        <div className="rounded-3xl p-6 bg-white border border-slate-200/80 shadow-sm flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                                        Total Descontos em Folha
+                                    </span>
+                                    <span className="p-2 rounded-xl bg-rose-50 text-rose-600">
+                                        <AlertCircle className="w-4 h-4" />
+                                    </span>
+                                </div>
+                                <div className="text-2xl font-black text-rose-600">
+                                    {fmtCurrency(liquidTotalDeductions)}
+                                </div>
+                            </div>
+                            <div className="text-[11px] text-rose-500 font-medium mt-2">
+                                {liquidTotalAbsenceDeductions > 0 ? `Desc. Faltas: ${fmtCurrency(liquidTotalAbsenceDeductions)}` : "INSS, IRRF, benefícios e faltas"}
+                            </div>
+                        </div>
+
+                        {/* Card 4: Média Líquida por Colaborador */}
+                        <div className="rounded-3xl p-6 bg-white border border-slate-200/80 shadow-sm flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                                        Média Líquida / Pessoa
+                                    </span>
+                                    <span className="p-2 rounded-xl bg-slate-100 text-slate-600">
+                                        <Users className="w-4 h-4" />
+                                    </span>
+                                </div>
+                                <div className="text-2xl font-black text-slate-800">
+                                    {fmtCurrency(liquidAvgNet)}
+                                </div>
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-medium mt-2">
+                                Salário base médio: {fmtCurrency(liquidAvgBase)}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Filtros por Status de Colaborador */}
+                    <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
+                            <button
+                                onClick={() => setLiquidStatusFilter("ALL")}
+                                className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+                                    liquidStatusFilter === "ALL" 
+                                        ? "bg-slate-900 text-white shadow-sm" 
+                                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                }`}
+                            >
+                                Todos ({liquidStatusCounts.all})
+                            </button>
+                            <button
+                                onClick={() => setLiquidStatusFilter("ATIVO")}
+                                className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                    liquidStatusFilter === "ATIVO" 
+                                        ? "bg-emerald-600 text-white shadow-sm" 
+                                        : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                }`}
+                            >
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Ativos ({liquidStatusCounts.ativos})
+                            </button>
+                            <button
+                                onClick={() => setLiquidStatusFilter("FERIAS")}
+                                className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                    liquidStatusFilter === "FERIAS" 
+                                        ? "bg-blue-600 text-white shadow-sm" 
+                                        : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                                }`}
+                            >
+                                Férias ({liquidStatusCounts.ferias})
+                            </button>
+                            <button
+                                onClick={() => setLiquidStatusFilter("AFASTADO")}
+                                className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                    liquidStatusFilter === "AFASTADO" 
+                                        ? "bg-amber-600 text-white shadow-sm" 
+                                        : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                }`}
+                            >
+                                Afastados INSS ({liquidStatusCounts.afastados})
+                            </button>
+                            <button
+                                onClick={() => setLiquidStatusFilter("DESLIGADO")}
+                                className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                    liquidStatusFilter === "DESLIGADO" 
+                                        ? "bg-rose-600 text-white shadow-sm" 
+                                        : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+                                }`}
+                            >
+                                Desligados ({liquidStatusCounts.desligados})
+                            </button>
+                            {liquidStatusCounts.naoCadastrados > 0 && (
+                                <button
+                                    onClick={() => setLiquidStatusFilter("NAO_CADASTRADO")}
+                                    className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                        liquidStatusFilter === "NAO_CADASTRADO" 
+                                            ? "bg-purple-600 text-white shadow-sm" 
+                                            : "bg-purple-50 text-purple-700 hover:bg-purple-100"
+                                    }`}
+                                >
+                                    Não Cadastrados ({liquidStatusCounts.naoCadastrados})
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="flex items-center gap-2.5 w-full md:w-auto">
+                            <div className="relative flex-1 md:w-64">
+                                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <Input 
+                                    placeholder="Buscar por colaborador, CPF ou posto..."
+                                    value={liquidSearchTerm}
+                                    onChange={e => setLiquidSearchTerm(e.target.value)}
+                                    className="pl-9 h-9 text-xs rounded-2xl border-slate-200"
+                                />
+                            </div>
+
+                            <Select value={liquidSort} onValueChange={v => setLiquidSort(v as any)}>
+                                <SelectTrigger className="h-9 border-slate-200 text-slate-700 font-bold text-xs rounded-2xl w-[170px] cursor-pointer">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="text-xs">
+                                    <SelectItem value="NET_DESC">Maior Líquido primeiro</SelectItem>
+                                    <SelectItem value="NET_ASC">Menor Líquido primeiro</SelectItem>
+                                    <SelectItem value="NAME_ASC">Nome (A-Z)</SelectItem>
+                                </SelectContent>
+                            </Select>
+
+                            <Button 
+                                onClick={exportLiquidPayrollToExcel}
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-sm h-9 px-3.5 cursor-pointer"
+                            >
+                                <FileSpreadsheet className="w-3.5 h-3.5" /> Exportar XLSX
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Tabela de Colaboradores: Valores Líquidos & Composição */}
+                    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+                        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50/50">
+                            <div className="flex items-center gap-2">
+                                <DollarSign className="w-4 h-4 text-emerald-600" />
+                                <h3 className="text-sm font-black text-slate-800">
+                                    Relação de Pagamentos Líquidos por Colaborador
+                                </h3>
+                                <span className="text-[11px] text-slate-400 font-semibold">
+                                    ({filteredLiquidRows.length} colaboradores listados)
+                                </span>
+                            </div>
+                            <span className="text-[11px] font-bold text-slate-500">
+                                Clique em qualquer linha ou em &quot;Ver Composição&quot; para abrir os proventos e descontos detalhados
+                            </span>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
+                                        <th className="py-3 px-3 w-14 text-center">Pág</th>
+                                        <th className="py-3 px-4">Colaborador</th>
+                                        <th className="py-3 px-4">Alocação WFH</th>
+                                        <th className="py-3 px-3 text-center">Status no WFH</th>
+                                        <th className="py-3 px-4 text-right">Salário Base</th>
+                                        <th className="py-3 px-4 text-right bg-emerald-50/60 text-emerald-900 font-black">VALOR LÍQUIDO A PAGAR</th>
+                                        <th className="py-3 px-4 text-center w-36">Composição</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {filteredLiquidRows.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={7} className="py-12 text-center text-slate-400">
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <AlertCircle className="w-8 h-8 text-slate-300" />
+                                                    <span className="text-xs font-bold text-slate-600">Nenhum colaborador encontrado com os filtros selecionados.</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredLiquidRows.map((row, index) => {
+                                            const st = getCollaboratorStatus(row);
+                                            return (
+                                                <tr 
+                                                    key={row.id || index}
+                                                    onClick={() => {
+                                                        setSelectedCompositionRow(row);
+                                                        setIsCompositionOpen(true);
+                                                    }}
+                                                    className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                                                >
+                                                    {/* Pág PDF */}
+                                                    <td className="py-3.5 px-3 text-center">
+                                                        <span className="text-[11px] font-mono font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+                                                            #{row.holerite?.pageNumber ?? index + 1}
+                                                        </span>
+                                                    </td>
+
+                                                    {/* Nome & CPF */}
+                                                    <td className="py-3.5 px-4">
+                                                        <div className="font-extrabold text-slate-900 text-xs group-hover:text-purple-700 transition-colors">
+                                                            {row.name}
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                                            CPF: {fmtCpf(row.cpf)} {row.folha ? `• Folha: ${row.folha}` : ""}
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Alocação WFH */}
+                                                    <td className="py-3.5 px-4">
+                                                        <div className="font-bold text-slate-700 truncate max-w-[200px]">
+                                                            {row.wfh?.clientName || "Não vinculado a posto"}
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                                                            {row.wfh?.postoName || row.wfh?.jobTitle || row.holerite?.role || "Cargo não informado"}
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Status WFH */}
+                                                    <td className="py-3.5 px-3 text-center">
+                                                        <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border ${st.badgeClass}`}>
+                                                            {st.label}
+                                                        </span>
+                                                    </td>
+
+                                                    {/* Salário Base */}
+                                                    <td className="py-3.5 px-4 text-right font-semibold text-slate-500">
+                                                        {fmtCurrency(row.holeriteBaseSalary || row.wfhBaseSalary)}
+                                                    </td>
+
+                                                    {/* VALOR LÍQUIDO A PAGAR */}
+                                                    <td className="py-3.5 px-4 text-right bg-emerald-50/60">
+                                                        <span className="inline-block bg-emerald-100 text-emerald-950 border border-emerald-300 px-3 py-1 rounded-xl font-black text-sm shadow-xs">
+                                                            {fmtCurrency(row.holeriteNetSalary)}
+                                                        </span>
+                                                    </td>
+
+                                                    {/* Ação Composição */}
+                                                    <td className="py-3.5 px-4 text-center" onClick={e => e.stopPropagation()}>
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                setSelectedCompositionRow(row);
+                                                                setIsCompositionOpen(true);
+                                                            }}
+                                                            className="bg-purple-50 hover:bg-purple-100 text-purple-700 text-[11px] font-bold h-8 px-3 rounded-xl border border-purple-200 cursor-pointer gap-1 transition-all"
+                                                        >
+                                                            <Receipt className="w-3.5 h-3.5" />
+                                                            <span>Ver Composição</span>
+                                                        </Button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </>
+            )}
+        </div>
+    )}
+
+    {/* Modal de Composição de Folha e Rubricas */}
+    <Dialog open={isCompositionOpen} onOpenChange={setIsCompositionOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-6 rounded-3xl">
+            {selectedCompositionRow && (
+                <div className="space-y-6">
+                    <DialogHeader>
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                            <div>
+                                <span className="text-[10px] font-black uppercase tracking-wider text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                                    {selectedCompositionRow.holerite?.pageNumber ? `Página ${selectedCompositionRow.holerite.pageNumber} do Holerite` : "Recibo de Pagamento"}
+                                </span>
+                                <DialogTitle className="text-xl font-black text-slate-900 mt-1">
+                                    {selectedCompositionRow.name}
+                                </DialogTitle>
+                                <DialogDescription className="text-xs text-slate-500 font-medium">
+                                    CPF: {fmtCpf(selectedCompositionRow.cpf)} • Matrícula/Código: {selectedCompositionRow.folha || "---"} • {selectedCompositionRow.wfh?.companyName || selectedCompositionRow.holerite?.companyName || "Empresa Contábil"}
+                                </DialogDescription>
+                            </div>
+                            {(() => {
+                                const st = getCollaboratorStatus(selectedCompositionRow);
+                                return (
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold border ${st.badgeClass}`}>
+                                        {st.label}
+                                    </span>
+                                );
+                            })()}
+                        </div>
+                    </DialogHeader>
+
+                    {/* Alocação WFH */}
+                    <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200/80 flex flex-wrap items-center justify-between text-xs text-slate-700">
+                        <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Cliente / Posto Alocado:</span>
+                            <span className="font-extrabold text-slate-800">
+                                {selectedCompositionRow.wfh?.clientName || "NÃO CONSTA NO SISTEMA WFH"} — {selectedCompositionRow.wfh?.postoName || selectedCompositionRow.wfh?.jobTitle || selectedCompositionRow.holerite?.role || "Cargo não informado"}
+                            </span>
+                        </div>
+                        {selectedCompositionRow.holerite?.workedDays !== undefined && (
+                            <div className="text-right">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Dias Trabalhados:</span>
+                                <span className="font-extrabold text-slate-800">{selectedCompositionRow.holerite.workedDays} dias</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Resumo Financeiro */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Salário Base</span>
+                            <span className="text-sm font-black text-slate-700">
+                                {fmtCurrency(selectedCompositionRow.holeriteBaseSalary || selectedCompositionRow.wfhBaseSalary)}
+                            </span>
+                        </div>
+                        <div className="bg-emerald-50/50 rounded-2xl p-3 border border-emerald-100 shadow-sm">
+                            <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">(+) Total Proventos</span>
+                            <span className="text-sm font-black text-emerald-700">
+                                {fmtCurrency(selectedCompositionRow.holeriteTotalEarnings)}
+                            </span>
+                        </div>
+                        <div className="bg-rose-50/50 rounded-2xl p-3 border border-rose-100 shadow-sm">
+                            <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">(-) Total Descontos</span>
+                            <span className="text-sm font-black text-rose-700">
+                                {fmtCurrency(selectedCompositionRow.holeriteTotalDeductions)}
+                            </span>
+                        </div>
+                        <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-3 text-white shadow-md">
+                            <span className="text-[10px] font-bold text-emerald-200 uppercase tracking-wider block">(=) LÍQUIDO A PAGAR</span>
+                            <span className="text-base font-black">
+                                {fmtCurrency(selectedCompositionRow.holeriteNetSalary)}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Tabela de Rubricas */}
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                                <Receipt className="w-3.5 h-3.5 text-purple-600" /> Detalhamento de Rubricas & Eventos do Holerite
+                            </h4>
+                            {selectedCompositionRow.holerite?.rubrics && selectedCompositionRow.holerite.rubrics.length > 0 && (
+                                <span className="text-[10px] font-bold text-slate-400">
+                                    {selectedCompositionRow.holerite.rubrics.length} eventos identificados
+                                </span>
+                            )}
+                        </div>
+
+                        {selectedCompositionRow.holerite?.rubrics && selectedCompositionRow.holerite.rubrics.length > 0 ? (
+                            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                                <table className="w-full text-left text-xs">
+                                    <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-[10px] uppercase">
+                                            <th className="py-2.5 px-3">Cód.</th>
+                                            <th className="py-2.5 px-3">Descrição / Rubrica</th>
+                                            <th className="py-2.5 px-3 text-center">Ref.</th>
+                                            <th className="py-2.5 px-3 text-right">Proventos (R$)</th>
+                                            <th className="py-2.5 px-3 text-right">Descontos (R$)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+                                        {selectedCompositionRow.holerite.rubrics.map((rubric, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                                                <td className="py-2 px-3 text-[11px] font-mono text-slate-400">
+                                                    {rubric.code || "---"}
+                                                </td>
+                                                <td className="py-2 px-3 font-semibold text-slate-800">
+                                                    {rubric.description}
+                                                </td>
+                                                <td className="py-2 px-3 text-center text-[11px] text-slate-500 font-mono">
+                                                    {rubric.reference || "---"}
+                                                </td>
+                                                <td className="py-2 px-3 text-right font-bold text-emerald-700">
+                                                    {rubric.earnings ? fmtCurrency(rubric.earnings) : "-"}
+                                                </td>
+                                                <td className="py-2 px-3 text-right font-bold text-rose-600">
+                                                    {rubric.deductions ? fmtCurrency(rubric.deductions) : "-"}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr className="bg-slate-100/80 border-t-2 border-slate-200 font-black text-xs text-slate-800">
+                                            <td colSpan={3} className="py-2.5 px-3 text-right uppercase tracking-wider text-[10px] text-slate-500">
+                                                Subtotais:
+                                            </td>
+                                            <td className="py-2.5 px-3 text-right text-emerald-700">
+                                                {fmtCurrency(selectedCompositionRow.holeriteTotalEarnings)}
+                                            </td>
+                                            <td className="py-2.5 px-3 text-right text-rose-600">
+                                                {fmtCurrency(selectedCompositionRow.holeriteTotalDeductions)}
+                                            </td>
+                                        </tr>
+                                        <tr className="bg-emerald-600 text-white font-black text-sm">
+                                            <td colSpan={3} className="py-3 px-3 uppercase tracking-wider text-xs">
+                                                VALOR LÍQUIDO A RECEBER:
+                                            </td>
+                                            <td colSpan={2} className="py-3 px-3 text-right text-base">
+                                                {fmtCurrency(selectedCompositionRow.holeriteNetSalary)}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="bg-slate-50 rounded-2xl p-5 border border-dashed border-slate-300 text-center space-y-2">
+                                <p className="text-xs font-semibold text-slate-600">
+                                    As rubricas detalhadas deste recibo foram consolidadas diretamente no rodapé financeiro do contracheque.
+                                </p>
+                                <div className="flex justify-center items-center gap-4 text-xs font-bold pt-2">
+                                    <span className="text-emerald-700">Proventos: {fmtCurrency(selectedCompositionRow.holeriteTotalEarnings)}</span>
+                                    <span className="text-slate-300">|</span>
+                                    <span className="text-rose-600">Descontos: {fmtCurrency(selectedCompositionRow.holeriteTotalDeductions)}</span>
+                                    <span className="text-slate-300">|</span>
+                                    <span className="text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-lg font-black">
+                                        Líquido: {fmtCurrency(selectedCompositionRow.holeriteNetSalary)}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </DialogContent>
+    </Dialog>
         </div>
     );
 }
