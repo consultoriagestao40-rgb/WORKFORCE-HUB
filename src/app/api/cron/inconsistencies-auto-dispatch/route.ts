@@ -42,7 +42,8 @@ export async function GET(request: Request) {
 
         const scanRes = await scanPunchInconsistencies({
             startDate: targetScanDate,
-            endDate: targetScanDate
+            endDate: targetScanDate,
+            bypassAuth: true
         });
 
         const newItemsToDispatch = scanRes.rows.filter(r => r.status === "NOVO" && r.managerHasPhone);
@@ -50,13 +51,16 @@ export async function GET(request: Request) {
         let dispatchErrors: string[] = [];
 
         if (newItemsToDispatch.length > 0) {
-            const dispatchRes = await dispatchInconsistencies(newItemsToDispatch.map(item => ({
-                employeeId: item.employeeId,
-                date: item.date,
-                missing: item.missing,
-                expected: item.expected,
-                kind: item.kind
-            })));
+            const dispatchRes = await dispatchInconsistencies(
+                newItemsToDispatch.map(item => ({
+                    employeeId: item.employeeId,
+                    date: item.date,
+                    missing: item.missing,
+                    expected: item.expected,
+                    kind: item.kind
+                })),
+                { bypassAuth: true, requestedByName: "Robô Matinal de Ponto" }
+            );
 
             dispatchedCount = dispatchRes.results.filter(r => r.ok).length;
             dispatchErrors = dispatchRes.results.filter(r => !r.ok).map(r => `${r.code || r.key}: ${r.message}`);

@@ -55,15 +55,18 @@ function todaySP(): string {
  * Varre o cartão de ponto (Secullum) no período e devolve as inconsistências por colaborador/dia.
  * Não grava nada: é uma leitura ao vivo do Secullum cruzada com contratos/gestores do Hub.
  */
-export async function scanPunchInconsistencies(params: { startDate: string; endDate: string }): Promise<{
+export async function scanPunchInconsistencies(params: { startDate: string; endDate: string; bypassAuth?: boolean }): Promise<{
     success: boolean;
     message?: string;
     rows: InconsistencyRow[];
     unmatched: number;
 }> {
     try {
-        const user = await getCurrentUser();
-        if (!user) return { success: false, message: "Usuário não autenticado.", rows: [], unmatched: 0 };
+        if (!params.bypassAuth) {
+            let user = null;
+            try { user = await getCurrentUser(); } catch { user = null; }
+            if (!user) return { success: false, message: "Usuário não autenticado.", rows: [], unmatched: 0 };
+        }
 
         const client = await getSecullumClient();
         if (!client) return { success: false, message: "Secullum não configurado em Benefícios.", rows: [], unmatched: 0 };
@@ -81,11 +84,15 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
 
         // Autentica uma vez antes (chamadas paralelas de token falham no Secullum)
         await client.getAuthToken();
-        const batidas = await client.getBatidas(start, end);
-        const funcionarios = await client.getFuncionarios();
+        const [batidas, funcionarios, afastamentosSecullum] = await Promise.all([
+            client.getBatidas(start, end),
+            client.getFuncionarios(),
+            client.getAfastamentos(start, end).catch(() => [])
+        ]);
         const funcById = new Map<number, any>(funcionarios.map((f: any) => [f.Id, f]));
 
         // Colaboradores do Hub (por CPF) com alocação ativa -> posto -> contrato -> gestor
+        // + Férias e atestados médicos cadastrados
         const employees = await prisma.employee.findMany({
             select: {
                 id: true,
@@ -93,6 +100,15 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
                 cpf: true,
                 status: true,
                 admissionDate: true,
+                lastVacationStart: true,
+                lastVacationEnd: true,
+                vacations: {
+                    select: { startDate: true, endDate: true }
+                },
+                medicalCertificates: {
+                    where: { status: { not: "REJEITADO" } },
+                    select: { startDate: true, endDate: true }
+                },
                 assignments: {
                     where: { endDate: null },
                     orderBy: { startDate: "desc" },
@@ -158,6 +174,36 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
             if (/deslig|demit|inativ/i.test(emp.status || "")) continue;
             if (emp.admissionDate && spDateParts(emp.admissionDate).dateStr > date) continue;
 
+            // 1. CHECAGEM DE FÉRIAS (Tabela Vacation e campos do Employee)
+            const isVacation = emp.vacations.some(v => {
+                const vStart = spDateParts(v.startDate).dateStr;
+                const vEnd = spDateParts(v.endDate).dateStr;
+                return date >= vStart && date <= vEnd;
+            }) || (emp.lastVacationStart && emp.lastVacationEnd && (() => {
+                const lvStart = spDateParts(emp.lastVacationStart).dateStr;
+                const lvEnd = spDateParts(emp.lastVacationEnd).dateStr;
+                return date >= lvStart && date <= lvEnd;
+            })());
+            if (isVacation) continue;
+
+            // 2. CHECAGEM DE ATESTADO MÉDICO
+            const isMedicalLeave = emp.medicalCertificates.some(m => {
+                const mStart = spDateParts(m.startDate).dateStr;
+                const mEnd = spDateParts(m.endDate).dateStr;
+                return date >= mStart && date <= mEnd;
+            });
+            if (isMedicalLeave) continue;
+
+            // 3. CHECAGEM DE AFASTAMENTOS REGISTRADOS NO SECULLUM
+            const isSecullumLeave = afastamentosSecullum.some((a: any) => {
+                const aCpf = String(a.FuncionarioCpf || a.Funcionario?.Cpf || "").replace(/\D/g, "");
+                if (aCpf && aCpf !== cpf) return false;
+                const aStart = String(a.DataInicio || "").slice(0, 10);
+                const aEnd = String(a.DataFim || "").slice(0, 10);
+                return (!aStart || date >= aStart) && (!aEnd || date <= aEnd);
+            });
+            if (isSecullumLeave) continue;
+
             const posto = emp.assignments[0]?.posto;
             const c = posto?.client;
             const key = `${emp.id}_${date}`;
@@ -199,15 +245,23 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
 /**
  * Cria UM ajuste por colaborador/dia e dispara o menu de tratativa no WhatsApp do gestor do contrato.
  */
-export async function dispatchInconsistencies(items: Array<{
-    employeeId: string;
-    date: string;
-    missing: PunchColumn[];
-    expected: Partial<Record<PunchColumn, string>>;
-    kind: "SEM_BATIDAS" | "INCOMPLETA";
-}>): Promise<{ success: boolean; results: Array<{ key: string; ok: boolean; code?: string; message?: string }> }> {
-    const user = await getCurrentUser();
-    if (!user) return { success: false, results: items.map(i => ({ key: `${i.employeeId}_${i.date}`, ok: false, message: "Usuário não autenticado." })) };
+export async function dispatchInconsistencies(
+    items: Array<{
+        employeeId: string;
+        date: string;
+        missing: PunchColumn[];
+        expected: Partial<Record<PunchColumn, string>>;
+        kind: "SEM_BATIDAS" | "INCOMPLETA";
+    }>,
+    options?: { bypassAuth?: boolean; requestedByName?: string }
+): Promise<{ success: boolean; results: Array<{ key: string; ok: boolean; code?: string; message?: string }> }> {
+    let userName = options?.requestedByName || "Robô de Ponto";
+    if (!options?.bypassAuth) {
+        let user = null;
+        try { user = await getCurrentUser(); } catch { user = null; }
+        if (!user) return { success: false, results: items.map(i => ({ key: `${i.employeeId}_${i.date}`, ok: false, message: "Usuário não autenticado." })) };
+        userName = user.name || "RH";
+    }
 
     const { createPunchAdjustmentAlert } = await import("@/actions/punch-adjustments");
     const { sendPunchAdjustmentWhatsAppAlert } = await import("@/lib/punch-whatsapp");
@@ -240,7 +294,7 @@ export async function dispatchInconsistencies(items: Array<{
                 date: new Date(`${item.date}T12:00:00-03:00`),
                 punchType,
                 expectedTime: expectedTime || "Não informado",
-                notes: `Tela de Inconsistências (${user.name || "RH"})`,
+                notes: `Tela de Inconsistências (${userName})`,
                 source: "INCONSISTENCY_SCAN"
             });
             if (!created.success || !created.adjustment) {
@@ -281,3 +335,124 @@ export async function unignoreInconsistency(employeeId: string, date: string) {
     await (prisma as any).punchInconsistencyIgnore.deleteMany({ where: { employeeId, date } });
     return { success: true };
 }
+
+/**
+ * Lança uma batida manual DIRETO no Secullum (ex: caso de 1 batida faltando por esquecimento)
+ * sem precisar enviar para o gestor via WhatsApp.
+ */
+export async function launchDirectManualPunch(params: {
+    employeeId: string;
+    date: string; // YYYY-MM-DD
+    coluna: PunchColumn;
+    hora: string; // HH:mm
+    motivo?: string;
+}): Promise<{ success: boolean; message: string }> {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { success: false, message: "Usuário não autenticado." };
+
+        const client = await getSecullumClient();
+        if (!client) return { success: false, message: "Secullum não configurado em Benefícios." };
+
+        const emp = await prisma.employee.findUnique({
+            where: { id: params.employeeId },
+            include: {
+                assignments: {
+                    where: { endDate: null },
+                    take: 1,
+                    include: { posto: { include: { client: true } } }
+                }
+            }
+        });
+        if (!emp || !emp.cpf) return { success: false, message: "Colaborador ou CPF não localizado." };
+
+        const cpfClean = emp.cpf.replace(/\D/g, "");
+        const cleanDate = params.date;
+        const motivo = params.motivo || `Ajuste Direto RH (${user.name || "Admin"}) | Esquecimento de batida`;
+
+        // Verificar se há caso de batida deslocada (ex: se Entrada2 já tem batida que é saída)
+        const registro = await client.getRegistroDoDia(cpfClean, cleanDate).catch(() => null);
+        
+        // Se formos lançar em Entrada2, mas Entrada2 já tiver hora que é maior que Saida1 em > 2h30:
+        if (params.coluna === "Entrada2" && registro?.Entrada2 && !registro?.Saida2) {
+            console.log(`[launchDirectManualPunch] Deslocando batida de Entrada2 para Saida2 antes de lançar...`);
+            await client.trocarColunaBatida({
+                cpf: cpfClean,
+                data: cleanDate,
+                colunaOrigem: "Entrada2",
+                colunaDestino: "Saida2"
+            });
+        }
+
+        // Lançar batida manual no Secullum
+        const res = await client.lancarBatidaManual({
+            cpf: cpfClean,
+            data: cleanDate,
+            hora: params.hora,
+            coluna: params.coluna,
+            motivo
+        });
+
+        if (!res.success) {
+            return { success: false, message: res.message };
+        }
+
+        // Criar ou atualizar o registro de ajuste no Hub como SUCESSO / APPROVED_SYNCED
+        const dayStart = new Date(`${cleanDate}T00:00:00-03:00`);
+        const dayEnd = new Date(`${cleanDate}T23:59:59-03:00`);
+        const existingAdj = await prisma.attendancePunchAdjustment.findFirst({
+            where: { employeeId: emp.id, date: { gte: dayStart, lte: dayEnd } }
+        });
+
+        const posto = emp.assignments[0]?.posto;
+        const c = posto?.client;
+
+        if (existingAdj) {
+            await prisma.attendancePunchAdjustment.update({
+                where: { id: existingAdj.id },
+                data: {
+                    status: "APPROVED_SYNCED",
+                    secullumStatus: "SUCESSO",
+                    secullumReasonId: "ESQUECIMENTO",
+                    secullumReasonName: "SEM REGISTRO DE PONTO (ESQUECIMENTO)",
+                    requestedTime: `${params.coluna} ${params.hora}`,
+                    secullumResponseLog: JSON.stringify({ message: res.message, raw: res.raw }),
+                    resolvedByUserId: user.id,
+                    resolvedAt: new Date()
+                }
+            });
+        } else {
+            const count = await prisma.attendancePunchAdjustment.count();
+            const code = `AJ${1001 + count}`;
+            await prisma.attendancePunchAdjustment.create({
+                data: {
+                    code,
+                    employeeId: emp.id,
+                    clientId: c?.id || null,
+                    postoId: posto?.id || null,
+                    date: new Date(`${cleanDate}T12:00:00-03:00`),
+                    punchType: COLUMN_TO_PUNCH_TYPE[params.coluna] || params.coluna,
+                    expectedTime: `${COLUMN_LABEL[params.coluna] || params.coluna} ${params.hora}`,
+                    requestedTime: `${COLUMN_LABEL[params.coluna] || params.coluna} ${params.hora}`,
+                    secullumReasonId: "ESQUECIMENTO",
+                    secullumReasonName: "SEM REGISTRO DE PONTO (ESQUECIMENTO)",
+                    notes: motivo,
+                    status: "APPROVED_SYNCED",
+                    secullumStatus: "SUCESSO",
+                    secullumResponseLog: JSON.stringify({ message: res.message, raw: res.raw }),
+                    source: "MANUAL_DIRECT",
+                    resolvedByUserId: user.id,
+                    resolvedAt: new Date()
+                }
+            });
+        }
+
+        revalidatePath("/admin/punch-inconsistencies");
+        revalidatePath("/admin/punch-adjustments");
+        return { success: true, message: `Batida ${COLUMN_LABEL[params.coluna] || params.coluna} (${params.hora}) incluída no Secullum com sucesso!` };
+    } catch (error: any) {
+        console.error("[launchDirectManualPunch] Erro:", error);
+        return { success: false, message: error.message || "Erro ao lançar batida manual." };
+    }
+}
+

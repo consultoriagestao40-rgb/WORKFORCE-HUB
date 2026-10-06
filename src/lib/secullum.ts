@@ -552,6 +552,42 @@ export class SecullumApiClient {
     }
 
     /**
+     * Move uma batida de uma coluna para outra (ex: de Entrada2 para Saida2 quando o intervalo foi esquecido)
+     * Endpoint: POST /IntegracaoExterna/CartaoPonto/Troca
+     */
+    async trocarColunaBatida(params: {
+        cpf: string;
+        data: string; // YYYY-MM-DD
+        colunaOrigem: string;
+        colunaDestino: string;
+    }): Promise<{ success: boolean; message: string; raw?: any }> {
+        const headers = await this.getHeaders();
+        const cleanDate = params.data.includes("T") ? params.data.split("T")[0] : params.data;
+
+        try {
+            const res = await fetch(`${this.baseUrl}/IntegracaoExterna/CartaoPonto/Troca`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                    cpf: params.cpf.replace(/\D/g, ""),
+                    data: cleanDate,
+                    colunaOrigem: params.colunaOrigem,
+                    colunaDestino: params.colunaDestino
+                }),
+                cache: "no-store"
+            });
+
+            if (!res.ok) {
+                const text = await res.text();
+                return { success: false, message: `Secullum CartaoPonto/Troca retornou erro (${res.status}): ${text}` };
+            }
+            return { success: true, message: `Batida movida de ${params.colunaOrigem} para ${params.colunaDestino} com sucesso.` };
+        } catch (error: any) {
+            return { success: false, message: `Erro na conexão com Secullum: ${error.message || error}` };
+        }
+    }
+
+    /**
      * Cadastra um período de afastamento do funcionário no Secullum
      * Endpoint: POST /IntegracaoExterna/FuncionariosAfastamentos
      */

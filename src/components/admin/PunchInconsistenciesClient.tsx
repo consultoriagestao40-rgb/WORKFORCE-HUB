@@ -17,7 +17,8 @@ import {
     ShieldAlert,
     Sparkles,
     User,
-    UserX
+    UserX,
+    PlusCircle
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,8 +35,10 @@ import {
     dispatchInconsistencies,
     ignoreInconsistency,
     unignoreInconsistency,
+    launchDirectManualPunch,
     type InconsistencyRow
 } from "@/actions/punch-inconsistencies";
+import { COLUMN_LABEL, type PunchColumn } from "@/lib/punch-inconsistency";
 
 type Props = {
     clients: Array<{ id: string; name: string }>;
@@ -108,6 +111,50 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
     const [confirmItems, setConfirmItems] = useState<InconsistencyRow[] | null>(null);
     const [ignoreRow, setIgnoreRow] = useState<InconsistencyRow | null>(null);
     const [ignoreReason, setIgnoreReason] = useState(IGNORE_REASONS[0]);
+
+    // Lançamento Direto de Batida Manual pelo RH (Esquecimento sem incomodar gestor)
+    const [directPunchRow, setDirectPunchRow] = useState<InconsistencyRow | null>(null);
+    const [directPunchCol, setDirectPunchCol] = useState<PunchColumn>("Saida2");
+    const [directPunchTime, setDirectPunchTime] = useState("");
+    const [directPunchReason, setDirectPunchReason] = useState("SEM REGISTRO DE PONTO (ESQUECIMENTO)");
+    const [isDirectPunching, setIsDirectPunching] = useState(false);
+
+    const openDirectPunch = (r: InconsistencyRow) => {
+        setDirectPunchRow(r);
+        const firstMissing = (r.missing[0] || "Saida2") as PunchColumn;
+        setDirectPunchCol(firstMissing);
+        setDirectPunchTime(r.expected[firstMissing] || "08:00");
+        setDirectPunchReason("SEM REGISTRO DE PONTO (ESQUECIMENTO)");
+    };
+
+    const doDirectPunch = async () => {
+        if (!directPunchRow || !directPunchCol || !directPunchTime) return;
+        setIsDirectPunching(true);
+        try {
+            const res = await launchDirectManualPunch({
+                employeeId: directPunchRow.employeeId,
+                date: directPunchRow.date,
+                coluna: directPunchCol,
+                hora: directPunchTime,
+                motivo: directPunchReason
+            });
+            if (res.success) {
+                toast.success(res.message);
+                setRows(prev => prev.map(r => r.key === directPunchRow.key ? {
+                    ...r,
+                    status: "ENVIADO",
+                    adjustment: { id: "", code: "DIRETO", status: "APPROVED_SYNCED", secullumStatus: "SUCESSO" }
+                } : r));
+                setDirectPunchRow(null);
+            } else {
+                toast.error(`Erro ao lançar no Secullum: ${res.message}`);
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Erro ao lançar batida manual.");
+        } finally {
+            setIsDirectPunching(false);
+        }
+    };
 
     const runScan = async () => {
         setLoading(true);
@@ -660,9 +707,22 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                         </TableCell>
 
                                         {/* 8. Ações STICKY RIGHT (SEMPRE VISÍVEL!) */}
-                                        <TableCell className={`w-36 sticky right-0 z-20 transition-colors text-right whitespace-nowrap pr-4 pl-2 shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.06)] ${stickyBg}`}>
+                                        <TableCell className={`w-44 sticky right-0 z-20 transition-colors text-right whitespace-nowrap pr-4 pl-2 shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.06)] ${stickyBg}`}>
                                             {r.status === "NOVO" && (
                                                 <div className="flex items-center justify-end gap-1.5">
+                                                    {/* Botão de Lançar Batida Direta (Esquecimento) */}
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        disabled={isSending}
+                                                        onClick={() => openDirectPunch(r)}
+                                                        className="h-8 rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs px-2.5 shadow-2xs flex items-center gap-1 cursor-pointer transition-all hover:scale-105"
+                                                        title="Lançar batida manual direto no Secullum (Esquecimento)"
+                                                    >
+                                                        <PlusCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                                        <span>Lançar</span>
+                                                    </Button>
+
                                                     <Button 
                                                         size="sm" 
                                                         disabled={isSending} 
@@ -814,6 +874,87 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                     <DialogFooter className="pt-2 border-t border-slate-100">
                         <Button variant="outline" onClick={() => setIgnoreRow(null)} className="rounded-xl text-xs">Cancelar</Button>
                         <Button id="btn-confirm-ignore" onClick={doIgnore} className="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl px-5">Ignorar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal Lançar Batida Manual Direto no Secullum (Esquecimento) */}
+            <Dialog open={!!directPunchRow} onOpenChange={o => !o && !isDirectPunching && setDirectPunchRow(null)}>
+                <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto rounded-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-slate-900 font-black">
+                            <PlusCircle className="w-5 h-5 text-emerald-600" />
+                            Lançar Batida Direto no Secullum
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-slate-500">
+                            {directPunchRow && (
+                                <>
+                                    <b>{directPunchRow.employeeName}</b> ({directPunchRow.clientName || "Posto"}) — {fmtDate(directPunchRow.date)}
+                                    <span className="block mt-1 text-slate-600">
+                                        Esta batida será incluída imediatamente no cartão de ponto com o motivo <b>Esquecimento</b>, sem incomodar o gestor no WhatsApp.
+                                    </span>
+                                </>
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {directPunchRow && (
+                        <div className="space-y-3.5 py-2">
+                            <div>
+                                <Label className="text-xs font-bold text-slate-700 mb-1 block">Marcação a Incluir</Label>
+                                <Select value={directPunchCol} onValueChange={v => {
+                                    setDirectPunchCol(v as PunchColumn);
+                                    if (directPunchRow.expected[v as PunchColumn]) {
+                                        setDirectPunchTime(directPunchRow.expected[v as PunchColumn]!);
+                                    }
+                                }}>
+                                    <SelectTrigger className="w-full rounded-xl"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        {directPunchRow.missing.map(col => (
+                                            <SelectItem key={col} value={col}>
+                                                {COLUMN_LABEL[col] || col} (Previsto: {directPunchRow.expected[col] || "—"})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label className="text-xs font-bold text-slate-700 mb-1 block">Horário da Batida (HH:mm)</Label>
+                                <Input
+                                    value={directPunchTime}
+                                    onChange={e => setDirectPunchTime(e.target.value)}
+                                    placeholder="HH:mm"
+                                    className="h-10 rounded-xl font-mono text-xs font-bold"
+                                />
+                                <span className="text-[11px] text-slate-400 mt-1 block">
+                                    Horário sugerido: <b>{directPunchRow.expected[directPunchCol] || "—"}</b>
+                                </span>
+                            </div>
+
+                            <div>
+                                <Label className="text-xs font-bold text-slate-700 mb-1 block">Motivo</Label>
+                                <Input
+                                    value={directPunchReason}
+                                    onChange={e => setDirectPunchReason(e.target.value)}
+                                    className="h-10 rounded-xl text-xs"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter className="pt-2 border-t border-slate-100">
+                        <Button variant="outline" onClick={() => setDirectPunchRow(null)} disabled={isDirectPunching} className="rounded-xl text-xs">
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={doDirectPunch}
+                            disabled={isDirectPunching}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl px-5 gap-1.5 cursor-pointer shadow-sm"
+                        >
+                            {isDirectPunching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                            Gravar no Secullum Agora
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
