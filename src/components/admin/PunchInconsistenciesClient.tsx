@@ -3,16 +3,20 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
     AlertTriangle,
+    Building2,
+    Calendar,
     CalendarX2,
     CheckCircle2,
     Clock,
     EyeOff,
+    Filter,
     Loader2,
     RotateCcw,
     Search,
     Send,
     ShieldAlert,
     Sparkles,
+    User,
     UserX
 } from "lucide-react";
 import { toast } from "sonner";
@@ -308,21 +312,44 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
             )}
 
             {/* Filtros */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-3 items-end">
-                    <div>
-                        <Label className="text-xs font-semibold text-slate-600">Início</Label>
-                        <Input id="filter-start" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-10 rounded-lg" />
+            <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-sm space-y-4">
+                {/* Linha 1: Seletores principais */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                    {/* Período */}
+                    <div className="min-w-0">
+                        <Label className="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Período (Início e Fim)</span>
+                        </Label>
+                        <div className="grid grid-cols-2 gap-2">
+                            <Input 
+                                id="filter-start" 
+                                type="date" 
+                                value={startDate} 
+                                onChange={e => setStartDate(e.target.value)} 
+                                className="h-10 rounded-xl text-xs font-medium bg-slate-50/60 border-slate-200 px-2" 
+                            />
+                            <Input 
+                                id="filter-end" 
+                                type="date" 
+                                value={endDate} 
+                                onChange={e => setEndDate(e.target.value)} 
+                                className="h-10 rounded-xl text-xs font-medium bg-slate-50/60 border-slate-200 px-2" 
+                            />
+                        </div>
                     </div>
-                    <div>
-                        <Label className="text-xs font-semibold text-slate-600">Fim</Label>
-                        <Input id="filter-end" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-10 rounded-lg" />
-                    </div>
-                    <div>
-                        <Label className="text-xs font-semibold text-slate-600">Gestor</Label>
+
+                    {/* Gestor */}
+                    <div className="min-w-0">
+                        <Label className="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Gestor</span>
+                        </Label>
                         <Select value={managerFilter} onValueChange={setManagerFilter}>
-                            <SelectTrigger id="filter-manager" className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
-                            <SelectContent>
+                            <SelectTrigger id="filter-manager" className="w-full h-10 rounded-xl text-xs font-medium bg-slate-50/60 border-slate-200 min-w-0">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-72">
                                 <SelectItem value="ALL">Todos os gestores</SelectItem>
                                 <SelectItem value="NONE">⚠️ Sem gestor</SelectItem>
                                 {managers.map(m => (
@@ -331,36 +358,71 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                             </SelectContent>
                         </Select>
                     </div>
-                    <div>
-                        <Label className="text-xs font-semibold text-slate-600">Contrato</Label>
+
+                    {/* Contrato */}
+                    <div className="min-w-0">
+                        <Label className="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Contrato</span>
+                        </Label>
                         <Select value={clientFilter} onValueChange={setClientFilter}>
-                            <SelectTrigger id="filter-client" className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
-                            <SelectContent>
+                            <SelectTrigger id="filter-client" className="w-full h-10 rounded-xl text-xs font-medium bg-slate-50/60 border-slate-200 min-w-0">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-72">
                                 <SelectItem value="ALL">Todos os contratos</SelectItem>
                                 {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
-                    <div>
-                        <Label className="text-xs font-semibold text-slate-600">Tipo</Label>
+
+                    {/* Tipo */}
+                    <div className="min-w-0">
+                        <Label className="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                            <Filter className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Tipo de Inconsistência</span>
+                        </Label>
                         <Select value={kindFilter} onValueChange={v => setKindFilter(v as any)}>
-                            <SelectTrigger id="filter-kind" className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+                            <SelectTrigger id="filter-kind" className="w-full h-10 rounded-xl text-xs font-medium bg-slate-50/60 border-slate-200 min-w-0">
+                                <SelectValue />
+                            </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="ALL">Todos</SelectItem>
+                                <SelectItem value="ALL">Todos os tipos</SelectItem>
                                 <SelectItem value="SEM_BATIDAS">Sem nenhuma batida</SelectItem>
                                 <SelectItem value="INCOMPLETA">Batidas faltando</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
-                    <div>
-                        <Label className="text-xs font-semibold text-slate-600">Buscar</Label>
-                        <div className="relative">
-                            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                            <Input id="filter-search" placeholder="Nome, contrato, folha" value={search} onChange={e => setSearch(e.target.value)} className="h-10 rounded-lg pl-9" />
-                        </div>
+                </div>
+
+                {/* Linha 2: Busca rápida + Botão de busca */}
+                <div className="flex flex-col sm:flex-row items-center gap-3 pt-2.5 border-t border-slate-100">
+                    <div className="relative flex-1 w-full min-w-0">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <Input 
+                            id="filter-search" 
+                            placeholder="Buscar rapidamente por nome do colaborador, contrato ou matrícula..." 
+                            value={search} 
+                            onChange={e => setSearch(e.target.value)} 
+                            className="h-10 rounded-xl pl-9 pr-8 text-xs font-medium bg-slate-50/60 border-slate-200 w-full" 
+                        />
+                        {search && (
+                            <button
+                                type="button"
+                                onClick={() => setSearch("")}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold p-1 cursor-pointer"
+                            >
+                                ✕
+                            </button>
+                        )}
                     </div>
-                    <Button id="btn-scan" onClick={runScan} disabled={loading} className="h-10 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold">
-                        {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
+                    <Button 
+                        id="btn-scan" 
+                        onClick={runScan} 
+                        disabled={loading} 
+                        className="w-full sm:w-auto h-10 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-xs px-5 shadow-sm shrink-0 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                    >
+                        {loading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Search className="w-4 h-4 mr-1" />}
                         Buscar inconsistências
                     </Button>
                 </div>
@@ -405,176 +467,324 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                 </div>
             )}
 
-            {/* Tabela */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <Table>
-                    <TableHeader>
-                        <TableRow className="bg-slate-50/80">
-                            <TableHead className="w-10">
-                                <input id="chk-all" type="checkbox" className="w-4 h-4 accent-indigo-600 cursor-pointer" checked={allSelected} onChange={toggleAll} disabled={selectable.length === 0} />
-                            </TableHead>
-                            <TableHead className="font-bold text-slate-700">Data</TableHead>
-                            <TableHead className="font-bold text-slate-700">Colaborador</TableHead>
-                            <TableHead className="font-bold text-slate-700">Contrato / Posto</TableHead>
-                            <TableHead className="font-bold text-slate-700">Gestor</TableHead>
-                            <TableHead className="font-bold text-slate-700">Marcações (real × previsto)</TableHead>
-                            <TableHead className="font-bold text-slate-700">Situação</TableHead>
-                            <TableHead className="font-bold text-slate-700 text-right">Ações</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {loading && (
-                            <TableRow>
-                                <TableCell colSpan={8} className="text-center py-16 text-slate-500">
-                                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-sky-600" />
-                                    Lendo cartões de ponto no Secullum...
-                                </TableCell>
+            {/* Tabela com Colunas Fixas (Data/Colaborador à esquerda e Botão de Envio SEMPRE VISÍVEL à direita) */}
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden relative">
+                <div className="w-full overflow-x-auto relative">
+                    <Table className="w-full border-collapse border-spacing-0 min-w-[1050px]">
+                        <TableHeader>
+                            <TableRow className="bg-slate-50/90 border-b border-slate-200/80">
+                                <TableHead className="w-10 sticky left-0 z-30 bg-slate-50 pl-4 pr-1 text-center">
+                                    <input 
+                                        id="chk-all" 
+                                        type="checkbox" 
+                                        className="w-4 h-4 accent-indigo-600 rounded cursor-pointer" 
+                                        checked={allSelected} 
+                                        onChange={toggleAll} 
+                                        disabled={selectable.length === 0} 
+                                    />
+                                </TableHead>
+                                <TableHead className="w-24 sticky left-10 z-30 bg-slate-50 font-bold text-slate-700 text-xs uppercase tracking-wider px-3 whitespace-nowrap">
+                                    Data
+                                </TableHead>
+                                <TableHead className="min-w-[190px] max-w-[240px] sticky left-[136px] z-30 bg-slate-50 font-bold text-slate-700 text-xs uppercase tracking-wider px-3 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.06)]">
+                                    Colaborador
+                                </TableHead>
+                                <TableHead className="min-w-[180px] max-w-[220px] font-bold text-slate-700 text-xs uppercase tracking-wider px-3">
+                                    Contrato / Posto
+                                </TableHead>
+                                <TableHead className="min-w-[150px] max-w-[190px] font-bold text-slate-700 text-xs uppercase tracking-wider px-3">
+                                    Gestor
+                                </TableHead>
+                                <TableHead className="min-w-[270px] font-bold text-slate-700 text-xs uppercase tracking-wider px-3">
+                                    Marcações (real × previsto)
+                                </TableHead>
+                                <TableHead className="w-32 font-bold text-slate-700 text-xs uppercase tracking-wider px-3">
+                                    Situação
+                                </TableHead>
+                                <TableHead className="w-36 sticky right-0 z-30 bg-slate-50 font-bold text-slate-700 text-xs uppercase tracking-wider text-right pr-4 pl-2 shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.06)]">
+                                    Ações
+                                </TableHead>
                             </TableRow>
-                        )}
-                        {!loading && filtered.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={8} className="text-center py-16 text-slate-500">
-                                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500" />
-                                    {hasScanned ? "Nenhuma inconsistência com esses filtros." : "Clique em Buscar inconsistências."}
-                                </TableCell>
-                            </TableRow>
-                        )}
-                        {!loading && filtered.map(r => {
-                            const isSending = sendingKeys.has(r.key);
-                            const adjBadge = r.adjustment ? ADJ_STATUS_LABEL[r.adjustment.status] : null;
-                            const usedCols = COLS.filter(c => r.expected[c] || r.actual[c] || r.missing.includes(c));
-                            return (
-                                <TableRow key={r.key} className={`transition-colors ${selected.has(r.key) ? "bg-indigo-50/50" : "hover:bg-slate-50/60"}`}>
-                                    <TableCell>
-                                        <input type="checkbox" className="w-4 h-4 accent-indigo-600 cursor-pointer" disabled={r.status !== "NOVO"} checked={selected.has(r.key)} onChange={() => toggleOne(r.key)} />
-                                    </TableCell>
-                                    <TableCell className="whitespace-nowrap">
-                                        <div className={`font-bold ${r.weekday === 0 ? "text-rose-600" : "text-slate-800"}`}>{fmtDate(r.date)}</div>
-                                        <div className="text-xs text-slate-500">{WEEKDAYS[r.weekday]}</div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="font-semibold text-slate-800 leading-tight">{r.employeeName}</div>
-                                        {r.folha && <div className="text-xs text-slate-500">Folha {r.folha}</div>}
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="text-sm font-medium text-slate-700 leading-tight">{r.clientName || <span className="text-slate-400">Sem alocação</span>}</div>
-                                        {r.postoName && <div className="text-xs text-slate-500">{r.postoName}</div>}
-                                    </TableCell>
-                                    <TableCell>
-                                        {r.managerName ? (
-                                            <div className="text-sm text-slate-700">
-                                                {r.managerName}
-                                                {!r.managerHasPhone && <div className="text-[11px] text-amber-600 font-semibold">sem telefone</div>}
-                                            </div>
-                                        ) : (
-                                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Sem gestor</Badge>
-                                        )}
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex flex-wrap gap-1">
-                                            {usedCols.map(c => {
-                                                const isMissing = r.missing.includes(c);
-                                                const val = r.actual[c];
-                                                const isText = val && !/^\d{1,2}:\d{2}$/.test(val);
-                                                return (
-                                                    <div
-                                                        key={c}
-                                                        title={`${c} — previsto ${r.expected[c] || "—"}`}
-                                                        className={`flex flex-col items-center min-w-[52px] px-1.5 py-1 rounded-md border text-[11px] leading-tight ${isMissing
-                                                            ? "bg-rose-50 border-rose-200 text-rose-700 border-dashed"
-                                                            : isText
-                                                                ? "bg-slate-700 border-slate-700 text-white"
-                                                                : "bg-emerald-50 border-emerald-200 text-emerald-800"
-                                                            }`}
-                                                    >
-                                                        <span className="font-bold opacity-70">{COL_SHORT[c]}</span>
-                                                        <span className="font-mono font-semibold">{isMissing ? "faltou" : val}</span>
-                                                        <span className="opacity-60">{r.expected[c] || "—"}</span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                        {r.workedOnDayOff && <div className="text-[11px] text-violet-600 font-semibold mt-1">Batidas em dia de folga</div>}
-                                    </TableCell>
-                                    <TableCell className="whitespace-nowrap">
-                                        {r.status === "NOVO" && (
-                                            <Badge variant="outline" className={r.kind === "SEM_BATIDAS" ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200"}>
-                                                {r.kind === "SEM_BATIDAS" ? "Sem batidas" : `Faltam ${r.missing.length}`}
-                                            </Badge>
-                                        )}
-                                        {r.status === "ENVIADO" && r.adjustment && (
-                                            <div className="flex flex-col gap-1">
-                                                <span className="font-mono text-xs font-bold text-indigo-700">#{r.adjustment.code}</span>
-                                                {adjBadge && <Badge variant="outline" className={adjBadge.cls}>{adjBadge.label}</Badge>}
-                                            </div>
-                                        )}
-                                        {r.status === "IGNORADO" && (
-                                            <div className="flex flex-col gap-0.5">
-                                                <Badge variant="outline" className="bg-slate-100 text-slate-600 border-slate-200">Ignorada</Badge>
-                                                {r.ignored?.reason && <span className="text-[11px] text-slate-500 max-w-[160px] truncate" title={r.ignored.reason}>{r.ignored.reason}</span>}
-                                            </div>
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="text-right whitespace-nowrap">
-                                        {r.status === "NOVO" && (
-                                            <div className="flex items-center justify-end gap-1.5">
-                                                <Button size="sm" disabled={isSending} onClick={() => setConfirmItems([r])}
-                                                    className="h-8 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold">
-                                                    {isSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1" />}
-                                                    {!isSending && "Enviar"}
-                                                </Button>
-                                                <Button size="sm" variant="outline" disabled={isSending} onClick={() => { setIgnoreRow(r); setIgnoreReason(IGNORE_REASONS[0]); }}
-                                                    className="h-8 rounded-lg text-slate-600" title="Ignorar">
-                                                    <EyeOff className="w-3.5 h-3.5" />
-                                                </Button>
-                                            </div>
-                                        )}
-                                        {r.status === "IGNORADO" && (
-                                            <Button size="sm" variant="outline" onClick={() => doUnignore(r)} className="h-8 rounded-lg text-slate-600">
-                                                <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reativar
-                                            </Button>
-                                        )}
-                                        {r.status === "ENVIADO" && (
-                                            <a href="/admin/punch-adjustments" className="text-xs font-semibold text-sky-700 hover:underline">Ver ajuste →</a>
-                                        )}
+                        </TableHeader>
+                        <TableBody>
+                            {loading && (
+                                <TableRow>
+                                    <TableCell colSpan={8} className="text-center py-16 text-slate-500">
+                                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-sky-600" />
+                                        Lendo cartões de ponto no Secullum...
                                     </TableCell>
                                 </TableRow>
-                            );
-                        })}
-                    </TableBody>
-                </Table>
+                            )}
+                            {!loading && filtered.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={8} className="text-center py-16 text-slate-500">
+                                        <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500" />
+                                        {hasScanned ? "Nenhuma inconsistência com esses filtros." : "Clique em Buscar inconsistências."}
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                            {!loading && filtered.map(r => {
+                                const isSending = sendingKeys.has(r.key);
+                                const adjBadge = r.adjustment ? ADJ_STATUS_LABEL[r.adjustment.status] : null;
+                                const usedCols = COLS.filter(c => r.expected[c] || r.actual[c] || r.missing.includes(c));
+                                const isSelected = selected.has(r.key);
+                                const stickyBg = isSelected ? "bg-indigo-50/95" : "bg-white group-hover:bg-slate-50/95";
+
+                                return (
+                                    <TableRow 
+                                        key={r.key} 
+                                        className={`group transition-colors border-b border-slate-100 ${isSelected ? "bg-indigo-50/50" : "hover:bg-slate-50/60"}`}
+                                    >
+                                        {/* 1. Checkbox Sticky */}
+                                        <TableCell className={`w-10 sticky left-0 z-20 transition-colors pl-4 pr-1 text-center ${stickyBg}`}>
+                                            <input 
+                                                type="checkbox" 
+                                                className="w-4 h-4 accent-indigo-600 rounded cursor-pointer" 
+                                                disabled={r.status !== "NOVO"} 
+                                                checked={isSelected} 
+                                                onChange={() => toggleOne(r.key)} 
+                                            />
+                                        </TableCell>
+
+                                        {/* 2. Data Sticky */}
+                                        <TableCell className={`w-24 sticky left-10 z-20 transition-colors px-3 whitespace-nowrap ${stickyBg}`}>
+                                            <div className={`font-black text-xs ${r.weekday === 0 ? "text-rose-600" : "text-slate-800"}`}>
+                                                {fmtDate(r.date)}
+                                            </div>
+                                            <div className="text-[11px] text-slate-400 font-semibold">{WEEKDAYS[r.weekday]}</div>
+                                        </TableCell>
+
+                                        {/* 3. Colaborador Sticky */}
+                                        <TableCell className={`min-w-[190px] max-w-[240px] sticky left-[136px] z-20 transition-colors px-3 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.06)] ${stickyBg}`}>
+                                            <div className="font-extrabold text-slate-900 text-xs leading-tight truncate" title={r.employeeName}>
+                                                {r.employeeName}
+                                            </div>
+                                            {r.folha && (
+                                                <div className="text-[10px] text-slate-400 font-mono font-medium mt-0.5">
+                                                    Folha {r.folha}
+                                                </div>
+                                            )}
+                                        </TableCell>
+
+                                        {/* 4. Contrato / Posto */}
+                                        <TableCell className="min-w-[180px] max-w-[220px] px-3">
+                                            <div className="text-xs font-bold text-slate-800 leading-tight truncate" title={r.clientName || "Sem alocação"}>
+                                                {r.clientName || <span className="text-slate-400 font-normal">Sem alocação</span>}
+                                            </div>
+                                            {r.postoName && (
+                                                <div className="text-[11px] text-slate-500 font-medium truncate mt-0.5" title={r.postoName}>
+                                                    {r.postoName}
+                                                </div>
+                                            )}
+                                        </TableCell>
+
+                                        {/* 5. Gestor */}
+                                        <TableCell className="min-w-[150px] max-w-[190px] px-3">
+                                            {r.managerName ? (
+                                                <div className="text-xs text-slate-700 font-medium truncate" title={r.managerName}>
+                                                    <span className="font-semibold text-slate-800">{r.managerName}</span>
+                                                    {!r.managerHasPhone && (
+                                                        <span className="block text-[10px] text-amber-600 font-bold">⚠️ sem WhatsApp</span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-bold">
+                                                    Sem gestor
+                                                </Badge>
+                                            )}
+                                        </TableCell>
+
+                                        {/* 6. Marcações (real × previsto) */}
+                                        <TableCell className="min-w-[270px] px-3">
+                                            <div className="flex flex-wrap gap-1">
+                                                {usedCols.map(c => {
+                                                    const isMissing = r.missing.includes(c);
+                                                    const val = r.actual[c];
+                                                    const isText = val && !/^\d{1,2}:\d{2}$/.test(val);
+                                                    return (
+                                                        <div
+                                                            key={c}
+                                                            title={`${c} — Previsto: ${r.expected[c] || "—"}`}
+                                                            className={`flex flex-col items-center min-w-[48px] px-1.5 py-0.5 rounded-md border text-[10px] leading-tight transition-all ${
+                                                                isMissing
+                                                                    ? "bg-rose-50 border-rose-200 text-rose-700 border-dashed font-bold"
+                                                                    : isText
+                                                                        ? "bg-slate-700 border-slate-700 text-white font-semibold"
+                                                                        : "bg-emerald-50 border-emerald-200 text-emerald-800 font-semibold"
+                                                            }`}
+                                                        >
+                                                            <span className="font-extrabold opacity-75">{COL_SHORT[c]}</span>
+                                                            <span className="font-mono">{isMissing ? "faltou" : val}</span>
+                                                            <span className="opacity-60 text-[9px]">{r.expected[c] || "—"}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            {r.workedOnDayOff && (
+                                                <div className="text-[10px] text-violet-600 font-bold mt-1">
+                                                    ✦ Batidas em folga
+                                                </div>
+                                            )}
+                                        </TableCell>
+
+                                        {/* 7. Situação */}
+                                        <TableCell className="w-32 whitespace-nowrap px-3">
+                                            {r.status === "NOVO" && (
+                                                <Badge 
+                                                    variant="outline" 
+                                                    className={`text-[10px] font-black py-0.5 px-2 ${
+                                                        r.kind === "SEM_BATIDAS" 
+                                                            ? "bg-red-50 text-red-700 border-red-200" 
+                                                            : "bg-amber-50 text-amber-700 border-amber-200"
+                                                    }`}
+                                                >
+                                                    {r.kind === "SEM_BATIDAS" ? "Sem batidas" : `Falta ${r.missing.length}`}
+                                                </Badge>
+                                            )}
+                                            {r.status === "ENVIADO" && r.adjustment && (
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className="font-mono text-[11px] font-bold text-indigo-700">#{r.adjustment.code}</span>
+                                                    {adjBadge && <Badge variant="outline" className={`text-[10px] py-0 px-1.5 ${adjBadge.cls}`}>{adjBadge.label}</Badge>}
+                                                </div>
+                                            )}
+                                            {r.status === "IGNORADO" && (
+                                                <div className="flex flex-col gap-0.5">
+                                                    <Badge variant="outline" className="bg-slate-100 text-slate-600 border-slate-200 text-[10px]">Ignorada</Badge>
+                                                    {r.ignored?.reason && (
+                                                        <span className="text-[10px] text-slate-400 max-w-[140px] truncate" title={r.ignored.reason}>
+                                                            {r.ignored.reason}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </TableCell>
+
+                                        {/* 8. Ações STICKY RIGHT (SEMPRE VISÍVEL!) */}
+                                        <TableCell className={`w-36 sticky right-0 z-20 transition-colors text-right whitespace-nowrap pr-4 pl-2 shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.06)] ${stickyBg}`}>
+                                            {r.status === "NOVO" && (
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                    <Button 
+                                                        size="sm" 
+                                                        disabled={isSending} 
+                                                        onClick={() => setConfirmItems([r])}
+                                                        className="h-8 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-3 shadow-xs flex items-center gap-1 cursor-pointer transition-all hover:scale-105"
+                                                    >
+                                                        {isSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-0.5 text-indigo-100" />}
+                                                        {!isSending && "Enviar"}
+                                                    </Button>
+                                                    <Button 
+                                                        size="sm" 
+                                                        variant="ghost" 
+                                                        disabled={isSending} 
+                                                        onClick={() => { setIgnoreRow(r); setIgnoreReason(IGNORE_REASONS[0]); }}
+                                                        className="h-8 w-8 p-0 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-slate-200 cursor-pointer" 
+                                                        title="Ignorar esta inconsistência"
+                                                    >
+                                                        <EyeOff className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                </div>
+                                            )}
+                                            {r.status === "IGNORADO" && (
+                                                <Button 
+                                                    size="sm" 
+                                                    variant="outline" 
+                                                    onClick={() => doUnignore(r)} 
+                                                    className="h-8 rounded-xl text-slate-600 text-xs font-semibold hover:bg-slate-100"
+                                                >
+                                                    <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reativar
+                                                </Button>
+                                            )}
+                                            {r.status === "ENVIADO" && (
+                                                <a href="/admin/punch-adjustments" className="text-xs font-bold text-sky-700 hover:underline inline-flex items-center gap-1">
+                                                    Ver ajuste →
+                                                </a>
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                        </TableBody>
+                    </Table>
+                </div>
             </div>
+
+            {/* Barra Flutuante de Ação em Lote quando há itens selecionados */}
+            {selectedRows.length > 0 && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3.5 animate-in fade-in slide-in-from-bottom-5 duration-200">
+                    <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
+                        <span className="text-xs font-semibold text-slate-300">
+                            <strong className="text-white font-black text-sm">{selectedRows.length}</strong> {selectedRows.length === 1 ? "selecionado" : "selecionados"}
+                        </span>
+                    </div>
+                    <div className="h-4 w-px bg-slate-700" />
+                    <Button
+                        id="btn-floating-send"
+                        size="sm"
+                        onClick={() => setConfirmItems(selectedRows)}
+                        disabled={sendingKeys.size > 0}
+                        className="bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs h-9 px-4 rounded-xl shadow-lg flex items-center gap-2 cursor-pointer transition-all hover:scale-105"
+                    >
+                        {sendingKeys.size > 0 ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                            <Send className="w-3.5 h-3.5 text-indigo-200" />
+                        )}
+                        <span>Enviar ao Gestor Agora</span>
+                    </Button>
+                    <button
+                        type="button"
+                        onClick={() => setSelected(new Set())}
+                        className="text-xs text-slate-400 hover:text-white underline font-semibold cursor-pointer ml-1"
+                    >
+                        Desmarcar
+                    </button>
+                </div>
+            )}
 
             {/* Confirmar envio */}
             <Dialog open={!!confirmItems} onOpenChange={o => !o && setConfirmItems(null)}>
-                <DialogContent className="sm:max-w-lg">
+                <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col p-6 overflow-hidden rounded-2xl">
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2"><Send className="w-5 h-5 text-indigo-600" /> Enviar ao gestor</DialogTitle>
-                        <DialogDescription>
+                        <DialogTitle className="flex items-center gap-2 text-slate-900 font-black">
+                            <Send className="w-5 h-5 text-indigo-600" /> 
+                            Confirmar Envio ao Gestor
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-slate-500">
                             Será criado <b>um ajuste por colaborador/dia</b> e o gestor do contrato recebe no WhatsApp privado o menu para <b>Ajustar Ponto</b> ou <b>Confirmar Falta</b>.
                         </DialogDescription>
                     </DialogHeader>
                     {confirmItems && (
-                        <div className="space-y-2 text-sm">
-                            <div className="max-h-56 overflow-auto rounded-lg border border-slate-200 divide-y">
+                        <div className="space-y-3 text-sm flex-1 overflow-y-auto py-2">
+                            <div className="max-h-64 overflow-auto rounded-xl border border-slate-200 divide-y divide-slate-100 bg-slate-50/50">
                                 {confirmItems.map(i => (
-                                    <div key={i.key} className="px-3 py-2 flex justify-between gap-2">
-                                        <span className="font-medium text-slate-700 truncate">{i.employeeName}</span>
-                                        <span className="text-slate-500 whitespace-nowrap">{fmtDate(i.date)} · {i.managerName || "sem gestor"}</span>
+                                    <div key={i.key} className="px-3.5 py-2.5 flex justify-between items-center gap-2 text-xs">
+                                        <div className="min-w-0">
+                                            <span className="font-bold text-slate-800 block truncate">{i.employeeName}</span>
+                                            <span className="text-[10px] text-slate-400">{i.clientName || "Sem contrato"}</span>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            <span className="text-slate-700 font-semibold block">{fmtDate(i.date)}</span>
+                                            <span className="text-[10px] text-slate-400">{i.managerName || "sem gestor"}</span>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
                             {confirmItems.some(i => !i.managerHasPhone) && (
-                                <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs">
-                                    {confirmItems === selectedRows ? selectedWithoutManager : confirmItems.filter(i => !i.managerHasPhone).length} item(ns) sem gestor com telefone: irão como aviso em texto para o grupo "Ajuste de ponto".
+                                <p className="text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs font-medium">
+                                    ⚠️ {confirmItems === selectedRows ? selectedWithoutManager : confirmItems.filter(i => !i.managerHasPhone).length} item(ns) sem gestor com telefone: irão como aviso em texto para o grupo "Ajuste de ponto".
                                 </p>
                             )}
                         </div>
                     )}
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setConfirmItems(null)}>Cancelar</Button>
-                        <Button id="btn-confirm-send" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold" onClick={() => confirmItems && doDispatch(confirmItems)}>
-                            Enviar {confirmItems?.length || 0}
+                    <DialogFooter className="pt-2 border-t border-slate-100">
+                        <Button variant="outline" onClick={() => setConfirmItems(null)} className="rounded-xl text-xs">Cancelar</Button>
+                        <Button 
+                            id="btn-confirm-send" 
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl px-5" 
+                            onClick={() => confirmItems && doDispatch(confirmItems)}
+                        >
+                            Confirmar e Enviar ({confirmItems?.length || 0})
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -582,25 +792,28 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
 
             {/* Ignorar */}
             <Dialog open={!!ignoreRow} onOpenChange={o => !o && setIgnoreRow(null)}>
-                <DialogContent className="sm:max-w-md">
+                <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto rounded-2xl">
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2"><EyeOff className="w-5 h-5 text-slate-600" /> Ignorar inconsistência</DialogTitle>
-                        <DialogDescription>
-                            {ignoreRow && <>{ignoreRow.employeeName} — {fmtDate(ignoreRow.date)}. Ela deixa de aparecer em "Para analisar".</>}
+                        <DialogTitle className="flex items-center gap-2 text-slate-900 font-black">
+                            <EyeOff className="w-5 h-5 text-slate-600" /> 
+                            Ignorar inconsistência
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-slate-500">
+                            {ignoreRow && <>{ignoreRow.employeeName} — {fmtDate(ignoreRow.date)}. Ela deixará de aparecer em "Para analisar".</>}
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-600">Motivo</Label>
+                    <div className="space-y-2 py-2">
+                        <Label className="text-xs font-bold text-slate-700">Motivo</Label>
                         <Select value={ignoreReason} onValueChange={setIgnoreReason}>
-                            <SelectTrigger id="ignore-reason"><SelectValue /></SelectTrigger>
+                            <SelectTrigger id="ignore-reason" className="w-full rounded-xl"><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 {IGNORE_REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIgnoreRow(null)}>Cancelar</Button>
-                        <Button id="btn-confirm-ignore" onClick={doIgnore} className="bg-slate-800 hover:bg-slate-900 text-white">Ignorar</Button>
+                    <DialogFooter className="pt-2 border-t border-slate-100">
+                        <Button variant="outline" onClick={() => setIgnoreRow(null)} className="rounded-xl text-xs">Cancelar</Button>
+                        <Button id="btn-confirm-ignore" onClick={doIgnore} className="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl px-5">Ignorar</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

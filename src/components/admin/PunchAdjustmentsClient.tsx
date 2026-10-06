@@ -663,8 +663,8 @@ export default function PunchAdjustmentsClient({
                 </div>
 
                 {/* Tabela de Ajustes (Exato Padrão Atestados) */}
-                <div className="rounded-xl border border-slate-200 overflow-hidden">
-                    <Table>
+                <div className="rounded-xl border border-slate-200 overflow-hidden w-full overflow-x-auto">
+                    <Table className="min-w-[900px]">
                         <TableHeader className="bg-slate-50 border-b border-slate-200">
                             <TableRow>
                                 <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3.5">Código / Data</TableHead>

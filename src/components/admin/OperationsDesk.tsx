@@ -1777,7 +1777,7 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
 
             {/* Dialog for Treating Lack and Coverage selection */}
             <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-                <DialogContent className="sm:max-w-[500px]">
+                <DialogContent className="sm:max-w-[520px] max-h-[92vh] overflow-y-auto rounded-2xl">
                     <DialogHeader>
                         <DialogTitle>Tratar Falta / Lançar Cobertura</DialogTitle>
                         <DialogDescription>
@@ -2094,7 +2094,7 @@ export function OperationsDesk({ companies, clients, systemUsers, currentUser }:
 
             {/* Dialog for requesting Disciplinary Measure */}
             <Dialog open={openDisciplinaryDialog} onOpenChange={setOpenDisciplinaryDialog}>
-                <DialogContent className="sm:max-w-[480px]">
+                <DialogContent className="sm:max-w-[480px] max-h-[92vh] overflow-y-auto rounded-2xl">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-rose-600">
                             <Scale className="w-5 h-5" />
