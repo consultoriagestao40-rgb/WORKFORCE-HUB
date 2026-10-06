@@ -13,6 +13,7 @@ import {
     PUNCH_COLUMNS,
     type PunchColumn
 } from "@/lib/punch-inconsistency";
+import { generateAdjustmentCode } from "./punch-adjustments";
 
 export type InconsistencyRow = {
     key: string;                 // employeeId_YYYY-MM-DD
@@ -370,31 +371,59 @@ export async function launchDirectManualPunch(params: {
         const cleanDate = params.date;
         const motivo = params.motivo || `Ajuste Direto RH (${user.name || "Admin"}) | Esquecimento de batida`;
 
-        // Verificar se há caso de batida deslocada (ex: se Entrada2 já tem batida que é saída)
+        // Obter estado atual do dia no Secullum
         const registro = await client.getRegistroDoDia(cpfClean, cleanDate).catch(() => null);
         
-        // Se formos lançar em Entrada2, mas Entrada2 já tiver hora que é maior que Saida1 em > 2h30:
+        // 1. Tratamento inteligente de batida deslocada:
+        // Caso clássico: O colaborador bateu 3 vezes (E1, S1 e a saída no fim do dia).
+        // Como não bateu o almoço, o Secullum aloca a 3ª batida em Entrada2 e deixa Saida2 vazia.
+        // Se estamos lançando Entrada2 (retorno do almoço) e Entrada2 já tem batida enquanto Saida2 está vazia:
         if (params.coluna === "Entrada2" && registro?.Entrada2 && !registro?.Saida2) {
-            console.log(`[launchDirectManualPunch] Deslocando batida de Entrada2 para Saida2 antes de lançar...`);
-            await client.trocarColunaBatida({
+            console.log(`[launchDirectManualPunch] Deslocando batida de Entrada2 (${registro.Entrada2}) para Saida2 antes de lançar...`);
+            const swapRes = await client.trocarColunaBatida({
                 cpf: cpfClean,
                 data: cleanDate,
                 colunaOrigem: "Entrada2",
                 colunaDestino: "Saida2"
             });
+            if (!swapRes.success) {
+                console.warn("[launchDirectManualPunch] Aviso ao trocar coluna:", swapRes.message);
+            }
         }
 
-        // Lançar batida manual no Secullum
-        const res = await client.lancarBatidaManual({
-            cpf: cpfClean,
-            data: cleanDate,
-            hora: params.hora,
-            coluna: params.coluna,
-            motivo
-        });
+        // 2. Se a batida exata já existe na coluna no Secullum (ex: tentativa anterior onde o Secullum gravou mas o Hub falhou):
+        const alreadyHasExactPunch = Boolean(
+            registro && (registro[params.coluna] === params.hora || registro[params.coluna]?.trim() === params.hora.trim())
+        );
 
-        if (!res.success) {
-            return { success: false, message: res.message };
+        let resMessage = "Batida incluída com sucesso.";
+        let resRaw: any = null;
+
+        if (alreadyHasExactPunch) {
+            console.log(`[launchDirectManualPunch] Marcação ${params.coluna} (${params.hora}) já confirmada no Secullum.`);
+            resMessage = `Marcação ${COLUMN_LABEL[params.coluna] || params.coluna} (${params.hora}) já confirmada no Secullum.`;
+        } else {
+            // Lançar batida manual no Secullum
+            const res = await client.lancarBatidaManual({
+                cpf: cpfClean,
+                data: cleanDate,
+                hora: params.hora,
+                coluna: params.coluna,
+                motivo
+            });
+
+            if (!res.success) {
+                // Se der erro de não poder sobrescrever, checa se a batida acabou entrando
+                const checkAgain = await client.getRegistroDoDia(cpfClean, cleanDate).catch(() => null);
+                if (checkAgain && checkAgain[params.coluna]?.trim() === params.hora.trim()) {
+                    resMessage = `Marcação ${COLUMN_LABEL[params.coluna] || params.coluna} (${params.hora}) confirmada no Secullum.`;
+                } else {
+                    return { success: false, message: `Erro Secullum: ${res.message}` };
+                }
+            } else {
+                resMessage = res.message;
+                resRaw = res.raw;
+            }
         }
 
         // Criar ou atualizar o registro de ajuste no Hub como SUCESSO / APPROVED_SYNCED
@@ -416,14 +445,13 @@ export async function launchDirectManualPunch(params: {
                     secullumReasonId: "ESQUECIMENTO",
                     secullumReasonName: "SEM REGISTRO DE PONTO (ESQUECIMENTO)",
                     requestedTime: `${params.coluna} ${params.hora}`,
-                    secullumResponseLog: JSON.stringify({ message: res.message, raw: res.raw }),
+                    secullumResponseLog: JSON.stringify({ message: resMessage, raw: resRaw }),
                     resolvedByUserId: user.id,
                     resolvedAt: new Date()
                 }
             });
         } else {
-            const count = await prisma.attendancePunchAdjustment.count();
-            const code = `AJ${1001 + count}`;
+            const code = await generateAdjustmentCode();
             await prisma.attendancePunchAdjustment.create({
                 data: {
                     code,
@@ -439,7 +467,7 @@ export async function launchDirectManualPunch(params: {
                     notes: motivo,
                     status: "APPROVED_SYNCED",
                     secullumStatus: "SUCESSO",
-                    secullumResponseLog: JSON.stringify({ message: res.message, raw: res.raw }),
+                    secullumResponseLog: JSON.stringify({ message: resMessage, raw: resRaw }),
                     source: "MANUAL_DIRECT",
                     resolvedByUserId: user.id,
                     resolvedAt: new Date()

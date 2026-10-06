@@ -90,7 +90,7 @@ export async function getSecullumJustifications() {
 /**
  * Gera um código curto sequencial e amigável para mensagens de WhatsApp (ex: AJ1042)
  */
-async function generateAdjustmentCode(): Promise<string> {
+export async function generateAdjustmentCode(): Promise<string> {
     const count = await prisma.attendancePunchAdjustment.count();
     let nextNum = 1000 + count + 1;
 
