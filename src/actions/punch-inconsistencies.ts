@@ -196,10 +196,10 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
 
             // 3. CHECAGEM DE AFASTAMENTOS REGISTRADOS NO SECULLUM
             const isSecullumLeave = afastamentosSecullum.some((a: any) => {
-                const aCpf = String(a.FuncionarioCpf || a.Funcionario?.Cpf || "").replace(/\D/g, "");
-                if (aCpf && aCpf !== cpf) return false;
-                const aStart = String(a.DataInicio || "").slice(0, 10);
-                const aEnd = String(a.DataFim || "").slice(0, 10);
+                const aCpf = String(a.Cpf || a.FuncionarioCpf || a.Funcionario?.Cpf || "").replace(/\D/g, "");
+                if (!aCpf || aCpf !== cpf) return false;
+                const aStart = String(a.Inicio || a.DataInicio || "").slice(0, 10);
+                const aEnd = String(a.Fim || a.DataFim || "").slice(0, 10);
                 return (!aStart || date >= aStart) && (!aEnd || date <= aEnd);
             });
             if (isSecullumLeave) continue;
