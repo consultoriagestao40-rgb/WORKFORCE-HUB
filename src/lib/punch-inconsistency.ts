@@ -78,6 +78,8 @@ export function expectedScheduleFromBatida(b: Record<string, any> | null | undef
     return out;
 }
 
+import { toMinutes, toHHMM } from "./punch-time";
+
 /**
  * Analisa um registro diário do Secullum. Retorna null quando o dia está consistente
  * (completo, folga sem batidas, justificado, sem escala para comparar, etc.).
@@ -116,12 +118,53 @@ export function analyzeBatidaDay(b: Record<string, any>): DayInconsistency | nul
     // Batidas extras em número ímpar também indicam marcação faltando.
     let target = expectedTimes.length;
     if (lastFilledIdx + 1 > target) target = lastFilledIdx + 1 + ((lastFilledIdx + 1) % 2);
-    const missing = PUNCH_COLUMNS.slice(0, Math.min(target, PUNCH_COLUMNS.length)).filter(c => !actual[c]);
+    let missing = PUNCH_COLUMNS.slice(0, Math.min(target, PUNCH_COLUMNS.length)).filter(c => !actual[c]);
     if (!missing.length) return null;
+
+    // --- DETECÇÃO INTELIGENTE DE BATIDA DESLOCADA (ESQUECEU VOLTA DO ALMOÇO) ---
+    // Caso clássico: escala prevê 4 batidas (E1, S1, E2, S2).
+    // O colaborador registrou E1, S1 (saída pro almoço) e foi embora batendo o ponto no fim da tarde.
+    // O relógio alocou a 3ª batida em Entrada2 (ex: 19:06) e Saida2 ficou vazia.
+    // Se a 3ª batida está muito distante da saída pro almoço (> 2h30) e próxima do fim da jornada,
+    // a marcação faltante REAL é o Retorno do Intervalo (Entrada2), e a batida em Entrada2 é na verdade a Saída!
+    const effectiveExpected = { ...positionalExpected };
+    if (
+        actual.Entrada1 &&
+        actual.Saida1 &&
+        actual.Entrada2 &&
+        !actual.Saida2 &&
+        positionalExpected.Saida2 &&
+        isTime(actual.Saida1) &&
+        isTime(actual.Entrada2)
+    ) {
+        const mSaida1 = toMinutes(actual.Saida1);
+        const mEntrada2 = toMinutes(actual.Entrada2);
+        const mSchedSaida2 = toMinutes(positionalExpected.Saida2);
+
+        if (mSaida1 !== null && mEntrada2 !== null) {
+            const diffIntervalo = ((mEntrada2 - mSaida1) % 1440 + 1440) % 1440;
+            const diffSaida = mSchedSaida2 !== null ? Math.abs(mEntrada2 - mSchedSaida2) : 999;
+
+            // Se o intervalo entre Saida1 e a batida em Entrada2 for maior que 2h30 (150 min)
+            // ou se a batida em Entrada2 for muito próxima do horário previsto de saída (dentro de 120 min)
+            if (diffIntervalo > 150 || diffSaida <= 120) {
+                // A batida faltante é a volta do intervalo (Entrada2).
+                // Calculamos a volta mantendo o tempo padrão de almoço da escala (ou 1h por padrão)
+                let duracaoAlmoco = 60;
+                if (positionalExpected.Saida1 && positionalExpected.Entrada2) {
+                    const s1 = toMinutes(positionalExpected.Saida1);
+                    const e2 = toMinutes(positionalExpected.Entrada2);
+                    if (s1 !== null && e2 !== null && e2 > s1) duracaoAlmoco = e2 - s1;
+                }
+                effectiveExpected.Entrada2 = toHHMM(mSaida1 + duracaoAlmoco);
+                missing = ["Entrada2"];
+            }
+        }
+    }
 
     return {
         kind: hasAnyActual ? "INCOMPLETA" : "SEM_BATIDAS",
-        expected: positionalExpected,
+        expected: effectiveExpected,
         actual,
         missing,
         workedOnDayOff: false

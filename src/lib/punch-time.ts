@@ -19,13 +19,13 @@ export const PUNCH_TYPE_TO_SECULLUM_COLUMN: Record<string, string> = {
     SAIDA_3: "Saida3"
 };
 
-function toMinutes(hhmm: string): number | null {
+export function toMinutes(hhmm: string): number | null {
     const m = /^(\d{1,2}):(\d{2})/.exec((hhmm || "").trim());
     if (!m) return null;
     return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
 }
 
-function toHHMM(totalMinutes: number): string {
+export function toHHMM(totalMinutes: number): string {
     const t = ((totalMinutes % 1440) + 1440) % 1440;
     return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
 }

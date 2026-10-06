@@ -386,12 +386,35 @@ export async function approveAndSyncPunchAdjustment(adjustmentId: string) {
         let insertedTime: string | null = null;
 
         if (isAbono) {
+            const registro = await client.getRegistroDoDia(adj.employee.cpf, dateStr).catch(() => null);
+            const isTimeVal = (v: any) => typeof v === "string" && /^\d{1,2}:\d{2}/.test(v.trim());
+            
+            // Grupos que já possuem batidas (originais do relógio ou manuais)
+            const hasPunchesG1 = isTimeVal(registro?.Entrada1) || isTimeVal(registro?.Saida1);
+            const hasPunchesG2 = isTimeVal(registro?.Entrada2) || isTimeVal(registro?.Saida2);
+            const hasPunchesG3 = isTimeVal(registro?.Entrada3) || isTimeVal(registro?.Saida3);
+
+            const allowedGroups: number[] = [];
+            if (!hasPunchesG1) allowedGroups.push(1);
+            if (!hasPunchesG2) allowedGroups.push(2);
+            if (!hasPunchesG3 && (registro?.MemoriaEntrada3 || registro?.MemoriaSaida3)) allowedGroups.push(3);
+
+            if (allowedGroups.length === 0) {
+                const failMsg = "Não é possível lançar Abono porque todas as jornadas deste dia já possuem batidas registradas no Secullum (o Secullum proíbe sobrescrever batidas originais com abono). Lance a batida faltante como batida manual.";
+                await prisma.attendancePunchAdjustment.update({
+                    where: { id: adjustmentId },
+                    data: { secullumStatus: "ERRO", secullumResponseLog: failMsg }
+                });
+                return { success: false, message: failMsg };
+            }
+
             res = await client.lancarJustificativaPonto({
                 cpf: adj.employee.cpf,
                 data: dateStr,
                 justificativa: (adj.secullumReasonId || "ABONO").slice(0, 7),
                 observacoes: obs,
-                abonar: true
+                abonar: true,
+                grupos: allowedGroups
             });
         } else {
             const fallbackColumn = PUNCH_TYPE_TO_SECULLUM_COLUMN[adj.punchType] || null;
