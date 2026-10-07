@@ -59,7 +59,11 @@ export default function PayrollAuditPage() {
     const [pdfJsLoaded, setPdfJsLoaded] = useState(false);
 
     // Top Tabs: Auditoria Tripla vs Conferência de Folha Líquida
-    const [activeTopTab, setActiveTopTab] = useState<"AUDIT" | "LIQUIDS">("AUDIT");
+    const [activeTopTab, setActiveTopTab] = useState<"AUDIT" | "CROSS" | "LIQUIDS">("AUDIT");
+
+    // Aba Cruzamento WFH x Holerites
+    const [crossSearch, setCrossSearch] = useState("");
+    const [crossFilter, setCrossFilter] = useState<"ALL" | "DIVERGENT" | "OK" | "NO_WFH">("DIVERGENT");
 
     // Upload Slot 1: Cartão de Ponto Secullum
     const [pointFile, setPointFile] = useState<File | null>(null);
@@ -266,7 +270,7 @@ export default function PayrollAuditPage() {
                 return;
             }
 
-            const items: ExtractedHoleriteItem[] = [];
+            const rawItems: ExtractedHoleriteItem[] = [];
             for (let pageNum = 1; pageNum <= numPages; pageNum++) {
                 const page = await pdfjsDoc.getPage(pageNum);
                 const textContent = await page.getTextContent();
@@ -287,7 +291,7 @@ export default function PayrollAuditPage() {
 
                 const parsed = extractDataFromPageText(pageText, pageNum);
 
-                items.push({
+                rawItems.push({
                     id: `holerite-${pageNum}`,
                     pageIndices: [pageNum - 1],
                     pageNumbersDisplay: String(pageNum),
@@ -296,8 +300,42 @@ export default function PayrollAuditPage() {
                 });
             }
 
+            // Deduplica 2 vias: Se o PDF tiver 2 vias por colaborador (via empregado e via empregador),
+            // mantém estritamente 1 via única por colaborador (por CPF ou Nome normalizado).
+            const seenCpfs = new Set<string>();
+            const seenNames = new Set<string>();
+            const items: ExtractedHoleriteItem[] = [];
+
+            for (const item of rawItems) {
+                const cleanCpf = item.cpf ? item.cpf.replace(/\D/g, "") : "";
+                const normName = item.employeeName 
+                    ? item.employeeName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() 
+                    : "";
+
+                if (cleanCpf && cleanCpf.length === 11) {
+                    if (seenCpfs.has(cleanCpf)) {
+                        // 2ª via detectada por CPF — ignora
+                        continue;
+                    }
+                    seenCpfs.add(cleanCpf);
+                    if (normName) seenNames.add(normName);
+                } else if (normName && normName.length >= 4 && !normName.startsWith("colaborador_pagina")) {
+                    if (seenNames.has(normName)) {
+                        // 2ª via detectada por Nome — ignora
+                        continue;
+                    }
+                    seenNames.add(normName);
+                }
+
+                items.push(item);
+            }
+
             setHoleriteItems(items);
-            toast.success(`Holerites processados: ${items.length} recibos extraídos com dados financeiros.`);
+            if (rawItems.length > items.length) {
+                toast.success(`Holerites processados: ${items.length} colaboradores (detectadas e consolidadas 2 vias para 1 via única).`);
+            } else {
+                toast.success(`Holerites processados: ${items.length} recibos extraídos com dados financeiros.`);
+            }
 
             // Executa imediatamente o cruzamento com o banco WFH em segundo plano
             setIsAuditing(true);
@@ -531,6 +569,130 @@ export default function PayrollAuditPage() {
 
         navigator.clipboard.writeText(lines.join("\n"));
         toast.success("Relatório consolidado copiado! Cole no WhatsApp ou e-mail da contabilidade.");
+    };
+
+    // ==========================================
+    // ABA CRUZAMENTO WFH x HOLERITES (Espelho por colaborador)
+    // ==========================================
+    const isNotInWfh = (r: PayrollAuditRow) => r.id.startsWith("holerite-only-");
+    const crossBaseRows = rowsForCompany.filter(r => r.hasHolerite);
+    const crossDivergentCount = crossBaseRows.filter(r => !isNotInWfh(r) && (r.divergentRubricsCount || 0) > 0).length;
+    const crossOkCount = crossBaseRows.filter(r => !isNotInWfh(r) && !(r.divergentRubricsCount || 0)).length;
+    const crossNoWfhCount = crossBaseRows.filter(r => isNotInWfh(r)).length;
+    const crossTotalDiff = crossBaseRows.reduce((acc, r) => acc + (r.netDifference || 0), 0);
+    const crossRubricErrors = crossBaseRows.reduce((acc, r) => acc + (r.divergentRubricsCount || 0), 0);
+
+    const crossRows = crossBaseRows
+        .filter(r => {
+            if (crossFilter === "DIVERGENT") return !isNotInWfh(r) && (r.divergentRubricsCount || 0) > 0;
+            if (crossFilter === "OK") return !isNotInWfh(r) && !(r.divergentRubricsCount || 0);
+            if (crossFilter === "NO_WFH") return isNotInWfh(r);
+            return true;
+        })
+        .filter(r => {
+            if (!crossSearch.trim()) return true;
+            const term = crossSearch.toLowerCase();
+            const digits = crossSearch.replace(/\D/g, "");
+            return r.name.toLowerCase().includes(term)
+                || (digits.length > 0 && (r.cpf || "").replace(/\D/g, "").includes(digits))
+                || (r.wfh?.companyName || r.companyName || "").toLowerCase().includes(term);
+        })
+        .sort((a, b) => (b.divergentRubricsCount || 0) - (a.divergentRubricsCount || 0) || a.name.localeCompare(b.name));
+
+    const crossStatusLabel = (s: string) =>
+        s === "OK" ? "✅ OK" : s === "FALTOU" ? "❌ FALTOU" : s === "INDEVIDO" ? "❌ INDEVIDO" : "⚠️ DIVERGENTE";
+
+    // Excel no formato do espelho (bloco por colaborador) + aba de devolutiva
+    const exportCrossToExcel = () => {
+        if (crossBaseRows.length === 0) {
+            toast.error("Suba o PDF de holerites para gerar o cruzamento.");
+            return;
+        }
+        try {
+            const wb = XLSX.utils.book_new();
+            const comp = `${String(selectedMonth).padStart(2, "0")}/${selectedYear}`;
+
+            // Aba 1: Espelho por colaborador (mesmo layout da tela)
+            const aoa: (string | number)[][] = [
+                [`ESPELHO DE CONFERÊNCIA WFH x HOLERITE — COMPETÊNCIA ${comp}`],
+                []
+            ];
+            const sorted = [...crossBaseRows].sort((a, b) => (b.divergentRubricsCount || 0) - (a.divergentRubricsCount || 0) || a.name.localeCompare(b.name));
+            sorted.forEach(r => {
+                const div = r.divergentRubricsCount || 0;
+                const statusTxt = isNotInWfh(r) ? "🚨 NÃO CONSTA NO WFH" : div > 0 ? `⚠️ ${div} DIVERGÊNCIA(S)` : "✅ 100% OK";
+                aoa.push([`COLABORADOR: ${r.name.toUpperCase()}`, `CPF: ${fmtCpf(r.cpf)}`, `EMPRESA: ${r.wfh?.companyName || r.companyName || "---"}`, `STATUS: ${statusTxt}`, ""]);
+                aoa.push(["RUBRICA / CONCEITO", "PREVISTO NO WFH (SISTEMA)", "PROCESSADO NO HOLERITE", "SITUAÇÃO", "ORIENTAÇÃO DE CORREÇÃO"]);
+                (r.rubricComparisons || []).forEach(c => {
+                    aoa.push([
+                        c.rubric,
+                        c.expectedWfhDetail ? `${fmtCurrency(c.expectedWfh)} (${c.expectedWfhDetail})` : fmtCurrency(c.expectedWfh),
+                        c.actualHoleriteDetail ? `${fmtCurrency(c.actualHolerite)} (${c.actualHoleriteDetail})` : fmtCurrency(c.actualHolerite),
+                        c.status === "OK" ? "✅ OK" : `${crossStatusLabel(c.status)} (${c.diff > 0 ? "+" : ""}${fmtCurrency(c.diff)})`,
+                        c.status === "OK" ? "" : c.instruction
+                    ]);
+                });
+                if (!r.rubricComparisons || r.rubricComparisons.length === 0) {
+                    aoa.push([isNotInWfh(r) ? "Colaborador não localizado no WFH por CPF/Nome" : "Sem folha fechada no WFH para comparar", "---", fmtCurrency(r.holeriteNetSalary), "⚠️ VERIFICAR", r.suggestedAction || ""]);
+                }
+                aoa.push([
+                    "TOTAL DE PROVENTOS",
+                    fmtCurrency(r.wfhGrossSalary || r.wfhBaseSalary || 0),
+                    fmtCurrency(r.holeriteTotalEarnings || 0),
+                    "",
+                    ""
+                ]);
+                aoa.push([
+                    "TOTAL DE DESCONTOS",
+                    fmtCurrency(r.wfhTotalDeductions || 0),
+                    fmtCurrency(r.holeriteTotalDeductions || 0),
+                    "",
+                    ""
+                ]);
+                const nd = r.netDifference || 0;
+                aoa.push([
+                    "TOTAL LÍQUIDO",
+                    fmtCurrency(r.wfhNetSalary || 0),
+                    fmtCurrency(r.holeriteNetSalary || 0),
+                    Math.abs(nd) < 0.01 ? "✅ OK" : `🔴 DIF ${nd > 0 ? "+" : ""}${Math.round(nd)}`,
+                    ""
+                ]);
+                aoa.push([]);
+            });
+            const wsMirror = XLSX.utils.aoa_to_sheet(aoa);
+            wsMirror["!cols"] = [{ wch: 42 }, { wch: 34 }, { wch: 34 }, { wch: 26 }, { wch: 80 }];
+            XLSX.utils.book_append_sheet(wb, wsMirror, "Espelho por Colaborador");
+
+            // Aba 2: Devolutiva (só o que precisa corrigir)
+            const devHeader = ["Item", "Colaborador", "CPF", "Empresa", "Rubrica", "Enviado na Planilha (WFH)", "Veio no Holerite", "Diferença (R$)", "Situação", "ORIENTAÇÃO DE CORREÇÃO PARA A CONTABILIDADE"];
+            const devRows: (string | number)[][] = [];
+            let n = 1;
+            sorted.forEach(r => {
+                (r.rubricComparisons || []).filter(c => c.status !== "OK").forEach(c => {
+                    devRows.push([
+                        n++, r.name, fmtCpf(r.cpf), r.wfh?.companyName || r.companyName || "---",
+                        c.rubric,
+                        c.expectedWfhDetail ? `${fmtCurrency(c.expectedWfh)} (${c.expectedWfhDetail})` : fmtCurrency(c.expectedWfh),
+                        c.actualHoleriteDetail ? `${fmtCurrency(c.actualHolerite)} (${c.actualHoleriteDetail})` : fmtCurrency(c.actualHolerite),
+                        c.diff,
+                        crossStatusLabel(c.status),
+                        c.instruction
+                    ]);
+                });
+                if (isNotInWfh(r)) {
+                    devRows.push([n++, r.name, fmtCpf(r.cpf), r.companyName || "---", "Cadastro", "Não consta no WFH", fmtCurrency(r.holeriteNetSalary), r.holeriteNetSalary || 0, "🚨 VERIFICAR", "Holerite emitido para pessoa que não consta na planilha enviada. Confirmar se é admissão/terceiro antes de pagar."]);
+                }
+            });
+            const wsDev = XLSX.utils.aoa_to_sheet([devHeader, ...devRows]);
+            wsDev["!cols"] = [{ wch: 6 }, { wch: 34 }, { wch: 16 }, { wch: 22 }, { wch: 30 }, { wch: 30 }, { wch: 30 }, { wch: 14 }, { wch: 16 }, { wch: 80 }];
+            XLSX.utils.book_append_sheet(wb, wsDev, "Devolutiva Contabilidade");
+
+            XLSX.writeFile(wb, `Cruzamento_WFH_x_Holerite_${String(selectedMonth).padStart(2, "0")}_${selectedYear}.xlsx`);
+            toast.success("Espelho WFH x Holerite exportado!");
+        } catch (e) {
+            console.error(e);
+            toast.error("Erro ao exportar o espelho.");
+        }
     };
 
     // Export to Excel (.xlsx) com 3 Abas:
@@ -1076,6 +1238,23 @@ export default function PayrollAuditPage() {
                                 </Button>
                             </div>
                         )}
+                        {activeTopTab === "CROSS" && crossBaseRows.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button 
+                                    onClick={copyAllDevolutivas}
+                                    variant="outline"
+                                    className="bg-slate-800 hover:bg-slate-700 text-white border-slate-700 font-bold text-xs gap-1.5 rounded-2xl h-11 px-4 cursor-pointer"
+                                >
+                                    <Copy className="w-4 h-4" /> Copiar Devolutiva WhatsApp
+                                </Button>
+                                <Button 
+                                    onClick={exportCrossToExcel}
+                                    className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-lg h-11 px-4 cursor-pointer"
+                                >
+                                    <FileSpreadsheet className="w-4 h-4" /> Exportar Espelho XLSX
+                                </Button>
+                            </div>
+                        )}
                         {activeTopTab === "LIQUIDS" && filteredLiquidRows.length > 0 && (
                             <Button 
                                 onClick={exportLiquidPayrollToExcel}
@@ -1103,6 +1282,22 @@ export default function PayrollAuditPage() {
                     {auditResult && auditResult.summary.criticalRiskCount > 0 && (
                         <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse">
                             {auditResult.summary.criticalRiskCount}
+                        </span>
+                    )}
+                </button>
+                <button
+                    onClick={() => setActiveTopTab("CROSS")}
+                    className={`flex items-center gap-2 px-5 py-3 border-b-2 font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                        activeTopTab === "CROSS"
+                            ? "border-amber-500 text-amber-700 bg-amber-50/50 rounded-t-2xl shadow-sm"
+                            : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-t-2xl"
+                    }`}
+                >
+                    <Receipt className="w-4 h-4 text-amber-600" />
+                    <span>Cruzamento WFH x Holerites</span>
+                    {crossDivergentCount > 0 && (
+                        <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                            {crossDivergentCount}
                         </span>
                     )}
                 </button>
@@ -1913,7 +2108,337 @@ export default function PayrollAuditPage() {
         </div>
     )}
 
-    {/* ABA 2: CONFERÊNCIA DE FOLHA LÍQUIDA */}
+    {/* ABA 2: CRUZAMENTO WFH x HOLERITES (ESPELHO POR COLABORADOR) */}
+    {activeTopTab === "CROSS" && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+            {holeriteItems.length === 0 ? (
+                <div className="bg-white rounded-3xl p-8 md:p-12 border-2 border-dashed border-amber-300 text-center shadow-sm">
+                    <input 
+                        ref={holeriteInputRef}
+                        type="file" 
+                        accept=".pdf" 
+                        className="hidden" 
+                        onChange={e => {
+                            if (e.target.files && e.target.files[0]) {
+                                handleHoleriteFileChange(e.target.files[0]);
+                            }
+                        }}
+                    />
+                    <div className="max-w-md mx-auto flex flex-col items-center">
+                        <div className="w-16 h-16 rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4 shadow-sm border border-amber-100">
+                            {isProcessingHolerite ? (
+                                <RefreshCw className="w-8 h-8 animate-spin" />
+                            ) : (
+                                <UploadCloud className="w-8 h-8" />
+                            )}
+                        </div>
+                        <h3 className="text-lg md:text-xl font-black text-slate-900 mb-1">
+                            Carregue os Holerites em PDF para Cruzar
+                        </h3>
+                        <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">
+                            O sistema irá comparar imediatamente cada rubrica apurada e fechada no WFH com o contracheque emitido pela contabilidade, exibindo o espelho com as divergências e o que precisa ser corrigido.
+                        </p>
+                        <Button
+                            onClick={() => holeriteInputRef.current?.click()}
+                            disabled={isProcessingHolerite}
+                            className="bg-amber-600 hover:bg-amber-500 text-white font-black text-xs gap-2 rounded-2xl shadow-lg h-11 px-6 cursor-pointer"
+                        >
+                            {isProcessingHolerite ? (
+                                <>
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                    <span>Lendo holerites e cruzando com o sistema...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <UploadCloud className="w-4 h-4" />
+                                    <span>Selecionar Arquivo PDF de Holerites</span>
+                                </>
+                            )}
+                        </Button>
+                    </div>
+                </div>
+            ) : (
+                <div className="space-y-6">
+                    {/* Header Banner com KPIs */}
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <div 
+                            onClick={() => setCrossFilter("ALL")}
+                            className={`p-4 rounded-3xl border cursor-pointer transition-all ${
+                                crossFilter === "ALL" ? "bg-slate-900 text-white shadow-md" : "bg-white border-slate-200 hover:shadow-sm"
+                            }`}
+                        >
+                            <span className="text-[10px] font-black uppercase tracking-wider block opacity-70">Total Auditados</span>
+                            <span className="text-2xl font-black">{crossBaseRows.length}</span>
+                            <span className="text-[10px] block opacity-70 mt-0.5">Holerites extraídos</span>
+                        </div>
+
+                        <div 
+                            onClick={() => setCrossFilter("DIVERGENT")}
+                            className={`p-4 rounded-3xl border cursor-pointer transition-all ${
+                                crossFilter === "DIVERGENT" ? "bg-amber-500 text-white shadow-md" : "bg-white border-amber-200 hover:shadow-sm"
+                            }`}
+                        >
+                            <span className="text-[10px] font-black uppercase tracking-wider block opacity-90">Com Divergência</span>
+                            <span className="text-2xl font-black">{crossDivergentCount}</span>
+                            <span className="text-[10px] block opacity-90 mt-0.5">{crossRubricErrors} rubrica(s) a corrigir</span>
+                        </div>
+
+                        <div 
+                            onClick={() => setCrossFilter("OK")}
+                            className={`p-4 rounded-3xl border cursor-pointer transition-all ${
+                                crossFilter === "OK" ? "bg-emerald-600 text-white shadow-md" : "bg-white border-emerald-200 hover:shadow-sm"
+                            }`}
+                        >
+                            <span className="text-[10px] font-black uppercase tracking-wider block opacity-90">100% Alinhados</span>
+                            <span className="text-2xl font-black">{crossOkCount}</span>
+                            <span className="text-[10px] block opacity-90 mt-0.5">Nenhum ajuste necessário</span>
+                        </div>
+
+                        <div 
+                            onClick={() => setCrossFilter("NO_WFH")}
+                            className={`p-4 rounded-3xl border cursor-pointer transition-all ${
+                                crossFilter === "NO_WFH" ? "bg-red-600 text-white shadow-md" : "bg-white border-red-200 hover:shadow-sm"
+                            }`}
+                        >
+                            <span className="text-[10px] font-black uppercase tracking-wider block opacity-90">Não no WFH</span>
+                            <span className="text-2xl font-black">{crossNoWfhCount}</span>
+                            <span className="text-[10px] block opacity-90 mt-0.5">Pessoas sem cadastro</span>
+                        </div>
+
+                        <div className="p-4 rounded-3xl bg-slate-100 border border-slate-200">
+                            <span className="text-[10px] font-black uppercase tracking-wider block text-slate-500">Diferença Acumulada</span>
+                            <span className={`text-xl font-black ${Math.abs(crossTotalDiff) < 0.01 ? "text-emerald-700" : "text-rose-600"}`}>
+                                {fmtCurrency(crossTotalDiff)}
+                            </span>
+                            <span className="text-[10px] block text-slate-400 mt-0.5">Impacto no pagamento</span>
+                        </div>
+                    </div>
+
+                    {/* Barra de Filtros & Busca */}
+                    <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                            <button
+                                onClick={() => setCrossFilter("DIVERGENT")}
+                                className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer ${
+                                    crossFilter === "DIVERGENT"
+                                        ? "bg-amber-600 text-white shadow-sm"
+                                        : "bg-amber-50 text-amber-800 hover:bg-amber-100"
+                                }`}
+                            >
+                                ⚠️ Com Divergência ({crossDivergentCount})
+                            </button>
+                            <button
+                                onClick={() => setCrossFilter("ALL")}
+                                className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer ${
+                                    crossFilter === "ALL"
+                                        ? "bg-slate-900 text-white shadow-sm"
+                                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                }`}
+                            >
+                                Todos ({crossBaseRows.length})
+                            </button>
+                            <button
+                                onClick={() => setCrossFilter("OK")}
+                                className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer ${
+                                    crossFilter === "OK"
+                                        ? "bg-emerald-600 text-white shadow-sm"
+                                        : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                }`}
+                            >
+                                ✅ 100% OK ({crossOkCount})
+                            </button>
+                            {crossNoWfhCount > 0 && (
+                                <button
+                                    onClick={() => setCrossFilter("NO_WFH")}
+                                    className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer ${
+                                        crossFilter === "NO_WFH"
+                                            ? "bg-red-600 text-white shadow-sm"
+                                            : "bg-red-50 text-red-700 hover:bg-red-100"
+                                    }`}
+                                >
+                                    🚨 Não no WFH ({crossNoWfhCount})
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="relative w-full md:w-80">
+                            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <Input 
+                                placeholder="Buscar colaborador por nome ou CPF..." 
+                                value={crossSearch}
+                                onChange={e => setCrossSearch(e.target.value)}
+                                className="pl-9 h-10 rounded-2xl border-slate-200 text-xs"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Lista dos Espelhos por Colaborador (Modelo Exato do Print) */}
+                    <div className="space-y-5">
+                        {crossRows.length === 0 ? (
+                            <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 text-slate-400 space-y-2">
+                                <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500/60" />
+                                <p className="font-bold text-slate-700 text-sm">Nenhum colaborador encontrado para este filtro.</p>
+                            </div>
+                        ) : (
+                            crossRows.map((r, rIdx) => {
+                                const divergentCount = r.divergentRubricsCount || 0;
+                                const isMissingWfh = isNotInWfh(r);
+                                const netDiff = r.netDifference || 0;
+
+                                return (
+                                    <div 
+                                        key={r.id} 
+                                        className="rounded-xl border border-zinc-700 bg-[#12141a] text-zinc-100 font-mono shadow-xl overflow-hidden transition-all"
+                                    >
+                                        {/* Cabeçalho do Card (Exatamente no modelo do print) */}
+                                        <div className="px-4 py-3 border-b border-zinc-700 flex flex-wrap items-center justify-between gap-3 text-xs bg-zinc-950/70">
+                                            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                                                <div>
+                                                    <span className="text-zinc-400 font-normal">COLABORADOR: </span>
+                                                    <span className="font-bold text-zinc-100 uppercase tracking-wide">{r.name}</span>
+                                                </div>
+                                                <span className="text-zinc-600">|</span>
+                                                <div>
+                                                    <span className="text-zinc-400 font-normal">CPF: </span>
+                                                    <span className="font-medium text-zinc-200">{fmtCpf(r.cpf)}</span>
+                                                </div>
+                                                <span className="text-zinc-600">|</span>
+                                                <div>
+                                                    <span className="text-zinc-400 font-normal">STATUS: </span>
+                                                    {isMissingWfh ? (
+                                                        <span className="text-red-400 font-bold">🚨 NÃO CONSTA NO WFH</span>
+                                                    ) : divergentCount > 0 ? (
+                                                        <span className="text-amber-400 font-bold">⚠️ {divergentCount} DIVERGÊNCIA{divergentCount > 1 ? "S" : ""}</span>
+                                                    ) : (
+                                                        <span className="text-emerald-400 font-bold">✅ 100% OK</span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <Button
+                                                onClick={() => copyEmployeeDevolutiva(r)}
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-7 px-2.5 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 text-[11px] font-mono gap-1 cursor-pointer border border-zinc-700/60"
+                                                title="Copiar texto da devolutiva"
+                                            >
+                                                <Copy className="w-3.5 h-3.5" />
+                                                <span className="hidden sm:inline">Copiar Devolutiva</span>
+                                            </Button>
+                                        </div>
+
+                                        {/* Tabela do Espelho: 4 Colunas idênticas ao modelo anexo */}
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left text-xs border-collapse">
+                                                <thead>
+                                                    <tr className="border-b border-zinc-700 text-zinc-400 text-[11px] uppercase tracking-wider bg-zinc-900/60">
+                                                        <th className="py-2.5 px-4 font-bold w-[34%] border-r border-zinc-800">RUBRICA / CONCEITO</th>
+                                                        <th className="py-2.5 px-4 font-bold w-[26%] border-r border-zinc-800">PREVISTO NO WFH (SISTEMA)</th>
+                                                        <th className="py-2.5 px-4 font-bold w-[26%] border-r border-zinc-800">PROCESSADO NO HOLERITE</th>
+                                                        <th className="py-2.5 px-4 font-bold w-[14%]">SITUAÇÃO</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-zinc-800/80">
+                                                    {r.rubricComparisons && r.rubricComparisons.length > 0 ? (
+                                                        r.rubricComparisons.map((c, cIdx) => {
+                                                            const isOk = c.status === "OK";
+                                                            return (
+                                                                <tr 
+                                                                    key={cIdx} 
+                                                                    className={`transition-colors ${
+                                                                        !isOk ? "bg-amber-950/20 hover:bg-amber-950/30" : "hover:bg-zinc-900/40"
+                                                                    }`}
+                                                                >
+                                                                    <td className="py-2.5 px-4 font-medium text-zinc-200 border-r border-zinc-800">
+                                                                        {c.rubric}
+                                                                    </td>
+                                                                    <td className="py-2.5 px-4 text-zinc-300 border-r border-zinc-800">
+                                                                        {c.expectedWfhDetail || fmtCurrency(c.expectedWfh)}
+                                                                    </td>
+                                                                    <td className="py-2.5 px-4 text-zinc-300 border-r border-zinc-800">
+                                                                        {c.actualHoleriteDetail || fmtCurrency(c.actualHolerite)}
+                                                                    </td>
+                                                                    <td className="py-2.5 px-4">
+                                                                        {isOk ? (
+                                                                            <span className="text-emerald-400 font-bold">✅ OK</span>
+                                                                        ) : c.status === "INDEVIDO" ? (
+                                                                            <span className="text-red-400 font-bold">❌ INDEVIDO</span>
+                                                                        ) : c.status === "FALTOU" ? (
+                                                                            <span className="text-rose-400 font-bold">❌ FALTOU</span>
+                                                                        ) : (
+                                                                            <span className="text-amber-400 font-bold">⚠️ DIVERGENTE</span>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })
+                                                    ) : (
+                                                        <tr>
+                                                            <td colSpan={4} className="py-3 px-4 text-zinc-500 italic">
+                                                                {isMissingWfh 
+                                                                    ? "⚠️ Colaborador não cadastrado no WFH com este CPF/Nome." 
+                                                                    : "Nenhuma rubrica prevista no WFH para este colaborador."}
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+
+                                                {/* 3 Linhas Finais de Totais: Proventos, Descontos, Líquido (Exatamente como no print) */}
+                                                <tfoot>
+                                                    <tr className="border-t-2 border-zinc-700 bg-zinc-900/40 text-zinc-300">
+                                                        <td className="py-2 px-4 uppercase font-bold border-r border-zinc-800">TOTAL DE PROVENTOS</td>
+                                                        <td className="py-2 px-4 font-bold border-r border-zinc-800">{fmtCurrency(r.wfhGrossSalary || r.wfhBaseSalary || 0)}</td>
+                                                        <td className="py-2 px-4 font-bold border-r border-zinc-800">{fmtCurrency(r.holeriteTotalEarnings || 0)}</td>
+                                                        <td className="py-2 px-4"></td>
+                                                    </tr>
+                                                    <tr className="border-t border-zinc-800 bg-zinc-900/40 text-zinc-300">
+                                                        <td className="py-2 px-4 uppercase font-bold border-r border-zinc-800">TOTAL DE DESCONTOS</td>
+                                                        <td className="py-2 px-4 font-bold border-r border-zinc-800">{fmtCurrency(r.wfhTotalDeductions || 0)}</td>
+                                                        <td className="py-2 px-4 font-bold border-r border-zinc-800">{fmtCurrency(r.holeriteTotalDeductions || 0)}</td>
+                                                        <td className="py-2 px-4"></td>
+                                                    </tr>
+                                                    <tr className="border-t border-zinc-700 bg-zinc-900/90 text-zinc-100 font-bold">
+                                                        <td className="py-2.5 px-4 uppercase border-r border-zinc-800 text-amber-300">TOTAL LÍQUIDO</td>
+                                                        <td className="py-2.5 px-4 text-sm border-r border-zinc-800">{fmtCurrency(r.wfhNetSalary || 0)}</td>
+                                                        <td className="py-2.5 px-4 text-sm border-r border-zinc-800">{fmtCurrency(r.holeriteNetSalary || 0)}</td>
+                                                        <td className="py-2.5 px-4">
+                                                            {Math.abs(netDiff) < 0.01 ? (
+                                                                <span className="text-emerald-400 font-bold">✅ OK</span>
+                                                            ) : (
+                                                                <span className="text-rose-400 font-bold">
+                                                                    🔴 DIF {netDiff > 0 ? `+${Math.round(netDiff)}` : Math.round(netDiff)}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+
+                                        {/* Chamada de Instrução de Correção para a Contabilidade (se houver divergência) */}
+                                        {divergentCount > 0 && (
+                                            <div className="bg-amber-950/30 border-t border-amber-900/50 px-4 py-2.5 text-xs text-amber-200 flex items-start gap-2">
+                                                <span className="text-amber-400 font-bold whitespace-nowrap">👉 ORIENTAÇÃO:</span>
+                                                <div className="space-y-1">
+                                                    {(r.rubricComparisons || []).filter(c => c.status !== "OK").map((c, i) => (
+                                                        <div key={i} className="text-amber-200/90">
+                                                            {c.instruction}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    )}
+
+    {/* ABA 3: CONFERÊNCIA DE FOLHA LÍQUIDA */}
     {activeTopTab === "LIQUIDS" && (
         <div className="space-y-6 animate-in fade-in duration-300">
             {/* Banner / Slot de Upload para Holerites */}
