@@ -152,7 +152,8 @@ export function FinancialCostsClient({
     const contractOptions = useMemo(() => {
         const contracts = new Set<string>();
         employees.forEach(emp => {
-            if (selectedCompany !== "ALL" && (emp.company?.name || "Sem Empresa") !== selectedCompany) {
+            const compName = (emp.company?.name || "Sem Empresa").trim();
+            if (selectedCompany !== "ALL" && compName !== selectedCompany.trim()) {
                 return;
             }
             const clientName = emp.assignments?.[0]?.posto?.client?.name;
@@ -161,7 +162,8 @@ export function FinancialCostsClient({
             }
         });
         const hasReserva = employees.some(emp => {
-            if (selectedCompany !== "ALL" && (emp.company?.name || "Sem Empresa") !== selectedCompany) {
+            const compName = (emp.company?.name || "Sem Empresa").trim();
+            if (selectedCompany !== "ALL" && compName !== selectedCompany.trim()) {
                 return false;
             }
             return !emp.assignments || emp.assignments.length === 0 || !emp.assignments[0]?.posto?.client;
@@ -366,7 +368,7 @@ export function FinancialCostsClient({
 
             const clientName = emp.assignments?.[0]?.posto?.client?.name || "Reserva Técnica";
 
-            const companyName = emp.company?.name || "Sem Empresa";
+            const companyName = (emp.company?.name || "Sem Empresa").trim();
 
             return {
                 id: emp.id,
@@ -390,7 +392,7 @@ export function FinancialCostsClient({
                 item.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 item.companyName.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesContract = selectedContract === "ALL" || item.contractName === selectedContract;
-            const matchesCompany = selectedCompany === "ALL" || item.companyName === selectedCompany;
+            const matchesCompany = selectedCompany === "ALL" || item.companyName.trim() === selectedCompany.trim();
             return matchesSearch && matchesContract && matchesCompany;
         }).sort((a, b) => {
             let valA = a[sortField as keyof typeof a];
@@ -470,7 +472,7 @@ export function FinancialCostsClient({
 
             const clientName = emp.assignments?.[0]?.posto?.client?.name || "Reserva Técnica";
 
-            const companyName = emp.company?.name || "Sem Empresa";
+            const companyName = (emp.company?.name || "Sem Empresa").trim();
 
             return {
                 id: emp.id,
@@ -496,7 +498,7 @@ export function FinancialCostsClient({
                 item.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 item.companyName.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesContract = selectedContract === "ALL" || item.contractName === selectedContract;
-            const matchesCompany = selectedCompany === "ALL" || item.companyName === selectedCompany;
+            const matchesCompany = selectedCompany === "ALL" || item.companyName.trim() === selectedCompany.trim();
             return matchesSearch && matchesContract && matchesCompany;
         }).sort((a, b) => {
             let valA = a[sortField as keyof typeof a];
@@ -625,7 +627,7 @@ export function FinancialCostsClient({
 
             const clientName = emp.assignments?.[0]?.posto?.client?.name || "Reserva Técnica";
             const hasInssRetention = Boolean(emp.assignments?.[0]?.posto?.client?.hasInssRetention);
-            const companyName = emp.company?.name || "Sem Empresa";
+            const companyName = (emp.company?.name || "Sem Empresa").trim();
 
             return {
                 id: emp.id,
@@ -658,7 +660,7 @@ export function FinancialCostsClient({
                 item.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 item.companyName.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesContract = selectedContract === "ALL" || item.contractName === selectedContract;
-            const matchesCompany = selectedCompany === "ALL" || item.companyName === selectedCompany;
+            const matchesCompany = selectedCompany === "ALL" || item.companyName.trim() === selectedCompany.trim();
             return matchesSearch && matchesContract && matchesCompany;
         }).sort((a, b) => {
             let valA = a[sortField as keyof typeof a];
