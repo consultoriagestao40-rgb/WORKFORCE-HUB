@@ -419,6 +419,8 @@ export async function sendScopeOptionList(params: {
     });
 }
 
+const recentlyProcessedAdjustments = new Map<string, number>();
+
 /**
  * PARSER DO WEBHOOK: Processa cliques nos Menus de Opções e Botões
  */
@@ -430,8 +432,37 @@ export async function tryParsePunchAdjustmentReply(params: {
 }): Promise<{ handled: boolean; replyText?: string }> {
     const rawText = (params.messageText || "").trim();
 
-    // 1. Extrair código AJ... do texto, da citação ou do ID do botão
-    const codeMatch = rawText.match(/#?(AJ\d+(?:_\d+)?)/i);
+    // Separar o texto digitado pelo usuário de eventual mensagem citada (quoted text do WhatsApp)
+    let userText = rawText;
+    let quotedText = "";
+    if (rawText.startsWith(">")) {
+        const lines = rawText.split("\n");
+        const quoteLines: string[] = [];
+        const userLines: string[] = [];
+        let inQuote = true;
+        for (const line of lines) {
+            if (inQuote && line.startsWith(">")) {
+                quoteLines.push(line.replace(/^>\s*/, ""));
+            } else {
+                inQuote = false;
+                userLines.push(line);
+            }
+        }
+        quotedText = quoteLines.join("\n").trim();
+        userText = userLines.join("\n").trim();
+    }
+
+    // Se o texto citado já é uma mensagem de confirmação de finalização ("Solicitado com Sucesso" ou "Falta confirmada"),
+    // e o usuário não digitou um novo comando explícito, IGNORAR (evita loops com replies/reações dos gestores)
+    if (quotedText && (/Solicitado com Sucesso/i.test(quotedText) || /Falta confirmada/i.test(quotedText) || /Registrado no Workforce Hub/i.test(quotedText))) {
+        const isExplicitNewCommand = /#(AJ\d+)/i.test(userText) || userText.includes("_MOT_") || userText.includes("_ESC_") || userText.includes("_ajustar") || userText.includes("_falta");
+        if (!isExplicitNewCommand) {
+            return { handled: true };
+        }
+    }
+
+    // 1. Extrair código AJ... do texto do usuário, da citação ou do ID do botão
+    const codeMatch = userText.match(/#?(AJ\d+(?:_\d+)?)/i) || rawText.match(/#?(AJ\d+(?:_\d+)?)/i);
     let candidateCode = codeMatch ? codeMatch[1].toUpperCase() : null;
 
     let adjustment = null;
@@ -505,6 +536,17 @@ export async function tryParsePunchAdjustmentReply(params: {
         return { handled: false };
     }
 
+    // Se o ajuste já foi finalizado anteriormente, ignorar para evitar duplicações e loops
+    const isAlreadyFinalized = adjustment.status === "PENDING_AUDIT" || 
+                               adjustment.status === "APPROVED_SYNCED" || 
+                               adjustment.status === "CONFIRMED_ABSENCE" || 
+                               adjustment.status === "DISCARDED_OFFLINE_FOUND";
+
+    if (isAlreadyFinalized) {
+        console.log(`[tryParsePunchAdjustmentReply] Ajuste #${candidateCode} já está finalizado (${adjustment.status}). Ignorando.`);
+        return { handled: true };
+    }
+
     // Resolver Posto e Cliente caso não estejam salvos diretamente
     let posto = adjustment.posto;
     let client = adjustment.client;
@@ -538,6 +580,14 @@ export async function tryParsePunchAdjustmentReply(params: {
         reason: typeof STANDARDIZED_PUNCH_REASONS[number],
         scope: typeof PUNCH_SCOPES[number] | null
     ) => {
+        const lockKey = `${candidateCode}_FINALIZE`;
+        const lastExecuted = recentlyProcessedAdjustments.get(lockKey);
+        if (lastExecuted && Date.now() - lastExecuted < 60 * 1000) {
+            console.log(`[punch-whatsapp] Ajuste #${candidateCode} acabou de ser finalizado há menos de 60s. Ignorando duplicata.`);
+            return { handled: true };
+        }
+        recentlyProcessedAdjustments.set(lockKey, Date.now());
+
         await processManagerWhatsAppResponse({
             code: candidateCode!,
             senderPhone: params.senderPhone,
@@ -586,8 +636,8 @@ export async function tryParsePunchAdjustmentReply(params: {
     let matchedReason = STANDARDIZED_PUNCH_REASONS.find(r => rawText.includes(`_MOT_${r.id}`));
 
     if (!matchedReason) {
-        const cleanTrim = rawText.trim();
-        const upper = rawText.toUpperCase();
+        const cleanTrim = userText.trim();
+        const upper = userText.toUpperCase();
 
         // Se o ajuste está em PENDING_REASON, números 1..4 são os motivos da lista
         if (adjustment.status === "PENDING_REASON") {
@@ -637,9 +687,9 @@ export async function tryParsePunchAdjustmentReply(params: {
     // ETAPA 1.A: CLIQUE NO MENU / DIGITAR: "Confirmar Falta" (Opção 2, _falta, texto Falta)
     // -------------------------------------------------------------
     const isFalta = rawText.includes("_falta") || 
-                    rawText.toLowerCase().includes("confirmar falta") || 
-                    rawText.toLowerCase().includes("falta") ||
-                    (adjustment.status !== "PENDING_REASON" && (rawText.trim() === "2" || rawText.startsWith("2 ")));
+                    userText.toLowerCase().includes("confirmar falta") || 
+                    userText.toLowerCase().includes("falta") ||
+                    (adjustment.status !== "PENDING_REASON" && (userText.trim() === "2" || userText.startsWith("2 ")));
 
     if (isFalta) {
         await processManagerWhatsAppResponse({
@@ -668,9 +718,9 @@ export async function tryParsePunchAdjustmentReply(params: {
     // -------------------------------------------------------------
     const isAjustar = (
         rawText.includes("_ajustar") || 
-        rawText.toLowerCase().includes("ajustar ponto") ||
-        rawText.toLowerCase().includes("ajustar") || 
-        (adjustment.status !== "PENDING_REASON" && (rawText.trim() === "1" || rawText.startsWith("1 ")))
+        userText.toLowerCase().includes("ajustar ponto") ||
+        userText.toLowerCase().includes("ajustar") || 
+        (adjustment.status !== "PENDING_REASON" && (userText.trim() === "1" || userText.startsWith("1 ")))
     );
 
     if (isAjustar) {

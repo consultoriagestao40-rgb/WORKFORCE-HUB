@@ -71,6 +71,7 @@ export async function GET(request: Request) {
         const pendingReminders = await prisma.attendancePunchAdjustment.findMany({
             where: {
                 status: "PENDING_RESPONSE",
+                date: { gte: new Date(`${ACTIVATION_DATE}T00:00:00-03:00`) },
                 createdAt: { lte: cutoffTime, gte: new Date(`${ACTIVATION_DATE}T00:00:00-03:00`) },
                 // Não reenviar mais de uma vez a cada 18 horas
                 updatedAt: { lte: cutoffTime }
