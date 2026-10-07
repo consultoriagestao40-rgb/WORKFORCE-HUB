@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
-import { extractDataFromPageText, ExtractedHoleriteItem } from "@/lib/holerite-processor";
+import { extractDataFromPageText, parseHoleritePdfPageItems, ExtractedHoleriteItem } from "@/lib/holerite-processor";
 import { parsePointExcel, parsePointPdfText, parsePointPdfPage, ParsedPointEmployee } from "@/lib/point-parser";
 import { runPayrollAudit, getPayrollAuditCompanies, PayrollAuditResult, AuditRow, PayrollAuditRow } from "@/actions/payroll-audit";
 
@@ -63,7 +63,7 @@ export default function PayrollAuditPage() {
 
     // Aba Cruzamento WFH x Holerites
     const [crossSearch, setCrossSearch] = useState("");
-    const [crossFilter, setCrossFilter] = useState<"ALL" | "DIVERGENT" | "OK" | "NO_WFH">("DIVERGENT");
+    const [crossFilter, setCrossFilter] = useState<"ALL" | "DIVERGENT" | "OK" | "NO_WFH">("ALL");
 
     // Upload Slot 1: Cartão de Ponto Secullum
     const [pointFile, setPointFile] = useState<File | null>(null);
@@ -274,22 +274,7 @@ export default function PayrollAuditPage() {
             for (let pageNum = 1; pageNum <= numPages; pageNum++) {
                 const page = await pdfjsDoc.getPage(pageNum);
                 const textContent = await page.getTextContent();
-                
-                let lastY: number | null = null;
-                let pageText = "";
-                for (const item of textContent.items as any[]) {
-                    if (lastY !== null && Math.abs(item.transform[5] - lastY) > 3) {
-                        pageText += "\n";
-                    } else if (item.hasEOL) {
-                        pageText += "\n";
-                    } else if (pageText.length > 0 && !pageText.endsWith("\n") && !pageText.endsWith(" ")) {
-                        pageText += " ";
-                    }
-                    pageText += item.str;
-                    lastY = item.transform[5];
-                }
-
-                const parsed = extractDataFromPageText(pageText, pageNum);
+                const parsed = parseHoleritePdfPageItems(textContent.items, pageNum);
 
                 rawItems.push({
                     id: `holerite-${pageNum}`,
@@ -597,7 +582,7 @@ export default function PayrollAuditPage() {
                 || (digits.length > 0 && (r.cpf || "").replace(/\D/g, "").includes(digits))
                 || (r.wfh?.companyName || r.companyName || "").toLowerCase().includes(term);
         })
-        .sort((a, b) => (b.divergentRubricsCount || 0) - (a.divergentRubricsCount || 0) || a.name.localeCompare(b.name));
+        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 
     const crossStatusLabel = (s: string) =>
         s === "OK" ? "✅ OK" : s === "FALTOU" ? "❌ FALTOU" : s === "INDEVIDO" ? "❌ INDEVIDO" : "⚠️ DIVERGENTE";
@@ -612,12 +597,12 @@ export default function PayrollAuditPage() {
             const wb = XLSX.utils.book_new();
             const comp = `${String(selectedMonth).padStart(2, "0")}/${selectedYear}`;
 
-            // Aba 1: Espelho por colaborador (mesmo layout da tela)
+            // Aba 1: Espelho por colaborador (mesmo layout da tela na sequência do sistema)
             const aoa: (string | number)[][] = [
                 [`ESPELHO DE CONFERÊNCIA WFH x HOLERITE — COMPETÊNCIA ${comp}`],
                 []
             ];
-            const sorted = [...crossBaseRows].sort((a, b) => (b.divergentRubricsCount || 0) - (a.divergentRubricsCount || 0) || a.name.localeCompare(b.name));
+            const sorted = [...crossBaseRows].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
             sorted.forEach(r => {
                 const div = r.divergentRubricsCount || 0;
                 const statusTxt = isNotInWfh(r) ? "🚨 NÃO CONSTA NO WFH" : div > 0 ? `⚠️ ${div} DIVERGÊNCIA(S)` : "✅ 100% OK";

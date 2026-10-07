@@ -40,6 +40,7 @@ import {
     ExtractedHoleriteItem, 
     NamingPattern, 
     extractDataFromPageText, 
+    parseHoleritePdfPageItems,
     generateFileName, 
     createSingleEmployeePdf, 
     createHoleritesZip, 
@@ -151,25 +152,10 @@ export default function HoleritesPage() {
                 setProgressPercent(currentPercent);
                 setProgressText(`Processando página ${pageNum} de ${numPages}...`);
 
-                // 1. Extract text from page
+                // 1. Extract text from page with exact geometry
                 const page = await pdfjsDoc.getPage(pageNum);
                 const textContent = await page.getTextContent();
-                
-                let lastY: number | null = null;
-                let pageText = "";
-                for (const item of textContent.items as any[]) {
-                    if (lastY !== null && Math.abs(item.transform[5] - lastY) > 3) {
-                        pageText += "\n";
-                    } else if (item.hasEOL) {
-                        pageText += "\n";
-                    } else if (pageText.length > 0 && !pageText.endsWith("\n") && !pageText.endsWith(" ")) {
-                        pageText += " ";
-                    }
-                    pageText += item.str;
-                    lastY = item.transform[5];
-                }
-
-                const parsed = extractDataFromPageText(pageText, pageNum);
+                const parsed = parseHoleritePdfPageItems(textContent.items, pageNum);
 
                 // 2. Generate isolated single-page PDF
                 const pageIndex = pageNum - 1;

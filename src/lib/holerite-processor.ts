@@ -174,15 +174,35 @@ export function extractDataFromPageText(text: string, pageNumber: number): {
     }
 
     // 5. Extract Employee Name & Registration Code (RE / Matrícula)
+    // Priority 0: Domínio two-line layout:
+    // Line i: "Código Nome do Funcionário CBO Departamento Filial"
+    // Line i+1: "214 SABRINA APARECIDA NUNES CRIVELARO 514320 21 1"
+    for (let i = 0; i < lines.length - 1; i++) {
+        if (/Nome\s+do\s+(?:Funcion[aá]rio|Empregado)/i.test(lines[i])) {
+            const nextL = lines[i + 1].replace(/\s+/g, ' ').trim();
+            const empM = nextL.match(/^(\d{1,8})\s+([A-ZÀ-Ú\s]{3,80}?)(?:\s+\d{4,8}|\s*$)/i);
+            if (empM) {
+                registrationCode = empM[1].trim();
+                const extracted = empM[2].trim().toUpperCase();
+                if (extracted.length >= 3 && !/RECIBO|FOLHA|EMPRESA|TOTAL/i.test(extracted)) {
+                    employeeName = extracted;
+                    break;
+                }
+            }
+        }
+    }
+
     // Priority 1: Domínio Sistemas / Onvio / Thomson Reuters:
     // "CC: 108 Código ZURIMA ROXANA LEON GARCIA Nome do Funcionário"
     // "108 Código ZURIMA ROXANA LEON GARCIA Nome do Funcionário"
-    const dominioMatch = normalizedText.match(/(?:CC:?\s*)?(\d{1,8})\s+C[oó]digo\s+([A-ZÀ-Ú\s]{3,80}?)\s+(?:Nome\s+do\s+Funcion[aá]rio|Nome\s+do\s+Empregado|Nome)/i);
-    if (dominioMatch) {
-        registrationCode = dominioMatch[1].trim();
-        const extracted = dominioMatch[2].replace(/\s+/g, ' ').trim().toUpperCase();
-        if (extracted.length >= 3 && !/RECIBO|FOLHA|PAGAMENTO|EMPRESA|TOTAL/i.test(extracted)) {
-            employeeName = extracted;
+    if (!employeeName || employeeName.startsWith('Colaborador_Pagina')) {
+        const dominioMatch = normalizedText.match(/(?:CC:?\s*)?(\d{1,8})\s+C[oó]digo\s+([A-ZÀ-Ú\s]{3,80}?)\s+(?:Nome\s+do\s+Funcion[aá]rio|Nome\s+do\s+Empregado|Nome)/i);
+        if (dominioMatch) {
+            registrationCode = dominioMatch[1].trim();
+            const extracted = dominioMatch[2].replace(/\s+/g, ' ').trim().toUpperCase();
+            if (extracted.length >= 3 && !/RECIBO|FOLHA|PAGAMENTO|EMPRESA|TOTAL/i.test(extracted)) {
+                employeeName = extracted;
+            }
         }
     }
 
@@ -277,14 +297,25 @@ export function extractDataFromPageText(text: string, pageNumber: number): {
     let absenceDeduction = 0;
     let workedDays = 30;
 
-    // Base Salary: value after or value before
-    // e.g. "Salário Base 1.764,00" or "2.611,00 Salário Base"
+    // Base Salary: value after or value before or next line
+    // e.g. "Salário Base 1.764,00" or "2.611,00 Salário Base" or on subsequent line in table
     const baseSalMatch1 = normalizedText.match(/(?:Sal[aá]rio\s*Base|Sal\.?\s*Base)[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
     const baseSalMatch2 = normalizedText.match(/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})\s*(?:Sal[aá]rio\s*Base|Sal\.?\s*Base)/i);
     if (baseSalMatch1) {
         baseSalary = parseCurrency(baseSalMatch1[1]);
     } else if (baseSalMatch2) {
         baseSalary = parseCurrency(baseSalMatch2[1]);
+    } else {
+        // Multi-line table check: line with "Salário Base" followed by numbers on next line
+        for (let i = 0; i < lines.length - 1; i++) {
+            if (/Sal[aá]rio\s*Base/i.test(lines[i])) {
+                const nums = Array.from(lines[i + 1].matchAll(/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/g)).map(m => parseCurrency(m[1]));
+                if (nums.length > 0 && baseSalary === 0) {
+                    baseSalary = nums[0];
+                    break;
+                }
+            }
+        }
     }
 
     // Total Earnings, Total Deductions, Net Salary:
@@ -295,15 +326,44 @@ export function extractDataFromPageText(text: string, pageNumber: number): {
         totalDeductions = parseCurrency(totalsDominioMatch[2]);
         netSalary = parseCurrency(totalsDominioMatch[3]);
     } else {
+        // Multi-line Domínio check: header line "Total de Vencimentos Total de Descontos"
+        for (let i = 0; i < lines.length; i++) {
+            if (/Total\s+de\s+Vencimentos/i.test(lines[i]) && /Total\s+de\s+Descontos/i.test(lines[i])) {
+                for (let j = i; j <= Math.min(i + 2, lines.length - 1); j++) {
+                    const nums = Array.from(lines[j].matchAll(/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/g)).map(m => parseCurrency(m[1]));
+                    if (nums.length >= 2) {
+                        totalEarnings = nums[nums.length - 2];
+                        totalDeductions = nums[nums.length - 1];
+                        break;
+                    }
+                }
+            }
+            if (/Valor\s*L[ií]quido/i.test(lines[i])) {
+                const nums = Array.from(lines[i].matchAll(/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/g)).map(m => parseCurrency(m[1]));
+                if (nums.length > 0) {
+                    netSalary = nums[nums.length - 1];
+                } else if (i + 1 < lines.length) {
+                    const nextNums = Array.from(lines[i + 1].matchAll(/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/g)).map(m => parseCurrency(m[1]));
+                    if (nextNums.length > 0) netSalary = nextNums[nextNums.length - 1];
+                }
+            }
+        }
+
         // Standard labels
-        const earningsMatch = normalizedText.match(/(?:Total\s*(?:de\s*)?(?:Vencimentos|Proventos))[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
-        if (earningsMatch) totalEarnings = parseCurrency(earningsMatch[1]);
+        if (totalEarnings === 0) {
+            const earningsMatch = normalizedText.match(/(?:Total\s*(?:de\s*)?(?:Vencimentos|Proventos))[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
+            if (earningsMatch) totalEarnings = parseCurrency(earningsMatch[1]);
+        }
 
-        const deductionsMatch = normalizedText.match(/(?:Total\s*(?:de\s*)?Descontos)[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
-        if (deductionsMatch) totalDeductions = parseCurrency(deductionsMatch[1]);
+        if (totalDeductions === 0) {
+            const deductionsMatch = normalizedText.match(/(?:Total\s*(?:de\s*)?Descontos)[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
+            if (deductionsMatch) totalDeductions = parseCurrency(deductionsMatch[1]);
+        }
 
-        const netMatch = normalizedText.match(/(?:Valor\s*L[ií]quido|L[ií]quido\s*a\s*Receber|Total\s*L[ií]quido)[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
-        if (netMatch) netSalary = parseCurrency(netMatch[1]);
+        if (netSalary === 0) {
+            const netMatch = normalizedText.match(/(?:Valor\s*L[ií]quido|L[ií]quido\s*a\s*Receber|Total\s*L[ií]quido)[:\s]*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/i);
+            if (netMatch) netSalary = parseCurrency(netMatch[1]);
+        }
     }
 
     if (netSalary === 0 && totalEarnings > 0) {
@@ -622,3 +682,293 @@ export async function createHoleritesZip(
 
     return await zip.generateAsync({ type: 'blob' });
 }
+
+/**
+ * Parses PDF text items directly from PDF.js getTextContent(), using geometric coordinates (X, Y)
+ * to reconstruct exact lines, detect column boundaries for earnings vs deductions, and deduplicate vias.
+ */
+export function parseHoleritePdfPageItems(rawPdfItems: any[], pageNumber: number): {
+    employeeName: string;
+    cpf: string;
+    registrationCode?: string;
+    companyName?: string;
+    cnpj?: string;
+    competence?: string;
+    payrollType?: string;
+    baseSalary?: number;
+    totalEarnings?: number;
+    totalDeductions?: number;
+    netSalary?: number;
+    workedDays?: number;
+    absenceDays?: number;
+    absenceDeduction?: number;
+    rubrics?: HoleriteRubricItem[];
+} {
+    const parseCurrency = (valStr: string | undefined): number => {
+        if (!valStr) return 0;
+        const clean = valStr.replace(/[^\d,\.-]/g, '').replace(/\./g, '').replace(',', '.');
+        const num = parseFloat(clean);
+        return isNaN(num) ? 0 : num;
+    };
+
+    const items = rawPdfItems.map(it => ({
+        str: it.str || '',
+        x: Math.round((it.transform ? it.transform[4] : (it.x || 0)) * 10) / 10,
+        y: Math.round((it.transform ? it.transform[5] : (it.y || 0)) * 10) / 10
+    }));
+
+    if (items.length === 0) {
+        return extractDataFromPageText('', pageNumber);
+    }
+
+    // Detect if page has two vias (top and bottom)
+    const yVals = items.map(i => i.y);
+    const midY = (Math.min(...yVals) + Math.max(...yVals)) / 2;
+    const hasBottomVia = items.some(i => i.y < midY && /Valor\s*L[ií]quido|Vencimentos|Mantenha/i.test(i.str));
+
+    // Exclude right-margin signature area (x > 515) and bottom via if duplicated
+    const filteredItems = items.filter(i => (!hasBottomVia || i.y >= midY) && i.x < 515);
+
+    // Group items into lines by Y with 3.5px tolerance
+    const lines: Array<{ y: number; items: typeof filteredItems }> = [];
+    const sorted = [...filteredItems].sort((a, b) => b.y - a.y);
+    for (const item of sorted) {
+        let line = lines.find(l => Math.abs(l.y - item.y) <= 3.5);
+        if (!line) {
+            line = { y: item.y, items: [] };
+            lines.push(line);
+        }
+        line.items.push(item);
+    }
+    lines.sort((a, b) => b.y - a.y);
+    for (const l of lines) {
+        l.items.sort((a, b) => a.x - b.x);
+    }
+
+    let employeeName = `Colaborador_Pagina_${pageNumber}`;
+    let cpf = '';
+    let registrationCode = '';
+    let companyName = '';
+    let cnpj = '';
+    let competence = '';
+    let payrollType = 'Folha Mensal';
+
+    const textLines = lines.map(l => l.items.map(it => it.str).join(' ').replace(/\s+/g, ' ').trim());
+    const fullText = textLines.join('\n');
+
+    // 1. CPF
+    const cpfMatch = fullText.match(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/);
+    if (cpfMatch) {
+        cpf = cpfMatch[0];
+    } else {
+        const cpfKeywordMatch = fullText.match(/CPF[:\s]*(\d{3}\.?\d{3}\.?\d{3}-?\d{2}|\d{11})/i);
+        if (cpfKeywordMatch) cpf = formatCPF(cpfKeywordMatch[1]);
+    }
+
+    // 2. CNPJ
+    const cnpjMatch = fullText.match(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/);
+    if (cnpjMatch) cnpj = cnpjMatch[0];
+
+    // 3. Competence
+    const compMatch = fullText.match(/(?:Compet[êe]ncia|Refer[êe]ncia|M[êe]s\/Ano|Per[ií]odo)[:\s]*([0-1]?\d[\/-]20\d{2}|[0-1]?\d[\/-]\d{2})/i);
+    if (compMatch) {
+        competence = compMatch[1];
+    } else {
+        const mM = fullText.match(/(Janeiro|Fevereiro|Março|Marco|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)[\s\/\-_de]+(20\d{2})/i);
+        if (mM) {
+            const m = MONTH_NAMES[mM[1].toLowerCase()] || '01';
+            competence = `${m}/${mM[2]}`;
+        }
+    }
+
+    // 4. Payroll Type
+    if (/adiantamento/i.test(fullText)) payrollType = 'Adiantamento';
+    else if (/13[ºo°]?\s*sal[aá]rio|d[eé]cimo\s*terceiro/i.test(fullText)) payrollType = '13º Salário';
+    else if (/f[eé]rias/i.test(fullText)) payrollType = 'Recibo de Férias';
+    else if (/rescis[aã]o/i.test(fullText)) payrollType = 'Termo de Rescisão';
+
+    // 5. Company Name
+    if (textLines.length > 0 && textLines[0].length > 3 && !/RECIBO|DEMONSTRATIVO|FOLHA|PAGE/i.test(textLines[0])) {
+        companyName = textLines[0];
+    }
+
+    // 6. Employee Name & Code
+    for (let i = 0; i < textLines.length - 1; i++) {
+        if (/Nome\s+do\s+(?:Funcion[aá]rio|Empregado)/i.test(textLines[i])) {
+            const nextL = textLines[i + 1];
+            const empM = nextL.match(/^(\d{1,8})\s+([A-ZÀ-Ú\s]{3,80}?)(?:\s+\d{4,8}|\s*$)/i);
+            if (empM) {
+                registrationCode = empM[1].trim();
+                const extracted = empM[2].replace(/\s+/g, ' ').trim().toUpperCase();
+                if (extracted.length >= 3 && !/RECIBO|FOLHA|EMPRESA|TOTAL/i.test(extracted)) {
+                    employeeName = extracted;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!employeeName || employeeName.startsWith('Colaborador_Pagina')) {
+        const dMatch = fullText.match(/(?:CC:?\s*)?(\d{1,8})\s+C[oó]digo\s+([A-ZÀ-Ú\s]{3,80}?)\s+(?:Nome\s+do\s+Funcion[aá]rio|Nome)/i);
+        if (dMatch) {
+            registrationCode = dMatch[1].trim();
+            employeeName = dMatch[2].replace(/\s+/g, ' ').trim().toUpperCase();
+        }
+    }
+
+    // Fallback if still generic
+    if (!employeeName || employeeName.startsWith('Colaborador_Pagina')) {
+        const fallbackRes = extractDataFromPageText(fullText, pageNumber);
+        if (fallbackRes.employeeName && !fallbackRes.employeeName.startsWith('Colaborador_Pagina')) {
+            employeeName = fallbackRes.employeeName;
+            if (fallbackRes.registrationCode) registrationCode = fallbackRes.registrationCode;
+        }
+    }
+
+    // 7. Financial Totals
+    let totalEarnings = 0;
+    let totalDeductions = 0;
+    let netSalary = 0;
+    let baseSalary = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+        const lineText = textLines[i];
+        if (/Total\s+de\s+Vencimentos/i.test(lineText) && /Total\s+de\s+Descontos/i.test(lineText)) {
+            for (let j = i; j <= Math.min(i + 2, lines.length - 1); j++) {
+                const nums = lines[j].items.map(it => it.str.trim()).filter(s => /^[0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}$/.test(s));
+                if (nums.length >= 2) {
+                    totalEarnings = parseCurrency(nums[nums.length - 2]);
+                    totalDeductions = parseCurrency(nums[nums.length - 1]);
+                    break;
+                }
+            }
+        }
+
+        if (/Valor\s*L[ií]quido/i.test(lineText)) {
+            const nums = lines[i].items.map(it => it.str.trim()).filter(s => /^[0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}$/.test(s));
+            if (nums.length > 0) {
+                netSalary = parseCurrency(nums[nums.length - 1]);
+            }
+        }
+
+        if (/Sal[aá]rio\s*Base/i.test(lineText) && i + 1 < lines.length) {
+            const nums = lines[i + 1].items.map(it => it.str.trim()).filter(s => /^[0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}$/.test(s));
+            if (nums.length > 0 && baseSalary === 0) {
+                baseSalary = parseCurrency(nums[0]);
+            }
+        }
+    }
+
+    // 8. Rubrics extraction using geometric column boundaries
+    const rubrics: HoleriteRubricItem[] = [];
+    let insideRubrics = false;
+
+    let refColX = 280;
+    let earnColX = 360;
+    let descColX = 435;
+
+    for (const line of lines) {
+        const lineText = line.items.map(it => it.str).join(' ').replace(/\s+/g, ' ').trim();
+        if (/C[oó]digo\s+Descri[çc][aã]o\s+Refer[êe]ncia/i.test(lineText)) {
+            insideRubrics = true;
+            for (const it of line.items) {
+                if (/Refer[êe]ncia/i.test(it.str)) refColX = it.x - 10;
+                if (/Vencimentos/i.test(it.str)) earnColX = it.x - 10;
+                if (/Descontos/i.test(it.str)) descColX = it.x - 10;
+            }
+            continue;
+        }
+        if (/Total\s+de\s+Vencimentos/i.test(lineText) || /Valor\s*L[ií]quido/i.test(lineText)) {
+            insideRubrics = false;
+            continue;
+        }
+
+        if (insideRubrics) {
+            let code = '';
+            const descParts: string[] = [];
+            let ref = '';
+            let earnings = 0;
+            let deductions = 0;
+
+            for (const item of line.items) {
+                const s = item.str.trim();
+                if (!s) continue;
+                if (item.x < refColX * 0.3 && /^\d+$/.test(s) && !code) {
+                    code = s;
+                } else if (item.x >= refColX && item.x < earnColX && (/^\d{1,3}:\d{2}$/.test(s) || /^[0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}$/.test(s))) {
+                    ref = s;
+                } else if (item.x >= earnColX && item.x < descColX && /^[0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}$/.test(s)) {
+                    earnings = parseCurrency(s);
+                } else if (item.x >= descColX && /^[0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}$/.test(s)) {
+                    deductions = parseCurrency(s);
+                } else if (item.x < refColX) {
+                    descParts.push(s);
+                }
+            }
+
+            const desc = descParts.join(' ').trim();
+            if (desc && (earnings > 0 || deductions > 0)) {
+                rubrics.push({
+                    code,
+                    description: desc,
+                    reference: ref,
+                    earnings: earnings > 0 ? earnings : undefined,
+                    deductions: deductions > 0 ? deductions : undefined
+                });
+            }
+        }
+    }
+
+    // Absence deductions sum & absence days
+    let absenceDeduction = 0;
+    let absenceDays = 0;
+    for (const r of rubrics) {
+        const d = r.description.toUpperCase();
+        if (r.deductions && (d.includes('FALTA') || d.includes('DSR'))) {
+            absenceDeduction += r.deductions;
+            if (r.reference && !d.includes('DSR')) {
+                if (r.reference.includes(':')) {
+                    const [h, m] = r.reference.split(':');
+                    const th = parseInt(h, 10) + parseInt(m || '0', 10) / 60;
+                    absenceDays += Math.round(th / 7.3333);
+                } else {
+                    const days = parseFloat(r.reference.replace(',', '.'));
+                    if (!isNaN(days) && days <= 31) absenceDays += days;
+                }
+            }
+        }
+    }
+    absenceDeduction = Math.round(absenceDeduction * 100) / 100;
+
+    // Fallback if rubrics weren't found by geometric bounds
+    if (rubrics.length === 0) {
+        const fallbackRes = extractDataFromPageText(fullText, pageNumber);
+        if (fallbackRes.rubrics && fallbackRes.rubrics.length > 0) {
+            rubrics.push(...fallbackRes.rubrics);
+        }
+        if (baseSalary === 0 && fallbackRes.baseSalary) baseSalary = fallbackRes.baseSalary;
+        if (totalEarnings === 0 && fallbackRes.totalEarnings) totalEarnings = fallbackRes.totalEarnings;
+        if (totalDeductions === 0 && fallbackRes.totalDeductions) totalDeductions = fallbackRes.totalDeductions;
+        if (netSalary === 0 && fallbackRes.netSalary) netSalary = fallbackRes.netSalary;
+        if (absenceDeduction === 0 && fallbackRes.absenceDeduction) absenceDeduction = fallbackRes.absenceDeduction;
+    }
+
+    return {
+        employeeName,
+        cpf,
+        registrationCode,
+        companyName,
+        cnpj,
+        competence,
+        payrollType,
+        baseSalary,
+        totalEarnings,
+        totalDeductions,
+        netSalary,
+        workedDays: 30,
+        absenceDays,
+        absenceDeduction,
+        rubrics
+    };
+}
+

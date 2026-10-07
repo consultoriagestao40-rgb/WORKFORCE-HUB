@@ -199,7 +199,7 @@ function sumRubrics(
     let sum = 0;
     for (const r of rubrics) {
         const descUpper = normalizeName(r.description).toUpperCase();
-        const matches = keywords.some(k => descUpper.includes(k.toUpperCase()));
+        const matches = keywords.some(k => descUpper.includes(normalizeName(k).toUpperCase()));
         if (matches) {
             if (type === "earnings" || type === "both") sum += (r.earnings || 0);
             if (type === "deductions" || type === "both") sum += (r.deductions || 0);
@@ -493,7 +493,12 @@ export async function runPayrollAudit(params: {
 
             // 1. Salário Base
             const expBase = wfhBaseSalary;
-            const actBase = holeriteBase || sumRubrics(hRubrics, ["SALARIO", "SALÁRIO", "HORAS NORMAIS"], "earnings");
+            const baseRubric = hRubrics.find(r => {
+                const d = normalizeName(r.description).toUpperCase();
+                return (r.earnings || 0) > 0 && (d.includes("HORAS NORMAIS") || d.includes("SALARIO"));
+            });
+            const baseRef = baseRubric?.reference ? `${baseRubric.reference}h` : "";
+            const actBase = holeriteBase || sumRubrics(hRubrics, ["SALARIO", "HORAS NORMAIS"], "earnings");
             const diffBase = Math.round((actBase - expBase) * 100) / 100;
             const isBaseOk = Math.abs(diffBase) <= 5;
             rubricComparisons.push({
@@ -501,7 +506,9 @@ export async function runPayrollAudit(params: {
                 expectedWfh: expBase,
                 expectedWfhDetail: `R$ ${expBase.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                 actualHolerite: actBase,
-                actualHoleriteDetail: actBase > 0 ? `R$ ${actBase.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "Não informado",
+                actualHoleriteDetail: actBase > 0 
+                    ? `R$ ${actBase.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${baseRef ? ` (${baseRef})` : ""}` 
+                    : "Não informado",
                 diff: diffBase,
                 status: isBaseOk ? "OK" : "DIVERGENTE",
                 instruction: isBaseOk ? "" : `AJUSTAR SALÁRIO BASE: Fechamento WFH R$ ${expBase.toFixed(2)} vs. R$ ${actBase.toFixed(2)} processado no holerite.`
@@ -553,9 +560,13 @@ export async function runPayrollAudit(params: {
                 });
             }
 
-            // 4. Adicionais / Liderança / Gratificação CCT
+            // 4. Adicionais / Liderança / Gratificação CCT / Função Gratificada Copa
             const expAdicionais = Math.round(((wfhPreview?.gratificacao || emp.gratificacao || 0) + (wfhPreview?.outrosAdicionais || emp.outrosAdicionais || 0)) * 100) / 100;
-            const actAdicionais = sumRubrics(hRubrics, ["GRATIF", "LIDERAN", "FUNCAO", "FUNÇÃO", "ADICIONAL", "CARGO", "PREMIO", "PRÊMIO"], "earnings");
+            const matchingAdicionais = hRubrics.filter(r => {
+                const d = normalizeName(r.description).toUpperCase();
+                return (r.earnings || 0) > 0 && ["GRATIF", "LIDERAN", "FUNCAO", "CARGO", "PREMIO", "COPA"].some(k => d.includes(k));
+            });
+            const actAdicionais = matchingAdicionais.reduce((acc, r) => acc + (r.earnings || 0), 0) || sumRubrics(hRubrics, ["GRATIF", "LIDERAN", "FUNCAO", "ADICIONAL", "CARGO", "PREMIO", "COPA"], "earnings");
             if (expAdicionais > 0 || actAdicionais > 0) {
                 const diff = Math.round((actAdicionais - expAdicionais) * 100) / 100;
                 const isFaltou = expAdicionais > 0 && actAdicionais === 0;
@@ -601,7 +612,11 @@ export async function runPayrollAudit(params: {
                 ? (wfhPreview.vtOptIn === true && !(wfhPreview.ajudaCusto > 0)) 
                 : (emp.vtOptIn === true && !(emp.ajudaCusto && emp.ajudaCusto > 0));
             const expVt = isVtOptante ? (wfhPreview?.vtPayrollDiscount || Math.round((expBase * 0.06) * 100) / 100) : 0;
-            let actVt = sumRubrics(hRubrics, ["VALE TRANS", "VALE-TRANS", "DESC. VT", "DESC VT", "DESCONTO VT"], "deductions");
+            const vtRubric = hRubrics.find(r => {
+                const d = normalizeName(r.description).toUpperCase();
+                return (r.deductions || 0) > 0 && (d.includes("VALE TRANS") || d.includes("DESC. VT") || d.includes("DESCONTO VT") || d === "VT" || d.includes(" TRANSPORTE"));
+            });
+            let actVt = vtRubric?.deductions || sumRubrics(hRubrics, ["VALE TRANS", "VALE-TRANS", "DESC. VT", "DESC VT", "DESCONTO VT", "VALE TRANSPORTE"], "deductions");
             if (actVt === 0) {
                 for (const r of hRubrics) {
                     if (r.deductions && r.deductions > 0 && /\bVT\b/i.test(r.description)) {
@@ -609,6 +624,7 @@ export async function runPayrollAudit(params: {
                     }
                 }
             }
+            const vtRef = vtRubric?.reference ? (vtRubric.reference.includes("%") ? vtRubric.reference : `${vtRubric.reference}%`) : "";
             const diffVt = Math.round((actVt - expVt) * 100) / 100;
             const isVtIndevido = !isVtOptante && actVt > 0;
             const isVtFaltou = isVtOptante && expVt > 0 && actVt === 0;
@@ -621,7 +637,7 @@ export async function runPayrollAudit(params: {
                     : "R$ 0,00 (Não Optante)",
                 actualHolerite: actVt,
                 actualHoleriteDetail: actVt > 0 
-                    ? `R$ ${actVt.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Descontado)` 
+                    ? `R$ ${actVt.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${vtRef ? ` (${vtRef})` : " (Descontado)"}` 
                     : "R$ 0,00 (Sem desconto)",
                 diff: diffVt,
                 status: isVtOk ? "OK" : isVtIndevido ? "INDEVIDO" : isVtFaltou ? "FALTOU" : "DIVERGENTE",
@@ -632,27 +648,64 @@ export async function runPayrollAudit(params: {
                     : `AJUSTAR DESCONTO VT: Previsto R$ ${expVt.toFixed(2)} vs. R$ ${actVt.toFixed(2)} descontado.`
             });
 
-            // 7. Faltas e DSR
+            // 7. Faltas e DSR (Somatório exato de Faltas + DSR e Detalhamento da Quantidade de Horas)
             const expFaltas = Math.round(((wfhPreview?.faltaDeduction || 0) + (wfhPreview?.dsrDeduction || 0)) * 100) / 100;
-            const actFaltas = sumRubrics(hRubrics, ["FALTA", "DSR"], "deductions") || holeriteAbsenceDeduction || 0;
+
+            const matchingFaltaRubrics = hRubrics.filter(r => {
+                const d = normalizeName(r.description).toUpperCase();
+                return (r.deductions || 0) > 0 && (d.includes("FALTA") || d.includes("DSR"));
+            });
+
+            // Ordena para que Faltas venha antes de DSR
+            matchingFaltaRubrics.sort((a, b) => {
+                const isDsrA = normalizeName(a.description).toUpperCase().includes("DSR") ? 1 : 0;
+                const isDsrB = normalizeName(b.description).toUpperCase().includes("DSR") ? 1 : 0;
+                return isDsrA - isDsrB;
+            });
+
+            let actFaltas = matchingFaltaRubrics.reduce((acc, r) => acc + (r.deductions || 0), 0);
+            if (actFaltas === 0) {
+                actFaltas = sumRubrics(hRubrics, ["FALTA", "DSR"], "deductions") || holeriteAbsenceDeduction || 0;
+            }
+            actFaltas = Math.round(actFaltas * 100) / 100;
+
+            // Extrai a quantidade exata de horas das referências (ex: 18:00h Faltas + 12:00h DSR)
+            const hoursSummaryParts = matchingFaltaRubrics.map(r => {
+                const isDsr = normalizeName(r.description).toUpperCase().includes("DSR");
+                const label = isDsr ? "DSR" : "Faltas";
+                const ref = r.reference ? `${r.reference}h` : "";
+                return ref ? `${ref} ${label}` : label;
+            });
+            const hoursSummary = hoursSummaryParts.join(" + ");
+
             if (expFaltas > 0 || actFaltas > 0) {
                 const diffFaltas = Math.round((actFaltas - expFaltas) * 100) / 100;
                 const isFaltou = expFaltas > 10 && actFaltas === 0;
                 const isIndevido = expFaltas === 0 && actFaltas > 10;
                 const isOk = Math.abs(diffFaltas) <= 10;
+
+                const expHoursStr = wfhPreview?.faltasHours ? `${wfhPreview.faltasHours}h` : "";
+                const expFaltasDetail = expFaltas > 0 
+                    ? `R$ ${expFaltas.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${expHoursStr ? ` (${expHoursStr} faltas)` : wfhPreview?.faltasCount ? ` (${wfhPreview.faltasCount} falta(s))` : ""}`
+                    : "R$ 0,00 (Sem faltas)";
+
+                const actFaltasDetail = actFaltas > 0 
+                    ? `R$ ${actFaltas.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${hoursSummary ? ` (${hoursSummary})` : " (Descontado)"}`
+                    : "R$ 0,00 (Sem desconto)";
+
                 rubricComparisons.push({
                     rubric: "200 - Faltas / DSR",
                     expectedWfh: expFaltas,
-                    expectedWfhDetail: expFaltas > 0 ? `R$ ${expFaltas.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${wfhPreview?.faltasCount || 0} falta(s))` : "R$ 0,00 (Sem faltas)",
+                    expectedWfhDetail: expFaltasDetail,
                     actualHolerite: actFaltas,
-                    actualHoleriteDetail: actFaltas > 0 ? `R$ ${actFaltas.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Descontado)` : "R$ 0,00 (Sem desconto)",
+                    actualHoleriteDetail: actFaltasDetail,
                     diff: diffFaltas,
                     status: isOk ? "OK" : isFaltou ? "FALTOU" : isIndevido ? "INDEVIDO" : "DIVERGENTE",
                     instruction: isOk ? "" : isFaltou
                         ? `APLICAR DESCONTO: Ponto/WFH apurou faltas/DSR no valor de R$ ${expFaltas.toFixed(2)} não descontadas.`
                         : isIndevido
-                        ? `CONFERIR DESCONTO: Holerite descontou R$ ${actFaltas.toFixed(2)} de faltas, mas no fechamento WFH constam 0 faltas.`
-                        : `AJUSTAR FALTAS: Fechamento WFH R$ ${expFaltas.toFixed(2)} vs. R$ ${actFaltas.toFixed(2)} descontado no holerite.`
+                        ? `CONFERIR DESCONTO: Holerite descontou R$ ${actFaltas.toFixed(2)}${hoursSummary ? ` (${hoursSummary})` : ""} de faltas, mas no fechamento WFH constam 0 faltas.`
+                        : `AJUSTAR FALTAS: Fechamento WFH R$ ${expFaltas.toFixed(2)} vs. R$ ${actFaltas.toFixed(2)}${hoursSummary ? ` (${hoursSummary})` : ""} descontado no holerite.`
                 });
             }
 
@@ -676,7 +729,12 @@ export async function runPayrollAudit(params: {
 
             // 9. Desconto Vale Alimentação / Refeição (VA/VR)
             const expVa = wfhPreview?.vaPayrollDiscount || 0;
-            const actVa = sumRubrics(hRubrics, ["VALE ALIM", "VALE REFE", "DESC. VA", "DESC. VR", "TICKET"], "deductions");
+            const vaRubric = hRubrics.find(r => {
+                const d = normalizeName(r.description).toUpperCase();
+                return (r.deductions || 0) > 0 && (d.includes("ALIMENTACAO") || d.includes("REFEICAO") || d.includes("VALE ALIM") || d.includes("VALE REFE") || d.includes("VA") || d.includes("VR"));
+            });
+            const actVa = vaRubric?.deductions || sumRubrics(hRubrics, ["VALE ALIM", "VALE REFE", "DESC. VA", "DESC. VR", "TICKET", "ALIMENTACAO"], "deductions");
+            const vaRef = vaRubric?.reference ? (vaRubric.reference.includes("%") ? vaRubric.reference : `${vaRubric.reference}`) : "";
             if (expVa > 0 || actVa > 0) {
                 const diff = Math.round((actVa - expVa) * 100) / 100;
                 const isOk = Math.abs(diff) <= 5;
@@ -685,7 +743,9 @@ export async function runPayrollAudit(params: {
                     expectedWfh: expVa,
                     expectedWfhDetail: expVa > 0 ? `R$ ${expVa.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "R$ 0,00 (Sem desconto VA)",
                     actualHolerite: actVa,
-                    actualHoleriteDetail: actVa > 0 ? `R$ ${actVa.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Descontado)` : "R$ 0,00 (Sem desconto)",
+                    actualHoleriteDetail: actVa > 0 
+                        ? `R$ ${actVa.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${vaRef ? ` (Ref: ${vaRef})` : " (Descontado)"}` 
+                        : "R$ 0,00 (Sem desconto)",
                     diff,
                     status: isOk ? "OK" : "DIVERGENTE",
                     instruction: isOk ? "" : `CONFERIR DESCONTO VA: Previsto R$ ${expVa.toFixed(2)} vs. R$ ${actVa.toFixed(2)} descontado no holerite.`
