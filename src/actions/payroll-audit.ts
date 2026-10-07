@@ -191,16 +191,18 @@ function nameSimilarity(s1: string, s2: string): number {
 }
 
 function sumRubrics(
-    rubrics: Array<{ description: string; earnings?: number; deductions?: number }> | undefined,
+    rubrics: Array<{ code?: string; description: string; earnings?: number; deductions?: number }> | undefined,
     keywords: string[],
-    type: "earnings" | "deductions" | "both" = "both"
+    type: "earnings" | "deductions" | "both" = "both",
+    codes: string[] = []
 ): number {
     if (!rubrics || rubrics.length === 0) return 0;
     let sum = 0;
     for (const r of rubrics) {
         const descUpper = normalizeName(r.description).toUpperCase();
-        const matches = keywords.some(k => descUpper.includes(normalizeName(k).toUpperCase()));
-        if (matches) {
+        const matchesDesc = keywords.some(k => descUpper.includes(normalizeName(k).toUpperCase()));
+        const matchesCode = codes.length > 0 && !!r.code && codes.includes(r.code);
+        if (matchesDesc || matchesCode) {
             if (type === "earnings" || type === "both") sum += (r.earnings || 0);
             if (type === "deductions" || type === "both") sum += (r.deductions || 0);
         }
@@ -516,7 +518,11 @@ export async function runPayrollAudit(params: {
 
             // 2. Insalubridade
             const expInsalubridade = wfhPreview?.insalubridade !== undefined ? wfhPreview.insalubridade : (emp.insalubridade || 0);
-            const actInsalubridade = sumRubrics(hRubrics, ["INSALUBR"], "earnings");
+            const actInsalubridade = sumRubrics(hRubrics, ["INSALUB", "INSALUBR", "INSALUBRIDADE"], "earnings", ["232", "045", "45"]);
+            const insalubRubric = hRubrics.find(r => {
+                const d = normalizeName(r.description).toUpperCase();
+                return d.includes("INSALUB") || r.code === "232" || r.code === "045" || r.code === "45";
+            });
             if (expInsalubridade > 0 || actInsalubridade > 0) {
                 const diff = Math.round((actInsalubridade - expInsalubridade) * 100) / 100;
                 const isFaltou = expInsalubridade > 0 && actInsalubridade === 0;
@@ -527,7 +533,9 @@ export async function runPayrollAudit(params: {
                     expectedWfh: expInsalubridade,
                     expectedWfhDetail: expInsalubridade > 0 ? `R$ ${expInsalubridade.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "Não prevista",
                     actualHolerite: actInsalubridade,
-                    actualHoleriteDetail: actInsalubridade > 0 ? `R$ ${actInsalubridade.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "Não lançado",
+                    actualHoleriteDetail: actInsalubridade > 0 
+                        ? `R$ ${actInsalubridade.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${insalubRubric?.reference ? ` (${insalubRubric.reference})` : ""}` 
+                        : "Não lançado",
                     diff,
                     status: isOk ? "OK" : isFaltou ? "FALTOU" : isIndevido ? "INDEVIDO" : "DIVERGENTE",
                     instruction: isOk ? "" : isFaltou 
@@ -540,7 +548,7 @@ export async function runPayrollAudit(params: {
 
             // 3. Periculosidade
             const expPericulosidade = wfhPreview?.periculosidade !== undefined ? wfhPreview.periculosidade : (emp.periculosidade || 0);
-            const actPericulosidade = sumRubrics(hRubrics, ["PERICULOS"], "earnings");
+            const actPericulosidade = sumRubrics(hRubrics, ["PERICULOS", "PERICULOSIDADE"], "earnings", ["046", "46", "233"]);
             if (expPericulosidade > 0 || actPericulosidade > 0) {
                 const diff = Math.round((actPericulosidade - expPericulosidade) * 100) / 100;
                 const isFaltou = expPericulosidade > 0 && actPericulosidade === 0;
