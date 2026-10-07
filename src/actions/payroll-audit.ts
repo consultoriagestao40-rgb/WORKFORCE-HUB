@@ -4,14 +4,27 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { ExtractedHoleriteItem } from "@/lib/holerite-processor";
 import { ParsedPointEmployee } from "@/lib/point-parser";
+import { getPayrollPreview } from "@/actions/payroll";
 
 export type AuditDiscrepancyType = 
     | "CRITICAL_RISK"       // Pago integralmente mas sem ponto / abandono / afastado
     | "MISSING_HOLERITE"    // Consta no Ponto / WFH mas não recebeu holerite
     | "MISSING_POINT"       // Tem holerite emitido mas não consta no Ponto
-    | "DEDUCTION_MISMATCH"  // Faltas divergentes entre Ponto e Holerite
+    | "DEDUCTION_MISMATCH"  // Faltas ou rubricas divergentes entre Ponto/WFH e Holerite
     | "SALARY_MISMATCH"     // Salário base divergente entre cadastro e holerite
+    | "RUBRIC_MISMATCH"     // Divergência em rubricas da folha (insalubridade, VT, adicionais, etc.)
     | "ALIGNED";            // 100% Alinhado
+
+export interface AuditRubricComparison {
+    rubric: string;               // Rubrica / Conceito (Salário Base, Insalubridade, Adicionais / Liderança, Ajuda de Custo, Desconto VT 6%, Faltas / DSR, etc.)
+    expectedWfh: number;          // Valor apurado no WFH
+    expectedWfhDetail?: string;   // Detalhe WFH (ex: "Não Optante", "20% Sal. Mínimo", "2 faltas", etc.)
+    actualHolerite: number;       // Valor no Holerite
+    actualHoleriteDetail?: string;// Detalhe Holerite (ex: "Descontado R$ 126,00", "Não veio", etc.)
+    diff: number;                 // Diferença (actualHolerite - expectedWfh)
+    status: "OK" | "DIVERGENTE" | "INDEVIDO" | "FALTOU";
+    instruction: string;          // Instrução de correção para a contabilidade
+}
 
 export interface PayrollAuditRow {
     id: string;
@@ -95,6 +108,13 @@ export interface PayrollAuditRow {
             deductions?: number;
         }>;
     };
+
+    // Auditoria Detalhada de Rubricas (WFH vs Holerite)
+    rubricComparisons?: AuditRubricComparison[];
+    divergentRubricsCount?: number;
+    wfhNetSalary?: number;
+    wfhGrossSalary?: number;
+    netDifference?: number;
 }
 
 export interface PayrollAuditSummary {
@@ -105,6 +125,7 @@ export interface PayrollAuditSummary {
     missingHoleriteCount: number;
     missingPointCount: number;
     deductionMismatchCount: number;
+    rubricMismatchCount: number;
     mismatchCount: number;
     alignedCount: number;
     totalHoleriteNet: number;
@@ -168,6 +189,24 @@ function nameSimilarity(s1: string, s2: string): number {
     return (common.length * 2) / (w1.length + w2.length);
 }
 
+function sumRubrics(
+    rubrics: Array<{ description: string; earnings?: number; deductions?: number }> | undefined,
+    keywords: string[],
+    type: "earnings" | "deductions" | "both" = "both"
+): number {
+    if (!rubrics || rubrics.length === 0) return 0;
+    let sum = 0;
+    for (const r of rubrics) {
+        const descUpper = normalizeName(r.description).toUpperCase();
+        const matches = keywords.some(k => descUpper.includes(k.toUpperCase()));
+        if (matches) {
+            if (type === "earnings" || type === "both") sum += (r.earnings || 0);
+            if (type === "deductions" || type === "both") sum += (r.deductions || 0);
+        }
+    }
+    return Math.round(sum * 100) / 100;
+}
+
 /**
  * Lista empresas para filtro de auditoria
  */
@@ -202,13 +241,18 @@ export async function runPayrollAudit(params: {
     const { year, month, companyId, holeriteItems = [], pointItems = [] } = params;
 
     let targetCompany: { id: string; name: string; cnpj: string | null } | null = null;
+    const hasUploadedFiles = holeriteItems.length > 0 || pointItems.length > 0;
     const whereEmployee: any = {};
     if (companyId && companyId !== "all") {
-        whereEmployee.companyId = companyId;
         targetCompany = await prisma.company.findUnique({
             where: { id: companyId },
             select: { id: true, name: true, cnpj: true }
         });
+        // IMPORTANTE: Só filtra o banco por empresa se NÃO houver arquivos de holerite ou ponto enviados.
+        // Se arquivos foram enviados, o cruzamento no WFH DEVE ser global por CPF e Nome entre todas as empresas!
+        if (!hasUploadedFiles) {
+            whereEmployee.companyId = companyId;
+        }
     }
 
     // Cutoff window for occurrences (Day 26 of month-2 to Day 25 of month-1)
@@ -228,6 +272,7 @@ export async function runPayrollAudit(params: {
             company: true,
             situation: true,
             role: true,
+            vacations: true,
             assignments: {
                 where: { endDate: null },
                 include: { posto: { include: { client: true, role: true } } }
@@ -244,6 +289,21 @@ export async function runPayrollAudit(params: {
         },
         orderBy: { name: "asc" }
     });
+
+    // Obter os valores oficiais da folha fechada no WFH para o mês de competência (Planilha Contabilidade)
+    const previewRes = await getPayrollPreview(year, month).catch(err => {
+        console.warn("[runPayrollAudit] Aviso ao obter payroll preview:", err);
+        return { items: [] };
+    });
+    const previewItems = previewRes?.items || [];
+    const previewByCpf = new Map<string, any>();
+    const previewByName = new Map<string, any>();
+    for (const pi of previewItems) {
+        const cpfDigits = cleanCpfDigits(pi.employeeCpf);
+        if (cpfDigits) previewByCpf.set(cpfDigits, pi);
+        const norm = normalizeName(pi.employeeName);
+        if (norm) previewByName.set(norm, pi);
+    }
 
     // 2. Build index maps
     // Holerite map by clean CPF, normalized Name, and registration code
@@ -352,14 +412,20 @@ export async function runPayrollAudit(params: {
             if (point.name) processedEmpKeys.add(normalizeName(point.name));
         }
 
+        const wfhPreview = (cpfDigits ? previewByCpf.get(cpfDigits) : null)
+            || (normName ? previewByName.get(normName) : null);
+
         const activeAssignment = emp.assignments && emp.assignments.length > 0 ? emp.assignments[0] : null;
         const posto = activeAssignment?.posto;
 
-        const wfhBaseSalary = (posto?.baseSalary && posto.baseSalary > 0)
+        const wfhBaseSalary = wfhPreview?.baseSalary || ((posto?.baseSalary && posto.baseSalary > 0)
             ? posto.baseSalary
-            : (emp.salary || 0);
+            : (emp.salary || 0));
 
-        const wfhFaltasCount = emp.occurrences ? emp.occurrences.filter(o => o.type !== "ATESTADO").length : 0;
+        const wfhFaltasCount = wfhPreview?.faltasCount !== undefined 
+            ? wfhPreview.faltasCount 
+            : (emp.occurrences ? emp.occurrences.filter(o => o.type !== "ATESTADO").length : 0);
+
         const situationName = emp.situation?.name || "Ativo";
         const isAbandonment = situationName.toLowerCase().includes("abandono");
         const isAfastado = situationName.toLowerCase().includes("inss") || situationName.toLowerCase().includes("afastad");
@@ -398,6 +464,213 @@ export async function runPayrollAudit(params: {
         const pointFaltasHours = point?.faltasHours || 0;
         const pointExtrasHours = point?.extrasHours || 0;
         const pointNoturnoHours = point?.noturnoHours || 0;
+
+        // --- AUDITORIA DETALHADA DE RUBRICAS (WFH FECHADO × HOLERITE CONTABILIDADE) ---
+        const rubricComparisons: AuditRubricComparison[] = [];
+        let divergentRubricsCount = 0;
+
+        if (hasHolerite) {
+            const hRubrics = holerite?.rubrics || [];
+
+            // 1. Salário Base
+            const expBase = wfhBaseSalary;
+            const actBase = holeriteBase || sumRubrics(hRubrics, ["SALARIO", "SALÁRIO", "HORAS NORMAIS"], "earnings");
+            const diffBase = Math.round((actBase - expBase) * 100) / 100;
+            const isBaseOk = Math.abs(diffBase) <= 5;
+            rubricComparisons.push({
+                rubric: "Salário Base",
+                expectedWfh: expBase,
+                expectedWfhDetail: `R$ ${expBase.toFixed(2)}`,
+                actualHolerite: actBase,
+                actualHoleriteDetail: actBase > 0 ? `R$ ${actBase.toFixed(2)}` : "Não informado",
+                diff: diffBase,
+                status: isBaseOk ? "OK" : "DIVERGENTE",
+                instruction: isBaseOk ? "" : `AJUSTAR SALÁRIO BASE: Fechamento WFH R$ ${expBase.toFixed(2)} vs. R$ ${actBase.toFixed(2)} processado no holerite.`
+            });
+
+            // 2. Insalubridade
+            const expInsalubridade = wfhPreview?.insalubridade !== undefined ? wfhPreview.insalubridade : (emp.insalubridade || 0);
+            const actInsalubridade = sumRubrics(hRubrics, ["INSALUBR"], "earnings");
+            if (expInsalubridade > 0 || actInsalubridade > 0) {
+                const diff = Math.round((actInsalubridade - expInsalubridade) * 100) / 100;
+                const isFaltou = expInsalubridade > 0 && actInsalubridade === 0;
+                const isIndevido = expInsalubridade === 0 && actInsalubridade > 0;
+                const isOk = Math.abs(diff) <= 5;
+                rubricComparisons.push({
+                    rubric: "Insalubridade",
+                    expectedWfh: expInsalubridade,
+                    expectedWfhDetail: expInsalubridade > 0 ? `R$ ${expInsalubridade.toFixed(2)}` : "Não prevista",
+                    actualHolerite: actInsalubridade,
+                    actualHoleriteDetail: actInsalubridade > 0 ? `R$ ${actInsalubridade.toFixed(2)}` : "Não lançado",
+                    diff,
+                    status: isOk ? "OK" : isFaltou ? "FALTOU" : isIndevido ? "INDEVIDO" : "DIVERGENTE",
+                    instruction: isOk ? "" : isFaltou 
+                        ? `LANÇAR PROVENTO: Colaborador possui Insalubridade de R$ ${expInsalubridade.toFixed(2)} que faltou no holerite.`
+                        : isIndevido
+                        ? `EXCLUIR PROVENTO: Insalubridade de R$ ${actInsalubridade.toFixed(2)} lançada indevidamente (não prevista no sistema).`
+                        : `CORRIGIR VALOR: Insalubridade prevista R$ ${expInsalubridade.toFixed(2)} vs. R$ ${actInsalubridade.toFixed(2)} processada.`
+                });
+            }
+
+            // 3. Periculosidade
+            const expPericulosidade = wfhPreview?.periculosidade !== undefined ? wfhPreview.periculosidade : (emp.periculosidade || 0);
+            const actPericulosidade = sumRubrics(hRubrics, ["PERICULOS"], "earnings");
+            if (expPericulosidade > 0 || actPericulosidade > 0) {
+                const diff = Math.round((actPericulosidade - expPericulosidade) * 100) / 100;
+                const isFaltou = expPericulosidade > 0 && actPericulosidade === 0;
+                const isIndevido = expPericulosidade === 0 && actPericulosidade > 0;
+                const isOk = Math.abs(diff) <= 5;
+                rubricComparisons.push({
+                    rubric: "Periculosidade (30%)",
+                    expectedWfh: expPericulosidade,
+                    expectedWfhDetail: expPericulosidade > 0 ? `R$ ${expPericulosidade.toFixed(2)}` : "Não prevista",
+                    actualHolerite: actPericulosidade,
+                    actualHoleriteDetail: actPericulosidade > 0 ? `R$ ${actPericulosidade.toFixed(2)}` : "Não lançado",
+                    diff,
+                    status: isOk ? "OK" : isFaltou ? "FALTOU" : isIndevido ? "INDEVIDO" : "DIVERGENTE",
+                    instruction: isOk ? "" : isFaltou
+                        ? `LANÇAR PROVENTO: Colaborador possui Periculosidade de R$ ${expPericulosidade.toFixed(2)} que faltou no holerite.`
+                        : `CORRIGIR VALOR: Periculosidade prevista R$ ${expPericulosidade.toFixed(2)} vs. R$ ${actPericulosidade.toFixed(2)} processada.`
+                });
+            }
+
+            // 4. Adicionais / Liderança / Gratificação CCT
+            const expAdicionais = Math.round(((wfhPreview?.gratificacao || emp.gratificacao || 0) + (wfhPreview?.outrosAdicionais || emp.outrosAdicionais || 0)) * 100) / 100;
+            const actAdicionais = sumRubrics(hRubrics, ["GRATIF", "LIDERAN", "FUNCAO", "FUNÇÃO", "ADICIONAL", "CARGO", "PREMIO", "PRÊMIO"], "earnings");
+            if (expAdicionais > 0 || actAdicionais > 0) {
+                const diff = Math.round((actAdicionais - expAdicionais) * 100) / 100;
+                const isFaltou = expAdicionais > 0 && actAdicionais === 0;
+                const isIndevido = expAdicionais === 0 && actAdicionais > 0;
+                const isOk = Math.abs(diff) <= 5;
+                rubricComparisons.push({
+                    rubric: "Adicionais / Gratificação / Liderança",
+                    expectedWfh: expAdicionais,
+                    expectedWfhDetail: expAdicionais > 0 ? `R$ ${expAdicionais.toFixed(2)}` : "Sem adicional",
+                    actualHolerite: actAdicionais,
+                    actualHoleriteDetail: actAdicionais > 0 ? `R$ ${actAdicionais.toFixed(2)}` : "Não lançado",
+                    diff,
+                    status: isOk ? "OK" : isFaltou ? "FALTOU" : isIndevido ? "INDEVIDO" : "DIVERGENTE",
+                    instruction: isOk ? "" : isFaltou
+                        ? `LANÇAR PROVENTO: Consta Adicional/Liderança de R$ ${expAdicionais.toFixed(2)} no WFH não lançado no holerite.`
+                        : `CORRIGIR VALOR: Adicional previsto R$ ${expAdicionais.toFixed(2)} vs. R$ ${actAdicionais.toFixed(2)} processado.`
+                });
+            }
+
+            // 5. Ajuda de Custo
+            const expAjuda = wfhPreview?.ajudaCusto !== undefined ? wfhPreview.ajudaCusto : (emp.ajudaCusto || 0);
+            const actAjuda = sumRubrics(hRubrics, ["AJUDA", "CUSTO"], "earnings");
+            if (expAjuda > 0 || actAjuda > 0) {
+                const diff = Math.round((actAjuda - expAjuda) * 100) / 100;
+                const isFaltou = expAjuda > 0 && actAjuda === 0;
+                const isOk = Math.abs(diff) <= 5;
+                rubricComparisons.push({
+                    rubric: "Ajuda de Custo",
+                    expectedWfh: expAjuda,
+                    expectedWfhDetail: expAjuda > 0 ? `R$ ${expAjuda.toFixed(2)}` : "Sem ajuda custo",
+                    actualHolerite: actAjuda,
+                    actualHoleriteDetail: actAjuda > 0 ? `R$ ${actAjuda.toFixed(2)}` : "Não lançado",
+                    diff,
+                    status: isOk ? "OK" : isFaltou ? "FALTOU" : "DIVERGENTE",
+                    instruction: isOk ? "" : isFaltou
+                        ? `LANÇAR AJUDA DE CUSTO: Valor previsto de R$ ${expAjuda.toFixed(2)} não constou no recibo.`
+                        : `CORRIGIR AJUDA DE CUSTO: Previsto R$ ${expAjuda.toFixed(2)} vs. R$ ${actAjuda.toFixed(2)} no holerite.`
+                });
+            }
+
+            // 6. Desconto Vale Transporte (6%) — REGRA DE OURO DO NÃO-OPTANTE
+            const isVtOptante = wfhPreview 
+                ? (wfhPreview.vtOptIn === true && !(wfhPreview.ajudaCusto > 0)) 
+                : (emp.vtOptIn === true && !(emp.ajudaCusto && emp.ajudaCusto > 0));
+            const expVt = isVtOptante ? (wfhPreview?.vtPayrollDiscount || Math.round((expBase * 0.06) * 100) / 100) : 0;
+            let actVt = sumRubrics(hRubrics, ["VALE TRANS", "VALE-TRANS", "DESC. VT", "DESC VT", "DESCONTO VT"], "deductions");
+            if (actVt === 0) {
+                for (const r of hRubrics) {
+                    if (r.deductions && r.deductions > 0 && /\bVT\b/i.test(r.description)) {
+                        actVt += r.deductions;
+                    }
+                }
+            }
+            const diffVt = Math.round((actVt - expVt) * 100) / 100;
+            const isVtIndevido = !isVtOptante && actVt > 0;
+            const isVtFaltou = isVtOptante && expVt > 0 && actVt === 0;
+            const isVtOk = !isVtIndevido && !isVtFaltou && Math.abs(diffVt) <= 5;
+            rubricComparisons.push({
+                rubric: "Desconto Vale Transporte (6%)",
+                expectedWfh: expVt,
+                expectedWfhDetail: isVtOptante ? `Optante (R$ ${expVt.toFixed(2)})` : "Não Optante (R$ 0,00)",
+                actualHolerite: actVt,
+                actualHoleriteDetail: actVt > 0 ? `Descontado R$ ${actVt.toFixed(2)}` : "Sem desconto",
+                diff: diffVt,
+                status: isVtOk ? "OK" : isVtIndevido ? "INDEVIDO" : isVtFaltou ? "FALTOU" : "DIVERGENTE",
+                instruction: isVtOk ? "" : isVtIndevido
+                    ? `EXCLUIR DESCONTO: Colaborador é NÃO-OPTANTE de Vale Transporte. Remover desconto indevido de R$ ${actVt.toFixed(2)}.`
+                    : isVtFaltou
+                    ? `APLICAR DESCONTO: Colaborador é optante de VT com desconto previsto de R$ ${expVt.toFixed(2)} não efetuado.`
+                    : `AJUSTAR DESCONTO VT: Previsto R$ ${expVt.toFixed(2)} vs. R$ ${actVt.toFixed(2)} descontado.`
+            });
+
+            // 7. Faltas e DSR
+            const expFaltas = Math.round(((wfhPreview?.faltaDeduction || 0) + (wfhPreview?.dsrDeduction || 0)) * 100) / 100;
+            const actFaltas = sumRubrics(hRubrics, ["FALTA", "DSR"], "deductions") || holeriteAbsenceDeduction || 0;
+            if (expFaltas > 0 || actFaltas > 0) {
+                const diffFaltas = Math.round((actFaltas - expFaltas) * 100) / 100;
+                const isFaltou = expFaltas > 10 && actFaltas === 0;
+                const isIndevido = expFaltas === 0 && actFaltas > 10;
+                const isOk = Math.abs(diffFaltas) <= 10;
+                rubricComparisons.push({
+                    rubric: "Faltas e DSR",
+                    expectedWfh: expFaltas,
+                    expectedWfhDetail: expFaltas > 0 ? `${wfhPreview?.faltasCount || 0} falta(s) (R$ ${expFaltas.toFixed(2)})` : "Sem faltas",
+                    actualHolerite: actFaltas,
+                    actualHoleriteDetail: actFaltas > 0 ? `Descontado R$ ${actFaltas.toFixed(2)}` : "Sem desconto",
+                    diff: diffFaltas,
+                    status: isOk ? "OK" : isFaltou ? "FALTOU" : isIndevido ? "INDEVIDO" : "DIVERGENTE",
+                    instruction: isOk ? "" : isFaltou
+                        ? `APLICAR DESCONTO: Ponto/WFH apurou faltas/DSR no valor de R$ ${expFaltas.toFixed(2)} não descontadas.`
+                        : isIndevido
+                        ? `CONFERIR DESCONTO: Holerite descontou R$ ${actFaltas.toFixed(2)} de faltas, mas no fechamento WFH constam 0 faltas.`
+                        : `AJUSTAR FALTAS: Fechamento WFH R$ ${expFaltas.toFixed(2)} vs. R$ ${actFaltas.toFixed(2)} descontado no holerite.`
+                });
+            }
+
+            // 8. Horas Extras e Adicional Noturno
+            const expExtras = Math.round(((wfhPreview?.horasExtras50Value || 0) + (wfhPreview?.horasExtras100Value || 0) + (wfhPreview?.adicionalNoturnoValue || 0)) * 100) / 100;
+            const actExtras = sumRubrics(hRubrics, ["EXTRA", "NOTURNO"], "earnings");
+            if (expExtras > 0 || actExtras > 0) {
+                const diff = Math.round((actExtras - expExtras) * 100) / 100;
+                const isOk = Math.abs(diff) <= 10;
+                rubricComparisons.push({
+                    rubric: "Horas Extras / Adicional Noturno",
+                    expectedWfh: expExtras,
+                    expectedWfhDetail: expExtras > 0 ? `R$ ${expExtras.toFixed(2)}` : "Sem extras",
+                    actualHolerite: actExtras,
+                    actualHoleriteDetail: actExtras > 0 ? `R$ ${actExtras.toFixed(2)}` : "Não lançado",
+                    diff,
+                    status: isOk ? "OK" : expExtras > 0 && actExtras === 0 ? "FALTOU" : "DIVERGENTE",
+                    instruction: isOk ? "" : `CONFERIR EXTRAS/NOTURNO: Previsto R$ ${expExtras.toFixed(2)} vs. R$ ${actExtras.toFixed(2)} lançado.`
+                });
+            }
+
+            // 9. Desconto Vale Alimentação / Refeição (VA/VR)
+            const expVa = wfhPreview?.vaPayrollDiscount || 0;
+            const actVa = sumRubrics(hRubrics, ["VALE ALIM", "VALE REFE", "DESC. VA", "DESC. VR", "TICKET"], "deductions");
+            if (expVa > 0 || actVa > 0) {
+                const diff = Math.round((actVa - expVa) * 100) / 100;
+                const isOk = Math.abs(diff) <= 5;
+                rubricComparisons.push({
+                    rubric: "Desconto Vale Alimentação / Refeição",
+                    expectedWfh: expVa,
+                    expectedWfhDetail: expVa > 0 ? `R$ ${expVa.toFixed(2)}` : "Sem desconto VA",
+                    actualHolerite: actVa,
+                    actualHoleriteDetail: actVa > 0 ? `Descontado R$ ${actVa.toFixed(2)}` : "Sem desconto",
+                    diff,
+                    status: isOk ? "OK" : "DIVERGENTE",
+                    instruction: isOk ? "" : `CONFERIR DESCONTO VA: Previsto R$ ${expVa.toFixed(2)} vs. R$ ${actVa.toFixed(2)} descontado no holerite.`
+                });
+            }
+
+            divergentRubricsCount = rubricComparisons.filter(r => r.status !== "OK").length;
+        }
 
         // Classify Status
         let status: AuditDiscrepancyType = "ALIGNED";
@@ -483,11 +756,35 @@ export async function runPayrollAudit(params: {
             }
         }
 
+        // Regra 6: Divergência nas Rubricas da Folha Fechada (VT Indevido, Falta de Insalubridade, Liderança, etc.)
+        const discrepancies: string[] = [];
+        if (divergentRubricsCount > 0) {
+            const divergentList = rubricComparisons.filter(r => r.status !== "OK");
+            if (status === "ALIGNED") {
+                status = "RUBRIC_MISMATCH";
+                riskLevel = "HIGH";
+                diagnosticMessage = `${divergentRubricsCount} divergência(s) de folha encontrada(s): ${divergentList.map(r => r.rubric).join(", ")}.`;
+                suggestedAction = "Notificar contabilidade para emissão de retificação ou folha complementar.";
+            }
+            discrepancies.push(diagnosticMessage);
+            for (const r of divergentList) {
+                if (r.instruction && !discrepancies.includes(r.instruction)) {
+                    discrepancies.push(r.instruction);
+                }
+            }
+        } else {
+            discrepancies.push(diagnosticMessage);
+        }
+
         const severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "OK" = 
             riskLevel === "CRITICAL" ? "CRITICAL" :
             riskLevel === "HIGH" ? "HIGH" :
             riskLevel === "MEDIUM" ? "MEDIUM" :
             riskLevel === "LOW" ? "LOW" : "OK";
+
+        const wfhNet = wfhPreview?.totalNetSalary || 0;
+        const wfhGross = wfhPreview?.totalGrossSalary || 0;
+        const netDifference = (hasHolerite && wfhNet > 0) ? Math.round((holeriteNet - wfhNet) * 100) / 100 : undefined;
 
         rows.push({
             id: emp.id,
@@ -522,8 +819,13 @@ export async function runPayrollAudit(params: {
             riskLevel,
             severity,
             diagnosticMessage,
-            discrepancies: [diagnosticMessage],
+            discrepancies,
             suggestedAction,
+            rubricComparisons,
+            divergentRubricsCount,
+            wfhNetSalary: wfhNet > 0 ? wfhNet : undefined,
+            wfhGrossSalary: wfhGross > 0 ? wfhGross : undefined,
+            netDifference,
             wfh: {
                 situation: situationName,
                 status: emp.status,
@@ -768,6 +1070,8 @@ export async function runPayrollAudit(params: {
         .filter(r => r.status === "CRITICAL_RISK")
         .reduce((acc, r) => acc + r.holeriteNetSalary, 0);
 
+    const rubricMismatchCount = rows.filter(r => r.status === "RUBRIC_MISMATCH" || (r.divergentRubricsCount && r.divergentRubricsCount > 0)).length;
+
     const summary: PayrollAuditSummary = {
         totalEvaluated: rows.length,
         totalAudited: rows.length,
@@ -776,8 +1080,9 @@ export async function runPayrollAudit(params: {
         missingHoleriteCount: rows.filter(r => r.status === "MISSING_HOLERITE").length,
         missingPointCount: rows.filter(r => r.status === "MISSING_POINT").length,
         deductionMismatchCount,
-        mismatchCount: deductionMismatchCount,
-        alignedCount: rows.filter(r => r.status === "ALIGNED").length,
+        rubricMismatchCount,
+        mismatchCount: deductionMismatchCount + rubricMismatchCount,
+        alignedCount: rows.filter(r => r.status === "ALIGNED" && (!r.divergentRubricsCount || r.divergentRubricsCount === 0)).length,
         totalHoleriteNet: rows.reduce((acc, r) => acc + (r.hasHolerite ? r.holeriteNetSalary : 0), 0),
         totalSuspectedOverpayment: suspectedOverpayment,
         totalOverpaymentSuspected: suspectedOverpayment

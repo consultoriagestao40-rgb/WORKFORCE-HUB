@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Fragment } from "react";
 import Script from "next/script";
 import Link from "next/link";
 import { 
@@ -27,7 +27,9 @@ import {
     Download,
     Receipt,
     ArrowUpDown,
-    TrendingUp
+    TrendingUp,
+    Printer,
+    Copy
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,8 +77,9 @@ export default function PayrollAuditPage() {
 
     // Filter & Search States (Auditoria)
     const [searchTerm, setSearchTerm] = useState("");
-    const [activeTab, setActiveTab] = useState<"ALL" | "CRITICAL_RISK" | "MISSING_HOLERITE" | "MISSING_POINT" | "DEDUCTION_MISMATCH" | "SALARY_MISMATCH" | "ALIGNED">("ALL");
+    const [activeTab, setActiveTab] = useState<"ALL" | "CRITICAL_RISK" | "MISSING_HOLERITE" | "MISSING_POINT" | "DEDUCTION_MISMATCH" | "SALARY_MISMATCH" | "RUBRIC_MISMATCH" | "ALIGNED">("ALL");
     const [expandedRowIds, setExpandedRowIds] = useState<Set<string>>(new Set());
+    const [isDevolutivaModalOpen, setIsDevolutivaModalOpen] = useState(false);
 
     // Filter & Search States (Folha Líquida)
     const [liquidSearchTerm, setLiquidSearchTerm] = useState("");
@@ -412,8 +415,9 @@ export default function PayrollAuditPage() {
         missingHoleriteCount: rowsForCompany.filter(r => r.status === "MISSING_HOLERITE").length,
         missingPointCount: rowsForCompany.filter(r => r.status === "MISSING_POINT").length,
         deductionMismatchCount: rowsForCompany.filter(r => r.status === "DEDUCTION_MISMATCH").length,
-        mismatchCount: rowsForCompany.filter(r => r.status === "DEDUCTION_MISMATCH" || r.status === "SALARY_MISMATCH").length,
-        alignedCount: rowsForCompany.filter(r => r.status === "ALIGNED").length,
+        rubricMismatchCount: rowsForCompany.filter(r => r.status === "RUBRIC_MISMATCH" || (r.divergentRubricsCount && r.divergentRubricsCount > 0)).length,
+        mismatchCount: rowsForCompany.filter(r => r.status === "DEDUCTION_MISMATCH" || r.status === "SALARY_MISMATCH" || r.status === "RUBRIC_MISMATCH" || (r.divergentRubricsCount && r.divergentRubricsCount > 0)).length,
+        alignedCount: rowsForCompany.filter(r => r.status === "ALIGNED" && (!r.divergentRubricsCount || r.divergentRubricsCount === 0)).length,
         totalHoleriteNet: rowsForCompany.reduce((acc, r) => acc + (r.hasHolerite ? r.holeriteNetSalary : 0), 0),
         totalSuspectedOverpayment: rowsForCompany.filter(r => r.status === "CRITICAL_RISK").reduce((acc, r) => acc + r.holeriteNetSalary, 0),
         totalOverpaymentSuspected: rowsForCompany.filter(r => r.status === "CRITICAL_RISK").reduce((acc, r) => acc + r.holeriteNetSalary, 0)
@@ -421,7 +425,16 @@ export default function PayrollAuditPage() {
 
     // Filter rows based on tab and search
     const filteredRows = rowsForCompany.filter(row => {
-        if (activeTab !== "ALL" && row.status !== activeTab) {
+        if (activeTab === "DEDUCTION_MISMATCH") {
+            const hasMismatch = row.status === "DEDUCTION_MISMATCH" || 
+                                row.status === "SALARY_MISMATCH" || 
+                                row.status === "RUBRIC_MISMATCH" || 
+                                (row.divergentRubricsCount && row.divergentRubricsCount > 0);
+            if (!hasMismatch) return false;
+        } else if (activeTab === "RUBRIC_MISMATCH") {
+            const hasRubricDiff = row.status === "RUBRIC_MISMATCH" || (row.divergentRubricsCount && row.divergentRubricsCount > 0);
+            if (!hasRubricDiff) return false;
+        } else if (activeTab !== "ALL" && row.status !== activeTab) {
             return false;
         }
 
@@ -436,7 +449,94 @@ export default function PayrollAuditPage() {
         return matchName || matchCpf || matchCompany;
     });
 
-    // Export to Excel (.xlsx)
+    // Copiar orientações da devolutiva de um colaborador para a área de transferência
+    const copyEmployeeDevolutiva = (row: PayrollAuditRow) => {
+        const divergent = (row.rubricComparisons || []).filter(c => c.status !== "OK");
+        if (divergent.length === 0 && row.discrepancies.length === 0) {
+            toast.info("Este colaborador não possui divergências a reportar.");
+            return;
+        }
+
+        const lines: string[] = [
+            `📌 *DEVOLUTIVA DE FOLHA - ${row.name.toUpperCase()}*`,
+            `CPF: ${fmtCpf(row.cpf)} | Matrícula: ${row.folha || "---"}`,
+            `Empresa: ${row.wfh?.companyName || row.companyName || "---"} | Posto: ${row.wfh?.clientName || "---"}`,
+            `Líquido Previsto WFH: ${fmtCurrency(row.wfhNetSalary)} | Líquido Holerite: ${fmtCurrency(row.holeriteNetSalary)}`,
+            `--------------------------------------------------`,
+            `*ITENS A CORRIGIR PELA CONTABILIDADE:*`
+        ];
+
+        if (divergent.length > 0) {
+            divergent.forEach(d => {
+                const tag = d.status === "FALTOU" ? "❌ FALTOU NO HOLERITE" :
+                            d.status === "INDEVIDO" ? "❌ DESCONTO INDEVIDO" : "⚠️ DIVERGÊNCIA";
+                lines.push(`• [${tag}] ${d.rubric}:`);
+                lines.push(`   - Previsto no WFH: ${fmtCurrency(d.expectedWfh)} (${d.expectedWfhDetail || "OK"})`);
+                lines.push(`   - Veio no Holerite: ${fmtCurrency(d.actualHolerite)} (${d.actualHoleriteDetail || "---"})`);
+                lines.push(`   👉 Ação necessária: ${d.instruction}`);
+            });
+        } else {
+            row.discrepancies.forEach(d => {
+                lines.push(`• ${d}`);
+            });
+            if (row.suggestedAction) {
+                lines.push(`👉 Ação: ${row.suggestedAction}`);
+            }
+        }
+
+        navigator.clipboard.writeText(lines.join("\n"));
+        toast.success(`Devolutiva de ${row.name} copiada para a área de transferência!`);
+    };
+
+    // Copiar todas as orientações da folha para WhatsApp / Email
+    const copyAllDevolutivas = () => {
+        const rowsWithErrors = rowsForCompany.filter(r => 
+            (r.divergentRubricsCount && r.divergentRubricsCount > 0) || 
+            r.status === "CRITICAL_RISK" || 
+            r.status === "MISSING_HOLERITE" || 
+            r.status === "DEDUCTION_MISMATCH" || 
+            r.status === "SALARY_MISMATCH" ||
+            r.status === "RUBRIC_MISMATCH"
+        );
+
+        if (rowsWithErrors.length === 0) {
+            toast.info("Não há colaboradores com divergências na listagem atual.");
+            return;
+        }
+
+        const lines: string[] = [
+            `📋 *RELATÓRIO DE DEVOLUTIVA E CORREÇÕES DE FOLHA DE PAGAMENTO*`,
+            `Competência: ${String(selectedMonth).padStart(2, "0")}/${selectedYear}`,
+            `Total de Colaboradores com Divergência: ${rowsWithErrors.length}`,
+            `==================================================\n`
+        ];
+
+        rowsWithErrors.forEach((r, idx) => {
+            lines.push(`${idx + 1}. *${r.name.toUpperCase()}* (CPF: ${fmtCpf(r.cpf)})`);
+            lines.push(`   Empresa: ${r.wfh?.companyName || r.companyName || "---"}`);
+            lines.push(`   Líquido WFH: ${fmtCurrency(r.wfhNetSalary)} | Líquido Holerite: ${fmtCurrency(r.holeriteNetSalary)}`);
+
+            const divergent = (r.rubricComparisons || []).filter(c => c.status !== "OK");
+            if (divergent.length > 0) {
+                divergent.forEach(d => {
+                    lines.push(`   - ${d.rubric}: ${d.instruction}`);
+                });
+            } else {
+                r.discrepancies.forEach(d => {
+                    lines.push(`   - ${d}`);
+                });
+            }
+            lines.push(``);
+        });
+
+        navigator.clipboard.writeText(lines.join("\n"));
+        toast.success("Relatório consolidado copiado! Cole no WhatsApp ou e-mail da contabilidade.");
+    };
+
+    // Export to Excel (.xlsx) com 3 Abas:
+    // Aba 1: "Devolutiva Contabilidade" (Somente os colaboradores e rubricas divergentes + instrução de correção)
+    // Aba 2: "Espelho Analítico" (Comparativo linha a linha previsto WFH x processado Holerite)
+    // Aba 3: "Lista Geral Auditoria" (Visão consolidada)
     const exportToExcel = () => {
         if (!auditResult || rowsForCompany.length === 0) {
             toast.error("Nenhum dado auditado para exportar.");
@@ -444,7 +544,170 @@ export default function PayrollAuditPage() {
         }
 
         try {
-            const header = [
+            const wb = XLSX.utils.book_new();
+
+            // ==========================================
+            // ABA 1: DEVOLUTIVA PARA A CONTABILIDADE
+            // ==========================================
+            const devHeader = [
+                "Item",
+                "Nome do Colaborador",
+                "CPF",
+                "Empresa WFH / Holerite",
+                "Cliente / Posto",
+                "Cargo",
+                "Rubrica / Evento",
+                "Previsto no WFH (R$)",
+                "Regra / Detalhe WFH",
+                "Processado no Holerite (R$)",
+                "Detalhe no Holerite",
+                "Diferença (R$)",
+                "Situação da Rubrica",
+                "INSTRUÇÃO DE CORREÇÃO PARA A CONTABILIDADE"
+            ];
+
+            const devRows: (string | number)[][] = [];
+            let itemCounter = 1;
+
+            rowsForCompany.forEach(r => {
+                const divergentRubrics = (r.rubricComparisons || []).filter(c => c.status !== "OK");
+                if (divergentRubrics.length > 0) {
+                    divergentRubrics.forEach(c => {
+                        devRows.push([
+                            itemCounter++,
+                            r.name,
+                            fmtCpf(r.cpf),
+                            r.wfh?.companyName || r.companyName || r.holerite?.companyName || "---",
+                            r.wfh?.clientName || r.postoName || "---",
+                            r.wfh?.jobTitle || r.postoName || r.holerite?.role || "---",
+                            c.rubric,
+                            c.expectedWfh,
+                            c.expectedWfhDetail || "Conforme fechamento WFH",
+                            c.actualHolerite,
+                            c.actualHoleriteDetail || "Conforme holerite emitido",
+                            c.diff,
+                            c.status === "FALTOU" ? "❌ FALTOU NO HOLERITE" :
+                            c.status === "INDEVIDO" ? "❌ DESCONTO INDEVIDO" : "⚠️ VALOR DIVERGENTE",
+                            c.instruction
+                        ]);
+                    });
+                } else if (r.status === "CRITICAL_RISK") {
+                    devRows.push([
+                        itemCounter++,
+                        r.name,
+                        fmtCpf(r.cpf),
+                        r.wfh?.companyName || r.companyName || r.holerite?.companyName || "---",
+                        r.wfh?.clientName || r.postoName || "---",
+                        r.wfh?.jobTitle || r.postoName || r.holerite?.role || "---",
+                        "Status Cadastral / Risco Crítico",
+                        0,
+                        r.wfhSituation || "---",
+                        r.holeriteNetSalary || 0,
+                        "Holerite gerado com valor",
+                        r.holeriteNetSalary || 0,
+                        "❌ PAGAMENTO INDEVIDO / RISCO",
+                        r.suggestedAction || r.diagnosticMessage || "Verificar afastamento/desligamento."
+                    ]);
+                } else if (r.status === "MISSING_HOLERITE") {
+                    devRows.push([
+                        itemCounter++,
+                        r.name,
+                        fmtCpf(r.cpf),
+                        r.wfh?.companyName || r.companyName || "---",
+                        r.wfh?.clientName || r.postoName || "---",
+                        r.wfh?.jobTitle || r.postoName || "---",
+                        "Emissão de Holerite",
+                        r.wfhNetSalary || r.wfhBaseSalary || 0,
+                        `Trabalhou ${r.point?.workedHours || "período"} no ponto`,
+                        0,
+                        "Holerite não emitido pela contabilidade",
+                        -(r.wfhNetSalary || r.wfhBaseSalary || 0),
+                        "❌ FALTOU HOLERITE",
+                        "Emitir holerite para colaborador que trabalhou regularmente no período."
+                    ]);
+                }
+            });
+
+            const wsDev = XLSX.utils.aoa_to_sheet([devHeader, ...devRows]);
+            wsDev["!cols"] = [
+                { wch: 6 },
+                { wch: 32 },
+                { wch: 16 },
+                { wch: 22 },
+                { wch: 22 },
+                { wch: 20 },
+                { wch: 24 },
+                { wch: 16 },
+                { wch: 30 },
+                { wch: 18 },
+                { wch: 30 },
+                { wch: 14 },
+                { wch: 24 },
+                { wch: 60 }
+            ];
+            XLSX.utils.book_append_sheet(wb, wsDev, "Devolutiva Contabilidade");
+
+            // ==========================================
+            // ABA 2: ESPELHO ANALÍTICO WFH X HOLERITE
+            // ==========================================
+            const mirrorHeader = [
+                "Colaborador",
+                "CPF",
+                "Empresa",
+                "Cliente / Posto",
+                "Rubrica / Evento",
+                "Previsto no WFH (R$)",
+                "Detalhe WFH",
+                "Processado no Holerite (R$)",
+                "Detalhe Holerite",
+                "Diferença (R$)",
+                "Status",
+                "Instrução / Orientação"
+            ];
+
+            const mirrorRows: (string | number)[][] = [];
+            rowsForCompany.forEach(r => {
+                if (r.rubricComparisons && r.rubricComparisons.length > 0) {
+                    r.rubricComparisons.forEach(c => {
+                        mirrorRows.push([
+                            r.name,
+                            fmtCpf(r.cpf),
+                            r.wfh?.companyName || r.companyName || "---",
+                            r.wfh?.clientName || r.postoName || "---",
+                            c.rubric,
+                            c.expectedWfh,
+                            c.expectedWfhDetail || "---",
+                            c.actualHolerite,
+                            c.actualHoleriteDetail || "---",
+                            c.diff,
+                            c.status,
+                            c.instruction || "Conforme"
+                        ]);
+                    });
+                }
+            });
+
+            const wsMirror = XLSX.utils.aoa_to_sheet([mirrorHeader, ...mirrorRows]);
+            wsMirror["!cols"] = [
+                { wch: 32 },
+                { wch: 16 },
+                { wch: 22 },
+                { wch: 22 },
+                { wch: 24 },
+                { wch: 16 },
+                { wch: 28 },
+                { wch: 18 },
+                { wch: 28 },
+                { wch: 14 },
+                { wch: 14 },
+                { wch: 50 }
+            ];
+            XLSX.utils.book_append_sheet(wb, wsMirror, "Espelho Analítico");
+
+            // ==========================================
+            // ABA 3: LISTA GERAL DE AUDITORIA
+            // ==========================================
+            const generalHeader = [
                 "Status Auditoria",
                 "Gravidade",
                 "Nome Colaborador",
@@ -455,9 +718,12 @@ export default function PayrollAuditPage() {
                 "Cargo",
                 "Salário Base WFH",
                 "Salário Base Holerite",
+                "Líquido Previsto WFH",
+                "Líquido Holerite",
+                "Diferença Líquida (R$)",
+                "Rubricas Divergentes",
                 "Total Vencimentos Holerite",
                 "Total Descontos Holerite",
-                "Líquido Holerite",
                 "Dias Trabalhados Holerite",
                 "Desconto Falta Holerite",
                 "Página Holerite",
@@ -466,7 +732,8 @@ export default function PayrollAuditPage() {
                 "Dias Faltas Ponto",
                 "Horas Faltas Ponto",
                 "Horas Extras Ponto",
-                "Divergências Identificadas"
+                "Divergências Identificadas",
+                "Ação Recomendada"
             ];
 
             const statusLabelMap: Record<string, string> = {
@@ -475,10 +742,11 @@ export default function PayrollAuditPage() {
                 MISSING_POINT: "SEM CARTÃO DE PONTO",
                 DEDUCTION_MISMATCH: "DIVERGÊNCIA DE DESCONTOS/FALTAS",
                 SALARY_MISMATCH: "DIVERGÊNCIA DE SALÁRIO BASE",
+                RUBRIC_MISMATCH: "DIVERGÊNCIA DE RUBRICAS",
                 ALIGNED: "ALINHADO / 100% OK"
             };
 
-            const dataRows = rowsForCompany.map(r => [
+            const generalRows = rowsForCompany.map(r => [
                 statusLabelMap[r.status] || r.status,
                 r.severity,
                 r.name,
@@ -489,9 +757,12 @@ export default function PayrollAuditPage() {
                 r.wfh?.jobTitle || r.holerite?.role || "---",
                 r.wfh?.baseSalary || 0,
                 r.holerite?.baseSalary || 0,
+                r.wfhNetSalary || 0,
+                r.holerite?.netSalary || 0,
+                r.netDifference || 0,
+                r.divergentRubricsCount || 0,
                 r.holerite?.totalEarnings || 0,
                 r.holerite?.totalDeductions || 0,
-                r.holerite?.netSalary || 0,
                 r.holerite?.workedDays ?? "---",
                 r.holerite?.absenceDeduction || 0,
                 r.holerite?.pageNumber ?? "---",
@@ -500,26 +771,27 @@ export default function PayrollAuditPage() {
                 r.point?.absenceDays ?? "---",
                 r.point?.absenceHours || "---",
                 r.point?.extraHours || "---",
-                r.discrepancies.join("; ")
+                r.discrepancies.join("; "),
+                r.suggestedAction || "---"
             ]);
+
+            const wsGeneral = XLSX.utils.aoa_to_sheet([generalHeader, ...generalRows]);
+            wsGeneral["!cols"] = [
+                { wch: 28 }, { wch: 12 }, { wch: 35 }, { wch: 16 }, { wch: 24 },
+                { wch: 22 }, { wch: 25 }, { wch: 22 }, { wch: 16 }, { wch: 16 },
+                { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 16 },
+                { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 12 }, { wch: 16 },
+                { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 45 },
+                { wch: 45 }
+            ];
+            XLSX.utils.book_append_sheet(wb, wsGeneral, "Lista Geral Auditoria");
 
             const companyPart = selectedCompanyId === "all" 
                 ? "todas_empresas" 
                 : (companies.find(c => c.id === selectedCompanyId)?.name || "empresa").toLowerCase().replace(/[^a-z0-9]/gi, "_");
 
-            const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
-            ws["!cols"] = [
-                { wch: 26 }, { wch: 12 }, { wch: 35 }, { wch: 16 }, { wch: 24 },
-                { wch: 22 }, { wch: 25 }, { wch: 22 }, { wch: 16 }, { wch: 16 },
-                { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 16 },
-                { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
-                { wch: 14 }, { wch: 45 }
-            ];
-
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Auditoria Folha");
-            XLSX.writeFile(wb, `Auditoria_Folha_${companyPart}_${String(selectedMonth).padStart(2, "0")}_${selectedYear}.xlsx`);
-            toast.success("Relatório de auditoria exportado com sucesso!");
+            XLSX.writeFile(wb, `Devolutiva_Auditoria_Folha_${companyPart}_${String(selectedMonth).padStart(2, "0")}_${selectedYear}.xlsx`);
+            toast.success("Dossiê de auditoria e devolutiva gerado com 3 abas em Excel!");
         } catch (error: any) {
             console.error("Erro ao exportar relatório:", error);
             toast.error("Erro ao exportar Excel.");
@@ -787,14 +1059,22 @@ export default function PayrollAuditPage() {
                             </Select>
                         </div>
 
-                        {/* Botão Exportar Excel */}
+                        {/* Botões de Ação para Auditoria */}
                         {activeTopTab === "AUDIT" && auditResult && (
-                            <Button 
-                                onClick={exportToExcel}
-                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-lg h-11 px-4 cursor-pointer"
-                            >
-                                <FileSpreadsheet className="w-4 h-4" /> Exportar Auditoria XLSX
-                            </Button>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button 
+                                    onClick={() => setIsDevolutivaModalOpen(true)}
+                                    className="bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-lg h-11 px-4 cursor-pointer"
+                                >
+                                    <FileText className="w-4 h-4" /> Dossiê Devolutiva Contabilidade
+                                </Button>
+                                <Button 
+                                    onClick={exportToExcel}
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-lg h-11 px-4 cursor-pointer"
+                                >
+                                    <FileSpreadsheet className="w-4 h-4" /> Exportar Excel (3 Abas)
+                                </Button>
+                            </div>
                         )}
                         {activeTopTab === "LIQUIDS" && filteredLiquidRows.length > 0 && (
                             <Button 
@@ -1094,19 +1374,19 @@ export default function PayrollAuditPage() {
                         <div 
                             onClick={() => setActiveTab("DEDUCTION_MISMATCH")}
                             className={`rounded-3xl p-5 border cursor-pointer transition-all transform hover:-translate-y-0.5 ${
-                                activeTab === "DEDUCTION_MISMATCH" || activeTab === "SALARY_MISMATCH"
+                                activeTab === "DEDUCTION_MISMATCH" || activeTab === "SALARY_MISMATCH" || activeTab === "RUBRIC_MISMATCH"
                                     ? "bg-indigo-50 border-indigo-400 shadow-md ring-2 ring-indigo-400/30" 
                                     : "bg-white border-indigo-200/80 shadow-sm hover:shadow"
                             }`}
                         >
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600">Divergências</span>
+                                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600">Divergências de Rubricas</span>
                                 <span className="p-2 rounded-xl bg-indigo-100 text-indigo-600">
                                     <AlertCircle className="w-4 h-4" />
                                 </span>
                             </div>
                             <div className="text-3xl font-black text-indigo-600">{activeSummary?.mismatchCount ?? 0}</div>
-                            <div className="text-[11px] font-semibold text-slate-500 mt-1">Diferenças em faltas ou salário</div>
+                            <div className="text-[11px] font-semibold text-slate-500 mt-1">VT, Insalubridade, Liderança ou Faltas</div>
                         </div>
 
                         {/* Alinhados */}
@@ -1238,12 +1518,12 @@ export default function PayrollAuditPage() {
                                             const isCritical = row.status === "CRITICAL_RISK";
 
                                             return (
-                                                <tr 
-                                                    key={row.id}
-                                                    className={`hover:bg-slate-50/80 transition-colors ${
-                                                        isCritical ? "bg-red-50/40" : ""
-                                                    }`}
-                                                >
+                                                <Fragment key={row.id}>
+                                                    <tr 
+                                                        className={`hover:bg-slate-50/80 transition-colors ${
+                                                            isCritical ? "bg-red-50/40" : ""
+                                                        }`}
+                                                    >
                                                     <td className="py-3.5 px-4 text-center">
                                                         <button 
                                                             onClick={() => toggleRow(row.id)}
@@ -1279,6 +1559,12 @@ export default function PayrollAuditPage() {
                                                         {row.status === "SALARY_MISMATCH" && (
                                                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-200">
                                                                 SALÁRIO DIF.
+                                                            </span>
+                                                        )}
+                                                        {row.status === "RUBRIC_MISMATCH" && (
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+                                                                <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                                                RUBRICA DIF. ({row.divergentRubricsCount || 1})
                                                             </span>
                                                         )}
                                                         {row.status === "ALIGNED" && (
@@ -1353,7 +1639,17 @@ export default function PayrollAuditPage() {
                                                                 <div className="font-black text-slate-800">
                                                                     Líq: {fmtCurrency(row.holerite.netSalary)}
                                                                 </div>
-                                                                <div className="text-[10px] text-slate-500">
+                                                                {row.wfhNetSalary !== undefined && row.wfhNetSalary > 0 && (
+                                                                    <div className="text-[10px] font-semibold text-slate-500">
+                                                                        WFH: {fmtCurrency(row.wfhNetSalary)}
+                                                                        {row.netDifference !== undefined && row.netDifference !== 0 && (
+                                                                            <span className={`ml-1 font-bold ${row.netDifference > 0 ? "text-amber-600" : "text-rose-600"}`}>
+                                                                                ({row.netDifference > 0 ? `+${fmtCurrency(row.netDifference)}` : fmtCurrency(row.netDifference)})
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                                <div className="text-[10px] text-slate-400">
                                                                     Base: {fmtCurrency(row.holerite.baseSalary)} • Bruto: {fmtCurrency(row.holerite.totalEarnings)}
                                                                 </div>
                                                                 {row.holerite.pageNumber && (
@@ -1389,6 +1685,222 @@ export default function PayrollAuditPage() {
                                                         </div>
                                                     </td>
                                                 </tr>
+
+                                                {/* Linha Expandida: Espelho Comparativo Analítico WFH vs Holerite */}
+                                                {isExpanded && (
+                                                    <tr key={`${row.id}-details`} className="bg-slate-50/80 border-b-2 border-slate-200 animate-in fade-in duration-200">
+                                                        <td colSpan={7} className="p-4 sm:p-6">
+                                                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5 space-y-4">
+                                                                {/* Header Strip do Colaborador */}
+                                                                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                                                                    <div className="space-y-0.5">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="font-black text-sm text-slate-900">
+                                                                                {row.name}
+                                                                            </span>
+                                                                            <span className="text-xs font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                                                                CPF: {fmtCpf(row.cpf)}
+                                                                            </span>
+                                                                            {row.folha && (
+                                                                                <span className="text-[10px] font-mono text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                                                                                    Matrícula: {row.folha}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <p className="text-[11px] text-slate-500">
+                                                                            Empresa WFH: <span className="font-bold text-slate-700">{row.wfh?.companyName || "---"}</span> • Posto: <span className="font-bold text-slate-700">{row.wfh?.clientName || "---"}</span> • Cargo: <span className="font-bold text-slate-700">{row.wfh?.jobTitle || "---"}</span>
+                                                                        </p>
+                                                                    </div>
+
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Button
+                                                                            onClick={() => copyEmployeeDevolutiva(row)}
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            className="text-xs font-bold gap-1.5 h-8 rounded-xl border-slate-200 text-slate-700 hover:bg-slate-100"
+                                                                        >
+                                                                            <Copy className="w-3.5 h-3.5" /> Copiar Devolutiva
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Net Comparison Summary Pills */}
+                                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                                                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                                                                        <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider">Previsto WFH (Líquido)</span>
+                                                                        <span className="text-base font-black text-slate-800">
+                                                                            {fmtCurrency(row.wfhNetSalary || row.wfhBaseSalary)}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-slate-400 block">Base: {fmtCurrency(row.wfhBaseSalary)}</span>
+                                                                    </div>
+
+                                                                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                                                                        <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider">Processado Holerite (Líquido)</span>
+                                                                        <span className="text-base font-black text-slate-800">
+                                                                            {fmtCurrency(row.holeriteNetSalary)}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-slate-400 block">Bruto: {fmtCurrency(row.holeriteTotalEarnings)}</span>
+                                                                    </div>
+
+                                                                    <div className={`p-3 rounded-xl border ${
+                                                                        (row.netDifference === undefined || row.netDifference === 0)
+                                                                            ? "bg-emerald-50/60 border-emerald-200"
+                                                                            : "bg-rose-50/60 border-rose-200"
+                                                                    }`}>
+                                                                        <span className="text-[9px] font-black uppercase block tracking-wider text-slate-500">Diferença Líquida</span>
+                                                                        <span className={`text-base font-black ${
+                                                                            (row.netDifference === undefined || row.netDifference === 0)
+                                                                                ? "text-emerald-700"
+                                                                                : "text-rose-700"
+                                                                        }`}>
+                                                                            {row.netDifference !== undefined ? fmtCurrency(row.netDifference) : "R$ 0,00"}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-slate-500 block">
+                                                                            {(row.netDifference === undefined || row.netDifference === 0) ? "Valores coincidem" : "Diferença a ajustar"}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <div className="p-3 rounded-xl bg-purple-50/60 border border-purple-200">
+                                                                        <span className="text-[9px] font-black uppercase text-purple-700 block tracking-wider">Status das Rubricas</span>
+                                                                        <span className="text-base font-black text-purple-900">
+                                                                            {row.divergentRubricsCount ? `${row.divergentRubricsCount} divergente(s)` : "100% Alinhadas"}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-purple-600 block">
+                                                                            {row.rubricComparisons?.length || 0} rubricas auditadas
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Rubric Comparison Side-by-Side Table */}
+                                                                {row.rubricComparisons && row.rubricComparisons.length > 0 ? (
+                                                                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                                                        <div className="bg-slate-100/80 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+                                                                            <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                                                                                <Receipt className="w-3.5 h-3.5 text-purple-600" />
+                                                                                Espelho Comparativo de Rubricas (WFH vs Holerite)
+                                                                            </span>
+                                                                            <span className="text-[10px] font-bold text-slate-500">
+                                                                                {row.rubricComparisons.filter(c => c.status !== "OK").length} inconsistência(s)
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="overflow-x-auto">
+                                                                            <table className="w-full text-left text-xs border-collapse">
+                                                                                <thead>
+                                                                                    <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-500 border-b border-slate-200">
+                                                                                        <th className="py-2.5 px-3">Rubrica / Evento</th>
+                                                                                        <th className="py-2.5 px-3">Previsto no WFH</th>
+                                                                                        <th className="py-2.5 px-3">Processado no Holerite</th>
+                                                                                        <th className="py-2.5 px-3">Situação / Dif.</th>
+                                                                                        <th className="py-2.5 px-3">Instrução de Correção para a Contabilidade</th>
+                                                                                    </tr>
+                                                                                </thead>
+                                                                                <tbody className="divide-y divide-slate-100">
+                                                                                    {row.rubricComparisons.map((c, cIdx) => {
+                                                                                        const isOk = c.status === "OK";
+                                                                                        return (
+                                                                                            <tr key={cIdx} className={!isOk ? "bg-amber-50/30" : ""}>
+                                                                                                <td className="py-2.5 px-3 font-bold text-slate-800">
+                                                                                                    {c.rubric}
+                                                                                                </td>
+                                                                                                <td className="py-2.5 px-3">
+                                                                                                    <span className="font-extrabold text-slate-800">
+                                                                                                        {fmtCurrency(c.expectedWfh)}
+                                                                                                    </span>
+                                                                                                    {c.expectedWfhDetail && (
+                                                                                                        <span className="block text-[10px] text-slate-500 font-medium">
+                                                                                                            {c.expectedWfhDetail}
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                </td>
+                                                                                                <td className="py-2.5 px-3">
+                                                                                                    <span className="font-extrabold text-slate-800">
+                                                                                                        {fmtCurrency(c.actualHolerite)}
+                                                                                                    </span>
+                                                                                                    {c.actualHoleriteDetail && (
+                                                                                                        <span className="block text-[10px] text-slate-500 font-medium">
+                                                                                                            {c.actualHoleriteDetail}
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                </td>
+                                                                                                <td className="py-2.5 px-3">
+                                                                                                    {isOk ? (
+                                                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                                                                                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> OK
+                                                                                                        </span>
+                                                                                                    ) : c.status === "FALTOU" ? (
+                                                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
+                                                                                                            ❌ FALTOU (+{fmtCurrency(c.diff)})
+                                                                                                        </span>
+                                                                                                    ) : c.status === "INDEVIDO" ? (
+                                                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-red-100 text-red-800 border border-red-200">
+                                                                                                            ❌ INDEVIDO ({fmtCurrency(c.diff)})
+                                                                                                        </span>
+                                                                                                    ) : (
+                                                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200">
+                                                                                                            ⚠️ DIVERGENTE ({c.diff > 0 ? `+${fmtCurrency(c.diff)}` : fmtCurrency(c.diff)})
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                </td>
+                                                                                                <td className="py-2.5 px-3">
+                                                                                                    {isOk ? (
+                                                                                                        <span className="text-[10px] text-slate-400 italic">Conforme fechamento</span>
+                                                                                                    ) : (
+                                                                                                        <span className="text-[11px] font-bold text-purple-900 bg-purple-50 px-2 py-1 rounded-lg border border-purple-200 block">
+                                                                                                            👉 {c.instruction}
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                </td>
+                                                                                            </tr>
+                                                                                        );
+                                                                                    })}
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                                                                        Nenhuma rubrica individual comparável. {row.diagnosticMessage}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Raw Holerite Rubrics Toggle (if available) */}
+                                                                {row.holerite?.rubrics && row.holerite.rubrics.length > 0 && (
+                                                                    <details className="text-xs group">
+                                                                        <summary className="cursor-pointer font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 py-1">
+                                                                            <ChevronDown className="w-3.5 h-3.5 transition-transform group-open:rotate-180" />
+                                                                            Ver todas as {row.holerite.rubrics.length} rubricas brutas do Holerite (PDF)
+                                                                        </summary>
+                                                                        <div className="mt-2 border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
+                                                                            <table className="w-full text-left text-[11px]">
+                                                                                <thead>
+                                                                                    <tr className="bg-slate-100 text-[10px] font-black uppercase text-slate-500 border-b border-slate-200">
+                                                                                        <th className="py-1.5 px-3">Código</th>
+                                                                                        <th className="py-1.5 px-3">Descrição da Rubrica</th>
+                                                                                        <th className="py-1.5 px-3">Referência</th>
+                                                                                        <th className="py-1.5 px-3">Vencimentos (R$)</th>
+                                                                                        <th className="py-1.5 px-3">Descontos (R$)</th>
+                                                                                    </tr>
+                                                                                </thead>
+                                                                                <tbody className="divide-y divide-slate-200 bg-white">
+                                                                                    {row.holerite.rubrics.map((r, rIdx) => (
+                                                                                        <tr key={rIdx}>
+                                                                                            <td className="py-1.5 px-3 font-mono text-slate-500">{r.code || "---"}</td>
+                                                                                            <td className="py-1.5 px-3 font-medium text-slate-800">{r.description}</td>
+                                                                                            <td className="py-1.5 px-3 text-slate-500">{r.reference || "---"}</td>
+                                                                                            <td className="py-1.5 px-3 text-emerald-600 font-bold">{r.earnings ? fmtCurrency(r.earnings) : "---"}</td>
+                                                                                            <td className="py-1.5 px-3 text-rose-600 font-bold">{r.deductions ? fmtCurrency(r.deductions) : "---"}</td>
+                                                                                        </tr>
+                                                                                    ))}
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </div>
+                                                                    </details>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                </Fragment>
                                             );
                                         })
                                     )}
@@ -1965,6 +2477,179 @@ export default function PayrollAuditPage() {
                     </div>
                 </div>
             )}
+        </DialogContent>
+    </Dialog>
+
+    {/* Modal do Dossiê Devolutiva Contabilidade (Visualização e Impressão/PDF) */}
+    <Dialog open={isDevolutivaModalOpen} onOpenChange={setIsDevolutivaModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto p-6 rounded-3xl print:p-0 print:max-w-none print:shadow-none">
+            <DialogHeader className="print:hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 bg-purple-100 px-2.5 py-0.5 rounded-full border border-purple-200">
+                            Devolutiva Oficial para Contabilidade
+                        </span>
+                        <DialogTitle className="text-xl font-black text-slate-900 mt-1 flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-purple-600" />
+                            Dossiê de Divergências da Folha ({String(selectedMonth).padStart(2, "0")}/{selectedYear})
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-slate-500 font-medium">
+                            Instruções detalhadas para correção de rubricas, proventos e descontos indevidos.
+                        </DialogDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            onClick={() => window.print()}
+                            className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs gap-1.5 rounded-xl h-9 px-3"
+                        >
+                            <Printer className="w-4 h-4" /> Imprimir / PDF
+                        </Button>
+                        <Button
+                            onClick={copyAllDevolutivas}
+                            variant="outline"
+                            className="font-bold text-xs gap-1.5 rounded-xl h-9 px-3 text-slate-700 hover:bg-slate-100"
+                        >
+                            <Copy className="w-4 h-4" /> Copiar Todas
+                        </Button>
+                    </div>
+                </div>
+            </DialogHeader>
+
+            {/* Printable Content */}
+            <div className="space-y-6 pt-2">
+                {/* Printable Header */}
+                <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-4">
+                    <h1 className="text-2xl font-black text-slate-900">RELATÓRIO DE DEVOLUTIVA - AUDITORIA DE FOLHA</h1>
+                    <p className="text-xs text-slate-600">
+                        Competência: {String(selectedMonth).padStart(2, "0")}/{selectedYear} • Emissão: {new Date().toLocaleDateString("pt-BR")}
+                    </p>
+                </div>
+
+                {/* Metrics cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200">
+                        <span className="text-[10px] font-black uppercase text-purple-700 block">Colaboradores com Divergência</span>
+                        <span className="text-2xl font-black text-purple-900">
+                            {rowsForCompany.filter(r => (r.divergentRubricsCount && r.divergentRubricsCount > 0) || r.status !== "ALIGNED").length}
+                        </span>
+                    </div>
+                    <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200">
+                        <span className="text-[10px] font-black uppercase text-rose-700 block">Rubricas Inconsistentes</span>
+                        <span className="text-2xl font-black text-rose-900">
+                            {rowsForCompany.reduce((acc, r) => acc + (r.divergentRubricsCount || 0), 0)}
+                        </span>
+                    </div>
+                    <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200">
+                        <span className="text-[10px] font-black uppercase text-amber-700 block">Diferença Líquida Acumulada</span>
+                        <span className="text-2xl font-black text-amber-900">
+                            {fmtCurrency(rowsForCompany.reduce((acc, r) => acc + (r.netDifference || 0), 0))}
+                        </span>
+                    </div>
+                </div>
+
+                {/* List of Divergent Collaborators */}
+                <div className="space-y-4">
+                    {rowsForCompany.filter(r => (r.divergentRubricsCount && r.divergentRubricsCount > 0) || r.status !== "ALIGNED").length === 0 ? (
+                        <div className="text-center py-10 bg-emerald-50 rounded-2xl border border-emerald-200 text-emerald-800">
+                            <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-600 mb-2" />
+                            <p className="font-black text-sm">Nenhuma divergência identificada na folha auditada!</p>
+                            <p className="text-xs text-emerald-700 mt-1">Todos os holerites conferem 100% com a base cadastral e apuração de ponto.</p>
+                        </div>
+                    ) : (
+                        rowsForCompany
+                            .filter(r => (r.divergentRubricsCount && r.divergentRubricsCount > 0) || r.status !== "ALIGNED")
+                            .map((r, idx) => {
+                                const divergent = (r.rubricComparisons || []).filter(c => c.status !== "OK");
+                                return (
+                                    <div key={r.id} className="p-4 rounded-2xl border border-slate-200 bg-white shadow-sm space-y-3 break-inside-avoid">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                                            <div>
+                                                <span className="font-black text-sm text-slate-900">{idx + 1}. {r.name}</span>
+                                                <div className="text-[11px] text-slate-500 font-medium">
+                                                    CPF: <span className="font-mono">{fmtCpf(r.cpf)}</span> • {r.wfh?.companyName || r.companyName || "---"} • {r.wfh?.jobTitle || r.postoName || "---"}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="text-right text-[11px]">
+                                                    <span className="text-slate-400 block text-[9px] uppercase font-bold">WFH x Holerite</span>
+                                                    <span className="font-bold text-slate-800">{fmtCurrency(r.wfhNetSalary)}</span>
+                                                    <span className="text-slate-400 mx-1">vs</span>
+                                                    <span className="font-bold text-slate-800">{fmtCurrency(r.holeriteNetSalary)}</span>
+                                                </div>
+                                                <Button
+                                                    onClick={() => copyEmployeeDevolutiva(r)}
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-8 px-2 text-slate-500 hover:text-slate-900 print:hidden"
+                                                    title="Copiar texto para WhatsApp"
+                                                >
+                                                    <Copy className="w-3.5 h-3.5" />
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {divergent.length > 0 ? (
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left text-xs border-collapse">
+                                                    <thead>
+                                                        <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-500 border-b border-slate-200">
+                                                            <th className="py-2 px-3">Rubrica</th>
+                                                            <th className="py-2 px-3">Previsto WFH</th>
+                                                            <th className="py-2 px-3">Processado Holerite</th>
+                                                            <th className="py-2 px-3">Situação</th>
+                                                            <th className="py-2 px-3">Instrução de Correção</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100">
+                                                        {divergent.map((d, dIdx) => (
+                                                            <tr key={dIdx} className="hover:bg-slate-50/50">
+                                                                <td className="py-2.5 px-3 font-bold text-slate-800">{d.rubric}</td>
+                                                                <td className="py-2.5 px-3">
+                                                                    <div className="font-bold text-emerald-700">{fmtCurrency(d.expectedWfh)}</div>
+                                                                    {d.expectedWfhDetail && <div className="text-[10px] text-slate-400">{d.expectedWfhDetail}</div>}
+                                                                </td>
+                                                                <td className="py-2.5 px-3">
+                                                                    <div className="font-bold text-slate-700">{fmtCurrency(d.actualHolerite)}</div>
+                                                                    {d.actualHoleriteDetail && <div className="text-[10px] text-slate-400">{d.actualHoleriteDetail}</div>}
+                                                                </td>
+                                                                <td className="py-2.5 px-3">
+                                                                    {d.status === "FALTOU" && (
+                                                                        <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
+                                                                            ❌ FALTOU
+                                                                        </span>
+                                                                    )}
+                                                                    {d.status === "INDEVIDO" && (
+                                                                        <span className="px-2 py-0.5 rounded text-[10px] font-black bg-red-100 text-red-800 border border-red-200">
+                                                                            ❌ INDEVIDO
+                                                                        </span>
+                                                                    )}
+                                                                    {d.status === "DIVERGENTE" && (
+                                                                        <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200">
+                                                                            ⚠️ DIVERGENTE
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="py-2.5 px-3">
+                                                                    <span className="text-[11px] font-bold text-purple-900 bg-purple-50 px-2 py-1 rounded-lg border border-purple-200 block">
+                                                                        👉 {d.instruction}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        ) : (
+                                            <div className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                                                {r.discrepancies.join(" • ")}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })
+                    )}
+                </div>
+            </div>
         </DialogContent>
     </Dialog>
         </div>
