@@ -907,7 +907,15 @@ export function parseHoleritePdfPageItems(rawPdfItems: any[], pageNumber: number
             }
 
             const desc = descParts.join(' ').trim();
-            if (desc && (earnings > 0 || deductions > 0)) {
+            // Rubricas Informativas (ex: 269 Informativo AUXILIO COMBUSTIVEL 180,00)
+            if (earnings === 0 && deductions === 0 && ref && /^[0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}$/.test(ref)) {
+                const isBenefit = /AUXILIO|AJUDA|COMBUSTIVEL|ALIMENTA|REFEICAO|TRANSPORTE|BONUS|PREMIO|BENEFICIO|INFORMATIVO/i.test(desc);
+                if (isBenefit) {
+                    earnings = parseCurrency(ref);
+                }
+            }
+
+            if (desc && (earnings > 0 || deductions > 0 || ref)) {
                 rubrics.push({
                     code,
                     description: desc,

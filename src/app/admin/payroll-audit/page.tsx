@@ -483,7 +483,7 @@ export default function PayrollAuditPage() {
         const lines: string[] = [
             `📌 *DEVOLUTIVA DE FOLHA - ${row.name.toUpperCase()}*`,
             `CPF: ${fmtCpf(row.cpf)} | Matrícula: ${row.folha || "---"}`,
-            `Empresa: ${row.wfh?.companyName || row.companyName || "---"} | Posto: ${row.wfh?.clientName || "---"}`,
+            `Empresa: ${row.wfh?.companyName || row.companyName || "---"} | Contrato: ${row.clientName && row.clientName !== "Interno / Rotativo" ? row.clientName : (row.wfh?.clientName || "Interno")}`,
             `Líquido Previsto WFH: ${fmtCurrency(row.wfhNetSalary)} | Líquido Holerite: ${fmtCurrency(row.holeriteNetSalary)}`,
             `--------------------------------------------------`,
             `*ITENS A CORRIGIR PELA CONTABILIDADE:*`
@@ -606,7 +606,8 @@ export default function PayrollAuditPage() {
             sorted.forEach(r => {
                 const div = r.divergentRubricsCount || 0;
                 const statusTxt = isNotInWfh(r) ? "🚨 NÃO CONSTA NO WFH" : div > 0 ? `⚠️ ${div} DIVERGÊNCIA(S)` : "✅ 100% OK";
-                aoa.push([`COLABORADOR: ${r.name.toUpperCase()}`, `CPF: ${fmtCpf(r.cpf)}`, `EMPRESA: ${r.wfh?.companyName || r.companyName || "---"}`, `STATUS: ${statusTxt}`, ""]);
+                const contratoStr = r.clientName && r.clientName !== "Interno / Rotativo" ? r.clientName : (r.wfh?.clientName || "Interno");
+                aoa.push([`COLABORADOR: ${r.name.toUpperCase()}`, `CPF: ${fmtCpf(r.cpf)}`, `CONTRATO: ${contratoStr}`, `EMPRESA: ${r.wfh?.companyName || r.companyName || "---"}`, `STATUS: ${statusTxt}`]);
                 aoa.push(["RUBRICA / CONCEITO", "PREVISTO NO WFH (SISTEMA)", "PROCESSADO NO HOLERITE", "SITUAÇÃO", "ORIENTAÇÃO DE CORREÇÃO"]);
                 (r.rubricComparisons || []).forEach(c => {
                     aoa.push([
@@ -2286,6 +2287,15 @@ export default function PayrollAuditPage() {
                                                 <div>
                                                     <span className="text-zinc-400 font-normal">CPF: </span>
                                                     <span className="font-medium text-zinc-200">{fmtCpf(r.cpf)}</span>
+                                                </div>
+                                                <span className="text-zinc-600">|</span>
+                                                <div>
+                                                    <span className="text-zinc-400 font-normal">CLIENTE / CONTRATO: </span>
+                                                    <span className="font-bold text-cyan-300 uppercase">
+                                                        {r.clientName && r.clientName !== "Interno / Rotativo" 
+                                                            ? r.clientName 
+                                                            : (r.wfh?.clientName || "Interno / Rotativo")}
+                                                    </span>
                                                 </div>
                                                 <span className="text-zinc-600">|</span>
                                                 <div>

@@ -586,9 +586,29 @@ export async function runPayrollAudit(params: {
                 });
             }
 
-            // 5. Ajuda de Custo
+            // 5. Ajuda de Custo / Auxílio Combustível
             const expAjuda = wfhPreview?.ajudaCusto !== undefined ? wfhPreview.ajudaCusto : (emp.ajudaCusto || 0);
-            const actAjuda = sumRubrics(hRubrics, ["AJUDA", "CUSTO"], "earnings");
+            const matchingAjuda = hRubrics.filter(r => {
+                const d = normalizeName(r.description).toUpperCase();
+                const isMatch = ["AJUDA", "CUSTO", "COMBUSTIVEL", "COMBUSTÍVEL", "AUXILIO COMBUSTIVEL", "AUXÍLIO COMBUSTÍVEL", "VALE COMBUSTIVEL"].some(k => d.includes(normalizeName(k).toUpperCase()));
+                return isMatch && ((r.earnings || 0) > 0 || (r.reference && /^[0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}$/.test(r.reference)));
+            });
+
+            let actAjuda = matchingAjuda.reduce((acc, r) => {
+                if ((r.earnings || 0) > 0) return acc + r.earnings!;
+                if (r.reference && /^[0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}$/.test(r.reference)) {
+                    const clean = r.reference.replace(/[^\d,\.-]/g, '').replace(/\./g, '').replace(',', '.');
+                    return acc + (parseFloat(clean) || 0);
+                }
+                return acc;
+            }, 0) || sumRubrics(hRubrics, ["AJUDA", "CUSTO", "COMBUSTIVEL", "AUXILIO COMBUSTIVEL"], "earnings");
+            actAjuda = Math.round(actAjuda * 100) / 100;
+
+            const ajudaRubric = matchingAjuda[0];
+            const ajudaDesc = ajudaRubric 
+                ? (normalizeName(ajudaRubric.description).toUpperCase().includes("COMBUSTIVEL") ? "Auxílio Combustível" : "Ajuda de Custo")
+                : "";
+
             if (expAjuda > 0 || actAjuda > 0) {
                 const diff = Math.round((actAjuda - expAjuda) * 100) / 100;
                 const isFaltou = expAjuda > 0 && actAjuda === 0;
@@ -598,11 +618,13 @@ export async function runPayrollAudit(params: {
                     expectedWfh: expAjuda,
                     expectedWfhDetail: expAjuda > 0 ? `R$ ${expAjuda.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "Sem ajuda custo",
                     actualHolerite: actAjuda,
-                    actualHoleriteDetail: actAjuda > 0 ? `R$ ${actAjuda.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "Não lançado",
+                    actualHoleriteDetail: actAjuda > 0 
+                        ? `R$ ${actAjuda.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${ajudaDesc ? ` (${ajudaDesc})` : ""}` 
+                        : "Não lançado",
                     diff,
                     status: isOk ? "OK" : isFaltou ? "FALTOU" : "DIVERGENTE",
                     instruction: isOk ? "" : isFaltou
-                        ? `LANÇAR AJUDA DE CUSTO: Valor previsto de R$ ${expAjuda.toFixed(2)} não constou no recibo.`
+                        ? `LANÇAR AJUDA DE CUSTO / AUXÍLIO COMBUSTÍVEL: Valor previsto de R$ ${expAjuda.toFixed(2)} não constou no recibo.`
                         : `CORRIGIR AJUDA DE CUSTO: Previsto R$ ${expAjuda.toFixed(2)} vs. R$ ${actAjuda.toFixed(2)} no holerite.`
                 });
             }
@@ -901,7 +923,7 @@ export async function runPayrollAudit(params: {
             folha: point?.folha || holerite?.registrationCode || empExtra?.matricula?.toString() || "",
             companyId: emp.companyId || undefined,
             companyName: emp.company?.name || holerite?.companyName || "Sem Empresa",
-            clientName: posto?.client?.name || "Interno / Rotativo",
+            clientName: wfhPreview?.clientName || posto?.client?.name || "Interno / Rotativo",
             postoName: posto?.role?.name || emp.role?.name || "Cargo não informado",
             wfhSituation: situationName,
             wfhStatus: emp.status,
@@ -939,7 +961,7 @@ export async function runPayrollAudit(params: {
                 status: emp.status,
                 companyId: emp.companyId || undefined,
                 companyName: emp.company?.name,
-                clientName: posto?.client?.name || "Interno / Rotativo",
+                clientName: wfhPreview?.clientName || posto?.client?.name || "Interno / Rotativo",
                 postoName: posto?.role?.name || emp.role?.name || "Cargo não informado",
                 jobTitle: posto?.role?.name || emp.role?.name || "Cargo não informado",
                 baseSalary: wfhBaseSalary,
