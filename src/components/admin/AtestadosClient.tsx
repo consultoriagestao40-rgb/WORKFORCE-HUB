@@ -106,6 +106,8 @@ export interface MedicalCertificateItem {
     secullumLancadoEm: Date | string | null;
     source: string;
     createdAt: Date | string;
+    createdById?: string | null;
+    createdByName?: string | null;
     validatedById: string | null;
     validatedByName: string | null;
     employee?: {
@@ -1004,7 +1006,7 @@ export function AtestadosClient({
                                                             </span>
                                                             {item.validatedByName && (
                                                                 <p className="text-[10px] text-slate-500">
-                                                                    Por: {item.validatedByName}
+                                                                    Validado por: {item.validatedByName}
                                                                 </p>
                                                             )}
                                                             {item.secullumLancadoEm && (
@@ -1035,6 +1037,15 @@ export function AtestadosClient({
                                                             </span>
                                                         </div>
                                                     )}
+
+                                                    <div className="pt-1 mt-1 border-t border-slate-100 text-[10px] text-slate-500">
+                                                        <div className="font-semibold text-slate-600">
+                                                            Criado por: <span className="font-bold text-slate-800">{item.createdByName || (item.source === "WHATSAPP" ? "📱 WhatsApp" : "Sistema")}</span>
+                                                        </div>
+                                                        <div className="text-[9px] text-slate-400">
+                                                            Em: {formatDataExibicao(item.createdAt)}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </TableCell>
 

@@ -5,7 +5,7 @@ import { DashboardFilters } from "@/components/admin/DashboardFilters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format, differenceInDays, addDays, startOfDay } from "date-fns";
-import { AlertCircle, Calendar, Clock, ArrowLeft, ArrowUpRight, CheckCircle2, UserX, Send, ShieldAlert, DollarSign } from "lucide-react";
+import { AlertCircle, Calendar, Clock, ArrowLeft, ArrowUpRight, CheckCircle2, UserX, Send, ShieldAlert, DollarSign, User } from "lucide-react";
 import Link from "next/link";
 import { DismissalMonitorActions } from "@/components/admin/DismissalMonitorActions";
 import { TelegramRegisterButton } from "@/components/admin/TelegramRegisterButton";
@@ -56,11 +56,36 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
         orderBy: { name: 'asc' }
     });
 
+    // Fallback: buscar logs de auditoria caso o registro de desligamento seja legado
+    const empIds = employees.map((e: any) => e.id);
+    const dismissalLogs = empIds.length > 0 ? await prisma.log.findMany({
+        where: {
+            employeeId: { in: empIds },
+            action: { in: ['INITIATE_DISMISSAL', 'PROGRAMACAO_RESCISAO', 'DESVINCULACAO_POSTO', 'UPDATE_EMPLOYEE'] }
+        },
+        include: { user: { select: { name: true, email: true } } },
+        orderBy: { timestamp: 'desc' }
+    }) : [];
+
+    const logCreatorMap = new Map<string, { name: string; date: Date }>();
+    for (const l of dismissalLogs) {
+        if (l.employeeId && !logCreatorMap.has(l.employeeId) && (l.user?.name || l.user?.email)) {
+            logCreatorMap.set(l.employeeId, {
+                name: l.user.name || l.user.email || "Sistema",
+                date: l.timestamp
+            });
+        }
+    }
+
     const today = new Date();
 
     return employees.map((emp: any) => {
         const extra = emp.extraFields as any || {};
         const proc = extra.dismissalProcess || {};
+
+        const fallbackLog = logCreatorMap.get(emp.id);
+        const createdByName = proc.createdByName || fallbackLog?.name || "Sistema";
+        const createdAt = proc.createdAt ? new Date(proc.createdAt) : (fallbackLog?.date || null);
 
         let type = proc.type || emp.situation?.name || "Desconhecido";
         if (proc.dismissalSubType) {
@@ -314,7 +339,9 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
             postoLabel,
             daysElapsed,
             alerts,
-            dismissalProcess: proc
+            dismissalProcess: proc,
+            createdByName,
+            createdAt
         };
     });
 }
@@ -500,6 +527,18 @@ export default async function DismissalMonitorPage({
                                                     }
                                                 </span>
                                             )}
+                                            <div className="flex flex-col gap-0.5 mt-1 pt-1 border-t border-slate-100">
+                                                <div className="flex items-center gap-1 text-[10px] text-slate-600 font-bold" title={`Criado por: ${emp.createdByName || 'Sistema'}`}>
+                                                    <User className="w-3 h-3 text-slate-400 shrink-0" />
+                                                    <span className="truncate max-w-[140px]">Por: {emp.createdByName || "Sistema"}</span>
+                                                </div>
+                                                {emp.createdAt && (
+                                                    <div className="flex items-center gap-1 text-[9px] text-slate-400 font-medium">
+                                                        <Clock className="w-2.5 h-2.5 text-slate-300 shrink-0" />
+                                                        <span>{format(new Date(emp.createdAt), 'dd/MM/yyyy HH:mm')}</span>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="px-5 py-4">

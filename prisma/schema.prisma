@@ -310,6 +310,7 @@ model BenefitsPayment {
   vaAmount       Float    @default(0)
   paidAt         DateTime @default(now())
   paidByUserId   String?
+  paidByName     String?
   nextPaymentDue DateTime?
   notes          String?
   createdAt      DateTime @default(now())
@@ -453,9 +454,11 @@ model Vacation {
   daysTaken  Int
   daysSold   Int      @default(0)
   notes      String?
-  processed  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  processed     Boolean  @default(false)
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
@@ -1313,6 +1316,8 @@ model MedicalCertificate {
   secullumLancadoEm  DateTime? // Data de envio ao Secullum
   validatedById      String?   // Usuário que validou
   validatedByName    String?   // Nome do usuário que validou
+  createdById        String?   // Usuário que criou/cadastrou
+  createdByName      String?   // Nome do usuário que criou/cadastrou
   whatsappPhone      String?   // Telefone remetente no WhatsApp
   whatsappMessageId  String?   // ID da mensagem
   notes              String?   // Observações

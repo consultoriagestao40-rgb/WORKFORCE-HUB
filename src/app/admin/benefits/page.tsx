@@ -2310,11 +2310,18 @@ export default function BenefitsPage() {
                                                                         Dif: {item.vaDifference && item.vaDifference > 0 ? '+' : ''}R$ {item.vaDifference?.toFixed(2)}
                                                                     </span>
                                                                 )}
-                                                                {item.paidAt && (
-                                                                    <div className="text-[9px] text-slate-400 font-medium" title={item.paymentNotes}>
-                                                                        {item.paidAt.split(" ")[0]}
-                                                                    </div>
-                                                                )}
+                                                                <div className="flex flex-col items-center text-[9px] text-slate-500 font-medium">
+                                                                    {item.paidByName && (
+                                                                        <span className="font-semibold text-slate-700" title={`Baixado por: ${item.paidByName}`}>
+                                                                            Por: {item.paidByName}
+                                                                        </span>
+                                                                    )}
+                                                                    {item.paidAt && (
+                                                                        <span className="text-slate-400" title={item.paymentNotes}>
+                                                                            {item.paidAt}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         ) : (
                                                             <div className="flex flex-col items-center gap-1">
@@ -2544,9 +2551,16 @@ export default function BenefitsPage() {
                                                                     </td>
                                                                     <td className="py-3 px-4 text-center">
                                                                         {item.isPaid ? (
-                                                                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black">
-                                                                                PAGO
-                                                                            </span>
+                                                                            <div className="flex flex-col items-center">
+                                                                                <span className="inline-flex items-center px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black">
+                                                                                    PAGO
+                                                                                </span>
+                                                                                {item.paidByName && (
+                                                                                    <span className="text-[8px] text-slate-500 font-semibold" title={`Baixado por: ${item.paidByName} em ${item.paidAt || ''}`}>
+                                                                                        Por: {item.paidByName}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
                                                                         ) : (
                                                                             <Button
                                                                                 size="sm"
@@ -2775,9 +2789,16 @@ export default function BenefitsPage() {
                                                                     </td>
                                                                     <td className="py-3 px-4 text-center">
                                                                         {item.isPaid ? (
-                                                                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black">
-                                                                                PAGO
-                                                                            </span>
+                                                                            <div className="flex flex-col items-center">
+                                                                                <span className="inline-flex items-center px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black">
+                                                                                    PAGO
+                                                                                </span>
+                                                                                {item.paidByName && (
+                                                                                    <span className="text-[8px] text-slate-500 font-semibold" title={`Baixado por: ${item.paidByName} em ${item.paidAt || ''}`}>
+                                                                                        Por: {item.paidByName}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
                                                                         ) : (
                                                                             <Button
                                                                                 size="sm"
@@ -2923,9 +2944,16 @@ export default function BenefitsPage() {
                                                 </td>
                                                 <td className="py-3 px-4 text-center">
                                                     {item.isPaid ? (
-                                                        <span className="inline-flex items-center text-emerald-600 text-[10px] font-black">
-                                                            <Check className="w-3.5 h-3.5 mr-0.5" /> PAGO
-                                                        </span>
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="inline-flex items-center text-emerald-600 text-[10px] font-black">
+                                                                <Check className="w-3.5 h-3.5 mr-0.5" /> PAGO
+                                                            </span>
+                                                            {item.paidByName && (
+                                                                <span className="text-[8px] text-slate-500 font-semibold" title={`Baixado por: ${item.paidByName} em ${item.paidAt || ''}`}>
+                                                                    Por: {item.paidByName}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     ) : (
                                                         <Button
                                                             size="sm"

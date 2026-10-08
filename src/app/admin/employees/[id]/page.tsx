@@ -73,6 +73,28 @@ async function getEmployeeDetails(id: string) {
             include: { client: true, role: true }
         })
     ]);
+
+    if (employee && employee.vacations.some((v: any) => !v.createdByName)) {
+        const vacationLogs = await prisma.log.findMany({
+            where: {
+                employeeId: employee.id,
+                action: "PROGRAMACAO_FERIAS"
+            },
+            include: { user: { select: { name: true, email: true } } },
+            orderBy: { timestamp: 'desc' }
+        });
+        if (vacationLogs.length > 0) {
+            employee.vacations = employee.vacations.map((v: any) => {
+                if (v.createdByName) return v;
+                const matchLog = vacationLogs[0];
+                return {
+                    ...v,
+                    createdByName: matchLog.user?.name || matchLog.user?.email || "Sistema"
+                };
+            });
+        }
+    }
+
     return { employee, situations, roles, companies, postos };
 }
 

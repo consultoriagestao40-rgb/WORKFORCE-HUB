@@ -103,6 +103,12 @@ export interface PayrollPreviewItem {
 
     // VT opt-in flag (for contabilidade export)
     vtOptIn?: boolean;
+
+    // Audit: Quem criou/alterou o lançamento na folha
+    monthlyAdjustmentsCreatedBy?: string | null;
+    monthlyAdjustmentsCreatedAt?: string | null;
+    monthlyAdjustmentsUpdatedBy?: string | null;
+    monthlyAdjustmentsUpdatedAt?: string | null;
 }
 
 function getUniqueWeeksCount(dates: Date[]): number {
@@ -845,7 +851,11 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             lastWorkingDay: lastWorkingDayStr || null,
             paymentDeadline: dismissalProc?.paymentDeadline || null,
             excludedFromPayroll,
-            vtOptIn: emp.vtOptIn || false
+            vtOptIn: emp.vtOptIn || false,
+            monthlyAdjustmentsCreatedBy: monthlyAdj.createdByName || null,
+            monthlyAdjustmentsCreatedAt: monthlyAdj.createdAt || null,
+            monthlyAdjustmentsUpdatedBy: monthlyAdj.updatedByName || null,
+            monthlyAdjustmentsUpdatedAt: monthlyAdj.updatedAt || null
         };
     });
 
@@ -1000,14 +1010,24 @@ export async function updateMonthlyDeductions(
     if (emp) {
         const extra = (emp.extraFields as any) || {};
         const monthlyAdjustments = { ...(extra.monthlyAdjustments || {}) };
+        const prevMonthAdj = monthlyAdjustments[`${year}-${month}`] || {};
+        const creatorName = prevMonthAdj.createdByName || user.name || user.email || "Sistema";
+        const creatorId = prevMonthAdj.createdById || user.id;
+        const createdDate = prevMonthAdj.createdAt || new Date().toISOString();
 
         monthlyAdjustments[`${year}-${month}`] = {
-            ...(monthlyAdjustments[`${year}-${month}`] || {}),
+            ...prevMonthAdj,
             convenios,
             sindicato,
             ajudaCusto,
             fieldNotes: cleanActiveNotes,
-            observacoes: finalObservacoes
+            observacoes: finalObservacoes,
+            createdByName: creatorName,
+            createdById: creatorId,
+            createdAt: createdDate,
+            updatedByName: user.name || user.email || "Sistema",
+            updatedById: user.id,
+            updatedAt: new Date().toISOString()
         };
 
         // 3. Process future installments if any

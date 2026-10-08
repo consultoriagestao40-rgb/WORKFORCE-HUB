@@ -34,6 +34,7 @@ export interface BenefitsCalculationItem {
     // Pagamentos / Datas
     isPaid: boolean;
     paidAt?: string;
+    paidByName?: string | null;
     lastPaymentDate?: string;
     nextPaymentDueDate?: string;
     paidBenefitType?: string;
@@ -330,6 +331,7 @@ export async function markBenefitAsPaid(data: {
             vaAmount: Number(data.vaAmount || 0),
             paidAt,
             paidByUserId: user?.id,
+            paidByName: user?.name || user?.email || "Sistema",
             nextPaymentDue,
             notes: data.notes || "Pago via Painel de Benefícios"
         }
@@ -357,6 +359,7 @@ export async function markMultipleBenefitsAsPaid(data: {
 
     const config = await getBenefitsConfig();
     const paidAt = new Date();
+    const paidByName = user?.name || user?.email || "Sistema";
 
     const paymentCreates = data.items.map(item => {
         const daysToAdd = item.benefitType === "VT" ? config.vtFractionDays : config.vaFractionDays;
@@ -374,6 +377,7 @@ export async function markMultipleBenefitsAsPaid(data: {
                 vaAmount: Number(item.vaAmount || 0),
                 paidAt,
                 paidByUserId: user?.id,
+                paidByName,
                 nextPaymentDue,
                 notes: data.notes || "Pago em lote via Painel de Benefícios"
             }
@@ -485,13 +489,19 @@ export async function getBenefitsCalculation(year: number, month: number) {
     // Fetch quarterly occurrences for absenteismo evaluation (last 3 months)
     const quarterlyStart = new Date(endYear, endMonth - 3, config.payrollCutoffStartDay);
     const quarterlyEnd = new Date(endYear, endMonth - 1, config.payrollCutoffEndDay);
-    const quarterlyOccurrences = await prisma.occurrence.findMany({
-        where: {
-            date: { gte: quarterlyStart, lte: quarterlyEnd },
-            type: { in: ["FALTA", "FALTA_INJUSTIFICADA", "ATESTADO"] }
-        },
-        select: { employeeId: true }
-    });
+    const [quarterlyOccurrences, systemUsers] = await Promise.all([
+        prisma.occurrence.findMany({
+            where: {
+                date: { gte: quarterlyStart, lte: quarterlyEnd },
+                type: { in: ["FALTA", "FALTA_INJUSTIFICADA", "ATESTADO"] }
+            },
+            select: { employeeId: true }
+        }),
+        prisma.user.findMany({
+            select: { id: true, name: true, email: true }
+        })
+    ]);
+    const userMap = new Map(systemUsers.map(u => [u.id, u.name || u.email]));
     const quarterlyFailsSet = new Set(quarterlyOccurrences.map(o => o.employeeId).filter(Boolean) as string[]);
 
     const now = new Date();
@@ -550,6 +560,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
         const lastPayment = emp.benefitPayments && emp.benefitPayments.length > 0 ? emp.benefitPayments[0] : null;
         const isPaid = !!lastPayment;
         const paidAt = lastPayment ? new Date(lastPayment.paidAt).toLocaleString('pt-BR') : undefined;
+        const paidByName = lastPayment?.paidByName || (lastPayment?.paidByUserId ? userMap.get(lastPayment.paidByUserId) : undefined);
         const lastPaymentDate = lastPayment ? new Date(lastPayment.paidAt).toLocaleDateString('pt-BR') : undefined;
         const paidBenefitType = lastPayment?.benefitType || undefined;
         const paidVaAmount = lastPayment?.vaAmount ? Number(lastPayment.vaAmount) : 0;
@@ -879,6 +890,7 @@ export async function getBenefitsCalculation(year: number, month: number) {
             vaOccurrencesDeducted: vaOccurrencesCount,
             isPaid,
             paidAt,
+            paidByName,
             lastPaymentDate,
             nextPaymentDueDate,
             paidBenefitType,

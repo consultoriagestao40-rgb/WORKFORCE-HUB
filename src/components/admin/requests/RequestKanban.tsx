@@ -173,10 +173,16 @@ export function RequestKanban({ requests }: RequestKanbanBoardProps) {
 
                                     {/* Body */}
                                     <div className="space-y-1.5 text-xs text-slate-600">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-1.5">
                                             <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                            <span className="truncate" title={req.requester.name}>Req: <strong>{req.requester.name}</strong></span>
+                                            <span className="truncate" title={req.requester?.name}>Criado por: <strong className="text-slate-800">{req.requester?.name || "Sistema"}</strong></span>
                                         </div>
+                                        {req.createdAt && (
+                                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                                                <Clock className="w-3 h-3 text-slate-300 shrink-0" />
+                                                <span>Criado em: {new Date(req.createdAt).toLocaleDateString('pt-BR')} {new Date(req.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                            </div>
+                                        )}
                                         {req.employee && (
                                             <div className="flex items-center gap-2">
                                                 <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0" />

@@ -469,6 +469,7 @@ export async function processWhatsAppMedicalCertificate(params: {
                 documentUrl: downloaded.base64 || params.mediaUrl,
                 status: "PENDENTE",
                 source: "WHATSAPP",
+                createdByName: "WhatsApp / Colaborador",
                 whatsappPhone: params.senderPhone || null,
                 whatsappMessageId: params.messageId || null,
                 notes: `Atestado recebido via WhatsApp no grupo ${params.groupName || ""}.`.trim()

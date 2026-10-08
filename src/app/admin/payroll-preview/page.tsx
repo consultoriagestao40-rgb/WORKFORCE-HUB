@@ -1905,6 +1905,16 @@ export default function PayrollPreviewPage() {
                                                                         {item.observacoes}
                                                                     </p>
                                                                 )}
+                                                                {(item.monthlyAdjustmentsUpdatedBy || item.monthlyAdjustmentsCreatedBy) && (
+                                                                    <div className="pt-2 mt-2 border-t border-amber-200/60 text-[10px] text-slate-500">
+                                                                        <div>Lançado por: <strong className="text-slate-800">{item.monthlyAdjustmentsUpdatedBy || item.monthlyAdjustmentsCreatedBy}</strong></div>
+                                                                        {(item.monthlyAdjustmentsUpdatedAt || item.monthlyAdjustmentsCreatedAt) && (
+                                                                            <div className="text-[9px] text-slate-400">
+                                                                                Em: {new Date(item.monthlyAdjustmentsUpdatedAt || item.monthlyAdjustmentsCreatedAt!).toLocaleDateString('pt-BR')} {new Date(item.monthlyAdjustmentsUpdatedAt || item.monthlyAdjustmentsCreatedAt!).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
                                                             </PopoverContent>
                                                         </Popover>
                                                     )}
@@ -3214,6 +3224,19 @@ export default function PayrollPreviewPage() {
                                     <span>Competência:</span>
                                     <span className="font-bold text-slate-750">{selectedMonth}/{selectedYear}</span>
                                 </div>
+                                {(selectedEmployeeItem.monthlyAdjustmentsUpdatedBy || selectedEmployeeItem.monthlyAdjustmentsCreatedBy) && (
+                                    <div className="flex justify-between items-center text-indigo-700 font-semibold border-t border-indigo-100 pt-1.5 mt-1 text-[11px] bg-indigo-50/60 px-2 py-1 rounded-lg">
+                                        <span>Lançamento por:</span>
+                                        <span>
+                                            <strong className="text-indigo-900">{selectedEmployeeItem.monthlyAdjustmentsUpdatedBy || selectedEmployeeItem.monthlyAdjustmentsCreatedBy}</strong>
+                                            {(selectedEmployeeItem.monthlyAdjustmentsUpdatedAt || selectedEmployeeItem.monthlyAdjustmentsCreatedAt) && (
+                                                <span className="text-slate-500 font-normal ml-1">
+                                                    (em {new Date(selectedEmployeeItem.monthlyAdjustmentsUpdatedAt || selectedEmployeeItem.monthlyAdjustmentsCreatedAt!).toLocaleDateString('pt-BR')} {new Date(selectedEmployeeItem.monthlyAdjustmentsUpdatedAt || selectedEmployeeItem.monthlyAdjustmentsCreatedAt!).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})
+                                                </span>
+                                            )}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Dismissal Process Banner & Toggle */}

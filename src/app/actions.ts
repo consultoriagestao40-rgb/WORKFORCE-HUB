@@ -1141,26 +1141,40 @@ export async function unassignEmployee(formData: FormData) {
 
 
             // 2. Update employee situation with dismissal dates in extraFields
+            const existingExtraFields = (currentAssignment.employee.extraFields as any) || {};
+            const prevDismissal = existingExtraFields.dismissalProcess || {};
+            const creatorId = prevDismissal.createdById || currentUser?.id || null;
+            const creatorName = prevDismissal.createdByName || currentUser?.name || currentUser?.email || "Sistema";
+            const createdTime = prevDismissal.createdAt || new Date().toISOString();
+
             let dismissalProcess: any = null;
             if (situation.name === "Aviso Prévio") {
                 dismissalProcess = {
                     type: "Aviso Prévio",
                     startDate: noticeStartDate ? new Date(noticeStartDate + "T12:00:00Z") : new Date(),
-                    endDate: noticeEndDate ? new Date(noticeEndDate + "T12:00:00Z") : null
+                    endDate: noticeEndDate ? new Date(noticeEndDate + "T12:00:00Z") : null,
+                    createdById: creatorId,
+                    createdByName: creatorName,
+                    createdAt: createdTime
                 };
             } else if (situation.name === "Processo de Rescisão") {
                 dismissalProcess = {
                     type: "Processo de Rescisão",
-                    endDate: terminationDate ? new Date(terminationDate + "T12:00:00Z") : null
+                    endDate: terminationDate ? new Date(terminationDate + "T12:00:00Z") : null,
+                    createdById: creatorId,
+                    createdByName: creatorName,
+                    createdAt: createdTime
                 };
             } else if (situation.name === "Processo de abandono") {
                 dismissalProcess = {
                     type: "Processo de abandono",
-                    startDate: abandonmentStartDate ? new Date(abandonmentStartDate + "T12:00:00Z") : new Date()
+                    startDate: abandonmentStartDate ? new Date(abandonmentStartDate + "T12:00:00Z") : new Date(),
+                    createdById: creatorId,
+                    createdByName: creatorName,
+                    createdAt: createdTime
                 };
             }
 
-            const existingExtraFields = (currentAssignment.employee.extraFields as any) || {};
             const updatedExtraFields = {
                 ...existingExtraFields
             };
@@ -2084,7 +2098,9 @@ export async function addVacation(formData: FormData) {
             endDate,
             daysTaken,
             daysSold,
-            notes
+            notes,
+            createdById: currentUser?.id || null,
+            createdByName: currentUser?.name || currentUser?.email || "Sistema"
         }
     });
 
@@ -3551,7 +3567,10 @@ export async function initiateEmployeeDismissalProcess(data: {
                 telegram2SentDate: null,
                 lastWorkingDay: null,
                 paymentDeadline: null,
-                attachment: data.attachment || null
+                attachment: data.attachment || null,
+                createdById: user?.id || null,
+                createdByName: user?.name || user?.email || "Sistema",
+                createdAt: new Date().toISOString()
             };
 
             // Compute dates based on CLT rules

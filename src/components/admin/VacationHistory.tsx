@@ -33,6 +33,8 @@ interface Vacation {
     daysTaken: number;
     daysSold?: number;
     notes?: string | null;
+    createdByName?: string | null;
+    createdAt?: Date | string;
 }
 
 interface VacationHistoryProps {
@@ -267,7 +269,13 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
                                 {vacations.map((v) => (
                                     <tr key={v.id} className="group hover:bg-slate-50">
                                         <td className="px-3 py-2 text-slate-700 font-medium">
-                                            {formatUTCDate(v.startDate)} até {formatUTCDate(v.endDate)}
+                                            <div>{formatUTCDate(v.startDate)} até {formatUTCDate(v.endDate)}</div>
+                                            <div className="text-[10px] text-slate-400 font-normal flex items-center gap-1 mt-0.5">
+                                                <span>Criado por: <strong className="text-slate-600">{v.createdByName || "Sistema"}</strong></span>
+                                                {v.createdAt && (
+                                                    <span>em {new Date(v.createdAt).toLocaleDateString('pt-BR')} {new Date(v.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-3 py-2 text-center text-slate-600 font-bold">
                                             {v.daysTaken} dias {v.daysSold ? `+ ${v.daysSold} abono` : ""}

@@ -143,10 +143,13 @@ export function RequestDetailsSheet({ request, open, onOpenChange }: RequestDeta
                                             </div>
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Solicitante</label>
+                                            <label className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Criado por</label>
                                             <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
                                                 <User className="w-4 h-4 text-indigo-400" />
-                                                {request.requester?.name}
+                                                <span className="font-bold text-slate-900">{request.requester?.name || "Sistema"}</span>
+                                            </div>
+                                            <div className="text-[11px] text-slate-500">
+                                                Em {format(new Date(request.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                                             </div>
                                         </div>
                                     </div>

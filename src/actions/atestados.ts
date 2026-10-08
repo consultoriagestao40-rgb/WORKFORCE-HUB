@@ -490,6 +490,7 @@ export async function processarUploadAtestado(params: {
         }
 
         // 3. Cria o registro PENDENTE no banco
+        const currentUser = await getCurrentUser();
         const created = await prisma.medicalCertificate.create({
             data: {
                 employeeId: matched?.id || null,
@@ -505,6 +506,8 @@ export async function processarUploadAtestado(params: {
                 documentUrl: params.fileBase64,
                 status: "PENDENTE",
                 source: "MANUAL",
+                createdById: currentUser?.id || null,
+                createdByName: currentUser?.name || currentUser?.email || "Upload Manual",
                 notes: extracted.observations
             }
         });
@@ -567,7 +570,9 @@ export async function salvarAtestadoManual(data: {
             notes: data.notes || null,
             documentUrl: data.fileBase64 || "",
             status: "PENDENTE",
-            source: "MANUAL"
+            source: "MANUAL",
+            createdById: user.id,
+            createdByName: user.name || user.email || "Manual"
         }
     });
 
