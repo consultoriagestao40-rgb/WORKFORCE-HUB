@@ -2,20 +2,13 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/db";
 import { DashboardFilters } from "@/components/admin/DashboardFilters";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { format, differenceInDays, addDays, startOfDay } from "date-fns";
-import { AlertCircle, Calendar, Clock, ArrowLeft, ArrowUpRight, CheckCircle2, UserX, Send, ShieldAlert, DollarSign, User } from "lucide-react";
-import Link from "next/link";
-import { DismissalMonitorActions } from "@/components/admin/DismissalMonitorActions";
-import { TelegramRegisterButton } from "@/components/admin/TelegramRegisterButton";
+import { AlertCircle, Calendar, Clock, UserX, User } from "lucide-react";
 import { BackButton } from "@/components/admin/BackButton";
-import { ResignationLetterDownloadButton } from "@/components/admin/ResignationLetterDownloadButton";
-import { InitiateDismissalDialog } from "@/components/admin/InitiateDismissalDialog";
 import { DismissalAlertsDialog } from "@/components/admin/DismissalAlertsDialog";
 import { DPAlertSettingsDialog } from "@/components/admin/DPAlertSettingsDialog";
-import { DismissalNoticeButtons } from "@/components/admin/DismissalNoticeButtons";
 import { DismissalTemplatesModal } from "@/components/admin/DismissalTemplatesModal";
+import { DismissalMonitorTable } from "@/components/admin/DismissalMonitorTable";
 import { getCurrentUser } from "@/lib/auth";
 import { getGlobalAlerts } from "@/actions/globalAlerts";
 
@@ -467,192 +460,7 @@ export default async function DismissalMonitorPage({
 
             <DashboardFilters companies={companies} clients={[]} />
 
-            <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-medium border-b uppercase text-xs">
-                            <tr>
-                                <th className="px-5 py-4">Colaborador</th>
-                                <th className="px-5 py-4">Empresa / Posto</th>
-                                <th className="px-5 py-4">Processo</th>
-                                <th className="px-5 py-4">Cronograma</th>
-                                <th className="px-5 py-4 text-center">1º Tel.</th>
-                                <th className="px-5 py-4 text-center">2º Tel.</th>
-                                <th className="px-5 py-4 text-center">Prazo Pgto</th>
-                                <th className="px-5 py-4 text-center">Contador</th>
-                                <th className="px-5 py-4 text-right">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {employees.map((emp: any) => (
-                                <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-5 py-4">
-                                        <div className="font-bold text-slate-900">{emp.name}</div>
-                                        <div className="text-xs text-slate-500 mt-1">
-                                            {emp.role.name}
-                                        </div>
-                                    </td>
-                                    <td className="px-5 py-4">
-                                        <div className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded w-fit mb-1 max-w-[120px] truncate" title={emp.company?.name || 'S/ Empresa'}>
-                                            {emp.company?.name || 'S/ Empresa'}
-                                        </div>
-                                        <div className="text-xs text-slate-500 font-bold max-w-[120px] truncate" title={emp.postoLabel}>{emp.postoLabel}</div>
-                                    </td>
-                                    <td className="px-5 py-4">
-                                        <div className="flex flex-col gap-1">
-                                            {(() => {
-                                                const style = getProcessBadgeStyle(emp.type);
-                                                return (
-                                                    <span 
-                                                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold w-fit border"
-                                                        style={{ 
-                                                            backgroundColor: style.bg,
-                                                            color: style.color,
-                                                            borderColor: `${style.color}25`
-                                                        }}
-                                                    >
-                                                        <span 
-                                                            className="w-1.5 h-1.5 rounded-full" 
-                                                            style={{ backgroundColor: style.color }}
-                                                        />
-                                                        {emp.type}
-                                                    </span>
-                                                );
-                                            })()}
-                                            {emp.type === "Aviso Prévio" && (
-                                                <span className="text-[9px] text-slate-400 font-medium">
-                                                    Redução: {
-                                                        emp.reductionType === 'DUAS_HORAS' ? '2h diárias' :
-                                                        emp.reductionType === 'SETE_DIAS' ? '7 dias no fim' : 'Nenhuma'
-                                                    }
-                                                </span>
-                                            )}
-                                            <div className="flex flex-col gap-0.5 mt-1 pt-1 border-t border-slate-100">
-                                                <div className="flex items-center gap-1 text-[10px] text-slate-600 font-bold" title={`Criado por: ${emp.createdByName || 'Sistema'}`}>
-                                                    <User className="w-3 h-3 text-slate-400 shrink-0" />
-                                                    <span className="truncate max-w-[140px]">Por: {emp.createdByName || "Sistema"}</span>
-                                                </div>
-                                                {emp.createdAt && (
-                                                    <div className="flex items-center gap-1 text-[9px] text-slate-400 font-medium">
-                                                        <Clock className="w-2.5 h-2.5 text-slate-300 shrink-0" />
-                                                        <span>{format(new Date(emp.createdAt), 'dd/MM/yyyy HH:mm')}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-5 py-4">
-                                        <div className="flex flex-col gap-0.5 text-xs text-slate-600 font-bold">
-                                            <div className="flex items-center gap-1">
-                                                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                <span className="truncate max-w-[150px]">{emp.dateLabel}</span>
-                                            </div>
-                                            {emp.lastWorkingDay && (
-                                                <div className="text-[10px] text-sky-800 bg-sky-50 border border-sky-100 rounded px-1.5 py-0.5 w-fit font-bold mt-1">
-                                                    Último dia trab: {format(emp.lastWorkingDay, 'dd/MM/yyyy')}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-5 py-4 text-center">
-                                        {emp.type === "Processo de abandono" ? (
-                                            <TelegramRegisterButton 
-                                                employeeId={emp.id} 
-                                                telegramIndex={1} 
-                                                sentDate={emp.telegram1SentDate} 
-                                            />
-                                        ) : <span className="text-slate-300">-</span>}
-                                    </td>
-                                    <td className="px-5 py-4 text-center">
-                                        {emp.type === "Processo de abandono" ? (
-                                            <TelegramRegisterButton 
-                                                employeeId={emp.id} 
-                                                telegramIndex={2} 
-                                                sentDate={emp.telegram2SentDate} 
-                                            />
-                                        ) : <span className="text-slate-300">-</span>}
-                                    </td>
-                                    <td className="px-5 py-4 text-center">
-                                        {emp.paymentDeadline ? (
-                                            <div className="flex flex-col items-center">
-                                                <span className={`text-xs font-bold border px-2 py-0.5 rounded ${
-                                                    differenceInDays(startOfDay(emp.paymentDeadline), todayStart) < 0 
-                                                        ? 'bg-red-50 text-red-700 border-red-200' 
-                                                        : differenceInDays(startOfDay(emp.paymentDeadline), todayStart) <= 3
-                                                            ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                                            : 'bg-slate-50 text-slate-600 border-slate-200'
-                                                }`}>
-                                                    {format(emp.paymentDeadline, 'dd/MM/yyyy')}
-                                                </span>
-                                            </div>
-                                        ) : (
-                                            <span className="text-slate-300 font-medium">-</span>
-                                        )}
-                                    </td>
-                                    <td className="px-5 py-4 text-center">
-                                        <div className="flex flex-col items-center">
-                                            <span className={`text-base font-black ${
-                                                emp.statusBadge === 'ALERTA' ? 'text-red-600' : 
-                                                emp.statusBadge === 'A_VENCER' ? 'text-amber-600' : 'text-slate-800'
-                                            }`}>
-                                                {emp.daysCount}
-                                            </span>
-                                            <span className="text-[8px] text-slate-400 uppercase font-black tracking-wider leading-none">
-                                                {emp.counterLabel}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-5 py-4 text-right">
-                                        <div className="flex justify-end items-center gap-2">
-                                            {emp.dismissalProcess?.type && (
-                                                <DismissalNoticeButtons 
-                                                    employeeId={emp.id}
-                                                    employeeName={emp.name}
-                                                    employeePhone={emp.phone}
-                                                    dismissalProcess={emp.dismissalProcess}
-                                                />
-                                            )}
-                                            {emp.dismissalProcess?.attachment && (
-                                                <ResignationLetterDownloadButton 
-                                                    fileName={emp.dismissalProcess.attachment.fileName} 
-                                                    fileData={emp.dismissalProcess.attachment.fileData} 
-                                                />
-                                            )}
-                                            <Link href={`/admin/employees/${emp.id}`}>
-                                                <Button variant="ghost" size="sm" className="h-8 px-2 hover:bg-slate-200 font-bold text-xs">
-                                                    Perfil
-                                                </Button>
-                                            </Link>
-                                            {!emp.dismissalProcess?.type ? (
-                                                <InitiateDismissalDialog 
-                                                    employeeId={emp.id}
-                                                    employeeName={emp.name}
-                                                    admissionDate={emp.admissionDate}
-                                                    hasActivePosto={emp.assignments && emp.assignments.length > 0}
-                                                    triggerVariant="table"
-                                                />
-                                            ) : (
-                                                <DismissalMonitorActions 
-                                                    employeeId={emp.id}
-                                                    employeeName={emp.name}
-                                                    situationName={emp.type}
-                                                />
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {employees.length === 0 && (
-                                <tr>
-                                    <td colSpan={9} className="text-center py-12 text-slate-500 font-medium">
-                                        Nenhum colaborador com processo de desligamento ou aviso prévio em andamento.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <DismissalMonitorTable employees={employees} />
         </div>
     );
 }
