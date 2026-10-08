@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getBenefitsCalculation } from "@/actions/benefits";
-import { addDays, differenceInDays, format } from "date-fns";
+import { addDays, differenceInDays, format, startOfDay } from "date-fns";
 
 export interface GlobalAlertItem {
     id: string;
@@ -234,12 +234,17 @@ export async function getGlobalAlerts() {
             let telegram2SentDate = proc.telegram2SentDate || null;
             let paymentDeadline = proc.paymentDeadline ? new Date(proc.paymentDeadline) : null;
 
-            if (type === "Aviso Prévio" && endDate && !paymentDeadline) {
-                paymentDeadline = new Date(endDate);
-                paymentDeadline.setDate(paymentDeadline.getDate() + 9);
-            } else if ((type === "Processo de Rescisão" || type.includes("Aviso Indenizado") || type.includes("Dispensa de Aviso")) && (endDate || startDate) && !paymentDeadline) {
-                paymentDeadline = new Date(endDate || startDate!);
-                paymentDeadline.setDate(paymentDeadline.getDate() + 9);
+            if (type === "Aviso Prévio" && endDate) {
+                if (!paymentDeadline || differenceInDays(startOfDay(paymentDeadline), startOfDay(endDate)) === 9) {
+                    paymentDeadline = new Date(endDate);
+                    paymentDeadline.setDate(paymentDeadline.getDate() + 10);
+                }
+            } else if ((type === "Processo de Rescisão" || type.includes("Aviso Indenizado") || type.includes("Dispensa de Aviso")) && (endDate || startDate)) {
+                const target = endDate || startDate!;
+                if (!paymentDeadline || differenceInDays(startOfDay(paymentDeadline), startOfDay(target)) === 9) {
+                    paymentDeadline = new Date(target);
+                    paymentDeadline.setDate(paymentDeadline.getDate() + 10);
+                }
             }
 
             // Payment Deadline Alert

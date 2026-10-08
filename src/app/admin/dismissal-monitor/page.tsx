@@ -137,9 +137,9 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
                         lastWorkingDay.setDate(lastWorkingDay.getDate() - 7);
                     }
                 }
-                if (!paymentDeadline) {
+                if (!paymentDeadline || (endDate && differenceInDays(startOfDay(paymentDeadline), startOfDay(endDate)) === 9)) {
                     paymentDeadline = new Date(endDate);
-                    paymentDeadline.setDate(paymentDeadline.getDate() + 9);
+                    paymentDeadline.setDate(paymentDeadline.getDate() + 10);
                 }
 
                 const endStart = startOfDay(endDate);
@@ -174,9 +174,9 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
             if (termDate) {
                 dateLabel = `Término: ${format(termDate, 'dd/MM/yyyy')}`;
                 lastWorkingDay = termDate;
-                if (!paymentDeadline) {
+                if (!paymentDeadline || differenceInDays(startOfDay(paymentDeadline), startOfDay(termDate)) === 9) {
                     paymentDeadline = new Date(termDate);
-                    paymentDeadline.setDate(paymentDeadline.getDate() + 9);
+                    paymentDeadline.setDate(paymentDeadline.getDate() + 10);
                 }
 
                 // Rescisão sem aviso ou experiência imediata: o prazo ativo crucial é o PRAZO DE PAGAMENTO
@@ -223,9 +223,9 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
             if (daysCount < 0) statusBadge = "ALERTA";
 
             lastWorkingDay = targetDate;
-            if (!paymentDeadline) {
+            if (!paymentDeadline || differenceInDays(startOfDay(paymentDeadline), startOfDay(targetDate)) === 9) {
                 paymentDeadline = new Date(targetDate);
-                paymentDeadline.setDate(paymentDeadline.getDate() + 9);
+                paymentDeadline.setDate(paymentDeadline.getDate() + 10);
             }
         }
 

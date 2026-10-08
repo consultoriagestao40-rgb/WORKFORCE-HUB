@@ -3573,13 +3573,13 @@ export async function initiateEmployeeDismissalProcess(data: {
                 createdAt: new Date().toISOString()
             };
 
-            // Compute dates based on CLT rules
+            // Compute dates based on CLT rules (Art. 477 § 6: 10 dias contados a partir do término do contrato)
             if (data.dismissalSubType === 'DISPENSA_COM_AVISO' || data.dismissalSubType === 'PEDIDO_COM_AVISO') {
                 if (dismissalProcess.endDate) {
                     const end = new Date(dismissalProcess.endDate);
                     const payLimit = new Date(end);
-                    // CLT Art. 477 § 6: 10 dias considerando o dia da rescisão como Dia 01 (+9 dias corridos)
-                    payLimit.setDate(payLimit.getDate() + 9);
+                    // CLT Art. 477 § 6: 10 dias corridos a partir do término do contrato (+10 dias)
+                    payLimit.setDate(payLimit.getDate() + 10);
                     dismissalProcess.paymentDeadline = payLimit;
 
                     const lastWork = new Date(end);
@@ -3596,8 +3596,8 @@ export async function initiateEmployeeDismissalProcess(data: {
                 const termDate = dismissalProcess.startDate || dismissalProcess.endDate || new Date();
                 const start = new Date(termDate);
                 const payLimit = new Date(start);
-                // CLT Art. 477 § 6: 10 dias considerando o dia do desligamento como Dia 01 (+9 dias corridos, ex: 22/09 -> 01/10)
-                payLimit.setDate(payLimit.getDate() + 9);
+                // CLT Art. 477 § 6: 10 dias corridos a partir do término do contrato (+10 dias)
+                payLimit.setDate(payLimit.getDate() + 10);
                 dismissalProcess.paymentDeadline = payLimit;
                 dismissalProcess.lastWorkingDay = start;
                 dismissalProcess.startDate = start;

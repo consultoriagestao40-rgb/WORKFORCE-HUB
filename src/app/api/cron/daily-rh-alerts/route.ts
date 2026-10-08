@@ -66,10 +66,13 @@ export async function GET(request: Request) {
             let endDate = proc.endDate ? new Date(proc.endDate) : null;
             let paymentDeadline = proc.paymentDeadline ? new Date(proc.paymentDeadline) : null;
 
-            if (!paymentDeadline && (endDate || startDate)) {
-                const computedPay = new Date(endDate || startDate!);
-                computedPay.setDate(computedPay.getDate() + 9);
-                paymentDeadline = computedPay;
+            if (endDate || startDate) {
+                const target = endDate || startDate!;
+                if (!paymentDeadline || differenceInDays(startOfDay(paymentDeadline), startOfDay(target)) === 9) {
+                    const computedPay = new Date(target);
+                    computedPay.setDate(computedPay.getDate() + 10);
+                    paymentDeadline = computedPay;
+                }
             }
 
             // A. Checagem de Prazo de Pagamento da Rescisão
