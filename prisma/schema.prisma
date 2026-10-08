@@ -1303,6 +1303,7 @@ model MedicalCertificate {
   endDate            DateTime  // Fim do atestado
   daysCount          Int       @default(1)
   cid                String?   // CID extraído (ex: J06, M54)
+  cidDescription     String?   // Descrição médica/diagnóstico do CID (ex: Lombalgia, Gastroenterite)
   doctorName         String?   // Nome do médico
   doctorCrm          String?   // CRM do médico
   documentUrl        String    // URL da foto / documento

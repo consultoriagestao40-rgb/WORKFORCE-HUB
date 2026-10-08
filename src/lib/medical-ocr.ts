@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getCidDescription, normalizeCidCode } from "@/lib/cid10";
 
 const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3F1993DFB59E83474F059E648AE68DF9";
 const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "81087A6B5C1CAB8AAAC801C4";
@@ -13,6 +14,7 @@ async function notifyManagerAboutAtestado(params: {
     endDate: Date;
     daysCount: number;
     cid?: string | null;
+    cidDescription?: string | null;
     source?: string;
 }) {
     const notifyPhone = process.env.ZAPI_NOTIFY_PHONE;
@@ -23,12 +25,16 @@ async function notifyManagerAboutAtestado(params: {
         const end = params.endDate.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
         const dias = params.daysCount === 1 ? "1 dia" : `${params.daysCount} dias`;
 
+        const cidDisplay = params.cid
+            ? `🏥 *CID:* ${params.cid}${params.cidDescription ? ` — ${params.cidDescription}` : ""}`
+            : null;
+
         const message = [
             `📋 *Novo Atestado Médico — Revisão Necessária*`,
             ``,
             `👤 *Funcionário:* ${params.employeeName}`,
             `📅 *Período:* ${start} a ${end} (${dias})`,
-            params.cid ? `🏥 *CID:* ${params.cid}` : null,
+            cidDisplay,
             `📲 *Origem:* ${params.source === "WHATSAPP" ? "Grupo WhatsApp" : "Manual"}`,
             ``,
             `Acesse o Workforce Hub → *Gestão de Atestados* para validar e lançar no ponto.`
@@ -60,6 +66,7 @@ export interface ExtractedMedicalData {
     endDate: string | null;   // YYYY-MM-DD
     days: number;
     cid: string | null;
+    cidDescription?: string | null;
     doctorName: string | null;
     doctorCrm: string | null;
     institution: string | null;
@@ -152,6 +159,7 @@ REGRAS DE CLASSIFICAÇÃO:
   "endDate": "Data de término do afastamento no formato YYYY-MM-DD (se não houver mas houver número de dias, calcule: startDate + dias - 1)",
   "days": "Quantidade de dias de afastamento/repouso recomendados (número inteiro, mínimo 1. Se for comparecimento de algumas horas coloque 1)",
   "cid": "Código do CID mencionado (ex: J00, M54.5, Z76.2 ou null se não constar)",
+  "cidDescription": "Descrição médica/diagnóstico oficial do CID segundo a tabela CID-10 da OMS (ex: 'Dor lombar baixa', 'Infecção aguda das vias aéreas superiores', 'Amigdalite aguda', etc. ou null se não houver CID)",
   "doctorName": "Nome do médico ou cirurgião dentista emissor",
   "doctorCrm": "CRM ou CRO com UF (ex: CRM-PR 123456 ou null)",
   "institution": "Nome do hospital, posto de saúde, UPA ou clínica",
@@ -211,6 +219,8 @@ Observações importantes:
                     .trim();
 
                 const parsed = JSON.parse(cleaned);
+                const normCid = parsed.cid ? normalizeCidCode(parsed.cid) : null;
+                const cidDesc = (normCid ? getCidDescription(normCid) : null) || parsed.cidDescription || null;
 
                 return {
                     isAtestado: parsed.isAtestado === true,
@@ -219,7 +229,8 @@ Observações importantes:
                     startDate: parsed.startDate || null,
                     endDate: parsed.endDate || parsed.startDate || null,
                     days: Number(parsed.days) || 1,
-                    cid: parsed.cid || null,
+                    cid: normCid,
+                    cidDescription: cidDesc,
                     doctorName: parsed.doctorName || null,
                     doctorCrm: parsed.doctorCrm || null,
                     institution: parsed.institution || null,
@@ -242,6 +253,7 @@ Observações importantes:
         endDate: null,
         days: 0,
         cid: null,
+        cidDescription: null,
         doctorName: null,
         doctorCrm: null,
         institution: null,
@@ -454,6 +466,9 @@ export async function processWhatsAppMedicalCertificate(params: {
         }
 
         // Salvar como PENDENTE no banco
+        const resolvedCid = extracted.cid ? normalizeCidCode(extracted.cid) : null;
+        const resolvedCidDesc = extracted.cidDescription || (resolvedCid ? getCidDescription(resolvedCid) : null);
+
         const created = await prisma.medicalCertificate.create({
             data: {
                 employeeId: matched?.id || null,
@@ -463,7 +478,8 @@ export async function processWhatsAppMedicalCertificate(params: {
                 startDate,
                 endDate,
                 daysCount: extracted.days || 1,
-                cid: extracted.cid,
+                cid: resolvedCid,
+                cidDescription: resolvedCidDesc,
                 doctorName: extracted.doctorName,
                 doctorCrm: extracted.doctorCrm,
                 documentUrl: downloaded.base64 || params.mediaUrl,
@@ -485,6 +501,7 @@ export async function processWhatsAppMedicalCertificate(params: {
             endDate: created.endDate,
             daysCount: created.daysCount ?? 1,
             cid: created.cid,
+            cidDescription: created.cidDescription,
             source: "WHATSAPP"
         }).catch(() => {});
 

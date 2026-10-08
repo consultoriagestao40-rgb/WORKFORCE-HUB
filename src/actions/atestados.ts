@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { SecullumApiClient } from "@/lib/secullum";
 import { getBenefitsConfig } from "@/actions/benefits";
 import { extractMedicalCertificateData, matchEmployee } from "@/lib/medical-ocr";
+import { getCidDescription, normalizeCidCode, searchCid } from "@/lib/cid10";
 
 /**
  * Helper para instanciar o cliente Secullum
@@ -205,6 +206,7 @@ export async function lancarAtestadoNoSecullum(params: {
     endDate?: string;
     days?: number;
     cid?: string;
+    cidDescription?: string;
     justificativaNome?: string;
     notes?: string;
 }) {
@@ -245,7 +247,11 @@ export async function lancarAtestadoNoSecullum(params: {
     const startDateStr = params.startDate || (atestado.startDate ? atestado.startDate.toISOString().split("T")[0] : null);
     const endDateStr = params.endDate || (atestado.endDate ? atestado.endDate.toISOString().split("T")[0] : startDateStr);
     const days = params.days ?? atestado.daysCount ?? 1;
-    const cid = params.cid !== undefined ? params.cid : atestado.cid;
+    const rawCid = params.cid !== undefined ? params.cid : atestado.cid;
+    const resolvedCid = rawCid ? normalizeCidCode(rawCid) : null;
+    const resolvedCidDesc = params.cidDescription !== undefined
+        ? params.cidDescription
+        : (resolvedCid ? getCidDescription(resolvedCid) : atestado.cidDescription);
     const notes = params.notes !== undefined ? params.notes : atestado.notes;
     const justNome = (params.justificativaNome && params.justificativaNome.length <= 7)
         ? params.justificativaNome
@@ -271,8 +277,8 @@ export async function lancarAtestadoNoSecullum(params: {
             dataFimStr: endDateStr,
             dias: days,
             justificativaNome: justNome,
-            cid: cid || undefined,
-            observacoes: notes || undefined
+            cid: resolvedCid || undefined,
+            observacoes: notes || (resolvedCidDesc ? `CID ${resolvedCid}: ${resolvedCidDesc}` : undefined)
         });
 
         // Se o Secullum resolveu o CPF do colaborador (caso estivesse digitado com divergência no cadastro), atualiza no banco
@@ -319,7 +325,8 @@ export async function lancarAtestadoNoSecullum(params: {
                 startDate: new Date(startDateStr + "T12:00:00Z"),
                 endDate: new Date(endDateStr + "T12:00:00Z"),
                 daysCount: days,
-                cid,
+                cid: resolvedCid,
+                cidDescription: resolvedCidDesc,
                 justificativa: justNome,
                 notes,
                 status: "LANCADO",
@@ -491,6 +498,9 @@ export async function processarUploadAtestado(params: {
 
         // 3. Cria o registro PENDENTE no banco
         const currentUser = await getCurrentUser();
+        const resolvedCid = extracted.cid ? normalizeCidCode(extracted.cid) : null;
+        const resolvedCidDesc = extracted.cidDescription || (resolvedCid ? getCidDescription(resolvedCid) : null);
+
         const created = await prisma.medicalCertificate.create({
             data: {
                 employeeId: matched?.id || null,
@@ -500,7 +510,8 @@ export async function processarUploadAtestado(params: {
                 startDate,
                 endDate,
                 daysCount: extracted.days || 1,
-                cid: extracted.cid,
+                cid: resolvedCid,
+                cidDescription: resolvedCidDesc,
                 doctorName: extracted.doctorName,
                 doctorCrm: extracted.doctorCrm,
                 documentUrl: params.fileBase64,
@@ -537,6 +548,7 @@ export async function salvarAtestadoManual(data: {
     endDate: string;
     days: number;
     cid?: string;
+    cidDescription?: string;
     justificativa?: string;
     notes?: string;
     doctorName?: string;
@@ -554,6 +566,9 @@ export async function salvarAtestadoManual(data: {
         return { success: false, error: "Colaborador não encontrado." };
     }
 
+    const resolvedCid = data.cid ? normalizeCidCode(data.cid) : null;
+    const resolvedCidDesc = data.cidDescription || (resolvedCid ? getCidDescription(resolvedCid) : null);
+
     await prisma.medicalCertificate.create({
         data: {
             employeeId: employee.id,
@@ -563,7 +578,8 @@ export async function salvarAtestadoManual(data: {
             startDate: new Date(data.startDate + "T12:00:00Z"),
             endDate: new Date(data.endDate + "T12:00:00Z"),
             daysCount: data.days || 1,
-            cid: data.cid || null,
+            cid: resolvedCid,
+            cidDescription: resolvedCidDesc,
             justificativa: (data.justificativa && data.justificativa.length <= 7) ? data.justificativa : "AT. MED",
             doctorName: data.doctorName || null,
             doctorCrm: data.doctorCrm || null,
@@ -578,4 +594,67 @@ export async function salvarAtestadoManual(data: {
 
     revalidatePath("/admin/atestados");
     return { success: true };
+}
+
+/**
+ * Atualiza os dados de um atestado médico (colaborador, datas, CID, descrição, justificativa, observações)
+ */
+export async function atualizarDadosAtestado(params: {
+    id: string;
+    employeeId?: string;
+    startDate?: string;
+    endDate?: string;
+    daysCount?: number;
+    cid?: string;
+    cidDescription?: string;
+    justificativa?: string;
+    notes?: string;
+}) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado.");
+
+    const rawCid = params.cid !== undefined ? params.cid : undefined;
+    const resolvedCid = rawCid !== undefined ? (rawCid ? normalizeCidCode(rawCid) : null) : undefined;
+    const resolvedCidDesc = params.cidDescription !== undefined
+        ? params.cidDescription
+        : (resolvedCid !== undefined ? (resolvedCid ? getCidDescription(resolvedCid) : null) : undefined);
+
+    let employeeData = {};
+    if (params.employeeId) {
+        const emp = await prisma.employee.findUnique({ where: { id: params.employeeId } });
+        if (emp) {
+            employeeData = {
+                employeeId: emp.id,
+                employeeName: emp.name,
+                cpf: emp.cpf
+            };
+        }
+    }
+
+    const updated = await prisma.medicalCertificate.update({
+        where: { id: params.id },
+        data: {
+            ...employeeData,
+            ...(params.startDate ? { startDate: new Date(params.startDate + "T12:00:00Z") } : {}),
+            ...(params.endDate ? { endDate: new Date(params.endDate + "T12:00:00Z") } : {}),
+            ...(params.daysCount !== undefined ? { daysCount: Number(params.daysCount) } : {}),
+            ...(resolvedCid !== undefined ? { cid: resolvedCid } : {}),
+            ...(resolvedCidDesc !== undefined ? { cidDescription: resolvedCidDesc } : {}),
+            ...(params.justificativa !== undefined ? { justificativa: params.justificativa } : {}),
+            ...(params.notes !== undefined ? { notes: params.notes } : {})
+        }
+    });
+
+    revalidatePath("/admin/atestados");
+    return { success: true, atestado: updated };
+}
+
+/**
+ * Consulta online/instantânea de descrição de CID
+ */
+export async function consultarCidAction(query: string) {
+    const code = normalizeCidCode(query);
+    const description = getCidDescription(code);
+    const suggestions = searchCid(query, 6);
+    return { code, description, suggestions };
 }

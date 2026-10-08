@@ -67,8 +67,10 @@ import {
     restaurarAtestado,
     excluirAtestado,
     marcarAtestadoComoLancado,
-    processarUploadAtestado
+    processarUploadAtestado,
+    atualizarDadosAtestado
 } from "@/actions/atestados";
+import { getCidDescription } from "@/lib/cid10";
 
 interface EmployeeSimple {
     id: string;
@@ -94,6 +96,7 @@ export interface MedicalCertificateItem {
     endDate: Date | string;
     daysCount: number;
     cid: string | null;
+    cidDescription?: string | null;
     justificativa: string;
     notes: string | null;
     doctorName: string | null;
@@ -178,6 +181,7 @@ export function AtestadosClient({
         endDate: string;
         daysCount: number;
         cid: string;
+        cidDescription: string;
         justificativa: string;
         notes: string;
     }>({
@@ -188,6 +192,7 @@ export function AtestadosClient({
         endDate: "",
         daysCount: 1,
         cid: "",
+        cidDescription: "",
         justificativa: "Atestado Médico",
         notes: ""
     });
@@ -495,7 +500,9 @@ export function AtestadosClient({
 
         const atestadoId = editModal.atestado.id;
         const selectedEmp = employees.find((e) => e.id === editModal.employeeId);
+        const resolvedCidDesc = editModal.cidDescription || (editModal.cid ? getCidDescription(editModal.cid) : null) || null;
 
+        // Atualização otimista na tela
         setAtestados((prev) =>
             prev.map((item) => {
                 if (item.id === atestadoId) {
@@ -508,6 +515,7 @@ export function AtestadosClient({
                         endDate: editModal.endDate,
                         daysCount: Number(editModal.daysCount) || 1,
                         cid: editModal.cid || null,
+                        cidDescription: resolvedCidDesc,
                         justificativa: editModal.justificativa,
                         notes: editModal.notes || null
                     };
@@ -517,7 +525,25 @@ export function AtestadosClient({
         );
 
         setEditModal({ ...editModal, open: false });
-        toast.success("Alterações salvas. Clique em 'Lançar no Secullum' para transmitir.");
+
+        // Persistência no banco de dados
+        try {
+            await atualizarDadosAtestado({
+                id: atestadoId,
+                employeeId: selectedEmp?.id,
+                startDate: editModal.startDate,
+                endDate: editModal.endDate,
+                daysCount: Number(editModal.daysCount) || 1,
+                cid: editModal.cid,
+                cidDescription: resolvedCidDesc || undefined,
+                justificativa: editModal.justificativa,
+                notes: editModal.notes
+            });
+            toast.success("Alterações salvas com sucesso!");
+        } catch (err: any) {
+            console.error("Erro ao salvar edição do atestado:", err);
+            toast.error("Erro ao salvar no banco: " + err.message);
+        }
     };
 
     // Ação: Upload de Arquivo com IA
@@ -572,7 +598,7 @@ export function AtestadosClient({
             const s = search.toLowerCase();
             const nameMatch = (item.employeeName || item.extractedName || item.employee?.name || "").toLowerCase().includes(s);
             const cpfMatch = (item.cpf || item.employee?.cpf || "").includes(s);
-            const cidMatch = (item.cid || "").toLowerCase().includes(s);
+            const cidMatch = (item.cid || "").toLowerCase().includes(s) || (item.cidDescription || "").toLowerCase().includes(s);
             const docMatch = (item.doctorName || "").toLowerCase().includes(s);
             return nameMatch || cpfMatch || cidMatch || docMatch;
         }
@@ -973,10 +999,10 @@ export function AtestadosClient({
 
                                             {/* Diagnóstico / Médico */}
                                             <TableCell>
-                                                <div className="space-y-1 text-xs">
-                                                    <div className="flex items-center gap-2">
+                                                <div className="space-y-1 text-xs max-w-xs">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
                                                         {item.cid ? (
-                                                            <span className="font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                                            <span className="font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 shadow-sm">
                                                                 CID: {item.cid}
                                                             </span>
                                                         ) : (
@@ -984,10 +1010,18 @@ export function AtestadosClient({
                                                         )}
                                                         <span className="text-slate-600 font-medium">{item.justificativa}</span>
                                                     </div>
+                                                    {(item.cidDescription || (item.cid && getCidDescription(item.cid))) && (
+                                                        <div
+                                                            className="text-[11px] font-semibold text-slate-700 bg-slate-50 border border-slate-200/80 rounded px-1.5 py-0.5 inline-block line-clamp-2"
+                                                            title={item.cidDescription || getCidDescription(item.cid) || ""}
+                                                        >
+                                                            🩺 {item.cidDescription || getCidDescription(item.cid)}
+                                                        </div>
+                                                    )}
                                                     {(item.doctorName || item.doctorCrm) && (
                                                         <div className="text-slate-500 flex items-center gap-1">
-                                                            <Stethoscope className="w-3 h-3 text-slate-400" />
-                                                            <span>
+                                                            <Stethoscope className="w-3 h-3 text-slate-400 shrink-0" />
+                                                            <span className="truncate">
                                                                 {item.doctorName || "Dr(a)"} {item.doctorCrm && `(${item.doctorCrm})`}
                                                             </span>
                                                         </div>
@@ -1112,6 +1146,7 @@ export function AtestadosClient({
                                                                             : "",
                                                                         daysCount: item.daysCount,
                                                                         cid: item.cid || "",
+                                                                        cidDescription: item.cidDescription || (item.cid ? getCidDescription(item.cid) || "" : ""),
                                                                         justificativa: item.justificativa,
                                                                         notes: item.notes || ""
                                                                     });
@@ -1327,8 +1362,13 @@ export function AtestadosClient({
                                 </div>
 
                                 <div>
-                                    <span className="text-[10px] text-slate-500 uppercase font-bold block">CID</span>
+                                    <span className="text-[10px] text-slate-500 uppercase font-bold block">CID & Diagnóstico</span>
                                     <p className="text-slate-900 font-bold">{previewDoc?.cid || "Não informado"}</p>
+                                    {(previewDoc?.cidDescription || (previewDoc?.cid && getCidDescription(previewDoc.cid))) && (
+                                        <p className="text-xs font-semibold text-slate-700 mt-1 bg-white p-2 rounded-lg border border-slate-200">
+                                            🩺 {previewDoc?.cidDescription || getCidDescription(previewDoc.cid)}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>
@@ -1523,11 +1563,24 @@ export function AtestadosClient({
                             <div className="space-y-1.5">
                                 <Label className="text-slate-700 font-semibold">CID (Código de Doença):</Label>
                                 <Input
-                                    placeholder="Ex: M54.5"
+                                    placeholder="Ex: M54.5, J06, Z76"
                                     value={editModal.cid}
-                                    onChange={(e) => setEditModal({ ...editModal, cid: e.target.value })}
-                                    className="bg-white border-slate-200 text-slate-800 rounded-xl h-10"
+                                    onChange={(e) => {
+                                        const val = e.target.value.toUpperCase();
+                                        const autoDesc = getCidDescription(val);
+                                        setEditModal({
+                                            ...editModal,
+                                            cid: val,
+                                            cidDescription: autoDesc || editModal.cidDescription
+                                        });
+                                    }}
+                                    className="bg-white border-slate-200 text-slate-800 rounded-xl h-10 font-bold"
                                 />
+                                {(editModal.cidDescription || (editModal.cid && getCidDescription(editModal.cid))) && (
+                                    <p className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2 flex items-center gap-1.5">
+                                        🩺 {editModal.cidDescription || getCidDescription(editModal.cid)}
+                                    </p>
+                                )}
                             </div>
                         </div>
 
