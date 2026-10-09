@@ -6,6 +6,7 @@ import { ArrowUpDown, ArrowUp, ArrowDown, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { AssignmentDialog } from "./AssignmentDialog";
 import { EditPostoSheet } from "./EditPostoSheet";
+import { ClonePostoSheet } from "./ClonePostoSheet";
 import { ScheduleDialog } from "./ScheduleDialog";
 import { DeletePostoButton } from "./DeletePostoButton";
 import { ClosePostoDialog } from "./ClosePostoDialog";
@@ -219,24 +220,39 @@ export function ClientPostosTable({
                             }`}
                         >
                             <TableCell className="font-medium">
-                                <div className="flex items-center gap-1.5 flex-wrap group">
-                                    <span className={isClosed ? "line-through text-slate-500" : ""}>
-                                        Posto {postos.indexOf(posto) + 1} - {posto.role.name}
-                                    </span>
-                                    {isRT && (
-                                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-300 shadow-sm inline-flex items-center gap-1 print:border-sky-600 print:text-sky-900 print:bg-sky-50 print:font-bold" title="Posto de Reserva Técnica (não compõe o quadro efetivo)">
-                                            <ShieldCheck className="w-3 h-3 text-sky-600 print:hidden" />
-                                            RT - Reserva Técnica
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap group">
+                                        <span className={isClosed ? "line-through text-slate-500" : ""}>
+                                            Posto {postos.indexOf(posto) + 1} - {posto.role.name}
                                         </span>
-                                    )}
-                                    {isClosed ? (
-                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
-                                            Encerrado
-                                        </span>
-                                    ) : (
-                                        <span className="print:hidden">
-                                            <EditPostoSheet posto={posto} schedules={schedules} roles={roles} />
-                                        </span>
+                                        {isRT && (
+                                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-300 shadow-sm inline-flex items-center gap-1 print:border-sky-600 print:text-sky-900 print:bg-sky-50 print:font-bold" title="Posto de Reserva Técnica (não compõe o quadro efetivo)">
+                                                <ShieldCheck className="w-3 h-3 text-sky-600 print:hidden" />
+                                                RT - Reserva Técnica
+                                            </span>
+                                        )}
+                                        {isClosed ? (
+                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                                Encerrado
+                                            </span>
+                                        ) : (
+                                            <div className="print:hidden flex items-center gap-0.5">
+                                                <EditPostoSheet posto={posto} schedules={schedules} roles={roles} />
+                                                <ClonePostoSheet 
+                                                    posto={posto} 
+                                                    postoIndex={postos.indexOf(posto) + 1}
+                                                    schedules={schedules} 
+                                                    roles={roles} 
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {posto.notes && (
+                                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-900 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-md w-fit shadow-2xs">
+                                            <span className="text-amber-600 font-bold uppercase text-[9px] tracking-wider">Obs:</span>
+                                            <span>{posto.notes}</span>
+                                        </div>
                                     )}
                                 </div>
                             </TableCell>
@@ -318,6 +334,7 @@ export function ClientPostosTable({
                                         <AssignmentDialog
                                             postoId={posto.id}
                                             postoRole={posto.role.name}
+                                            postoNotes={posto.notes}
                                             activeEmployeeName={activeEmployee?.name}
                                             employees={employees}
                                             situations={situations}

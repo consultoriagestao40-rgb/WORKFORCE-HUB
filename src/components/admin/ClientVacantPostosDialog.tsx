@@ -177,6 +177,11 @@ export function ClientVacantPostosDialog({ postos }: ClientVacantPostosDialogPro
                                                         <Briefcase className="w-4 h-4 text-slate-400 shrink-0" />
                                                         <span>{posto.role?.name || "Cargo Indefinido"}</span>
                                                     </div>
+                                                    {posto.notes && (
+                                                        <div className="text-[11px] font-semibold text-amber-800 bg-amber-50/90 border border-amber-200 px-1.5 py-0.5 rounded mt-1 inline-block">
+                                                            Obs: {posto.notes}
+                                                        </div>
+                                                    )}
                                                     {posto.vacationEmployee && (
                                                         <div className="mt-1 flex flex-col gap-0.5">
                                                             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1 w-fit">

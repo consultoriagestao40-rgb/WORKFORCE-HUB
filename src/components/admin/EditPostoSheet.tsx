@@ -21,6 +21,7 @@ interface EditPostoSheetProps {
         requiredWorkload: number;
         isNightShift: boolean;
         isReservaTecnica?: boolean;
+        notes?: string | null;
         baseSalary: number;
         insalubridade: number;
         periculosidade: number;
@@ -125,6 +126,20 @@ export function EditPostoSheet({ posto, schedules, roles }: EditPostoSheetProps)
                             <Label htmlFor="billingValue">Faturamento (R$)</Label>
                             <Input id="billingValue" name="billingValue" type="number" step="0.01" defaultValue={posto.billingValue} required />
                         </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label htmlFor="notes">Observação / Identificação do Posto (Opcional)</Label>
+                        <Input 
+                            id="notes" 
+                            name="notes" 
+                            defaultValue={posto.notes || ""} 
+                            placeholder="Ex: POSTO DE SERVIÇOS EXTRA, Portaria 2..." 
+                            maxLength={150} 
+                        />
+                        <p className="text-[11px] text-slate-400">
+                            Esta anotação fica visível na lista de postos para facilitar a identificação da vaga.
+                        </p>
                     </div>
 
                     <div className="pt-4 border-t border-slate-200">

@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 interface AssignmentDialogProps {
     postoId: string;
     postoRole: string;
+    postoNotes?: string | null;
     activeEmployeeName?: string;
     currentSchedule?: string;
     scheduleOptions?: { id: string; name: string; }[];
@@ -24,7 +25,7 @@ interface AssignmentDialogProps {
     situations?: { id: string; name: string; color: string }[];
 }
 
-export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, employees, situations = [], currentSchedule, scheduleOptions = [] }: AssignmentDialogProps) {
+export function AssignmentDialog({ postoId, postoRole, postoNotes, activeEmployeeName, employees, situations = [], currentSchedule, scheduleOptions = [] }: AssignmentDialogProps) {
     const [open, setOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -162,8 +163,8 @@ export function AssignmentDialog({ postoId, postoRole, activeEmployeeName, emplo
                             {mode === 'unassign'
                                 ? <><strong>{activeEmployeeName}</strong> será desvinculado. Selecione o motivo.</>
                                 : activeEmployeeName
-                                    ? <><strong>{activeEmployeeName}</strong> será substituído por outro colaborador no posto de <strong>{postoRole}</strong>.</>
-                                    : <>Selecione o colaborador para assumir o posto de <strong>{postoRole}</strong>.</>
+                                    ? <><strong>{activeEmployeeName}</strong> será substituído por outro colaborador no posto de <strong>{postoRole}</strong>{postoNotes ? <span className="text-amber-700 font-medium"> ({postoNotes})</span> : null}.</>
+                                    : <>Selecione o colaborador para assumir o posto de <strong>{postoRole}</strong>{postoNotes ? <span className="text-amber-700 font-medium"> ({postoNotes})</span> : null}.</>
                             }
                         </DialogDescription>
                     </DialogHeader>

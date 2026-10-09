@@ -101,6 +101,19 @@ export function NewPostoSheet({ clientId, schedules, roles }: NewPostoSheetProps
                         </div>
                     </div>
 
+                    <div className="space-y-1.5">
+                        <Label htmlFor="notes">Observação / Identificação do Posto (Opcional)</Label>
+                        <Input 
+                            id="notes" 
+                            name="notes" 
+                            placeholder="Ex: Portaria 2 - Noturno, Líder de Equipe, Bloco B..." 
+                            maxLength={150} 
+                        />
+                        <p className="text-[11px] text-slate-400">
+                            Esta anotação fica visível na lista de postos para facilitar a identificação da vaga.
+                        </p>
+                    </div>
+
                     <div className="pt-4 border-t border-slate-200">
                         <h3 className="text-sm font-bold text-slate-700 mb-4 uppercase tracking-wider">Quadro do Contrato (Custos Previstos)</h3>
 

@@ -446,6 +446,7 @@ export async function createPosto(formData: FormData) {
     const absenteismoAwardPeriod = (formData.get("absenteismoAwardPeriod") as string) || "mensal";
     const absenteismoAwardType = (formData.get("absenteismoAwardType") as string) || "prorrata";
     const absenteismoMinDays = parseInt(formData.get("absenteismoMinDays") as string) || 0;
+    const notes = (formData.get("notes") as string)?.trim() || null;
 
     await prisma.posto.create({
         data: {
@@ -458,6 +459,7 @@ export async function createPosto(formData: FormData) {
             requiredWorkload,
             isNightShift,
             isReservaTecnica,
+            notes,
             baseSalary,
             insalubridade,
             periculosidade,
@@ -1594,6 +1596,7 @@ export async function updatePosto(formData: FormData) {
     const absenteismoAwardPeriod = (formData.get("absenteismoAwardPeriod") as string) || "mensal";
     const absenteismoAwardType = (formData.get("absenteismoAwardType") as string) || "prorrata";
     const absenteismoMinDays = parseInt(formData.get("absenteismoMinDays") as string) || 0;
+    const notes = (formData.get("notes") as string)?.trim() || null;
 
     const posto = await prisma.posto.update({
         where: { id },
@@ -1606,6 +1609,7 @@ export async function updatePosto(formData: FormData) {
             requiredWorkload,
             isNightShift,
             isReservaTecnica,
+            notes,
             baseSalary,
             insalubridade,
             periculosidade,
