@@ -96,7 +96,7 @@ export function ClientPostosTable({
         <Table>
             <TableHeader>
                 <TableRow>
-                    <TableHead className="w-[200px]">
+                    <TableHead className="whitespace-nowrap">
                         <button
                             onClick={() => handleSort("cargo")}
                             className="flex items-center hover:text-slate-800 font-semibold group cursor-pointer focus:outline-none transition-colors"
@@ -104,9 +104,10 @@ export function ClientPostosTable({
                             Cargo {renderSortIcon("cargo")}
                         </button>
                     </TableHead>
-                    <TableHead>Escala</TableHead>
-                    <TableHead>Carga</TableHead>
-                    <TableHead>Horário</TableHead>
+                    <TableHead className="whitespace-nowrap">Observação</TableHead>
+                    <TableHead className="whitespace-nowrap">Escala</TableHead>
+                    <TableHead className="whitespace-nowrap">Carga</TableHead>
+                    <TableHead className="whitespace-nowrap">Horário</TableHead>
                     <TableHead className="w-[300px]">
                         <button
                             onClick={() => handleSort("ocupante")}
@@ -115,8 +116,8 @@ export function ClientPostosTable({
                             Ocupante Atual {renderSortIcon("ocupante")}
                         </button>
                     </TableHead>
-                    <TableHead className="print:hidden">Faturamento</TableHead>
-                    <TableHead className="text-right print:hidden">Ação</TableHead>
+                    <TableHead className="print:hidden whitespace-nowrap">Faturamento</TableHead>
+                    <TableHead className="text-right print:hidden whitespace-nowrap">Ações</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -219,42 +220,32 @@ export function ClientPostosTable({
                                                 : ""
                             }`}
                         >
-                            <TableCell className="font-medium">
-                                <div className="flex flex-col gap-1">
-                                    <div className="flex items-center gap-1.5 flex-wrap group">
-                                        <span className={isClosed ? "line-through text-slate-500" : ""}>
-                                            Posto {postos.indexOf(posto) + 1} - {posto.role.name}
+                            <TableCell className="font-semibold text-slate-900 whitespace-nowrap">
+                                <div className="flex items-center gap-2">
+                                    <span className={isClosed ? "line-through text-slate-400" : ""}>
+                                        Posto {postos.indexOf(posto) + 1} - {posto.role.name}
+                                    </span>
+                                    {isRT && (
+                                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-300 shadow-sm inline-flex items-center gap-1 print:border-sky-600 print:text-sky-900 print:bg-sky-50 print:font-bold" title="Posto de Reserva Técnica (não compõe o quadro efetivo)">
+                                            <ShieldCheck className="w-3 h-3 text-sky-600 print:hidden" />
+                                            RT
                                         </span>
-                                        {isRT && (
-                                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-300 shadow-sm inline-flex items-center gap-1 print:border-sky-600 print:text-sky-900 print:bg-sky-50 print:font-bold" title="Posto de Reserva Técnica (não compõe o quadro efetivo)">
-                                                <ShieldCheck className="w-3 h-3 text-sky-600 print:hidden" />
-                                                RT - Reserva Técnica
-                                            </span>
-                                        )}
-                                        {isClosed ? (
-                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
-                                                Encerrado
-                                            </span>
-                                        ) : (
-                                            <div className="print:hidden flex items-center gap-0.5">
-                                                <EditPostoSheet posto={posto} schedules={schedules} roles={roles} />
-                                                <ClonePostoSheet 
-                                                    posto={posto} 
-                                                    postoIndex={postos.indexOf(posto) + 1}
-                                                    schedules={schedules} 
-                                                    roles={roles} 
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {posto.notes && (
-                                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-900 bg-amber-50/90 border border-amber-200/80 px-2 py-0.5 rounded-md w-fit shadow-2xs">
-                                            <span className="text-amber-600 font-bold uppercase text-[9px] tracking-wider">Obs:</span>
-                                            <span>{posto.notes}</span>
-                                        </div>
+                                    )}
+                                    {isClosed && (
+                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                            Encerrado
+                                        </span>
                                     )}
                                 </div>
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">
+                                {posto.notes ? (
+                                    <span className="text-xs font-semibold text-amber-950 bg-amber-50 border border-amber-200/90 px-2 py-1 rounded-md inline-block max-w-[240px] truncate" title={posto.notes}>
+                                        {posto.notes}
+                                    </span>
+                                ) : (
+                                    <span className="text-slate-300 text-xs">—</span>
+                                )}
                             </TableCell>
                             <TableCell className={isClosed ? "text-slate-400" : ""}>{posto.schedule}</TableCell>
                             <TableCell className={isClosed ? "text-slate-400" : ""}>{posto.requiredWorkload}h</TableCell>
@@ -329,65 +320,62 @@ export function ClientPostosTable({
                                 </div>
                             </TableCell>
                             <TableCell className="text-right print:hidden">
-                                {!isClosed ? (
-                                    <>
-                                        <AssignmentDialog
-                                            postoId={posto.id}
-                                            postoRole={posto.role.name}
-                                            postoNotes={posto.notes}
-                                            activeEmployeeName={activeEmployee?.name}
-                                            employees={employees}
-                                            situations={situations}
-                                            currentSchedule={posto.schedule}
-                                            scheduleOptions={schedules}
-                                        />
-
-                                        {activeEmployee && (
-                                            <ScheduleDialog
+                                <div className="flex items-center justify-end gap-1">
+                                    {!isClosed && (
+                                        <>
+                                            <AssignmentDialog
                                                 postoId={posto.id}
                                                 postoRole={posto.role.name}
+                                                postoNotes={posto.notes}
+                                                activeEmployeeName={activeEmployee?.name}
+                                                employees={employees}
+                                                situations={situations}
                                                 currentSchedule={posto.schedule}
-                                                startDate={currentAssignment.startDate}
                                                 scheduleOptions={schedules}
-                                                assignmentId={currentAssignment.id}
                                             />
-                                        )}
 
-                                        <ClosePostoDialog
+                                            {activeEmployee && (
+                                                <ScheduleDialog
+                                                    postoId={posto.id}
+                                                    postoRole={posto.role.name}
+                                                    currentSchedule={posto.schedule}
+                                                    startDate={currentAssignment.startDate}
+                                                    scheduleOptions={schedules}
+                                                    assignmentId={currentAssignment.id}
+                                                />
+                                            )}
+
+                                            <EditPostoSheet posto={posto} schedules={schedules} roles={roles} />
+                                        </>
+                                    )}
+
+                                    <ClonePostoSheet 
+                                        posto={posto} 
+                                        postoIndex={postos.indexOf(posto) + 1}
+                                        schedules={schedules} 
+                                        roles={roles} 
+                                    />
+
+                                    <ClosePostoDialog
+                                        postoId={posto.id}
+                                        postoRole={posto.role.name}
+                                        isClosed={isClosed}
+                                    />
+
+                                    {userRole === 'ADMIN' && (
+                                        <DeletePostoButton
                                             postoId={posto.id}
                                             postoRole={posto.role.name}
-                                            isClosed={false}
                                         />
-
-                                        {userRole === 'ADMIN' && (
-                                            <DeletePostoButton
-                                                postoId={posto.id}
-                                                postoRole={posto.role.name}
-                                            />
-                                        )}
-                                    </>
-                                ) : (
-                                    <div className="flex items-center justify-end gap-1">
-                                        <ClosePostoDialog
-                                            postoId={posto.id}
-                                            postoRole={posto.role.name}
-                                            isClosed={true}
-                                        />
-                                        {userRole === 'ADMIN' && (
-                                            <DeletePostoButton
-                                                postoId={posto.id}
-                                                postoRole={posto.role.name}
-                                            />
-                                        )}
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </TableCell>
                         </TableRow>
                     );
                 })}
                 {sortedPostos.length === 0 && (
                     <TableRow>
-                        <TableCell colSpan={7} className="text-center text-slate-500 py-6">
+                        <TableCell colSpan={8} className="text-center text-slate-500 py-6">
                             Nenhum posto cadastrado.
                         </TableCell>
                     </TableRow>
