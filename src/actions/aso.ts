@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { differenceInDays, format, addMonths } from "date-fns";
 import { dispatchRhNotification, sendZapiRaw } from "@/lib/rh-notifications";
+import { toISODateUTC } from "@/lib/utils";
 
 export type AsoStatus = "VENCIDO" | "CRITICO" | "ATENCAO" | "EM_DIA" | "SEM_CADASTRO";
 
@@ -145,7 +146,7 @@ export async function getAsoMonitorData() {
             roleName: emp.role?.name || "Geral",
             supervisorName: supervisor?.name || null,
             supervisorPhone: supervisor?.phone || null,
-            admissionDate: emp.admissionDate ? format(new Date(emp.admissionDate), "yyyy-MM-dd") : "",
+            admissionDate: toISODateUTC(emp.admissionDate),
             asoDate: rawAsoDate,
             asoDueDate: rawAsoDueDate,
             asoType: extra.asoType || extra.asoTipo || (rawAsoDate ? "Periódico" : "Não informado"),

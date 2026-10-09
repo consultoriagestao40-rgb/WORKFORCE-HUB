@@ -13,6 +13,7 @@ import { NewEmployeeSheet } from "@/components/admin/NewEmployeeSheet";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatUTCDate } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Demographics } from "@/components/admin/Demographics";
 import { ImportEmployeesDialog } from "@/components/admin/ImportEmployeesDialog";
@@ -153,8 +154,8 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                 "Posto Atual": activeAssignment ? activeAssignment.posto?.client?.name : "-",
                 "INSS Retido": activeAssignment?.posto?.client?.hasInssRetention ? "SIM" : "NÃO",
 
-                "Data Admissão": emp.admissionDate ? format(new Date(emp.admissionDate), 'dd/MM/yyyy') : "-",
-                "Data Nascimento": emp.birthDate ? format(new Date(emp.birthDate), 'dd/MM/yyyy') : "-",
+                "Data Admissão": formatUTCDate(emp.admissionDate),
+                "Data Nascimento": formatUTCDate(emp.birthDate),
                 "Gênero": emp.gender || "-",
                 "Tipo": emp.type || "-",
                 "Carga Horária": emp.workload || 220,
@@ -379,7 +380,7 @@ export function EmployeesClientPage({ initialEmployees, situations, roles, compa
                                                 </TableCell>
                                                 <TableCell>
                                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200/60">
-                                                        {emp.admissionDate ? format(new Date(emp.admissionDate), 'dd/MM/yyyy') : "-"}
+                                                        {formatUTCDate(emp.admissionDate)}
                                                     </span>
                                                 </TableCell>
                                                 <TableCell>
