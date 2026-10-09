@@ -1264,14 +1264,14 @@ export default function BenefitsPage() {
     return (
         <div className="p-6 md:p-8 space-y-8 max-w-[1600px] mx-auto min-h-screen">
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
                 <div className="space-y-1">
                     <div className="flex items-center gap-3">
-                        <div className="p-3 bg-orange-500/10 text-orange-600 rounded-2xl">
+                        <div className="p-3 bg-orange-500/10 text-orange-600 rounded-2xl shrink-0">
                             <CreditCard className="w-6 h-6" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-black tracking-tight text-slate-900">Compra de Benefícios (VT e VA)</h1>
+                            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">Compra de Benefícios (VT e VA)</h1>
                             <p className="text-xs text-slate-500 font-medium">
                                 Gestão mensal de compra de vales. Fechamento de faltas de {config?.payrollCutoffStartDay || 26} a {config?.payrollCutoffEndDay || 25}, pagamento no {config?.payrollPaymentDay || 5}º dia útil.
                             </p>
@@ -1279,7 +1279,7 @@ export default function BenefitsPage() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2">
                     {/* Month/Year Selector */}
                     <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
                         <Select value={String(selectedMonth)} onValueChange={val => setSelectedMonth(Number(val))}>
@@ -1317,14 +1317,14 @@ export default function BenefitsPage() {
 
                     <Button 
                         onClick={() => setExportCajuModalOpen(true)}
-                        className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-md h-9 px-4 shrink-0"
+                        className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-md h-9 px-3.5"
                     >
                         <Download className="w-4 h-4" /> Exportar Pedido Caju
                     </Button>
 
                     <Button 
                         onClick={() => setCajuReceiptModalOpen(true)}
-                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-md h-9 px-4 shrink-0"
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-md h-9 px-3.5"
                         title="Fazer baixa automática de VA via comprovante Caju (PDF, CSV ou Excel)"
                     >
                         <UploadCloud className="w-4 h-4" /> Baixar via Caju
@@ -1332,7 +1332,7 @@ export default function BenefitsPage() {
 
                     <Button 
                         onClick={() => setExportUrbsModalOpen(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-md h-9 px-4 shrink-0"
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-md h-9 px-3.5"
                         title="Exportar arquivo TXT para compra de VT no portal SBE da URBS"
                     >
                         <Bus className="w-4 h-4" /> Exportar URBS
@@ -1340,7 +1340,7 @@ export default function BenefitsPage() {
 
                     <Button 
                         onClick={exportToExcel}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-md h-9 px-4 shrink-0"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-md h-9 px-3.5"
                     >
                         <FileSpreadsheet className="w-4 h-4" /> Exportar XLSX
                     </Button>
