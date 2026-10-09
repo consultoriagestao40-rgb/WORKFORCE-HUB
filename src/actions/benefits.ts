@@ -507,7 +507,32 @@ export async function getBenefitsCalculation(year: number, month: number) {
     const now = new Date();
 
     const items: BenefitsCalculationItem[] = employees.map(emp => {
-        const resolvedAssignment = resolveEmployeeAssignment(emp.assignments, windowStart, windowEnd);
+        // Na Compra de Benefícios (VT/VA), os benefícios são comprados antecipadamente para o trabalho atual/futuro.
+        // Portanto, priorizamos SEMPRE a alocação ATUAL ativa (endDate === null).
+        // Se a alocação atual for em ROTATIVO com originPosto (ex: férias), usamos o originPosto.
+        const currentActive = emp.assignments.find(a => a.endDate === null);
+        let resolvedAssignment: any = null;
+
+        if (currentActive) {
+            const isRotativo = currentActive.posto?.client?.name === 'ROTATIVO';
+            if (isRotativo && currentActive.originPosto && currentActive.originPosto.client) {
+                resolvedAssignment = {
+                    posto: currentActive.originPosto,
+                    assignment: currentActive
+                };
+            } else if (!isRotativo && currentActive.posto) {
+                resolvedAssignment = {
+                    posto: currentActive.posto,
+                    assignment: currentActive
+                };
+            }
+        }
+
+        // Fallback para a janela histórica caso o colaborador não tenha alocação ativa neste momento
+        if (!resolvedAssignment) {
+            resolvedAssignment = resolveEmployeeAssignment(emp.assignments, windowStart, windowEnd);
+        }
+
         const posto = resolvedAssignment?.posto;
         const activeAssignment = resolvedAssignment?.assignment;
 
