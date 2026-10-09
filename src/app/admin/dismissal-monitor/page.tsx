@@ -54,7 +54,7 @@ async function getDismissalProcessData(companyId?: string, search?: string) {
     const dismissalLogs = empIds.length > 0 ? await prisma.log.findMany({
         where: {
             employeeId: { in: empIds },
-            action: { in: ['INITIATE_DISMISSAL', 'PROGRAMACAO_RESCISAO', 'DESVINCULACAO_POSTO', 'UPDATE_EMPLOYEE'] }
+            action: { in: ['INICIO_PROCESSO_DESLIGAMENTO', 'SOLICITACAO_DESLIGAMENTO_EXPERIENCIA', 'DESVINCULACAO_POSTO', 'INITIATE_DISMISSAL', 'PROGRAMACAO_RESCISAO', 'UPDATE_EMPLOYEE'] }
         },
         include: { user: { select: { name: true, email: true } } },
         orderBy: { timestamp: 'desc' }
