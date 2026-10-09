@@ -786,43 +786,48 @@ export class SecullumApiClient {
         }
 
         // Se afastamento direto não foi aceito (ex: dias já calculados/com faltas no cartão ponto), lança justificativa dia a dia no cartão ponto
-        // NOTA CLT: Pela legislação trabalhista, a empresa só abona até 15 dias corridos; o excedente é INSS.
-        const maxDiasEmpresa = Math.min(params.dias, 15);
+        // Regra CLT / INSS:
+        // - Primeiros 15 dias: justificado como "AT. MED" (responsabilidade da empresa)
+        // - Dias 16 em diante: justificado como "AFASTAM" (afastamento previdenciário INSS)
+        const totalDias = params.dias;
         const start = new Date(params.dataInicioStr + "T12:00:00Z");
         let current = new Date(start);
-        let countOk = 0;
+        let countOkEmpresa = 0;
+        let countOkInss = 0;
         let lastError = "";
 
-        for (let i = 0; i < maxDiasEmpresa; i++) {
+        for (let i = 0; i < totalDias; i++) {
+            const isEmpresa = i < 15;
             const curStr = current.toISOString().split("T")[0];
             const pRes = await this.lancarJustificativaPonto({
                 cpf: cleanCpf,
                 employeeName: params.employeeName,
                 numeroFolha: cleanFolha,
                 data: curStr,
-                justificativa: justNome,
-                observacoes: obs,
+                justificativa: isEmpresa ? justNome : "AFASTAM",
+                observacoes: isEmpresa ? obs : "Afastamento Previdenciário INSS (> 15 dias)",
                 abonar: true
             });
             if (pRes.success) {
-                countOk++;
+                if (isEmpresa) countOkEmpresa++;
+                else countOkInss++;
             } else {
                 lastError = pRes.message;
             }
             current.setDate(current.getDate() + 1);
         }
 
-        if (countOk > 0) {
+        if (countOkEmpresa > 0 || countOkInss > 0) {
             if (params.dias > 15) {
                 return {
                     success: true,
-                    message: `Lançados os primeiros ${countOk} dias da empresa no cartão ponto com abono. Os ${params.dias - 15} dias restantes devem ser encaminhados ao INSS (Afastamento Previdenciário).`,
+                    message: `Lançado dia a dia no cartão ponto: ${countOkEmpresa} dias da empresa (AT. MED) e ${countOkInss} dias de afastamento INSS (AFASTAM).`,
                     resolvedCpf
                 };
             }
             return {
                 success: true,
-                message: `Lançado dia a dia no cartão ponto com abono (${countOk} dias justificados).`,
+                message: `Lançado dia a dia no cartão ponto com abono (${countOkEmpresa} dias justificados).`,
                 resolvedCpf
             };
         }
