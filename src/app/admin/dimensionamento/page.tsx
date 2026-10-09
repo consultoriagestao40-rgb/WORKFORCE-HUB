@@ -3,8 +3,14 @@ import { prisma } from "@/lib/db";
 import { DimensionamentoClient } from "@/components/admin/DimensionamentoClient";
 
 async function getVacancyData() {
-    // Get all Postos with relationships
+    // Get all Active Postos from Active Clients (Contracts)
     const postos = await prisma.posto.findMany({
+        where: {
+            status: { not: "ENCERRADO" },
+            client: {
+                isActive: true
+            }
+        },
         include: {
             client: { include: { company: true } },
             assignments: {
